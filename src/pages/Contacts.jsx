@@ -2,16 +2,16 @@ import { useState, useMemo } from 'react'
 import { usePipeline } from '@/hooks/usePipeline'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
-import { Search, Users } from 'lucide-react'
+import { Search, Users, MousePointerClick, Instagram, MessageCircle, Linkedin, Globe, Star, PenTool } from 'lucide-react'
 
 const SOURCE_CONFIG = {
-  meta_ads: { icon: '🔵', label: 'Meta Ads' },
-  instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp: { icon: '💬', label: 'WhatsApp' },
-  linkedin: { icon: '💼', label: 'LinkedIn' },
-  web: { icon: '🌐', label: 'Web' },
-  referral: { icon: '⭐', label: 'Referido' },
-  manual: { icon: '✏️', label: 'Manual' },
+  meta_ads: { icon: <MousePointerClick size={14} className="text-blue-500" />, label: 'Meta Ads' },
+  instagram: { icon: <Instagram size={14} className="text-pink-500" />, label: 'Instagram' },
+  whatsapp: { icon: <MessageCircle size={14} className="text-green-500" />, label: 'WhatsApp' },
+  linkedin: { icon: <Linkedin size={14} className="text-blue-700" />, label: 'LinkedIn' },
+  web: { icon: <Globe size={14} className="text-indigo-500" />, label: 'Web' },
+  referral: { icon: <Star size={14} className="text-yellow-500" />, label: 'Referido' },
+  manual: { icon: <PenTool size={14} className="text-gray-500" />, label: 'Manual' },
 }
 
 const scoreColor = (score) => {

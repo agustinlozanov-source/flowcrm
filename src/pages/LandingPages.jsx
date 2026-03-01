@@ -11,6 +11,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Monitor, Link2, PenTool, Star, MessageSquare, Palette, Settings } from 'lucide-react'
 
 const TYPE_LABELS = { service: 'Servicio', product: 'Producto', event: 'Evento' }
 const TYPE_COLORS = { service: '#0066ff', product: '#ea580c', event: '#7c3aed' }
@@ -55,7 +56,7 @@ function TemplatePicker({ onSelect, onClose }) {
             <p className="text-xs text-secondary mt-0.5">10 diseños de alta conversión — puedes personalizar todo después</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
           </button>
         </div>
 
@@ -163,18 +164,17 @@ function PageEditor({ page, stages, orgId, onSave, onClose }) {
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-secondary text-xs py-1.5 px-3">Cancelar</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
-              {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"/> : 'Publicar'}
+              {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : 'Publicar'}
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-black/[0.08] flex-shrink-0 overflow-x-auto">
-          {[['content','✍️ Texto'], ['benefits','⭐ Beneficios'], ['social','💬 Testimonios'], ['design','🎨 Diseño'], ['settings','⚙️ Config']].map(([v, l]) => (
-            <button key={v} onClick={() => setEditorTab(v)}
-              className={clsx('px-3 py-2.5 text-[11px] font-semibold border-b-2 transition-all whitespace-nowrap',
-                editorTab === v ? 'border-primary text-primary' : 'border-transparent text-secondary hover:text-primary'
-              )}>{l}</button>
+          {[{ id: 'content', icon: <PenTool size={13} />, label: 'Texto' }, { id: 'benefits', icon: <Star size={13} />, label: 'Beneficios' }, { id: 'social', icon: <MessageSquare size={13} />, label: 'Testimonios' }, { id: 'design', icon: <Palette size={13} />, label: 'Diseño' }, { id: 'settings', icon: <Settings size={13} />, label: 'Config' }].map((tab) => (
+            <button key={tab.id} onClick={() => setEditorTab(tab.id)}
+              className={clsx('px-3 py-2.5 text-[11px] font-semibold border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5',
+                editorTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-secondary hover:text-primary'
+              )}>{tab.icon} {tab.label}</button>
           ))}
         </div>
 
@@ -409,7 +409,7 @@ export default function LandingPages() {
         )}
         <div className="ml-auto">
           <button onClick={() => setShowPicker(true)} className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="white" strokeWidth="1.8" strokeLinecap="round" /></svg>
             Nueva página
           </button>
         </div>
@@ -422,7 +422,9 @@ export default function LandingPages() {
           </div>
         ) : pages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-black/[0.08] flex items-center justify-center text-3xl">🖥️</div>
+            <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-black/[0.08] flex items-center justify-center text-secondary">
+              <Monitor size={32} />
+            </div>
             <div>
               <p className="font-display font-bold text-lg text-primary mb-1">Sin landing pages</p>
               <p className="text-sm text-secondary max-w-xs">Elige una de las 10 templates y captura leads automáticamente en tu pipeline.</p>
@@ -439,7 +441,9 @@ export default function LandingPages() {
                     <div className="h-36 relative cursor-pointer overflow-hidden" style={{ background: page.bgColor || '#f5f5f7' }}
                       onClick={() => setEditingPage(page)}>
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                        <div className="text-2xl mb-1">{template?.thumbnail || '🖥️'}</div>
+                        <div className="text-secondary mb-1">
+                          {template?.thumbnail ? <span className="text-2xl">{template.thumbnail}</span> : <Monitor size={24} />}
+                        </div>
                         <div className="font-bold text-[11px] line-clamp-2" style={{ color: page.textColor || '#0a0a0a' }}>{page.headline}</div>
                         <div className="mt-2 px-3 py-1 rounded-full text-[9px] font-bold text-white" style={{ background: page.accentColor || '#0066ff' }}>
                           {page.ctaText}
@@ -479,10 +483,10 @@ export default function LandingPages() {
                             page.status === 'published' ? 'border-black/[0.1] text-secondary' : 'border-green-300 text-green-600 hover:bg-green-50'
                           )}>{page.status === 'published' ? 'Pausar' : 'Publicar'}</button>
                         <button onClick={() => { navigator.clipboard.writeText(`https://flowcrm.app/p/${page.slug}`); toast.success('Link copiado') }}
-                          className="w-8 h-8 rounded-btn border border-black/[0.1] flex items-center justify-center text-tertiary hover:border-black/[0.2] text-sm flex-shrink-0">🔗</button>
+                          className="w-8 h-8 rounded-btn border border-black/[0.1] flex items-center justify-center text-tertiary hover:border-black/[0.2] text-sm flex-shrink-0"><Link2 size={14} /></button>
                         <button onClick={() => handleDelete(page.id)}
                           className="w-8 h-8 rounded-btn border border-black/[0.1] flex items-center justify-center text-tertiary hover:border-red-300 hover:text-red-500 transition-all flex-shrink-0">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3l.5 7h3L8 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3l.5 7h3L8 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </button>
                       </div>
                     </div>

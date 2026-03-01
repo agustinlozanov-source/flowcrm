@@ -3,6 +3,7 @@ import { usePipeline } from '@/hooks/usePipeline'
 import { startOfMonth, endOfMonth, startOfWeek, subDays, isWithinInterval, format, eachDayOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
+import { MousePointerClick, Instagram, MessageCircle, Linkedin, Globe, Star, PenTool, Pin } from 'lucide-react'
 
 const PERIODS = [
   { value: '7d', label: 'Últimos 7 días' },
@@ -12,13 +13,13 @@ const PERIODS = [
 ]
 
 const SOURCE_CONFIG = {
-  meta_ads: { icon: '🔵', label: 'Meta Ads' },
-  instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp: { icon: '💬', label: 'WhatsApp' },
-  linkedin: { icon: '💼', label: 'LinkedIn' },
-  web: { icon: '🌐', label: 'Web' },
-  referral: { icon: '⭐', label: 'Referido' },
-  manual: { icon: '✏️', label: 'Manual' },
+  meta_ads: { icon: <MousePointerClick size={14} className="text-blue-500" />, label: 'Meta Ads' },
+  instagram: { icon: <Instagram size={14} className="text-pink-500" />, label: 'Instagram' },
+  whatsapp: { icon: <MessageCircle size={14} className="text-green-500" />, label: 'WhatsApp' },
+  linkedin: { icon: <Linkedin size={14} className="text-blue-700" />, label: 'LinkedIn' },
+  web: { icon: <Globe size={14} className="text-indigo-500" />, label: 'Web' },
+  referral: { icon: <Star size={14} className="text-yellow-500" />, label: 'Referido' },
+  manual: { icon: <PenTool size={14} className="text-gray-500" />, label: 'Manual' },
 }
 
 const COLORS = ['#0066ff', '#7c3aed', '#00c853', '#f59e0b', '#ff3b30', '#00b8d9', '#ff9500']
@@ -189,7 +190,7 @@ export default function Analytics() {
       .map(([source, count], i) => ({
         source,
         label: SOURCE_CONFIG[source]?.label || source,
-        icon: SOURCE_CONFIG[source]?.icon || '📌',
+        icon: SOURCE_CONFIG[source]?.icon || <Pin size={14} />,
         value: count,
         color: COLORS[i % COLORS.length],
         pct: periodLeads.length > 0 ? Math.round((count / periodLeads.length) * 100) : 0,

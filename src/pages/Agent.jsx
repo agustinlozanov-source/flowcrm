@@ -4,42 +4,43 @@ import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Bot, Package, Target, Shield, Brain, Zap, Phone, CheckCircle2, Handshake, Leaf, FileText, MessageSquare, Lightbulb, User } from 'lucide-react'
 
 const TABS = [
-  { id: 'identity',   icon: '🤖', label: 'Identidad' },
-  { id: 'product',    icon: '📦', label: 'Producto' },
-  { id: 'sales',      icon: '🎯', label: 'Ventas' },
-  { id: 'objections', icon: '🛡️', label: 'Objeciones' },
-  { id: 'knowledge',  icon: '🧠', label: 'Conocimiento' },
-  { id: 'test',       icon: '⚡', label: 'Probar' },
+  { id: 'identity', icon: <Bot size={16} />, label: 'Identidad' },
+  { id: 'product', icon: <Package size={16} />, label: 'Producto' },
+  { id: 'sales', icon: <Target size={16} />, label: 'Ventas' },
+  { id: 'objections', icon: <Shield size={16} />, label: 'Objeciones' },
+  { id: 'knowledge', icon: <Brain size={16} />, label: 'Conocimiento' },
+  { id: 'test', icon: <Zap size={16} />, label: 'Probar' },
 ]
 
 const PERSONALITIES = [
-  { value: 'amigable',    label: 'Amigable',     desc: 'Cálido, cercano, genera confianza' },
-  { value: 'profesional', label: 'Profesional',  desc: 'Formal, directo, enfocado en datos' },
-  { value: 'consultivo',  label: 'Consultivo',   desc: 'Analítico, hace preguntas poderosas' },
-  { value: 'energico',    label: 'Enérgico',     desc: 'Entusiasta, crea urgencia natural' },
+  { value: 'amigable', label: 'Amigable', desc: 'Cálido, cercano, genera confianza' },
+  { value: 'profesional', label: 'Profesional', desc: 'Formal, directo, enfocado en datos' },
+  { value: 'consultivo', label: 'Consultivo', desc: 'Analítico, hace preguntas poderosas' },
+  { value: 'energico', label: 'Enérgico', desc: 'Entusiasta, crea urgencia natural' },
 ]
 
 const OBJECTIVES = [
-  { value: 'agendar_llamada', label: 'Agendar llamada',    icon: '📞', desc: 'Empuja hacia una reunión o llamada' },
-  { value: 'calificar',       label: 'Calificar lead',     icon: '✅', desc: 'Determina si es un buen prospecto' },
-  { value: 'cerrar_chat',     label: 'Cerrar por chat',    icon: '🤝', desc: 'Intenta cerrar la venta directo' },
-  { value: 'nutrir',          label: 'Nutrir / Educar',    icon: '🌱', desc: 'Construye confianza sin presionar' },
+  { value: 'agendar_llamada', label: 'Agendar llamada', icon: <Phone size={14} />, desc: 'Empuja hacia una reunión o llamada' },
+  { value: 'calificar', label: 'Calificar lead', icon: <CheckCircle2 size={14} />, desc: 'Determina si es un buen prospecto' },
+  { value: 'cerrar_chat', label: 'Cerrar por chat', icon: <Handshake size={14} />, desc: 'Intenta cerrar la venta directo' },
+  { value: 'nutrir', label: 'Nutrir / Educar', icon: <Leaf size={14} />, desc: 'Construye confianza sin presionar' },
 ]
 
 const SALES_TECHNIQUES = [
-  { value: 'aida',       label: 'AIDA',          desc: 'Atención → Interés → Deseo → Acción' },
-  { value: 'spin',       label: 'SPIN Selling',  desc: 'Situación → Problema → Implicación → Necesidad' },
-  { value: 'challenger', label: 'Challenger',    desc: 'Enseña, adapta y toma control' },
-  { value: 'rapport',    label: 'Rapport first', desc: 'Construye relación antes de vender' },
+  { value: 'aida', label: 'AIDA', desc: 'Atención → Interés → Deseo → Acción' },
+  { value: 'spin', label: 'SPIN Selling', desc: 'Situación → Problema → Implicación → Necesidad' },
+  { value: 'challenger', label: 'Challenger', desc: 'Enseña, adapta y toma control' },
+  { value: 'rapport', label: 'Rapport first', desc: 'Construye relación antes de vender' },
 ]
 
 const CLOSING_TECHNIQUES = [
-  { value: 'valor_primero', label: 'Valor primero',  desc: 'Presenta beneficios antes del precio' },
-  { value: 'urgencia',      label: 'Urgencia',       desc: 'Escasez real de tiempo o lugares' },
-  { value: 'alternativas',  label: 'Alternativas',   desc: '"¿Prefieres plan A o plan B?"' },
-  { value: 'directo',       label: 'Cierre directo', desc: '"¿Empezamos esta semana?"' },
+  { value: 'valor_primero', label: 'Valor primero', desc: 'Presenta beneficios antes del precio' },
+  { value: 'urgencia', label: 'Urgencia', desc: 'Escasez real de tiempo o lugares' },
+  { value: 'alternativas', label: 'Alternativas', desc: '"¿Prefieres plan A o plan B?"' },
+  { value: 'directo', label: 'Cierre directo', desc: '"¿Empezamos esta semana?"' },
 ]
 
 const DEFAULT_OBJECTIONS = [
@@ -49,7 +50,7 @@ const DEFAULT_OBJECTIONS = [
   { objection: 'Ya tengo un proveedor', response: '' },
 ]
 
-const ACCEPTED_TYPES = ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain']
+const ACCEPTED_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
 
 function Section({ title, desc, children }) {
   return (
@@ -123,7 +124,7 @@ function TestPanel({ orgId, config }) {
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-center">
             <div>
-              <div className="text-3xl mb-2">💬</div>
+              <div className="w-12 h-12 rounded-2xl bg-surface-2 border border-black/[0.08] flex items-center justify-center text-secondary mx-auto mb-3"><MessageSquare size={24} /></div>
               <p className="text-sm text-secondary">Escribe algo para probar al agente</p>
               <p className="text-xs text-tertiary mt-1">Ej: "Hola, me interesa saber más"</p>
             </div>
@@ -131,8 +132,8 @@ function TestPanel({ orgId, config }) {
         )}
         {messages.map((msg, i) => (
           <div key={i} className={clsx('flex flex-col', msg.role === 'user' ? 'items-end' : 'items-start')}>
-            <span className="text-[9px] font-bold text-tertiary uppercase tracking-wide mb-1">
-              {msg.role === 'user' ? '👤 Tú (simulando lead)' : `🤖 ${config.agentName || 'Agente'}`}
+            <span className="flex items-center gap-1 text-[9px] font-bold text-tertiary uppercase tracking-wide mb-1">
+              {msg.role === 'user' ? <><User size={10} /> Tú (simulando lead)</> : <><Bot size={10} className="text-accent-purple" /> {config.agentName || 'Agente'}</>}
             </span>
             <div className={clsx('max-w-[80%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed',
               msg.role === 'user' ? 'bg-surface-2 border border-black/[0.08] text-primary rounded-tr-sm' : 'text-white rounded-tl-sm'
@@ -144,7 +145,7 @@ function TestPanel({ orgId, config }) {
         {loading && (
           <div className="flex items-start">
             <div className="px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1" style={{ background: '#7c3aed' }}>
-              {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />)}
+              {[0, 1, 2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
             </div>
           </div>
         )}
@@ -263,7 +264,7 @@ export default function Agent() {
     <div className="h-full flex flex-col overflow-hidden">
       <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md flex items-center justify-center bg-purple-50">🤖</div>
+          <div className="w-6 h-6 rounded-md flex items-center justify-center bg-purple-50 text-accent-purple"><Bot size={14} /></div>
           <h1 className="font-display font-bold text-[15px] tracking-tight">Agente IA</h1>
           {config.assistantId && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">● Activo</span>}
         </div>
@@ -279,10 +280,10 @@ export default function Agent() {
         <div className="w-[180px] min-w-[180px] border-r border-black/[0.08] flex flex-col py-2 bg-surface flex-shrink-0">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={clsx('flex items-center gap-2.5 px-4 py-2.5 text-[12.5px] font-semibold transition-all text-left',
+              className={clsx('flex items-center gap-2.5 px-4 py-2.5 text-[12.5px] font-semibold transition-all text-left group',
                 activeTab === tab.id ? 'bg-primary/[0.06] text-primary border-r-2 border-primary' : 'text-secondary hover:bg-surface-2 hover:text-primary'
               )}>
-              <span className="text-base">{tab.icon}</span>{tab.label}
+              <span className="opacity-70 group-hover:opacity-100 transition-opacity">{tab.icon}</span>{tab.label}
             </button>
           ))}
         </div>
@@ -336,14 +337,14 @@ export default function Agent() {
               </Section>
               <Section title="Precios y planes" desc="El agente usará esto para responder preguntas de precio">
                 <textarea value={config.prices} onChange={e => set('prices', e.target.value)} rows={4} className="input text-sm resize-none" placeholder="- Plan Básico: $299/mes&#10;- Plan Pro: $599/mes" />
-                <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">💡 Si prefieres que el agente no dé precios sin calificar, configúralo en las reglas de Ventas.</p>
+                <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-1.5"><Lightbulb size={12} className="flex-shrink-0" /> Si prefieres que el agente no dé precios sin calificar, configúralo en las reglas de Ventas.</p>
               </Section>
               <Section title="Preguntas de calificación" desc="El agente las hace de forma natural">
                 {config.qualifyingQuestions.map((q, i) => (
                   <div key={i} className="flex gap-2">
-                    <span className="text-xs font-bold text-tertiary w-5 pt-2.5 flex-shrink-0">{i+1}.</span>
+                    <span className="text-xs font-bold text-tertiary w-5 pt-2.5 flex-shrink-0">{i + 1}.</span>
                     <input value={q} onChange={e => updateQuestion(i, e.target.value)} className="input text-sm flex-1" placeholder="Pregunta de calificación..." />
-                    <button onClick={() => set('qualifyingQuestions', config.qualifyingQuestions.filter((_,j) => j!==i))} className="text-tertiary hover:text-red-500 text-lg flex-shrink-0 pt-1">×</button>
+                    <button onClick={() => set('qualifyingQuestions', config.qualifyingQuestions.filter((_, j) => j !== i))} className="text-tertiary hover:text-red-500 text-lg flex-shrink-0 pt-1">×</button>
                   </div>
                 ))}
                 <button onClick={() => set('qualifyingQuestions', [...config.qualifyingQuestions, ''])} className="btn-secondary text-xs py-1.5">+ Agregar pregunta</button>
@@ -371,7 +372,7 @@ export default function Agent() {
                   <div key={i} className="flex gap-2">
                     <span className="text-red-500 pt-2.5 flex-shrink-0">✕</span>
                     <input value={l} onChange={e => updateLimit(i, e.target.value)} className="input text-sm flex-1" placeholder="Ej: No mencionar a la competencia" />
-                    <button onClick={() => set('limits', config.limits.filter((_,j) => j!==i))} className="text-tertiary hover:text-red-500 text-lg flex-shrink-0 pt-1">×</button>
+                    <button onClick={() => set('limits', config.limits.filter((_, j) => j !== i))} className="text-tertiary hover:text-red-500 text-lg flex-shrink-0 pt-1">×</button>
                   </div>
                 ))}
                 <button onClick={() => set('limits', [...config.limits, ''])} className="btn-secondary text-xs py-1.5">+ Agregar regla</button>
@@ -380,14 +381,14 @@ export default function Agent() {
 
             {activeTab === 'objections' && (<>
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px]">
-                <span className="text-xl flex-shrink-0">💡</span>
+                <span className="text-amber-500 flex-shrink-0 mt-0.5"><Lightbulb size={20} /></span>
                 <p className="text-[12.5px] text-amber-800 leading-relaxed">Entrena al agente con respuestas a las objeciones más comunes. Entre mejor estén escritas, más efectivo será en ventas.</p>
               </div>
               {config.objections.map((o, i) => (
                 <div key={i} className="card p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Objeción {i+1}</span>
-                    <button onClick={() => set('objections', config.objections.filter((_,j) => j!==i))} className="text-xs text-tertiary hover:text-red-500">Eliminar</button>
+                    <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Objeción {i + 1}</span>
+                    <button onClick={() => set('objections', config.objections.filter((_, j) => j !== i))} className="text-xs text-tertiary hover:text-red-500">Eliminar</button>
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-tertiary block mb-1">Cuando el lead dice...</label>
@@ -404,7 +405,7 @@ export default function Agent() {
 
             {activeTab === 'knowledge' && (<>
               <div className="flex items-start gap-3 p-4 bg-purple-50 border border-purple-200 rounded-[12px]">
-                <span className="text-xl flex-shrink-0">🧠</span>
+                <span className="text-purple-500 flex-shrink-0 mt-0.5"><Brain size={20} /></span>
                 <div>
                   <p className="text-[12.5px] text-purple-800 font-semibold mb-1">Base de conocimiento RAG</p>
                   <p className="text-[11.5px] text-purple-700 leading-relaxed">Sube documentos y el agente los usa como fuente de verdad. PDFs, catálogos, FAQs, guiones — todo sirve.</p>
@@ -412,7 +413,7 @@ export default function Agent() {
               </div>
               <div onClick={() => fileInputRef.current?.click()}
                 className="border-2 border-dashed border-black/[0.14] rounded-[14px] p-8 text-center cursor-pointer hover:border-accent-purple hover:bg-purple-50/50 transition-all">
-                <div className="text-3xl mb-2">{uploadingFile ? '⏳' : '📄'}</div>
+                {uploadingFile ? <Zap size={32} className="text-accent-purple mx-auto mb-2 animate-bounce" /> : <FileText size={32} className="text-tertiary mx-auto mb-2" />}
                 <p className="font-semibold text-sm text-primary mb-1">{uploadingFile ? 'Subiendo archivo...' : 'Sube documentos al agente'}</p>
                 <p className="text-xs text-secondary">PDF, Word, TXT · Máximo 10MB por archivo</p>
                 <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0])} />
@@ -423,13 +424,13 @@ export default function Agent() {
                   <div className="divide-y divide-black/[0.04]">
                     {files.map(f => (
                       <div key={f.id} className="flex items-center gap-3 px-5 py-3">
-                        <span className="text-xl flex-shrink-0">{f.mimeType === 'application/pdf' ? '📕' : f.mimeType === 'text/plain' ? '📝' : '📘'}</span>
+                        <span className="flex-shrink-0 text-tertiary">{f.mimeType === 'application/pdf' ? <FileText size={20} className="text-red-400" /> : <FileText size={20} className="text-blue-400" />}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-primary truncate">{f.name}</p>
-                          <p className="text-[10px] text-tertiary">{(f.size/1024).toFixed(0)} KB · {f.status === 'processing' ? '⏳ Procesando...' : '✓ Listo'}</p>
+                          <p className="text-[10px] text-tertiary">{(f.size / 1024).toFixed(0)} KB · {f.status === 'processing' ? '⏳ Procesando...' : '✓ Listo'}</p>
                         </div>
                         <button onClick={() => handleDeleteFile(f.id)} className="text-tertiary hover:text-red-500 transition-colors p-1">
-                          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                         </button>
                       </div>
                     ))}
@@ -444,7 +445,7 @@ export default function Agent() {
 
             {activeTab === 'test' && (<>
               <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px] mb-1">
-                <span className="text-xl flex-shrink-0">⚡</span>
+                <span className="text-blue-600 flex-shrink-0 mt-0.5"><Zap size={20} /></span>
                 <p className="text-[12.5px] text-blue-800 leading-relaxed">Guarda los cambios primero, luego simula una conversación real con el agente.</p>
               </div>
               <TestPanel orgId={org?.id} config={config} />
