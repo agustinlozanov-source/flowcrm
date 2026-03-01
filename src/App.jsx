@@ -16,6 +16,8 @@ import Import from '@/pages/Import'
 import Analytics from '@/pages/Analytics'
 import ContentStudio from '@/pages/ContentStudio'
 import Referrals from '@/pages/Referrals'
+import LandingPages from '@/pages/LandingPages'
+import Inbox from '@/pages/Inbox'
 
 export default function App() {
   return (
@@ -57,6 +59,8 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="content" element={<ContentStudio />} />
           <Route path="referrals" element={<Referrals />} />
+          <Route path="landing" element={<LandingPages />} />
+          <Route path="inbox" element={<Inbox />} />
         </Route>
 
         {/* Superadmin — protected, role check inside ProtectedRoute */}

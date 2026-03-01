@@ -42,6 +42,16 @@ const navSections = [
         ),
       },
       {
+        to: '/inbox',
+        label: 'Inbox',
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <path d="M2 9a7 7 0 1114 0 7 7 0 01-14 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 16c1.6 0 3.1-.5 4.3-1.4L16 16l-1.4-2.7A7 7 0 002 9a7 7 0 007 7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+      },
+      {
         to: '/meetings',
         label: 'Reuniones',
         icon: (
@@ -83,6 +93,16 @@ const navSections = [
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="3" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
             <path d="M7 8l4 2.5L7 13V8z" fill="currentColor" opacity="0.6" />
+          </svg>
+        ),
+      },
+      {
+        to: '/landing',
+        label: 'Landing Pages',
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M2 6h14M6 16V6" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         ),
       },
