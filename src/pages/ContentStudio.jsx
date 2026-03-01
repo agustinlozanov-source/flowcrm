@@ -9,21 +9,22 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap } from 'lucide-react'
 
 const NETWORKS = [
-  { value: 'tiktok',    label: 'TikTok',          icon: '📱' },
-  { value: 'instagram', label: 'Instagram Reels',  icon: '📸' },
-  { value: 'youtube',   label: 'YouTube Shorts',   icon: '▶️' },
-  { value: 'facebook',  label: 'Facebook',         icon: '📘' },
+  { value: 'tiktok', label: 'TikTok', icon: <Smartphone size={14} /> },
+  { value: 'instagram', label: 'Instagram Reels', icon: <Camera size={14} /> },
+  { value: 'youtube', label: 'YouTube Shorts', icon: <Youtube size={14} /> },
+  { value: 'facebook', label: 'Facebook', icon: <Facebook size={14} /> },
 ]
 
 const STAGE_CONFIG = {
-  idea:      { label: 'Idea',       color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  scripting: { label: 'En guión',   color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
-  recording: { label: 'Grabando',   color: '#0066ff', bg: 'rgba(0,102,255,0.1)' },
-  editing:   { label: 'Editando',   color: '#00b8d9', bg: 'rgba(0,184,217,0.1)' },
-  ready:     { label: 'Listo',      color: '#00c853', bg: 'rgba(0,200,83,0.1)' },
-  published: { label: 'Publicado',  color: '#6e6e73', bg: 'rgba(110,110,115,0.1)' },
+  idea: { label: 'Idea', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  scripting: { label: 'En guión', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
+  recording: { label: 'Grabando', color: '#0066ff', bg: 'rgba(0,102,255,0.1)' },
+  editing: { label: 'Editando', color: '#00b8d9', bg: 'rgba(0,184,217,0.1)' },
+  ready: { label: 'Listo', color: '#00c853', bg: 'rgba(0,200,83,0.1)' },
+  published: { label: 'Publicado', color: '#6e6e73', bg: 'rgba(110,110,115,0.1)' },
 }
 
 const TOPIC_DEFAULTS = ['IA & Tech', 'Silicon Valley', 'Marketing Digital', 'China Tech', 'Negocios']
@@ -76,7 +77,7 @@ function Teleprompter({ script, onClose }) {
     <div className="fixed inset-0 z-50 bg-primary flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.08]">
-        <span className="text-white font-display font-bold text-sm">📺 Teleprompter</span>
+        <span className="text-white font-display font-bold text-sm flex items-center gap-1.5"><Tv size={14} /> Teleprompter</span>
         <div className="flex items-center gap-4 ml-4">
           <div className="flex items-center gap-2">
             <span className="text-white/40 text-[10px] uppercase tracking-wide font-semibold">Velocidad</span>
@@ -118,7 +119,7 @@ function Teleprompter({ script, onClose }) {
         <button
           onClick={() => { setElapsed(0); if (scrollRef.current) scrollRef.current.scrollTop = 0 }}
           className="w-9 h-9 rounded-lg bg-white/10 text-white/60 flex items-center justify-center hover:bg-white/20 text-base"
-        >↺</button>
+        ><RotateCcw size={16} /></button>
         <button
           onClick={() => setPlaying(p => !p)}
           className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm transition-all"
@@ -127,7 +128,7 @@ function Teleprompter({ script, onClose }) {
           {playing ? (
             <><div className="w-2 h-2 rounded-full bg-white animate-pulse" /> Pausar</>
           ) : (
-            <><span>▶</span> Iniciar</>
+            <><Play size={14} fill="currentColor" /> Iniciar</>
           )}
         </button>
         <span className="text-white/40 font-display font-bold text-sm w-12 text-center">{formatTime(elapsed)}</span>
@@ -158,8 +159,8 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
       <div className="p-5">
         <p className="font-display font-semibold text-[15px] leading-relaxed text-primary mb-3">{text}</p>
         {tip && (
-          <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-[8px] px-3 py-2">
-            <span className="text-sm flex-shrink-0">💡</span>
+          <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-[8px] px-3 py-2 items-start">
+            <span className="text-sm flex-shrink-0 mt-[2px]"><Lightbulb size={14} className="text-amber-500" /></span>
             <p className="text-xs text-amber-800 leading-relaxed">{tip}</p>
           </div>
         )}
@@ -181,7 +182,7 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
         <div className="flex gap-2">
           <button onClick={onOpenTeleprompter}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 transition-opacity">
-            📺 Teleprompter
+            <Tv size={14} /> Teleprompter
           </button>
         </div>
       </div>
@@ -192,7 +193,7 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
           {/* Hooks */}
           <div className="card p-5">
             <div className="font-display font-bold text-sm mb-3 flex items-center gap-2">
-              🎣 Hook <span className="text-tertiary text-xs font-normal">— elige uno</span>
+              <Fish size={14} /> Hook <span className="text-tertiary text-xs font-normal">— elige uno</span>
             </div>
             <div className="flex flex-col gap-2">
               {(script.hooks || []).map((hook, i) => (
@@ -207,20 +208,20 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
             </div>
           </div>
 
-          <ScriptSection icon="📍" title="Contexto" duration={script.script?.context?.duration}
+          <ScriptSection icon={<MapPin size={16} />} title="Contexto" duration={script.script?.context?.duration}
             text={script.script?.context?.text} tip={script.script?.context?.tip} />
 
-          <ScriptSection icon="🔍" title="Desarrollo" duration={script.script?.development?.duration}
+          <ScriptSection icon={<Search size={16} />} title="Desarrollo" duration={script.script?.development?.duration}
             text={script.script?.development?.text} tip={script.script?.development?.tip} />
 
-          <ScriptSection icon="🚀" title="CTA" duration={script.script?.cta?.duration}
+          <ScriptSection icon={<Rocket size={16} />} title="CTA" duration={script.script?.cta?.duration}
             text={script.script?.cta?.text} tip={script.script?.cta?.tip} />
 
           {/* Copy por red */}
           {script.copies && (
             <div className="card overflow-hidden">
               <div className="flex items-center gap-0 px-5 pt-4 border-b border-black/[0.06]">
-                <span className="font-display font-bold text-sm mr-4">✍️ Copy por red</span>
+                <span className="font-display font-bold text-sm mr-4 flex items-center gap-1.5"><PenTool size={14} /> Copy por red</span>
                 <div className="flex gap-0">
                   {NETWORKS.filter(n => script.copies?.[n.value]).map(n => (
                     <button key={n.value} onClick={() => setCopyTab(n.value)}
@@ -385,10 +386,10 @@ export default function ContentStudio() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.15)' }}>
-            <span className="text-sm">🎬</span>
+            <span className="text-sm"><Clapperboard size={14} className="text-amber-500" /></span>
           </div>
           <h1 className="font-display font-bold text-[15px] tracking-tight">Content Studio</h1>
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 ml-1">
@@ -398,7 +399,7 @@ export default function ContentStudio() {
         </div>
 
         <div className="ml-auto flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
-          {[['radar', '📡 Radar'], ['pipeline', '🎬 Pipeline']].map(([v, l]) => (
+          {[['radar', <><Radio size={14} className="inline-block mr-1" /> Radar</>], ['pipeline', <><Clapperboard size={14} className="inline-block mr-1" /> Pipeline</>]].map(([v, l]) => (
             <button key={v} onClick={() => setActiveTab(v)}
               className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
                 activeTab === v ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
@@ -429,18 +430,18 @@ export default function ContentStudio() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-all flex-shrink-0">
                   {loadingNews
                     ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> Buscando...</>
-                    : <><span>📡</span> Buscar noticias</>}
+                    : <><Radio size={14} /> Buscar noticias</>}
                 </button>
               </div>
 
               {news.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="text-4xl mb-3">📡</div>
+                  <div className="mb-3 flex justify-center text-primary"><Radio size={40} strokeWidth={1.5} /></div>
                   <p className="font-display font-bold text-base text-primary mb-1">Radar de noticias</p>
                   <p className="text-sm text-secondary max-w-xs">El agente busca las noticias más virales del día sobre tus temas de interés.</p>
                   <button onClick={handleFetchNews} disabled={loadingNews}
                     className="mt-4 btn-primary text-sm py-2 px-5 flex items-center gap-2">
-                    {loadingNews ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : '📡 Buscar ahora'}
+                    {loadingNews ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Radio size={14} /> Buscar ahora</>}
                   </button>
                 </div>
               ) : (
@@ -463,14 +464,14 @@ export default function ContentStudio() {
                             {item.title}
                           </h3>
                           <p className="text-[12px] text-secondary leading-relaxed line-clamp-2">{item.summary}</p>
-                          <p className="text-[11px] text-tertiary mt-1.5 italic">💡 {item.viralAngle}</p>
+                          <p className="text-[11px] text-tertiary mt-1.5 italic flex items-center gap-1"><Lightbulb size={11} className="text-amber-500" /> {item.viralAngle}</p>
                         </div>
                         <div className="flex flex-col items-center flex-shrink-0">
                           <div className={clsx('text-[13px] font-bold px-2 py-1 rounded-lg',
                             item.score >= 85 ? 'bg-red-50 text-red-600' :
-                            item.score >= 70 ? 'bg-amber-50 text-amber-700' : 'bg-surface-2 text-secondary'
+                              item.score >= 70 ? 'bg-amber-50 text-amber-700' : 'bg-surface-2 text-secondary'
                           )}>
-                            {item.score >= 85 ? '🔥' : '📊'} {item.score}
+                            {item.score >= 85 ? <Flame size={12} className="inline-block" /> : <BarChart2 size={12} className="inline-block" />} {item.score}
                           </div>
                           <span className="text-[9px] text-tertiary mt-0.5">score</span>
                         </div>
@@ -522,8 +523,8 @@ export default function ContentStudio() {
                   style={{ background: '#f59e0b', color: '#0a0a0a' }}
                 >
                   {generatingScript
-                    ? <><div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin"/> Generando guión...</>
-                    : <><span>⚡</span> Generar guión con IA</>}
+                    ? <><div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" /> Generando guión...</>
+                    : <><Zap size={14} /> Generar guión con IA</>}
                 </button>
 
                 {!selectedNews && (

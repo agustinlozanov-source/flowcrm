@@ -2,15 +2,16 @@ import { useState, useMemo } from 'react'
 import { usePipeline } from '@/hooks/usePipeline'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
+import { Search, Users } from 'lucide-react'
 
 const SOURCE_CONFIG = {
-  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
+  meta_ads: { icon: '🔵', label: 'Meta Ads' },
   instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp:  { icon: '💬', label: 'WhatsApp' },
-  linkedin:  { icon: '💼', label: 'LinkedIn' },
-  web:       { icon: '🌐', label: 'Web' },
-  referral:  { icon: '⭐', label: 'Referido' },
-  manual:    { icon: '✏️', label: 'Manual' },
+  whatsapp: { icon: '💬', label: 'WhatsApp' },
+  linkedin: { icon: '💼', label: 'LinkedIn' },
+  web: { icon: '🌐', label: 'Web' },
+  referral: { icon: '⭐', label: 'Referido' },
+  manual: { icon: '✏️', label: 'Manual' },
 }
 
 const scoreColor = (score) => {
@@ -89,7 +90,7 @@ export default function Contacts() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Contactos</h1>
 
         <div className="flex items-center gap-2 ml-2">
@@ -106,10 +107,7 @@ export default function Contacts() {
         <div className="ml-auto flex items-center gap-2">
           {/* Search */}
           <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 w-52">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-tertiary flex-shrink-0">
-              <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
+            <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -159,7 +157,9 @@ export default function Contacts() {
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
-            <div className="text-4xl">👥</div>
+            <div className="w-16 h-16 rounded-2xl bg-black/[0.02] border border-black/[0.05] flex items-center justify-center text-tertiary mb-2">
+              <Users size={32} strokeWidth={1.5} />
+            </div>
             <p className="font-display font-bold text-lg text-primary">Sin contactos</p>
             <p className="text-sm text-secondary">
               {search || stageFilter !== 'all' || sourceFilter !== 'all'

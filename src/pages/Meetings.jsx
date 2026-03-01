@@ -6,24 +6,27 @@ import {
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { usePipeline } from '@/hooks/usePipeline'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval,
-         isSameDay, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns'
+import {
+  format, startOfMonth, endOfMonth, eachDayOfInterval,
+  isSameDay, isSameMonth, isToday, startOfWeek, endOfWeek
+} from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { X, Plus, Clock, User, Calendar as CalendarIcon, Video, Monitor, Users, Link2, List } from 'lucide-react'
 
 const PLATFORMS = [
-  { value: 'meet',   label: 'Google Meet',      icon: '🎥', prefix: 'https://meet.google.com/' },
-  { value: 'zoom',   label: 'Zoom',             icon: '💻', prefix: 'https://zoom.us/j/' },
-  { value: 'teams',  label: 'Microsoft Teams',  icon: '🔷', prefix: 'https://teams.microsoft.com/' },
-  { value: 'custom', label: 'Enlace propio',    icon: '🔗', prefix: '' },
+  { value: 'meet', label: 'Google Meet', icon: <Video className="w-3.5 h-3.5" />, prefix: 'https://meet.google.com/' },
+  { value: 'zoom', label: 'Zoom', icon: <Monitor className="w-3.5 h-3.5" />, prefix: 'https://zoom.us/j/' },
+  { value: 'teams', label: 'Microsoft Teams', icon: <Users className="w-3.5 h-3.5" />, prefix: 'https://teams.microsoft.com/' },
+  { value: 'custom', label: 'Enlace propio', icon: <Link2 className="w-3.5 h-3.5" />, prefix: '' },
 ]
 
 const STATUS_CONFIG = {
-  scheduled: { label: 'Agendada',   color: '#0066ff', bg: 'rgba(0,102,255,0.08)' },
-  completed:  { label: 'Realizada', color: '#00c853', bg: 'rgba(0,200,83,0.08)' },
-  cancelled:  { label: 'Cancelada', color: '#ff3b30', bg: 'rgba(255,59,48,0.08)' },
-  noshow:     { label: 'No show',   color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+  scheduled: { label: 'Agendada', color: '#0066ff', bg: 'rgba(0,102,255,0.08)' },
+  completed: { label: 'Realizada', color: '#00c853', bg: 'rgba(0,200,83,0.08)' },
+  cancelled: { label: 'Cancelada', color: '#ff3b30', bg: 'rgba(255,59,48,0.08)' },
+  noshow: { label: 'No show', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
 }
 
 function NewMeetingModal({ leads, onClose, onCreate, defaultDate }) {
@@ -67,7 +70,7 @@ function NewMeetingModal({ leads, onClose, onCreate, defaultDate }) {
             <p className="text-xs text-secondary mt-0.5">Agenda una videollamada de cierre</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            <X size={15} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -121,7 +124,7 @@ function NewMeetingModal({ leads, onClose, onCreate, defaultDate }) {
                     form.platform === p.value ? 'bg-primary text-white border-primary' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
                   )}
                 >
-                  <span>{p.icon}</span> {p.label}
+                  <span className="text-secondary opacity-70 flex items-center">{p.icon}</span> {p.label}
                 </button>
               ))}
             </div>
@@ -146,7 +149,7 @@ function NewMeetingModal({ leads, onClose, onCreate, defaultDate }) {
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1 flex items-center justify-center gap-2">
-              {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : 'Agendar reunión'}
+              {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Agendar reunión'}
             </button>
           </div>
         </form>
@@ -180,9 +183,9 @@ function MeetingCard({ meeting, leads, onStatusChange, onDelete }) {
         </div>
 
         <div className="flex items-center gap-3 text-[11.5px] text-secondary flex-wrap">
-          <span>🕐 {format(dateTime, 'HH:mm')} · {meeting.duration}min</span>
-          <span>{platform.icon} {platform.label}</span>
-          {lead && <span>👤 {lead.name}</span>}
+          <span className="flex items-center gap-1"><Clock size={12} className="opacity-70" /> {format(dateTime, 'HH:mm')} · {meeting.duration}min</span>
+          <span className="flex items-center gap-1"><span className="opacity-70 flex items-center">{platform.icon}</span> {platform.label}</span>
+          {lead && <span className="flex items-center gap-1"><User size={12} className="opacity-70" /> {lead.name}</span>}
         </div>
 
         {meeting.notes && (
@@ -300,7 +303,7 @@ export default function Meetings() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Reuniones</h1>
 
         {upcomingCount > 0 && (
@@ -321,7 +324,7 @@ export default function Meetings() {
 
           {/* View toggle */}
           <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
-            {[['list', '☰ Lista'], ['calendar', '📅 Calendario']].map(([v, l]) => (
+            {[['list', <><List size={13} className="mr-1" /> Lista</>], ['calendar', <><CalendarIcon size={13} className="mr-1" /> Calendario</>]].map(([v, l]) => (
               <button key={v} onClick={() => setView(v)}
                 className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
                   view === v ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
@@ -330,9 +333,7 @@ export default function Meetings() {
           </div>
 
           <button onClick={() => setShowNew(true)} className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-              <path d="M5.5 1v9M1 5.5h9" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
+            <Plus size={14} strokeWidth={3} color="white" />
             Nueva reunión
           </button>
         </div>
@@ -363,7 +364,7 @@ export default function Meetings() {
 
               {/* Day headers */}
               <div className="grid grid-cols-7 px-3 pt-3 pb-1">
-                {['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map(d => (
+                {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => (
                   <div key={d} className="text-center text-[10px] font-semibold text-tertiary uppercase py-1">{d}</div>
                 ))}
               </div>
@@ -380,8 +381,8 @@ export default function Meetings() {
                       className={clsx(
                         'aspect-square flex flex-col items-center justify-center rounded-[8px] text-[12px] font-medium transition-all relative',
                         isSelected ? 'bg-primary text-white' :
-                        isToday(day) ? 'bg-accent-blue/10 text-accent-blue font-bold' :
-                        inMonth ? 'text-primary hover:bg-surface-2' : 'text-tertiary/50'
+                          isToday(day) ? 'bg-accent-blue/10 text-accent-blue font-bold' :
+                            inMonth ? 'text-primary hover:bg-surface-2' : 'text-tertiary/50'
                       )}
                     >
                       {format(day, 'd')}
@@ -416,7 +417,9 @@ export default function Meetings() {
               )}
               {!selectedDay ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="text-3xl mb-3">📅</div>
+                  <div className="w-16 h-16 rounded-2xl bg-black/[0.02] border border-black/[0.05] flex items-center justify-center text-tertiary mb-2 mx-auto">
+                    <CalendarIcon size={32} strokeWidth={1.5} />
+                  </div>
                   <p className="text-sm font-semibold text-secondary">Selecciona un día</p>
                   <p className="text-xs text-tertiary mt-1">Los puntos azules indican días con reuniones</p>
                 </div>
@@ -441,7 +444,9 @@ export default function Meetings() {
           <div className="flex-1 overflow-y-auto p-5">
             {filteredMeetings.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
-                <div className="text-4xl">📅</div>
+                <div className="w-16 h-16 rounded-2xl bg-black/[0.02] border border-black/[0.05] flex items-center justify-center text-tertiary mb-2">
+                  <CalendarIcon size={32} strokeWidth={1.5} />
+                </div>
                 <p className="font-display font-bold text-lg text-primary">Sin reuniones</p>
                 <p className="text-sm text-secondary">Agenda tu primera videollamada de cierre</p>
                 <button onClick={() => setShowNew(true)} className="btn-primary text-sm py-2 px-4 mt-1">

@@ -5,20 +5,20 @@ import { es } from 'date-fns/locale'
 import clsx from 'clsx'
 
 const PERIODS = [
-  { value: '7d',   label: 'Últimos 7 días' },
-  { value: '30d',  label: 'Últimos 30 días' },
+  { value: '7d', label: 'Últimos 7 días' },
+  { value: '30d', label: 'Últimos 30 días' },
   { value: 'month', label: 'Este mes' },
   { value: 'year', label: 'Este año' },
 ]
 
 const SOURCE_CONFIG = {
-  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
+  meta_ads: { icon: '🔵', label: 'Meta Ads' },
   instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp:  { icon: '💬', label: 'WhatsApp' },
-  linkedin:  { icon: '💼', label: 'LinkedIn' },
-  web:       { icon: '🌐', label: 'Web' },
-  referral:  { icon: '⭐', label: 'Referido' },
-  manual:    { icon: '✏️', label: 'Manual' },
+  whatsapp: { icon: '💬', label: 'WhatsApp' },
+  linkedin: { icon: '💼', label: 'LinkedIn' },
+  web: { icon: '🌐', label: 'Web' },
+  referral: { icon: '⭐', label: 'Referido' },
+  manual: { icon: '✏️', label: 'Manual' },
 }
 
 const COLORS = ['#0066ff', '#7c3aed', '#00c853', '#f59e0b', '#ff3b30', '#00b8d9', '#ff9500']
@@ -225,7 +225,7 @@ export default function Analytics() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Analytics</h1>
         <div className="ml-auto flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
           {PERIODS.map(p => (

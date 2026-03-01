@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
+import { Star, Users, DollarSign, TrendingUp, Trophy, MessageCircle, Briefcase, Mail, Link2 } from 'lucide-react'
 
 // MOCK DATA — reemplazar con Firestore cuando esté en producción
 const MOCK_REFERRALS = [
@@ -13,13 +14,13 @@ const MOCK_REFERRALS = [
 ]
 
 const PLAN_CONFIG = {
-  starter:    { label: 'Starter',    color: '#6e6e73', bg: 'rgba(110,110,115,0.1)' },
-  pro:        { label: 'Pro',        color: '#0066ff', bg: 'rgba(0,102,255,0.1)' },
+  starter: { label: 'Starter', color: '#6e6e73', bg: 'rgba(110,110,115,0.1)' },
+  pro: { label: 'Pro', color: '#0066ff', bg: 'rgba(0,102,255,0.1)' },
   enterprise: { label: 'Enterprise', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
 }
 
 const STATUS_CONFIG = {
-  active:  { label: 'Activo',   color: '#00c853', bg: 'rgba(0,200,83,0.1)' },
+  active: { label: 'Activo', color: '#00c853', bg: 'rgba(0,200,83,0.1)' },
   pending: { label: 'Pendiente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   churned: { label: 'Cancelado', color: '#ff3b30', bg: 'rgba(255,59,48,0.1)' },
 }
@@ -61,10 +62,10 @@ export default function Referrals() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Programa de Referidos</h1>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">
-          ⭐ ACTIVO
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700 flex items-center gap-1">
+          <Star size={10} fill="currentColor" /> ACTIVO
         </span>
       </div>
 
@@ -106,28 +107,28 @@ export default function Referrals() {
           {/* STAT CARDS */}
           <div className="grid grid-cols-4 gap-4">
             <StatCard
-              icon="👥"
+              icon={<Users size={24} />}
               label="Referidos activos"
               value={activeReferrals.length}
               sub={`${MOCK_REFERRALS.length} total registrados`}
               color="text-primary"
             />
             <StatCard
-              icon="💰"
+              icon={<DollarSign size={24} />}
               label="Descuento mensual"
               value={`$${totalDiscount}`}
               sub={`${discountPct}% de tu mensualidad`}
               color="text-green-600"
             />
             <StatCard
-              icon="📈"
+              icon={<TrendingUp size={24} />}
               label="Valor anual generado"
               value={`$${totalAnnual.toLocaleString()}`}
               sub="Para la red completa"
               color="text-accent-blue"
             />
             <StatCard
-              icon="🏆"
+              icon={<Trophy size={24} />}
               label="Tu nivel"
               value={activeReferrals.length >= 5 ? 'Gold' : activeReferrals.length >= 2 ? 'Silver' : 'Bronze'}
               sub={activeReferrals.length >= 5 ? '¡Top referidor!' : `${5 - activeReferrals.length} más para Gold`}
@@ -264,20 +265,20 @@ export default function Referrals() {
               <a href={`https://wa.me/?text=Te invito a probar FlowCRM, el CRM con IA para agencias. Regístrate aquí: ${referralLink}`}
                 target="_blank" rel="noreferrer"
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-black/[0.1] text-sm font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all">
-                💬 WhatsApp
+                <MessageCircle size={14} /> WhatsApp
               </a>
               <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(referralLink)}`}
                 target="_blank" rel="noreferrer"
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-black/[0.1] text-sm font-semibold text-secondary hover:border-blue-300 hover:text-blue-600 transition-all">
-                💼 LinkedIn
+                <Briefcase size={14} /> LinkedIn
               </a>
               <a href={`mailto:?subject=Te recomiendo FlowCRM&body=Hola, te recomiendo FlowCRM para gestionar tus leads con IA. Regístrate aquí: ${referralLink}`}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-black/[0.1] text-sm font-semibold text-secondary hover:border-black/[0.25] transition-all">
-                📧 Email
+                <Mail size={14} /> Email
               </a>
               <button onClick={handleCopy}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-black/[0.1] text-sm font-semibold text-secondary hover:border-black/[0.25] transition-all">
-                🔗 Copiar link
+                <Link2 size={14} /> Copiar link
               </button>
             </div>
           </div>

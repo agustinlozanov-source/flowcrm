@@ -2,6 +2,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import LeadCard from './LeadCard'
 import clsx from 'clsx'
+import { Plus } from 'lucide-react'
 
 const formatTotal = (leads) => {
   const total = leads.reduce((sum, l) => sum + (l.value || 0), 0)
@@ -71,9 +72,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }) {
             'transition-all duration-150 w-full mt-auto'
           )}
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-          </svg>
+          <Plus size={14} strokeWidth={2.5} />
           Agregar lead
         </button>
       </div>

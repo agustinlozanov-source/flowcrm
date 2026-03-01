@@ -1,7 +1,7 @@
 // Placeholder genérico para módulos en construcción
 const Placeholder = ({ title, icon, description }) => (
   <div className="h-full flex flex-col">
-    <div className="bg-surface border-b border-black/[0.08] px-6 h-14 flex items-center flex-shrink-0">
+    <div className="bg-surface border-b border-black/[0.08] px-6 h-[68px] flex items-center flex-shrink-0">
       <h1 className="font-display font-bold text-base tracking-tight">{title}</h1>
     </div>
     <div className="flex-1 flex items-center justify-center">

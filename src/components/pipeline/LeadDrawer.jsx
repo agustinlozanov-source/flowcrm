@@ -7,23 +7,24 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar } from 'lucide-react'
 
 const SOURCE_CONFIG = {
-  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
+  meta_ads: { icon: '🔵', label: 'Meta Ads' },
   instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp:  { icon: '💬', label: 'WhatsApp' },
-  linkedin:  { icon: '💼', label: 'LinkedIn' },
-  web:       { icon: '🌐', label: 'Web' },
-  referral:  { icon: '⭐', label: 'Referido' },
-  manual:    { icon: '✏️', label: 'Manual' },
+  whatsapp: { icon: '💬', label: 'WhatsApp' },
+  linkedin: { icon: '💼', label: 'LinkedIn' },
+  web: { icon: '🌐', label: 'Web' },
+  referral: { icon: '⭐', label: 'Referido' },
+  manual: { icon: '✏️', label: 'Manual' },
 }
 
 const INTERACTION_TYPES = [
-  { value: 'note',     label: 'Nota',       icon: '📝' },
-  { value: 'call',     label: 'Llamada',    icon: '📞' },
-  { value: 'whatsapp', label: 'WhatsApp',   icon: '💬' },
-  { value: 'email',    label: 'Email',      icon: '📧' },
-  { value: 'meeting',  label: 'Reunión',    icon: '📅' },
+  { value: 'note', label: 'Nota', icon: <FileText size={14} /> },
+  { value: 'call', label: 'Llamada', icon: <Phone size={14} /> },
+  { value: 'whatsapp', label: 'WhatsApp', icon: <MessageCircle size={14} /> },
+  { value: 'email', label: 'Email', icon: <Mail size={14} /> },
+  { value: 'meeting', label: 'Reunión', icon: <Calendar size={14} /> },
 ]
 
 function ScoreRing({ score }) {
@@ -35,7 +36,7 @@ function ScoreRing({ score }) {
   return (
     <div className="relative flex items-center justify-center w-20 h-20">
       <svg width="80" height="80" className="-rotate-90">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="6"/>
+        <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="6" />
         <circle
           cx="40" cy="40" r={r} fill="none"
           stroke={color} strokeWidth="6"
@@ -194,26 +195,20 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
               className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
               title="Editar"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M10 2l2 2-8 8H2v-2l8-8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-              </svg>
+              <Edit2 size={13} strokeWidth={2} />
             </button>
             <button
               onClick={handleDelete}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors"
               title="Eliminar"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 4h10M5 4V2h4v2M6 7v4M8 7v4M3 4l1 8h6l1-8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <Trash2 size={14} strokeWidth={2} />
             </button>
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
             >
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <X size={15} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -281,7 +276,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setEditing(false)} className="btn-secondary text-xs py-1.5 flex-1">Cancelar</button>
                 <button onClick={handleSaveEdit} disabled={saving} className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1.5">
-                  {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"/> : 'Guardar'}
+                  {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : 'Guardar'}
                 </button>
               </div>
             </div>
@@ -318,7 +313,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
                   href={`tel:${lead.phone}`}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-black/[0.2] hover:text-primary transition-all"
                 >
-                  📞 Llamar
+                  <Phone size={13} className="opacity-70" /> Llamar
                 </a>
               )}
               {lead.phone && (
@@ -328,7 +323,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
                   rel="noreferrer"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all"
                 >
-                  💬 WhatsApp
+                  <MessageCircle size={13} className="opacity-70" /> WhatsApp
                 </a>
               )}
               {lead.email && (
@@ -336,7 +331,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
                   href={`mailto:${lead.email}`}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-blue-300 hover:text-blue-600 transition-all"
                 >
-                  📧 Email
+                  <Mail size={13} className="opacity-70" /> Email
                 </a>
               )}
             </div>
@@ -382,7 +377,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
                 className="btn-primary text-xs py-1.5 px-4 flex items-center gap-1.5 disabled:opacity-40"
               >
                 {addingNote
-                  ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"/>
+                  ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
                   : 'Guardar'}
               </button>
             </div>

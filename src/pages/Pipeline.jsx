@@ -8,6 +8,7 @@ import KanbanColumn from '@/components/pipeline/KanbanColumn'
 import LeadCard from '@/components/pipeline/LeadCard'
 import NewLeadModal from '@/components/pipeline/NewLeadModal'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
+import { Search, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const SOURCES = [
@@ -97,7 +98,7 @@ export default function Pipeline() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Pipeline</h1>
 
         <div className="flex items-center gap-2 ml-2">
@@ -112,10 +113,7 @@ export default function Pipeline() {
         </div>
 
         <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 ml-2 w-52">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-tertiary flex-shrink-0">
-            <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
-            <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
+          <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -139,9 +137,7 @@ export default function Pipeline() {
             onClick={() => setShowNewLead(true)}
             className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5"
           >
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-              <path d="M5.5 1v9M1 5.5h9" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
+            <Plus size={14} strokeWidth={3} color="white" />
             Nuevo lead
           </button>
         </div>
@@ -168,9 +164,7 @@ export default function Pipeline() {
 
             <div className="w-[240px] min-w-[240px] flex items-start pt-1">
               <button className="flex items-center gap-2 px-3 py-2 rounded-[10px] border border-dashed border-black/[0.14] text-[12.5px] text-tertiary hover:text-secondary hover:border-black/25 transition-all duration-150 w-full">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                </svg>
+                <Plus size={14} strokeWidth={2.5} />
                 Nueva etapa
               </button>
             </div>
@@ -179,7 +173,7 @@ export default function Pipeline() {
           <DragOverlay>
             {activeLead && activeStage && (
               <div className="rotate-1 scale-105">
-                <LeadCard lead={activeLead} stageColor={activeStage.color} onClick={() => {}} />
+                <LeadCard lead={activeLead} stageColor={activeStage.color} onClick={() => { }} />
               </div>
             )}
           </DragOverlay>

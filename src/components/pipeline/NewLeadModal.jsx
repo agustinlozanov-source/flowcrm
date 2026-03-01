@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { X, Plus } from 'lucide-react'
 
 const SOURCES = [
-  { value: 'manual',    label: 'Manual' },
-  { value: 'meta_ads',  label: 'Meta Ads' },
+  { value: 'manual', label: 'Manual' },
+  { value: 'meta_ads', label: 'Meta Ads' },
   { value: 'instagram', label: 'Instagram DM' },
-  { value: 'whatsapp',  label: 'WhatsApp' },
-  { value: 'linkedin',  label: 'LinkedIn' },
-  { value: 'web',       label: 'Web Form' },
-  { value: 'referral',  label: 'Referido' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'web', label: 'Web Form' },
+  { value: 'referral', label: 'Referido' },
 ]
 
 const SOURCE_ICONS = {
@@ -65,9 +66,7 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
             onClick={onClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-            </svg>
+            <X size={15} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -191,9 +190,7 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
+                  <Plus size={14} strokeWidth={3} color="white" />
                   Crear lead
                 </>
               )}

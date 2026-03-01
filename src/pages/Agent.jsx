@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Bot, X, Plus, Zap, Bell, Hourglass, MessageCircle, FileText } from 'lucide-react'
 
 const DEFAULT_CONFIG = {
   name: 'Asistente FlowCRM',
@@ -137,12 +138,10 @@ export default function Agent() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent-purple/10 flex items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-              <path d="M9 1.5L11.47 6.5H16.5L12.5 9.97L14 15L9 12L4 15L5.5 9.97L1.5 6.5H6.53L9 1.5Z" fill="#7c3aed" opacity="0.8"/>
-            </svg>
+          <div className="w-7 h-7 rounded-lg bg-accent-purple/10 flex items-center justify-center text-accent-purple">
+            <Bot size={16} strokeWidth={2} />
           </div>
           <h1 className="font-display font-bold text-[15px] tracking-tight">Agente IA</h1>
         </div>
@@ -170,7 +169,7 @@ export default function Agent() {
           </button>
           <button onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
             {saving
-              ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"/>
+              ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
               : 'Guardar cambios'}
           </button>
         </div>
@@ -348,8 +347,8 @@ export default function Agent() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-btn bg-accent-purple text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 border-none cursor-pointer"
                 >
                   {testing
-                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                    : '⚡ Probar'}
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><Zap size={14} /> Probar</>}
                 </button>
               </div>
 
@@ -361,7 +360,7 @@ export default function Agent() {
                     </div>
                     <div>
                       <div className="text-xs font-bold text-secondary uppercase tracking-wide">Score generado</div>
-                      <div className="text-xs text-tertiary">{testResult.score >= config.scoreThreshold ? '🔔 Escalaría al vendedor' : '⏳ Continúa en nurturing'}</div>
+                      <div className="text-xs text-tertiary flex items-center gap-1">{testResult.score >= config.scoreThreshold ? <><Bell size={12} /> Escalaría al vendedor</> : <><Hourglass size={12} /> Continúa en nurturing</>}</div>
                     </div>
                   </div>
                   {testResult.analysis && (
@@ -408,18 +407,14 @@ export default function Agent() {
                       onClick={() => removeQ(i)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
                     >
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
+                      <X size={14} strokeWidth={2.5} />
                     </button>
                   </div>
                 ))}
               </div>
 
               <button onClick={addQ} className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                </svg>
+                <Plus size={14} strokeWidth={2.5} />
                 Agregar pregunta
               </button>
             </div>
@@ -435,14 +430,14 @@ export default function Agent() {
               </div>
               {activity.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">
-                  Sin actividad todavía.<br/>
+                  Sin actividad todavía.<br />
                   <span className="text-tertiary text-xs">El agente registrará aquí cada acción que tome.</span>
                 </div>
               ) : (
                 activity.map(item => (
                   <div key={item.id} className="flex gap-3 px-5 py-3.5 border-b border-black/[0.04] last:border-0">
                     <div className="w-7 h-7 rounded-lg bg-surface-2 border border-black/[0.06] flex items-center justify-center text-sm flex-shrink-0 mt-0.5">
-                      {item.type === 'qualify' ? '⚡' : item.type === 'message' ? '💬' : item.type === 'escalate' ? '🔔' : '📝'}
+                      {item.type === 'qualify' ? <Zap size={14} /> : item.type === 'message' ? <MessageCircle size={14} /> : item.type === 'escalate' ? <Bell size={14} /> : <FileText size={14} />}
                     </div>
                     <div className="flex-1">
                       <p className="text-[13px] text-primary">{item.description}</p>

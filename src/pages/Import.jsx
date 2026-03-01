@@ -5,16 +5,17 @@ import { useAuthStore } from '@/store/authStore'
 import { usePipeline } from '@/hooks/usePipeline'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { FileUp, FileText, Zap, ArrowRight, CheckCircle } from 'lucide-react'
 
 const CRM_FIELDS = [
-  { value: 'name',    label: 'Nombre' },
+  { value: 'name', label: 'Nombre' },
   { value: 'company', label: 'Empresa' },
-  { value: 'email',   label: 'Email' },
-  { value: 'phone',   label: 'Teléfono' },
-  { value: 'value',   label: 'Valor (USD)' },
-  { value: 'source',  label: 'Fuente' },
-  { value: 'notes',   label: 'Notas' },
-  { value: 'ignore',  label: 'Ignorar columna' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Teléfono' },
+  { value: 'value', label: 'Valor (USD)' },
+  { value: 'source', label: 'Fuente' },
+  { value: 'notes', label: 'Notas' },
+  { value: 'ignore', label: 'Ignorar columna' },
 ]
 
 const STEPS = ['Subir archivo', 'Mapeo IA', 'Confirmar', 'Resultado']
@@ -181,7 +182,7 @@ export default function Import() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <h1 className="font-display font-bold text-[15px] tracking-tight">Importar contactos</h1>
         {step > 0 && (
           <button onClick={reset} className="text-xs text-secondary hover:text-primary transition-colors ml-2">
@@ -201,7 +202,7 @@ export default function Import() {
               <div className={clsx(
                 'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold',
                 i === step ? 'bg-primary text-white' :
-                i < step ? 'bg-green-500 text-white' : 'bg-surface-2 text-tertiary border border-black/[0.1]'
+                  i < step ? 'bg-green-500 text-white' : 'bg-surface-2 text-tertiary border border-black/[0.1]'
               )}>
                 {i < step ? '✓' : i + 1}
               </div>
@@ -229,7 +230,9 @@ export default function Import() {
                 dragOver ? 'border-accent-blue bg-blue-50' : 'border-black/[0.14] hover:border-black/[0.25] hover:bg-surface-2'
               )}
             >
-              <div className="text-5xl mb-4">📂</div>
+              <div className="w-16 h-16 rounded-[18px] bg-black/[0.02] border border-black/[0.05] flex items-center justify-center text-tertiary mb-4 mx-auto">
+                <FileUp size={32} strokeWidth={1.5} />
+              </div>
               <h3 className="font-display font-bold text-lg text-primary mb-2">
                 Sube tu archivo
               </h3>
@@ -265,7 +268,7 @@ export default function Import() {
 
             {/* File info */}
             <div className="card p-4 flex items-center gap-3">
-              <div className="text-2xl">📄</div>
+              <FileText size={24} className="text-tertiary flex-shrink-0" />
               <div className="flex-1">
                 <div className="font-semibold text-sm text-primary">{file?.name}</div>
                 <div className="text-xs text-secondary">{parsed.rows.length} filas · {parsed.headers.length} columnas</div>
@@ -285,7 +288,7 @@ export default function Import() {
             {/* AI Notes */}
             {aiNotes && !analyzing && (
               <div className="flex gap-2.5 p-3.5 bg-purple-50 border border-purple-200 rounded-[10px]">
-                <span className="text-lg flex-shrink-0">⚡</span>
+                <Zap size={18} className="text-purple-500 flex-shrink-0" />
                 <p className="text-xs text-purple-700 leading-relaxed">{aiNotes}</p>
               </div>
             )}
@@ -305,9 +308,7 @@ export default function Import() {
                         <div className="text-[13px] font-semibold text-primary truncate">{header}</div>
                         {sampleVal && <div className="text-[11px] text-tertiary truncate">Ej: {sampleVal}</div>}
                       </div>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-tertiary flex-shrink-0">
-                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                      <ArrowRight size={16} strokeWidth={1.5} className="text-tertiary flex-shrink-0" />
                       <select
                         value={mapping[header] || 'ignore'}
                         onChange={e => setMapping(m => ({ ...m, [header]: e.target.value }))}
@@ -427,7 +428,9 @@ export default function Import() {
         {step === 3 && importResult && (
           <div className="max-w-md mx-auto text-center">
             <div className="card p-8">
-              <div className="text-5xl mb-4">🎉</div>
+              <div className="w-16 h-16 rounded-2xl bg-green-50 border border-green-200 flex items-center justify-center text-green-600 mb-4 mx-auto">
+                <CheckCircle size={32} strokeWidth={1.5} />
+              </div>
               <h2 className="font-display font-bold text-2xl tracking-tight mb-2">¡Importación completada!</h2>
               <p className="text-secondary text-sm mb-6">Tus leads ya están en el pipeline.</p>
 

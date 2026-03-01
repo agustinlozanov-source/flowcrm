@@ -3,6 +3,7 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Star } from 'lucide-react'
 
 export default function Superadmin() {
   const [orgs, setOrgs] = useState([])
@@ -32,12 +33,10 @@ export default function Superadmin() {
   return (
     <div className="h-full flex flex-col bg-bg">
       {/* Header */}
-      <div className="bg-surface border-b border-black/[0.08] px-6 h-14 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-6 h-[68px] flex items-center gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1L7 4H10L7.5 5.8L8.5 9L6 7.2L3.5 9L4.5 5.8L2 4H5L6 1Z" fill="white"/>
-            </svg>
+            <Star size={12} fill="white" color="white" />
           </div>
           <h1 className="font-display font-bold text-base tracking-tight">Superadmin</h1>
         </div>
