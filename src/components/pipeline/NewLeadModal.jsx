@@ -1,0 +1,206 @@
+import { useState } from 'react'
+import toast from 'react-hot-toast'
+
+const SOURCES = [
+  { value: 'manual',    label: 'Manual' },
+  { value: 'meta_ads',  label: 'Meta Ads' },
+  { value: 'instagram', label: 'Instagram DM' },
+  { value: 'whatsapp',  label: 'WhatsApp' },
+  { value: 'linkedin',  label: 'LinkedIn' },
+  { value: 'web',       label: 'Web Form' },
+  { value: 'referral',  label: 'Referido' },
+]
+
+const SOURCE_ICONS = {
+  manual: '✏️', meta_ads: '🔵', instagram: '📸',
+  whatsapp: '💬', linkedin: '💼', web: '🌐', referral: '⭐',
+}
+
+export default function NewLeadModal({ stages, onClose, onCreate }) {
+  const [form, setForm] = useState({
+    name: '', company: '', email: '', phone: '',
+    value: '', source: 'manual',
+    stageId: stages[0]?.id || '',
+  })
+  const [loading, setLoading] = useState(false)
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.name.trim()) { toast.error('El nombre es requerido'); return }
+    if (!form.stageId) { toast.error('Selecciona una etapa'); return }
+
+    setLoading(true)
+    try {
+      await onCreate(form)
+      toast.success('Lead creado')
+      onClose()
+    } catch (err) {
+      toast.error('Error al crear el lead')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-md border border-black/[0.08] animate-in fade-in zoom-in-95 duration-150">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
+          <div>
+            <h2 className="font-display font-bold text-lg tracking-tight">Nuevo lead</h2>
+            <p className="text-xs text-secondary mt-0.5">Añadir contacto al pipeline</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+
+          {/* Name + Company */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Nombre *
+              </label>
+              <input
+                value={form.name} onChange={set('name')}
+                placeholder="Carlos Ramírez"
+                className="input" required autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Empresa
+              </label>
+              <input
+                value={form.company} onChange={set('company')}
+                placeholder="TechSoluciones"
+                className="input"
+              />
+            </div>
+          </div>
+
+          {/* Email + Phone */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Email
+              </label>
+              <input
+                type="email" value={form.email} onChange={set('email')}
+                placeholder="carlos@empresa.com"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Teléfono
+              </label>
+              <input
+                value={form.phone} onChange={set('phone')}
+                placeholder="+52 81 0000 0000"
+                className="input"
+              />
+            </div>
+          </div>
+
+          {/* Value + Source */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Valor del deal (USD)
+              </label>
+              <input
+                type="number" value={form.value} onChange={set('value')}
+                placeholder="0"
+                className="input"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Fuente
+              </label>
+              <select value={form.source} onChange={set('source')} className="input">
+                {SOURCES.map(s => (
+                  <option key={s.value} value={s.value}>
+                    {SOURCE_ICONS[s.value]} {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Stage */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+              Etapa inicial *
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {stages.map(stage => (
+                <button
+                  key={stage.id}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, stageId: stage.id }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-150"
+                  style={{
+                    borderColor: form.stageId === stage.id ? stage.color : 'rgba(0,0,0,0.1)',
+                    background: form.stageId === stage.id ? `${stage.color}15` : 'transparent',
+                    color: form.stageId === stage.id ? stage.color : '#6e6e73',
+                  }}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ background: stage.color }}
+                  />
+                  {stage.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary flex-1 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                  Crear lead
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
