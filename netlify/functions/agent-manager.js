@@ -69,21 +69,21 @@ function buildSystemPrompt(config) {
 
   const closings = {
     valor_primero: 'Siempre presenta el VALOR antes de mencionar el precio. Cuando llegue el momento de cerrar, resume los beneficios específicos que le has identificado al lead.',
-    urgencia: 'Crea urgencia GENUINA basada en hechos reales (lugares limitados, precio especial por tiempo limitado, etc). Nunca inventes urgencia falsa.',
+    urgencia: 'Crea urgencia GENUINA basada en hechos reales (lugares limitados, precio especial por tiempo limitado). Nunca inventes urgencia falsa.',
     alternativas: 'Usa el cierre de alternativas: en lugar de preguntar "¿quieres comprar?", pregunta "¿prefieres el plan A o el plan B?"',
     directo: 'Cuando el lead muestre señales de compra, ve directo al cierre. "¿Empezamos esta semana o la siguiente?"',
   }
 
   const objectionsText = objections.length > 0
-    ? `\nMANEJO DE OBJECIONES ESPECÍFICAS:\n${objections.map(o => `- Cuando digan "${o.objection}": ${o.response}`).join('\n')}`
+    ? `\nMANEJO DE OBJECIONES ESPECÍFICAS:\n${objections.filter(o => o.objection && o.response).map(o => `- Cuando digan "${o.objection}": ${o.response}`).join('\n')}`
     : ''
 
-  const questionsText = qualifyingQuestions.length > 0
-    ? `\nPREGUNTAS DE CALIFICACIÓN (hazlas de forma natural, no como interrogatorio):\n${qualifyingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+  const questionsText = qualifyingQuestions.filter(Boolean).length > 0
+    ? `\nPREGUNTAS DE CALIFICACIÓN (hazlas de forma natural, no como interrogatorio):\n${qualifyingQuestions.filter(Boolean).map((q, i) => `${i + 1}. ${q}`).join('\n')}`
     : ''
 
-  const limitsText = limits.length > 0
-    ? `\nREGLAS ABSOLUTAS (nunca las violes):\n${limits.map(l => `- ${l}`).join('\n')}`
+  const limitsText = limits.filter(Boolean).length > 0
+    ? `\nREGLAS ABSOLUTAS (nunca las violes):\n${limits.filter(Boolean).map(l => `- ${l}`).join('\n')}`
     : ''
 
   return `Eres ${agentName}, un agente de ventas especializado con personalidad ${personalities[personality] || personalities.amigable}
@@ -91,7 +91,7 @@ function buildSystemPrompt(config) {
 ${objectives[mainObjective] || objectives.agendar_llamada}
 
 SOBRE EL PRODUCTO/SERVICIO QUE VENDES:
-${productDescription || 'Usa los documentos de la base de conocimiento para responder preguntas sobre el producto.'}
+${productDescription || 'Responde preguntas sobre el producto de forma general hasta recibir más información.'}
 
 ${prices ? `PRECIOS Y PLANES:\n${prices}` : ''}
 
@@ -107,15 +107,13 @@ ${limitsText}
 INSTRUCCIONES GENERALES:
 - Responde siempre en español, de forma breve (máximo 3-4 oraciones por mensaje)
 - Nunca menciones que eres una IA a menos que te lo pregunten directamente
-- Si no sabes algo, busca en la base de conocimiento antes de inventar
 - Siempre termina con una pregunta o llamada a acción concreta
-- Usa emojis con moderación si el tono es amigable
 - Adapta tu lenguaje al nivel del lead (formal/informal según cómo escriben)
 
-${customInstructions ? `INSTRUCCIONES ADICIONALES DEL NEGOCIO:\n${customInstructions}` : ''}`
+${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
 }
 
-// ── CREATE OR UPDATE ASSISTANT ──
+// ── CREATE OR UPDATE ASSISTANT (sin Vector Stores) ──
 async function syncAssistant(orgId, config) {
   const settingsRef = db.collection('organizations').doc(orgId).collection('settings').doc('agent')
   const settingsSnap = await settingsRef.get()
@@ -123,68 +121,48 @@ async function syncAssistant(orgId, config) {
 
   const systemPrompt = buildSystemPrompt(config)
 
-  // Get vector store if exists
-  let vectorStoreId = current.vectorStoreId
-
-  if (!vectorStoreId) {
-    // Create vector store
-    const vs = await openai.beta.vectorStores.create({ name: `flowcrm-${orgId}` })
-    vectorStoreId = vs.id
-  }
-
   const assistantParams = {
     name: config.agentName || 'Agente FlowCRM',
     instructions: systemPrompt,
     model: 'gpt-4o-mini',
-    tools: [{ type: 'file_search' }],
-    tool_resources: { file_search: { vector_store_ids: [vectorStoreId] } },
   }
 
   let assistantId = current.assistantId
 
   if (assistantId) {
-    // Update existing
     await openai.beta.assistants.update(assistantId, assistantParams)
   } else {
-    // Create new
     const assistant = await openai.beta.assistants.create(assistantParams)
     assistantId = assistant.id
   }
 
-  // Save to Firestore
   await settingsRef.set({
     ...config,
     assistantId,
-    vectorStoreId,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true })
 
-  return { assistantId, vectorStoreId }
+  return { assistantId }
 }
 
-// ── UPLOAD FILE TO VECTOR STORE ──
+// ── UPLOAD FILE ──
 async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  const { vectorStoreId, assistantId } = settingsSnap.data() || {}
+  const { assistantId } = settingsSnap.data() || {}
 
-  if (!vectorStoreId) throw new Error('Vector store not initialized. Save agent config first.')
+  if (!assistantId) throw new Error('Guarda el agente primero antes de subir archivos.')
 
-  // Upload to OpenAI
   const file = await openai.files.create({
     file: new File([fileBuffer], fileName, { type: mimeType }),
     purpose: 'assistants',
   })
 
-  // Add to vector store
-  await openai.beta.vectorStores.files.create(vectorStoreId, { file_id: file.id })
-
-  // Save file record to Firestore
   const fileRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
     openaiFileId: file.id,
     name: fileName,
     size: fileBuffer.length,
     mimeType,
-    status: 'processing',
+    status: 'ready',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   })
 
@@ -195,46 +173,54 @@ async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
 async function deleteFile(orgId, fileDocId) {
   const fileSnap = await db.collection('organizations').doc(orgId).collection('agent_files').doc(fileDocId).get()
   if (!fileSnap.exists) return
-
   const { openaiFileId } = fileSnap.data()
-
-  try {
-    await openai.files.del(openaiFileId)
-  } catch (err) {
-    console.error('OpenAI file delete error:', err)
-  }
-
+  try { await openai.files.del(openaiFileId) } catch (e) { console.error('OpenAI delete:', e.message) }
   await fileSnap.ref.delete()
 }
 
-// ── CHAT WITH ASSISTANT (for testing) ──
+// ── CHAT WITH ASSISTANT ──
 async function chatWithAssistant(orgId, leadId, message) {
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
+  if (!settingsSnap.exists) throw new Error('Assistant not configured')
+  
   const { assistantId } = settingsSnap.data() || {}
-
   if (!assistantId) throw new Error('Assistant not configured')
 
   // Get or create thread for this lead
-  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId || 'test')
+  const threadKey = `thread_${leadId}`
+  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
   const leadSnap = await leadRef.get()
-  let threadId = leadSnap.exists ? leadSnap.data()?.threadId : null
+  let threadId = null
+
+  if (leadSnap.exists && leadSnap.data()?.[threadKey]) {
+    threadId = leadSnap.data()[threadKey]
+  }
 
   if (!threadId) {
     const thread = await openai.beta.threads.create()
     threadId = thread.id
-    if (leadSnap.exists) await leadRef.update({ threadId })
+    if (leadSnap.exists) {
+      await leadRef.update({ [threadKey]: threadId })
+    } else {
+      // test mode — store in a temp doc
+      await db.collection('organizations').doc(orgId)
+        .collection('agent_threads').doc(leadId)
+        .set({ threadId }, { merge: true })
+    }
   }
 
-  // Add message to thread
+  // Add user message
   await openai.beta.threads.messages.create(threadId, { role: 'user', content: message })
 
-  // Run assistant
-  const run = await openai.beta.threads.runs.createAndPoll(threadId, { assistant_id: assistantId })
+  // Run and poll
+  const run = await openai.beta.threads.runs.createAndPoll(threadId, {
+    assistant_id: assistantId,
+  })
 
-  if (run.status !== 'completed') throw new Error(`Run failed: ${run.status}`)
+  if (run.status !== 'completed') throw new Error(`Run status: ${run.status}`)
 
-  // Get response
-  const messages = await openai.beta.threads.messages.list(threadId, { limit: 1 })
+  // Get latest assistant message
+  const messages = await openai.beta.threads.messages.list(threadId, { limit: 1, order: 'desc' })
   const response = messages.data[0]?.content[0]?.text?.value || 'Sin respuesta'
 
   return { response, threadId }
@@ -247,32 +233,29 @@ exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json' }
 
   try {
-    const { action, orgId } = JSON.parse(event.body)
+    const body = JSON.parse(event.body)
+    const { action, orgId } = body
 
     if (!orgId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing orgId' }) }
 
     if (action === 'sync') {
-      const { config } = JSON.parse(event.body)
-      const result = await syncAssistant(orgId, config)
+      const result = await syncAssistant(orgId, body.config)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 
     if (action === 'upload') {
-      const { fileData, fileName, mimeType } = JSON.parse(event.body)
-      const buffer = Buffer.from(fileData, 'base64')
-      const result = await uploadFile(orgId, buffer, fileName, mimeType)
+      const buffer = Buffer.from(body.fileData, 'base64')
+      const result = await uploadFile(orgId, buffer, body.fileName, body.mimeType)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 
     if (action === 'delete_file') {
-      const { fileDocId } = JSON.parse(event.body)
-      await deleteFile(orgId, fileDocId)
+      await deleteFile(orgId, body.fileDocId)
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
 
     if (action === 'chat') {
-      const { leadId, message } = JSON.parse(event.body)
-      const result = await chatWithAssistant(orgId, leadId, message)
+      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 
