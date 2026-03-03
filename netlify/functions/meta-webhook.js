@@ -245,7 +245,7 @@ async function processMessaging(entry, channel, orgId) {
       const profileRes = await fetch(`https://graph.facebook.com/v19.0/${senderId}?fields=name&access_token=${pageToken}`)
       const profile = await profileRes.json()
       name = profile.name || name
-    } catch {}
+    } catch { }
 
     const lead = await findOrCreateLead(orgId, {
       name,
@@ -306,6 +306,7 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body)
+    console.log('PAYLOAD:', JSON.stringify(body))
     // Use first org for now — multi-org routing via page ID mapping is next step
     const orgId = process.env.DEFAULT_ORG_ID
 
