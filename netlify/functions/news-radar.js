@@ -10,7 +10,15 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { topics = ['IA', 'tecnología', 'Silicon Valley', 'marketing digital', 'China tech'] } = JSON.parse(event.body || '{}')
+    const { topics } = JSON.parse(event.body || '{}')
+
+    if (!topics || topics.length === 0) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'NO_TOPICS' }),
+      }
+    }
 
     const prompt = `Eres un experto en contenido viral para redes sociales. Busca las 6 noticias más importantes y con mayor potencial viral de HOY sobre estos temas: ${topics.join(', ')}.
 

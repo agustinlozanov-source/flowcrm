@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap } from 'lucide-react'
+import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap, Settings } from 'lucide-react'
 
 const NETWORKS = [
   { value: 'tiktok', label: 'TikTok', icon: <Smartphone size={14} /> },
@@ -27,8 +27,6 @@ const STAGE_CONFIG = {
   published: { label: 'Publicado', color: '#6e6e73', bg: 'rgba(110,110,115,0.1)' },
 }
 
-const TOPIC_DEFAULTS = ['IA & Tech', 'Silicon Valley', 'Marketing Digital', 'China Tech', 'Negocios']
-
 // ── TELEPROMPTER ──
 function Teleprompter({ script, onClose }) {
   const [playing, setPlaying] = useState(false)
@@ -38,7 +36,6 @@ function Teleprompter({ script, onClose }) {
   const scrollRef = useRef(null)
   const animRef = useRef(null)
   const startRef = useRef(null)
-  const offsetRef = useRef(0)
 
   const fullText = script ? [
     script.hooks?.[0]?.text,
@@ -75,7 +72,6 @@ function Teleprompter({ script, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-primary flex flex-col">
-      {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.08]">
         <span className="text-white font-display font-bold text-sm flex items-center gap-1.5"><Tv size={14} /> Teleprompter</span>
         <div className="flex items-center gap-4 ml-4">
@@ -98,7 +94,6 @@ function Teleprompter({ script, onClose }) {
         <button onClick={onClose} className="ml-auto text-white/40 hover:text-white text-sm">✕ Cerrar</button>
       </div>
 
-      {/* Text */}
       <div className="relative flex-1 overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-primary to-transparent z-10 pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-primary to-transparent z-10 pointer-events-none" />
@@ -114,7 +109,6 @@ function Teleprompter({ script, onClose }) {
         </div>
       </div>
 
-      {/* Controls */}
       <div className="flex items-center gap-3 px-5 py-4 border-t border-white/[0.08]">
         <button
           onClick={() => { setElapsed(0); if (scrollRef.current) scrollRef.current.scrollTop = 0 }}
@@ -172,7 +166,6 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Sub-topbar */}
       <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex items-center gap-3 flex-shrink-0">
         <button onClick={onBack} className="text-xs text-secondary hover:text-primary transition-colors flex items-center gap-1">
           ← Volver
@@ -189,8 +182,6 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
 
       <div className="flex-1 overflow-y-auto p-5">
         <div className="max-w-2xl mx-auto flex flex-col gap-4">
-
-          {/* Hooks */}
           <div className="card p-5">
             <div className="font-display font-bold text-sm mb-3 flex items-center gap-2">
               <Fish size={14} /> Hook <span className="text-tertiary text-xs font-normal">— elige uno</span>
@@ -210,14 +201,11 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
 
           <ScriptSection icon={<MapPin size={16} />} title="Contexto" duration={script.script?.context?.duration}
             text={script.script?.context?.text} tip={script.script?.context?.tip} />
-
           <ScriptSection icon={<Search size={16} />} title="Desarrollo" duration={script.script?.development?.duration}
             text={script.script?.development?.text} tip={script.script?.development?.tip} />
-
           <ScriptSection icon={<Rocket size={16} />} title="CTA" duration={script.script?.cta?.duration}
             text={script.script?.cta?.text} tip={script.script?.cta?.tip} />
 
-          {/* Copy por red */}
           {script.copies && (
             <div className="card overflow-hidden">
               <div className="flex items-center gap-0 px-5 pt-4 border-b border-black/[0.06]">
@@ -262,10 +250,117 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
   )
 }
 
+// ── TOPICS CONFIG ──
+function TopicsConfig({ orgId, topics, setTopics }) {
+  const [newTopic, setNewTopic] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await setDoc(doc(db, 'organizations', orgId, 'settings', 'content'), { topics }, { merge: true })
+      toast.success('Temas guardados ✓')
+    } catch {
+      toast.error('Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addTopic = () => {
+    if (!newTopic.trim()) return
+    if (topics.includes(newTopic.trim())) { toast.error('Ese tema ya existe'); return }
+    setTopics(t => [...t, newTopic.trim()])
+    setNewTopic('')
+  }
+
+  const removeTopic = (i) => setTopics(t => t.filter((_, j) => j !== i))
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5">
+      <div className="max-w-lg mx-auto flex flex-col gap-4">
+
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px]">
+          <span className="text-xl flex-shrink-0">🎯</span>
+          <div>
+            <p className="text-[12.5px] text-amber-800 font-semibold mb-0.5">Temas del radar de noticias</p>
+            <p className="text-[11.5px] text-amber-700 leading-relaxed">El radar buscará noticias virales del día sobre estos temas específicamente. Entre más específicos sean, mejores resultados.</p>
+          </div>
+        </div>
+
+        <div className="card p-5 flex flex-col gap-4">
+          <div>
+            <h3 className="font-display font-bold text-sm text-primary mb-1">Temas configurados</h3>
+            <p className="text-xs text-secondary">Se usarán cada vez que hagas una búsqueda en el radar</p>
+          </div>
+
+          {topics.length === 0 ? (
+            <div className="text-center py-8 text-tertiary">
+              <Radio size={28} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-semibold">Sin temas configurados</p>
+              <p className="text-xs mt-1">Agrega al menos un tema para usar el radar</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {topics.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2.5 bg-surface-2 rounded-[10px] border border-black/[0.08]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-accent-amber flex-shrink-0" />
+                  <span className="text-[13px] font-semibold text-primary flex-1">{t}</span>
+                  <button onClick={() => removeTopic(i)}
+                    className="text-tertiary hover:text-red-500 transition-colors text-lg leading-none">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              value={newTopic}
+              onChange={e => setNewTopic(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTopic() }}
+              placeholder="Ej: Marketing digital, FinTech México, IA generativa..."
+              className="input text-sm flex-1"
+            />
+            <button onClick={addTopic} disabled={!newTopic.trim()}
+              className="btn-secondary px-4 text-sm disabled:opacity-40">
+              + Agregar
+            </button>
+          </div>
+
+          <button onClick={handleSave} disabled={saving || topics.length === 0}
+            className="btn-primary text-sm py-2.5 flex items-center justify-center gap-2 disabled:opacity-40">
+            {saving
+              ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
+              : '💾 Guardar temas'
+            }
+          </button>
+        </div>
+
+        <div className="card p-4">
+          <p className="text-[11px] font-bold text-secondary uppercase tracking-wide mb-2">Ejemplos de temas</p>
+          <div className="flex flex-wrap gap-1.5">
+            {['IA & Tecnología', 'Marketing Digital', 'Negocios LATAM', 'Finanzas personales', 'Emprendimiento', 'Redes sociales', 'E-commerce', 'Startups México', 'Productividad', 'Ventas B2B'].map(t => (
+              <button key={t} onClick={() => { if (!topics.includes(t)) setTopics(tp => [...tp, t]) }}
+                className={clsx('text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all',
+                  topics.includes(t)
+                    ? 'bg-amber-50 border-amber-300 text-amber-700'
+                    : 'bg-surface-2 border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                )}>
+                {topics.includes(t) ? '✓ ' : '+ '}{t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN COMPONENT ──
 export default function ContentStudio() {
   const { org } = useAuthStore()
-  const [view, setView] = useState('dashboard') // dashboard | script
+  const [view, setView] = useState('dashboard')
   const [contents, setContents] = useState([])
   const [loadingNews, setLoadingNews] = useState(false)
   const [news, setNews] = useState([])
@@ -275,14 +370,24 @@ export default function ContentStudio() {
   const [selectedContent, setSelectedContent] = useState(null)
   const [showTeleprompter, setShowTeleprompter] = useState(false)
   const [agentConfig, setAgentConfig] = useState({ personality: 'amigable' })
-  const [topics, setTopics] = useState(TOPIC_DEFAULTS)
-  const [activeTab, setActiveTab] = useState('radar') // radar | pipeline
+  const [topics, setTopics] = useState([])
+  const [activeTab, setActiveTab] = useState('radar')
 
   // Load agent config
   useEffect(() => {
     if (!org?.id) return
     getDoc(doc(db, 'organizations', org.id, 'settings', 'agent'))
       .then(snap => { if (snap.exists()) setAgentConfig(snap.data()) })
+  }, [org?.id])
+
+  // Load topics from Firestore
+  useEffect(() => {
+    if (!org?.id) return
+    const unsub = onSnapshot(
+      doc(db, 'organizations', org.id, 'settings', 'content'),
+      snap => { if (snap.exists()) setTopics(snap.data().topics || []) }
+    )
+    return () => unsub()
   }, [org?.id])
 
   // Real-time content pipeline
@@ -299,6 +404,11 @@ export default function ContentStudio() {
   }, [org?.id])
 
   const handleFetchNews = async () => {
+    if (topics.length === 0) {
+      toast.error('Configura al menos un tema en la pestaña Temas')
+      setActiveTab('temas')
+      return
+    }
     setLoadingNews(true)
     try {
       const res = await fetch('/.netlify/functions/news-radar', {
@@ -326,8 +436,6 @@ export default function ContentStudio() {
         body: JSON.stringify({ news: newsItem, networks: selectedNetworks, agentConfig }),
       })
       const script = await res.json()
-
-      // Save to Firestore
       const docRef = await addDoc(collection(db, 'organizations', org.id, 'content'), {
         title: newsItem.title,
         newsSource: newsItem.source,
@@ -339,7 +447,6 @@ export default function ContentStudio() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
-
       const saved = { id: docRef.id, title: newsItem.title, script, networks: selectedNetworks, stage: 'scripting' }
       setSelectedContent(saved)
       setView('script')
@@ -362,7 +469,6 @@ export default function ContentStudio() {
     return acc
   }, {})
 
-  // SCRIPT VIEW
   if (view === 'script' && selectedContent) {
     return (
       <>
@@ -381,7 +487,6 @@ export default function ContentStudio() {
     )
   }
 
-  // DASHBOARD
   return (
     <div className="h-full flex flex-col overflow-hidden">
 
@@ -389,7 +494,7 @@ export default function ContentStudio() {
       <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.15)' }}>
-            <span className="text-sm"><Clapperboard size={14} className="text-amber-500" /></span>
+            <Clapperboard size={14} className="text-amber-500" />
           </div>
           <h1 className="font-display font-bold text-[15px] tracking-tight">Content Studio</h1>
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 ml-1">
@@ -399,7 +504,11 @@ export default function ContentStudio() {
         </div>
 
         <div className="ml-auto flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
-          {[['radar', <><Radio size={14} className="inline-block mr-1" /> Radar</>], ['pipeline', <><Clapperboard size={14} className="inline-block mr-1" /> Pipeline</>]].map(([v, l]) => (
+          {[
+            ['radar', <><Radio size={13} className="inline-block mr-1" />Radar</>],
+            ['pipeline', <><Clapperboard size={13} className="inline-block mr-1" />Pipeline</>],
+            ['temas', <><Settings size={13} className="inline-block mr-1" />Temas{topics.length === 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />}</>],
+          ].map(([v, l]) => (
             <button key={v} onClick={() => setActiveTab(v)}
               className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
                 activeTab === v ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
@@ -413,20 +522,24 @@ export default function ContentStudio() {
         {/* ── RADAR TAB ── */}
         {activeTab === 'radar' && (
           <div className="flex flex-1 overflow-hidden">
-
-            {/* Left: news list */}
             <div className="flex-1 overflow-y-auto p-5 border-r border-black/[0.08]">
 
-              {/* Topics + fetch */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex flex-wrap gap-1.5 flex-1">
-                  {topics.map(t => (
-                    <span key={t} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-surface border border-black/[0.08] text-secondary">
-                      {t}
-                    </span>
-                  ))}
+                  {topics.length === 0 ? (
+                    <button onClick={() => setActiveTab('temas')}
+                      className="text-[11px] font-semibold px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+                      ⚠ Configura tus temas primero →
+                    </button>
+                  ) : (
+                    topics.map(t => (
+                      <span key={t} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-surface border border-black/[0.08] text-secondary">
+                        {t}
+                      </span>
+                    ))
+                  )}
                 </div>
-                <button onClick={handleFetchNews} disabled={loadingNews}
+                <button onClick={handleFetchNews} disabled={loadingNews || topics.length === 0}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-all flex-shrink-0">
                   {loadingNews
                     ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> Buscando...</>
@@ -438,11 +551,22 @@ export default function ContentStudio() {
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="mb-3 flex justify-center text-primary"><Radio size={40} strokeWidth={1.5} /></div>
                   <p className="font-display font-bold text-base text-primary mb-1">Radar de noticias</p>
-                  <p className="text-sm text-secondary max-w-xs">El agente busca las noticias más virales del día sobre tus temas de interés.</p>
-                  <button onClick={handleFetchNews} disabled={loadingNews}
-                    className="mt-4 btn-primary text-sm py-2 px-5 flex items-center gap-2">
-                    {loadingNews ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Radio size={14} /> Buscar ahora</>}
-                  </button>
+                  <p className="text-sm text-secondary max-w-xs">
+                    {topics.length === 0
+                      ? 'Primero configura tus temas en la pestaña Temas'
+                      : 'El agente busca las noticias más virales del día sobre tus temas de interés.'
+                    }
+                  </p>
+                  {topics.length === 0 ? (
+                    <button onClick={() => setActiveTab('temas')} className="mt-4 btn-primary text-sm py-2 px-5">
+                      Configurar temas →
+                    </button>
+                  ) : (
+                    <button onClick={handleFetchNews} disabled={loadingNews}
+                      className="mt-4 btn-primary text-sm py-2 px-5 flex items-center gap-2">
+                      {loadingNews ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Buscando...</> : <><Radio size={14} /> Buscar ahora</>}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -460,11 +584,11 @@ export default function ContentStudio() {
                             </span>
                             <span className="text-[10px] text-tertiary">{item.source} · {item.publishedAt}</span>
                           </div>
-                          <h3 className="font-display font-bold text-[13.5px] text-primary leading-tight mb-1.5">
-                            {item.title}
-                          </h3>
+                          <h3 className="font-display font-bold text-[13.5px] text-primary leading-tight mb-1.5">{item.title}</h3>
                           <p className="text-[12px] text-secondary leading-relaxed line-clamp-2">{item.summary}</p>
-                          <p className="text-[11px] text-tertiary mt-1.5 italic flex items-center gap-1"><Lightbulb size={11} className="text-amber-500" /> {item.viralAngle}</p>
+                          <p className="text-[11px] text-tertiary mt-1.5 italic flex items-center gap-1">
+                            <Lightbulb size={11} className="text-amber-500" /> {item.viralAngle}
+                          </p>
                         </div>
                         <div className="flex flex-col items-center flex-shrink-0">
                           <div className={clsx('text-[13px] font-bold px-2 py-1 rounded-lg',
@@ -490,14 +614,9 @@ export default function ContentStudio() {
                   {selectedNews ? `"${selectedNews.title.slice(0, 40)}..."` : 'Selecciona una noticia'}
                 </p>
               </div>
-
               <div className="p-5 flex flex-col gap-4 flex-1">
-
-                {/* Networks */}
                 <div>
-                  <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-2">
-                    Redes destino
-                  </label>
+                  <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-2">Redes destino</label>
                   <div className="flex flex-col gap-1.5">
                     {NETWORKS.map(n => (
                       <div key={n.value}
@@ -515,7 +634,6 @@ export default function ContentStudio() {
                     ))}
                   </div>
                 </div>
-
                 <button
                   onClick={() => selectedNews && handleGenerateScript(selectedNews)}
                   disabled={!selectedNews || generatingScript || selectedNetworks.length === 0}
@@ -526,7 +644,6 @@ export default function ContentStudio() {
                     ? <><div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" /> Generando guión...</>
                     : <><Zap size={14} /> Generar guión con IA</>}
                 </button>
-
                 {!selectedNews && (
                   <p className="text-[11px] text-center text-tertiary">← Selecciona una noticia del radar</p>
                 )}
@@ -589,6 +706,12 @@ export default function ContentStudio() {
             </div>
           </div>
         )}
+
+        {/* ── TEMAS TAB ── */}
+        {activeTab === 'temas' && (
+          <TopicsConfig orgId={org?.id} topics={topics} setTopics={setTopics} />
+        )}
+
       </div>
     </div>
   )
