@@ -84,16 +84,8 @@ export default function Register() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex items-center gap-2.5 justify-center mb-8">
-          <div className="w-9 h-9 bg-primary rounded-[10px] flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="1" y="1" width="7" height="7" rx="2" fill="white"/>
-              <rect x="10" y="1" width="7" height="7" rx="2" fill="white" opacity="0.5"/>
-              <rect x="1" y="10" width="7" height="7" rx="2" fill="white" opacity="0.5"/>
-              <rect x="10" y="10" width="7" height="7" rx="2" fill="white" opacity="0.3"/>
-            </svg>
-          </div>
-          <span className="font-display font-bold text-xl tracking-tight text-primary">FlowCRM</span>
+        <div className="flex items-center justify-center mb-8">
+          <img src="/logo.png" alt="Logo" className="h-10 object-contain" />
         </div>
 
         <div className="card p-8">

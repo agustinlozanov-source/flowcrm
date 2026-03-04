@@ -10,7 +10,7 @@ import clsx from 'clsx'
 import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check } from 'lucide-react'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
-const SA_EMAIL = 'admin@qubitcorp.mx'
+const SA_EMAIL = 'admin@'
 const SA_PASSWORD = 'QubitAdmin2025!'
 
 // ─── MODULES CATALOG ───
@@ -870,7 +870,7 @@ function Plans() {
   return (
     <div className="sa-content">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{marginRight: 4}} /> Guardar planes</>}</Btn>
+        <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{ marginRight: 4 }} /> Guardar planes</>}</Btn>
       </div>
       {plans.map(plan => (
         <div key={plan.id} className="sa-plan-card">
@@ -1005,7 +1005,7 @@ function ApiConfig({ orgs }) {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{marginRight: 4}} /> Guardar APIs</>}</Btn>
+              <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{ marginRight: 4 }} /> Guardar APIs</>}</Btn>
             </div>
           </div>
         )}
@@ -1039,7 +1039,7 @@ function Quoter() {
 
   const genFolio = () => {
     const now = new Date()
-    return `QC-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${Math.floor(Math.random()*900+100)}`
+    return `QC-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(Math.random() * 900 + 100)}`
   }
 
   useEffect(() => {
@@ -1072,7 +1072,7 @@ function Quoter() {
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cotización — ${form.company}</title><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>body{font-family:Inter,sans-serif;background:#070708;color:white;margin:0;padding:0;}${document.querySelector('#sa-quote-style')?.textContent || ''}</style></head><body>${preview.innerHTML}</body></html>`
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-    a.download = `cotizacion-${form.company.toLowerCase().replace(/\s+/g,'-')}-${form.folio}.html`
+    a.download = `cotizacion-${form.company.toLowerCase().replace(/\s+/g, '-')}-${form.folio}.html`
     a.click()
     toast.success('HTML descargado')
   }
@@ -1237,23 +1237,17 @@ function Quoter() {
             {/* Header */}
             <div className="q2-header">
               <div style={{ position: 'relative', zIndex: 1 }}>
-                <div className="q2-logo-row">
-                  <div className="q2-logo-icon">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                  </div>
-                  <div><div className="q2-logo-text">Qubit Corp.</div><div className="q2-logo-sub">Technology Solutions</div></div>
-                </div>
-                <div className="q2-title">Propuesta Comercial</div>
+                <div className="q2-logo-row"><img src="/logo.png" alt="Logo" style={{ height: 40, objectFit: "contain" }} /></div><div className="q2-title">Propuesta Comercial</div>
                 <div className="q2-meta">
-                  <strong>Solución:</strong> FlowCRM — Suite completa<br/>
-                  <strong>Elaborado por:</strong> Qubit Corp. &nbsp;·&nbsp; <strong>Fecha:</strong> {formatDate(today)}
+                  <strong>Solución:</strong> FlowCRM — Suite completa<br />
+                  <strong>Elaborado por:</strong> Equipo &nbsp;·&nbsp; <strong>Fecha:</strong> {formatDate(today)}
                 </div>
               </div>
               <div style={{ position: 'relative', zIndex: 1, textAlign: 'right' }}>
-                <div className="q2-badge"><div className="q2-folio-dot"/>{f.folio}</div>
+                <div className="q2-badge"><div className="q2-folio-dot" />{f.folio}</div>
                 <div className="q2-meta" style={{ textAlign: 'right', lineHeight: 1.9 }}>
-                  <strong>Vigencia:</strong> {f.validityDays} días hábiles<br/>
-                  <strong>Vence:</strong> {formatDate(expiry)}<br/>
+                  <strong>Vigencia:</strong> {f.validityDays} días hábiles<br />
+                  <strong>Vence:</strong> {formatDate(expiry)}<br />
                   <strong>Moneda:</strong> {f.implCurrency} / {f.saasCurrency}
                 </div>
               </div>
@@ -1342,9 +1336,9 @@ function Quoter() {
 
             {/* Footer */}
             <div className="q2-footer">
-              <div className="q2-footer-brand">Qubit Corp. © {today.getFullYear()}</div>
-              <div className="q2-footer-note">Propuesta confidencial dirigida a {f.name || 'el cliente'} / {f.company}.<br/>Sujeta a la vigencia indicada.</div>
-              <div className="q2-footer-folio">{f.folio}<br/>qubitcorp.mx</div>
+              <div className="q2-footer-brand">© {today.getFullYear()}</div>
+              <div className="q2-footer-note">Propuesta confidencial dirigida a {f.name || 'el cliente'} / {f.company}.<br />Sujeta a la vigencia indicada.</div>
+              <div className="q2-footer-folio">{f.folio}<br /></div>
             </div>
 
           </div>
@@ -1402,17 +1396,8 @@ export default function Superadmin() {
         <style>{css}</style>
         <div className="sa-login">
           <div className="sa-login-card">
-            <div className="sa-login-logo">
-              <div className="sa-logo-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
-              </div>
-              <div className="sa-logo-text">Qubit Corp.</div>
-              <span className="sa-logo-badge">Superadmin</span>
-            </div>
-            <div className="sa-login-title">Acceso restringido</div>
-            <div className="sa-login-sub">Solo para administradores de Qubit Corp.</div>
+            <div className="sa-login-logo" style={{ flexDirection: "column" }}><img src="/logo.png" alt="Logo" style={{ height: 48, objectFit: "contain" }} /><span className="sa-logo-badge" style={{ marginTop: 8 }}>Superadmin</span></div><div className="sa-login-title">Acceso restringido</div>
+            <div className="sa-login-sub">Solo para administradores.</div>
             <input className="sa-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
             <input className="sa-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
             <button className="sa-btn-primary" onClick={login} disabled={logging}>{logging ? 'Verificando...' : 'Entrar'}</button>
@@ -1429,15 +1414,7 @@ export default function Superadmin() {
         {/* Sidebar */}
         <div className="sa-sidebar">
           <div className="sa-sidebar-header">
-            <div className="sa-login-logo" style={{ justifyContent: 'flex-start', margin: 0, marginBottom: 4 }}>
-              <div className="sa-logo-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
-              </div>
-              <div className="sa-logo-text" style={{ fontSize: 14 }}>Qubit Corp.</div>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
+            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/logo.png" alt="Logo" style={{ height: 28, objectFit: "contain" }} /></div><div style={{ fontSize: 10, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
           </div>
 
           <div className="sa-nav">
@@ -1465,8 +1442,8 @@ export default function Superadmin() {
           </div>
 
           {activeTab === 'dashboard' && <Dashboard orgs={orgs} resellers={resellers} />}
-          {activeTab === 'orgs' && <Organizations orgs={orgs} resellers={resellers} onRefresh={() => {}} />}
-          {activeTab === 'resellers' && <Resellers resellers={resellers} orgs={orgs} onRefresh={() => {}} />}
+          {activeTab === 'orgs' && <Organizations orgs={orgs} resellers={resellers} onRefresh={() => { }} />}
+          {activeTab === 'resellers' && <Resellers resellers={resellers} orgs={orgs} onRefresh={() => { }} />}
           {activeTab === 'plans' && <Plans />}
           {activeTab === 'apis' && <ApiConfig orgs={orgs} />}
           {activeTab === 'quoter' && <Quoter />}

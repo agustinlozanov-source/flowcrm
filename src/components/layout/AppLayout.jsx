@@ -145,20 +145,7 @@ export default function AppLayout() {
 
         {/* Logo */}
         <div className="px-5 h-[68px] border-b border-black/[0.08] flex items-center gap-2.5 flex-shrink-0">
-          <div className="w-8 h-8 bg-primary rounded-[8px] flex items-center justify-center flex-shrink-0">
-            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-              <rect x="1" y="1" width="7" height="7" rx="2" fill="white" />
-              <rect x="10" y="1" width="7" height="7" rx="2" fill="white" opacity="0.5" />
-              <rect x="1" y="10" width="7" height="7" rx="2" fill="white" opacity="0.5" />
-              <rect x="10" y="10" width="7" height="7" rx="2" fill="white" opacity="0.3" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <div className="font-display font-bold text-[14px] text-primary leading-tight tracking-tight truncate">
-              {org?.name || 'FlowCRM'}
-            </div>
-            <div className="text-[11px] text-tertiary capitalize">{org?.plan || 'starter'}</div>
-          </div>
+          <img src="/logo.png" alt="Logo" className="w-28 object-contain" />
         </div>
 
         {/* Nav */}
