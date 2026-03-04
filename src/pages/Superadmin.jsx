@@ -10,7 +10,7 @@ import clsx from 'clsx'
 import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check } from 'lucide-react'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
-const SA_EMAIL = 'admin@'
+const SA_EMAIL = 'admin@qubitcorp.mx'
 const SA_PASSWORD = 'QubitAdmin2025!'
 
 // ─── MODULES CATALOG ───
