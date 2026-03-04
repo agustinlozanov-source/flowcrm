@@ -1,3 +1,4 @@
+import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, ClipboardList, Wrench, Key as KeyIcon, BarChart3, Globe, Smartphone, Lightbulb, GraduationCap, Search, Sparkles, Calendar, MessageCircle, Folder, Link as LinkIcon, Pencil, FileText, Image as ImageIcon, Paperclip, Zap, User, LogOut, Info, Users } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc,
@@ -9,7 +10,7 @@ import clsx from 'clsx'
 // ─── TEMPLATE STAGES (same as admin) ───
 const TEMPLATE_STAGES = [
   {
-    id: 'kickoff', name: 'Kickoff y diagnóstico', icon: '🚀',
+    id: 'kickoff', name: 'Kickoff y diagnóstico', icon: 'rocket',
     tasks: [
       { id: 't1', name: 'Reunión de kickoff por videollamada', responsible: 'qubit', how: 'Google Meet / Zoom', requiresClient: true },
       { id: 't2', name: 'Compartir cuestionario de diagnóstico', responsible: 'qubit', how: 'Formulario enviado por WhatsApp o email', requiresClient: false },
@@ -18,7 +19,7 @@ const TEMPLATE_STAGES = [
     ]
   },
   {
-    id: 'pipeline', name: 'Configuración del pipeline', icon: '🎯',
+    id: 'pipeline', name: 'Configuración del pipeline', icon: 'target',
     tasks: [
       { id: 't5', name: 'Crear etapas personalizadas del pipeline', responsible: 'qubit', how: 'Configuración en plataforma', requiresClient: false },
       { id: 't6', name: 'Configurar campos de calificación', responsible: 'qubit', how: 'Según diagnóstico', requiresClient: false },
@@ -27,7 +28,7 @@ const TEMPLATE_STAGES = [
     ]
   },
   {
-    id: 'meta', name: 'Conexión de canales Meta', icon: '💬',
+    id: 'meta', name: 'Conexión de canales Meta', icon: 'message-square',
     tasks: [
       { id: 't9', name: 'Compartir acceso admin a tu Página de Facebook', responsible: 'client', how: 'Agrega a Qubit Corp. como administrador', requiresClient: true },
       { id: 't10', name: 'Configurar app Meta y webhook', responsible: 'qubit', how: 'Configuración técnica completa', requiresClient: false },
@@ -37,7 +38,7 @@ const TEMPLATE_STAGES = [
     ]
   },
   {
-    id: 'agent', name: 'Entrenamiento del Agente IA', icon: '🤖',
+    id: 'agent', name: 'Entrenamiento del Agente IA', icon: 'bot',
     tasks: [
       { id: 't14', name: 'Reunión de briefing del agente IA', responsible: 'qubit', how: 'Videollamada para definir personalidad y técnica', requiresClient: true },
       { id: 't15', name: 'Entregar materiales del producto', responsible: 'client', how: 'Sube brochures, FAQs y documentos en este portal', requiresClient: true },
@@ -48,7 +49,7 @@ const TEMPLATE_STAGES = [
     ]
   },
   {
-    id: 'content', name: 'Configuración Content Studio', icon: '🎬',
+    id: 'content', name: 'Configuración Content Studio', icon: 'clapperboard',
     tasks: [
       { id: 't20', name: 'Definir temas del radar de noticias', responsible: 'qubit', how: 'Videollamada breve de 15 min', requiresClient: true },
       { id: 't21', name: 'Configurar temas en el sistema', responsible: 'qubit', how: 'Configuración interna', requiresClient: false },
@@ -56,7 +57,7 @@ const TEMPLATE_STAGES = [
     ]
   },
   {
-    id: 'delivery', name: 'Pruebas y entrega', icon: '✅',
+    id: 'delivery', name: 'Pruebas y entrega', icon: 'check-circle-2',
     tasks: [
       { id: 't23', name: 'Pruebas con leads reales', responsible: 'qubit', how: 'Monitoreo activo de conversaciones', requiresClient: false },
       { id: 't24', name: 'Ajustes finos', responsible: 'qubit', how: 'Iteraciones según tu retroalimentación', requiresClient: false },
@@ -80,6 +81,28 @@ const fmtShort = (d) => {
 }
 
 // ─── STYLES ───
+
+const StageIcon = ({ icon, size = 16 }) => {
+  const map = {
+    'rocket': <Rocket size={size} />,
+    'target': <Target size={size} />,
+    'message-square': <MessageSquare size={size} />,
+    'bot': <Bot size={size} />,
+    'clapperboard': <Clapperboard size={size} />,
+    'check-circle-2': <CheckCircle2 size={size} />,
+    'clipboard-list': <ClipboardList size={size} />,
+    'wrench': <Wrench size={size} />,
+    'key': <KeyIcon size={size} />,
+    'bar-chart-3': <BarChart3 size={size} />,
+    'globe': <Globe size={size} />,
+    'smartphone': <Smartphone size={size} />,
+    'lightbulb': <Lightbulb size={size} />,
+    'graduation-cap': <GraduationCap size={size} />,
+    'search': <Search size={size} />
+  }
+  return map[icon] || <Sparkles size={size} />
+}
+
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
 
@@ -346,7 +369,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
   return (
     <div className="cp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="cp-modal">
-        <div className="cp-modal-title">💬 {task.name}</div>
+        <div className="cp-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {task.name}</div>
         <div style={{ fontSize: 12, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
           {task.how}
         </div>
@@ -517,7 +540,7 @@ export default function ClientPortal() {
             <div className="cp-welcome">Bienvenido de nuevo,</div>
             <div className="cp-name">{impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 16 }}>· {impl.company}</span></div>
           </div>
-          <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}>↩ Salir</button>
+          <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}><LogOut size={14} style={{marginRight:6, display:"inline-block"}} /> Salir</button>
         </div>
 
         {/* Progress hero */}
@@ -531,7 +554,7 @@ export default function ClientPortal() {
           </div>
           <div className="cp-progress-info">
             <div className="cp-progress-label">
-              {progress === 100 ? '🎉 ¡Implementación completada!' : `Etapa actual: ${currentStage.icon} ${currentStage.name}`}
+              {progress === 100 ? '<Sparkles size={16} style={{marginRight:6, display:"inline-block"}} /> ¡Implementación completada!' : `Etapa actual: $<StageIcon icon=<StageIcon icon={currentStage.icon} size={18} /> size={18} /> ${currentStage.name}`}
             </div>
             <div className="cp-progress-sub">
               {doneTasks} de {totalTasks} tareas completadas · Inicio: {fmtDate(impl.startDate)}
@@ -544,11 +567,11 @@ export default function ClientPortal() {
 
         {/* Tabs */}
         <div className="cp-tabs">
-          <button className={clsx('cp-tab', activeTab === 'cronograma' && 'active')} onClick={() => setActiveTab('cronograma')}>📅 Cronograma</button>
+          <button className={clsx('cp-tab', activeTab === 'cronograma' && 'active')} onClick={() => setActiveTab('cronograma')}><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Cronograma</button>
           <button className={clsx('cp-tab', activeTab === 'chat' && 'active')} onClick={() => setActiveTab('chat')}>
-            💬 Chat {chatMessages.filter(m => m.authorType === 'qubit').length > 0 ? `(${chatMessages.filter(m => m.authorType === 'qubit').length})` : ''}
+            <MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat {chatMessages.filter(m => m.authorType === 'qubit').length > 0 ? `(${chatMessages.filter(m => m.authorType === 'qubit').length})` : ''}
           </button>
-          <button className={clsx('cp-tab', activeTab === 'documentos' && 'active')} onClick={() => setActiveTab('documentos')}>📁 Documentos {docs.length > 0 ? `(${docs.length})` : ''}</button>
+          <button className={clsx('cp-tab', activeTab === 'documentos' && 'active')} onClick={() => setActiveTab('documentos')}><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos {docs.length > 0 ? `(${docs.length})` : ''}</button>
         </div>
 
         {/* CRONOGRAMA */}
@@ -562,7 +585,7 @@ export default function ClientPortal() {
               return (
                 <div key={stage.id} className={clsx('cp-stage', status)}>
                   <div className="cp-stage-header" onClick={() => toggleStage(stage.id)}>
-                    <span className="cp-stage-icon">{stage.icon}</span>
+                    <span className="cp-stage-icon"><StageIcon icon=<StageIcon icon={stage.icon} /> /></span>
                     <span className="cp-stage-name">{stage.name}</span>
                     <span className="cp-stage-dates">{getStageDate(stage.id)}</span>
                     <span className="cp-stage-badge" style={{
@@ -586,10 +609,10 @@ export default function ClientPortal() {
                               <div className="cp-task-how">{task.how}</div>
                               <div className="cp-task-badges">
                                 <span className={clsx('cp-badge', task.responsible === 'qubit' ? 'cp-badge-qubit' : 'cp-badge-client')}>
-                                  {task.responsible === 'qubit' ? '⚡ Qubit Corp.' : '👤 Tú'}
+                                  {task.responsible === 'qubit' ? '<Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Qubit Corp.' : '<User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Tú'}
                                 </span>
-                                {task.requiresClient && <span className="cp-badge cp-badge-meeting">📅 Requiere reunión</span>}
-                                <button className="cp-comment-btn" onClick={() => setCommentModal(task)}>💬 Comentar</button>
+                                {task.requiresClient && <span className="cp-badge cp-badge-meeting"><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Requiere reunión</span>}
+                                <button className="cp-comment-btn" onClick={() => setCommentModal(task)}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Comentar</button>
                               </div>
                             </div>
                           </div>
@@ -607,7 +630,7 @@ export default function ClientPortal() {
         {activeTab === 'chat' && (
           <div className="cp-chat-wrap">
             <div className="cp-chat-header">
-              <span style={{ fontSize: 16 }}>💬</span>
+              <span style={{ fontSize: 16 }}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /></span>
               <div className="cp-chat-title">Chat con Qubit Corp.</div>
             </div>
             <div className="cp-chat-messages">
@@ -649,7 +672,7 @@ export default function ClientPortal() {
         {activeTab === 'documentos' && (
           <div className="cp-docs-wrap">
             <div className="cp-docs-header">
-              <div className="cp-docs-title">📁 Documentos del proyecto</div>
+              <div className="cp-docs-title"><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos del proyecto</div>
               <label className="cp-upload-btn">
                 + Subir documento
                 <input type="file" style={{ display: 'none' }} onChange={async e => {
@@ -666,7 +689,7 @@ export default function ClientPortal() {
             {docs.length === 0 && <div className="cp-empty">Sin documentos — sube los materiales que te solicitamos</div>}
             {docs.map(d => (
               <div key={d.id} className="cp-doc-item">
-                <span className="cp-doc-icon">{d.type?.includes('pdf') ? '📄' : d.type?.includes('image') ? '🖼️' : '📎'}</span>
+                <span className="cp-doc-icon">{d.type?.includes('pdf') ? '<FileText size={16} style={{ display: "inline-block", marginBottom: -2 }} />' : d.type?.includes('image') ? '<ImageIcon size={16} style={{ display: "inline-block", marginBottom: -2 }} />' : '<Paperclip size={16} style={{ display: "inline-block", marginBottom: -2 }} />'}</span>
                 <div style={{ flex: 1 }}>
                   <div className="cp-doc-name">{d.name}</div>
                   <div className="cp-doc-meta">{d.uploadedBy} · {fmtDate(d.createdAt)}</div>

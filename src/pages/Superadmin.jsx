@@ -92,7 +92,7 @@ const css = `
     display: flex; align-items: center; justify-content: center;
   }
 
-  .sa-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; }
+  .sa-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; }
   .sa-logo-badge {
     font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
     background: rgba(124,58,237,0.15); color: #a78bfa;
@@ -100,14 +100,14 @@ const css = `
   }
 
   .sa-login-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 900; text-align: center; margin-bottom: 4px; }
-  .sa-login-sub { font-size: 12.5px; color: var(--gray-4); text-align: center; margin-bottom: 28px; }
+  .sa-login-sub { font-size: 14px; color: var(--gray-4); text-align: center; margin-bottom: 28px; }
 
   .sa-input {
     width: 100%;
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 9px; padding: 11px 14px;
-    font-size: 13px; color: white;
+    font-size: 15px; color: white;
     font-family: 'Inter', sans-serif; outline: none;
     transition: border-color 0.15s; margin-bottom: 10px;
   }
@@ -119,7 +119,7 @@ const css = `
     width: 100%; padding: 12px;
     background: white; color: #070708;
     border: none; border-radius: 9px;
-    font-size: 13.5px; font-weight: 700;
+    font-size: 15px; font-weight: 700;
     cursor: pointer; font-family: 'Inter', sans-serif;
     transition: all 0.15s; margin-top: 6px;
   }
@@ -148,7 +148,7 @@ const css = `
   .sa-nav-item {
     display: flex; align-items: center; gap: 9px;
     padding: 9px 10px; border-radius: 8px;
-    font-size: 12.5px; font-weight: 600; color: var(--gray-4);
+    font-size: 14px; font-weight: 600; color: var(--gray-4);
     cursor: pointer; transition: all 0.15s; border: none;
     background: transparent; width: 100%; text-align: left;
     font-family: 'Inter', sans-serif;
@@ -156,7 +156,7 @@ const css = `
 
   .sa-nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
   .sa-nav-item.active { background: rgba(255,255,255,0.08); color: white; }
-  .sa-nav-icon { font-size: 14px; flex-shrink: 0; }
+  .sa-nav-icon { font-size: 16px; flex-shrink: 0; }
 
   .sa-nav-section {
     font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.8px;
@@ -171,7 +171,7 @@ const css = `
   .sa-logout {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 10px; border-radius: 7px;
-    font-size: 12px; font-weight: 600; color: var(--gray-5);
+    font-size: 14px; font-weight: 600; color: var(--gray-5);
     cursor: pointer; transition: all 0.15s; border: none;
     background: transparent; width: 100%; text-align: left;
     font-family: 'Inter', sans-serif;
@@ -192,8 +192,8 @@ const css = `
     gap: 12px;
   }
 
-  .sa-topbar-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
-  .sa-topbar-sub { font-size: 12px; color: var(--gray-4); }
+  .sa-topbar-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; flex: 1; }
+  .sa-topbar-sub { font-size: 14px; color: var(--gray-4); }
 
   .sa-content { padding: 28px 32px; max-width: 1100px; }
 
@@ -212,7 +212,7 @@ const css = `
     display: flex; align-items: center; gap: 10px;
   }
 
-  .sa-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 800; flex: 1; }
+  .sa-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
 
   /* STATS */
   .sa-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -225,21 +225,21 @@ const css = `
     padding: 18px 20px;
   }
 
-  .sa-stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; margin-bottom: 8px; }
+  .sa-stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; margin-bottom: 8px; }
   .sa-stat-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -1px; }
-  .sa-stat-sub { font-size: 11px; color: var(--gray-5); margin-top: 3px; }
+  .sa-stat-sub { font-size: 13px; color: var(--gray-5); margin-top: 3px; }
 
   /* TABLE */
   .sa-table { width: 100%; border-collapse: collapse; }
   .sa-table th {
     padding: 10px 16px; text-align: left;
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--gray-5); font-weight: 700;
     border-bottom: 1px solid rgba(0,0,0,0.06);
   }
   .sa-table td {
     padding: 12px 16px;
-    font-size: 12.5px;
+    font-size: 14px;
     border-bottom: 1px solid rgba(0,0,0,0.04);
     vertical-align: middle;
   }
@@ -250,7 +250,7 @@ const css = `
   .sa-badge {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 8px; border-radius: 5px;
-    font-size: 10.5px; font-weight: 700;
+    font-size: 12px; font-weight: 700;
   }
 
   .badge-green { background: rgba(0,200,83,0.12); color: #00c853; border: 1px solid rgba(0,200,83,0.2); }
@@ -264,7 +264,7 @@ const css = `
   .sa-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 14px; border-radius: 8px;
-    font-size: 12px; font-weight: 700; cursor: pointer; border: none;
+    font-size: 14px; font-weight: 700; cursor: pointer; border: none;
     font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
 
@@ -283,15 +283,15 @@ const css = `
   .sa-btn-blue { background: #0066ff; color: white; }
   .sa-btn-blue:hover { opacity: 0.88; }
 
-  .sa-btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 6px; }
+  .sa-btn-sm { padding: 5px 10px; font-size: 13px; border-radius: 6px; }
 
   /* FORM */
   .sa-form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-  .sa-form-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; }
+  .sa-form-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; }
   .sa-form-input {
     background: white; border: 1px solid rgba(0,0,0,0.15);
     border-radius: 8px; padding: 9px 13px;
-    font-size: 13px; color: #070708; font-family: 'Inter', sans-serif; outline: none;
+    font-size: 15px; color: #070708; font-family: 'Inter', sans-serif; outline: none;
     transition: border-color 0.15s; width: 100%;
   }
   .sa-form-input:focus { border-color: #0066ff; }
@@ -313,7 +313,7 @@ const css = `
     width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
   }
 
-  .sa-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; margin-bottom: 20px; }
+  .sa-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin-bottom: 20px; }
 
   .sa-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
@@ -337,7 +337,7 @@ const css = `
 
   /* API CONFIG */
   .sa-api-section { margin-bottom: 20px; }
-  .sa-api-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap-8px; gap: 8px; }
+  .sa-api-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap-8px; gap: 8px; }
   .sa-api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   /* QUOTER */
@@ -355,7 +355,7 @@ const css = `
   }
 
   .sa-plan-header { display: flex; align-items: center; gap-10px; gap: 10px; margin-bottom: 14px; }
-  .sa-plan-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
+  .sa-plan-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; flex: 1; }
 
   /* DIVIDER */
   .sa-divider { height: 1px; background: rgba(0,0,0,0.05); margin: 16px 0; }
@@ -363,7 +363,7 @@ const css = `
   /* EMPTY */
   .sa-empty { text-align: center; padding: 40px 20px; color: var(--gray-5); }
   .sa-empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.4; }
-  .sa-empty-text { font-size: 13px; }
+  .sa-empty-text { font-size: 15px; }
 
   /* DOT */
   .sa-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
@@ -371,7 +371,7 @@ const css = `
   /* TABS */
   .sa-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(0,0,0,0.06); margin-bottom: 20px; }
   .sa-tab {
-    padding: 10px 16px; font-size: 12.5px; font-weight: 600;
+    padding: 10px 16px; font-size: 14px; font-weight: 600;
     color: var(--gray-4); border-bottom: 2px solid transparent;
     cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
     background: none; border-top: none; border-left: none; border-right: none;
@@ -475,7 +475,7 @@ function Dashboard({ orgs, resellers }) {
               <tr key={org.id}>
                 <td>
                   <div style={{ fontWeight: 600 }}>{org.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--gray-4)' }}>{org.ownerEmail}</div>
+                  <div style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.ownerEmail}</div>
                 </td>
                 <td><Badge color={org.plan === 'enterprise' ? 'purple' : org.plan === 'pro' ? 'blue' : 'gray'}>{org.plan || 'starter'}</Badge></td>
                 <td style={{ color: 'var(--gray-3)' }}>{org.users || 1}</td>
@@ -604,17 +604,17 @@ function Organizations({ orgs, resellers, onRefresh }) {
             {orgs.map(org => (
               <tr key={org.id}>
                 <td>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{org.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--gray-4)' }}>{org.ownerEmail}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{org.name}</div>
+                  <div style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.ownerEmail}</div>
                 </td>
                 <td><Badge color={org.plan === 'enterprise' ? 'purple' : org.plan === 'pro' ? 'blue' : 'gray'}>{org.plan || 'starter'}</Badge></td>
-                <td style={{ fontSize: 11, color: 'var(--gray-4)' }}>{(org.modules || []).length} módulos</td>
+                <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{(org.modules || []).length} módulos</td>
                 <td style={{ color: 'var(--gray-3)', fontWeight: 600 }}>{org.users || 1}</td>
                 <td style={{ fontWeight: 700 }}>${org.mrr || 0}</td>
-                <td style={{ fontSize: 11, color: 'var(--gray-4)' }}>{org.resellerId ? resellers.find(r => r.id === org.resellerId)?.name || org.resellerId : '—'}</td>
+                <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.resellerId ? resellers.find(r => r.id === org.resellerId)?.name || org.resellerId : '—'}</td>
                 <td>
                   <span className="sa-dot" style={{ background: org.status === 'active' ? 'var(--green)' : 'var(--red)', marginRight: 5 }} />
-                  <span style={{ fontSize: 11, color: 'var(--gray-4)' }}>{org.status || 'active'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.status || 'active'}</span>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 4 }}>
@@ -697,9 +697,9 @@ function Organizations({ orgs, resellers, onRefresh }) {
             {MODULES_CATALOG.map(m => (
               <div key={m.id} className={clsx('sa-module-toggle', form.modules?.includes(m.id) && 'on')} onClick={() => toggleModule(m.id)}>
                 <div className="sa-module-check">{form.modules?.includes(m.id) && <Check size={12} />}</div>
-                <span style={{ fontSize: 13 }}>{m.icon}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 600, flex: 1 }}>{m.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{m.tag}</span>
+                <span style={{ fontSize: 15 }}>{m.icon}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{m.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{m.tag}</span>
               </div>
             ))}
           </div>
@@ -760,8 +760,8 @@ function Resellers({ resellers, orgs, onRefresh }) {
               return (
                 <tr key={r.id}>
                   <td>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-4)' }}>{r.email}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{r.name}</div>
+                    <div style={{ fontSize: 13, color: 'var(--gray-4)' }}>{r.email}</div>
                   </td>
                   <td style={{ fontWeight: 700, color: 'var(--green)' }}>{r.commissionPct}%</td>
                   <td>${r.setupFee?.toLocaleString()} USD</td>
@@ -906,7 +906,7 @@ function Plans() {
                   padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
                   border: `1.5px solid ${plan.modules.includes(m.id) ? 'rgba(0,102,255,0.4)' : 'rgba(0,0,0,0.08)'}`,
                   background: plan.modules.includes(m.id) ? 'rgba(0,102,255,0.08)' : 'rgba(0,0,0,0.02)',
-                  fontSize: 12, fontWeight: 600,
+                  fontSize: 14, fontWeight: 600,
                   color: plan.modules.includes(m.id) ? '#4d9fff' : 'var(--gray-4)',
                   transition: 'all 0.15s',
                 }}
@@ -1012,7 +1012,7 @@ function ApiConfig({ orgs }) {
         )}
 
         {selectedOrg && loading && (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--gray-4)', fontSize: 13 }}>Cargando configuración...</div>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--gray-4)', fontSize: 15 }}>Cargando configuración...</div>
         )}
 
         {!selectedOrg && (
@@ -1087,61 +1087,61 @@ function Quoter() {
         .q2-header::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 60% 80% at 10% 50%,rgba(0,102,255,0.08) 0%,transparent 60%),radial-gradient(ellipse 40% 60% at 90% 30%,rgba(124,58,237,0.07) 0%,transparent 60%); pointer-events:none; }
         .q2-logo-row { display:flex; align-items:center; gap:10px; margin-bottom:18px; position:relative; z-index:1; }
         .q2-logo-icon { width:34px; height:34px; background:linear-gradient(135deg,#0066ff,#7c3aed); border-radius:9px; display:flex; align-items:center; justify-content:center; }
-        .q2-logo-text { font-family:'Plus Jakarta Sans',sans-serif; font-size:17px; font-weight:800; }
-        .q2-logo-sub { font-size:10px; color:#8e8e93; font-weight:500; letter-spacing:0.5px; text-transform:uppercase; }
+        .q2-logo-text { font-family:'Plus Jakarta Sans',sans-serif; font-size: 19px; font-weight:800; }
+        .q2-logo-sub { font-size: 12px; color:#8e8e93; font-weight:500; letter-spacing:0.5px; text-transform:uppercase; }
         .q2-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:26px; font-weight:900; letter-spacing:-0.5px; margin-bottom:5px; position:relative; z-index:1; }
-        .q2-meta { font-size:12px; color:#8e8e93; line-height:1.7; position:relative; z-index:1; }
+        .q2-meta { font-size: 14px; color:#8e8e93; line-height:1.7; position:relative; z-index:1; }
         .q2-meta strong { color:#c7c7cc; }
-        .q2-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:4px 11px; font-size:11px; font-weight:600; color:#c7c7cc; margin-bottom:10px; }
+        .q2-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:4px 11px; font-size: 13px; font-weight:600; color:#c7c7cc; margin-bottom:10px; }
         .q2-folio-dot { width:5px; height:5px; border-radius:50%; background:#ff9500; }
         .q2-client-section { padding:28px 48px; border-bottom:1px solid rgba(255,255,255,0.06); }
         .q2-client-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px 26px; display:flex; gap:16px; align-items:center; }
-        .q2-avatar { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#0066ff,#7c3aed); display:flex; align-items:center; justify-content:center; font-family:'Plus Jakarta Sans',sans-serif; font-size:17px; font-weight:800; flex-shrink:0; }
-        .q2-client-name { font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:800; margin-bottom:2px; }
-        .q2-client-co { font-size:12.5px; color:#8e8e93; }
+        .q2-avatar { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#0066ff,#7c3aed); display:flex; align-items:center; justify-content:center; font-family:'Plus Jakarta Sans',sans-serif; font-size: 19px; font-weight:800; flex-shrink:0; }
+        .q2-client-name { font-family:'Plus Jakarta Sans',sans-serif; font-size: 18px; font-weight:800; margin-bottom:2px; }
+        .q2-client-co { font-size: 14px; color:#8e8e93; }
         .q2-client-meta { margin-left:auto; display:flex; gap:24px; }
         .q2-meta-item { text-align:right; }
         .q2-meta-label { font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:#3a3a3c; font-weight:700; margin-bottom:3px; }
-        .q2-meta-value { font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:700; color:#e8e8ed; }
+        .q2-meta-value { font-family:'Plus Jakarta Sans',sans-serif; font-size: 15px; font-weight:700; color:#e8e8ed; }
         .q2-section { padding:28px 48px; border-bottom:1px solid rgba(255,255,255,0.06); }
         .q2-section-label { font-size:9.5px; text-transform:uppercase; letter-spacing:1px; color:#3a3a3c; font-weight:700; margin-bottom:5px; }
         .q2-section-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; letter-spacing:-0.3px; margin-bottom:16px; }
         .q2-modules { display:flex; flex-direction:column; gap:8px; }
         .q2-module { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:14px 18px; display:flex; gap:12px; }
-        .q2-mod-icon { width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
-        .q2-mod-name { font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:700; margin-bottom:5px; }
+        .q2-mod-icon { width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size: 15px; flex-shrink:0; }
+        .q2-mod-name { font-family:'Plus Jakarta Sans',sans-serif; font-size: 15px; font-weight:700; margin-bottom:5px; }
         .q2-mod-features { display:flex; flex-wrap:wrap; gap:4px; }
-        .q2-feat { font-size:10.5px; color:#8e8e93; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:2px 7px; }
+        .q2-feat { font-size: 12px; color:#8e8e93; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:2px 7px; }
         .q2-price-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
         .q2-price-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px; }
         .q2-price-card-hl { border-color:rgba(0,102,255,0.3); background:rgba(0,102,255,0.05); }
         .q2-price-label { font-size:9.5px; text-transform:uppercase; letter-spacing:0.8px; color:#8e8e93; font-weight:700; margin-bottom:7px; }
         .q2-price-amount { font-family:'Plus Jakarta Sans',sans-serif; font-size:32px; font-weight:900; letter-spacing:-1.5px; line-height:1; margin-bottom:5px; }
-        .q2-price-amount span { font-size:13px; font-weight:600; color:#8e8e93; letter-spacing:0; }
-        .q2-price-note { font-size:11px; color:#8e8e93; margin-bottom:10px; }
+        .q2-price-amount span { font-size: 15px; font-weight:600; color:#8e8e93; letter-spacing:0; }
+        .q2-price-note { font-size: 13px; color:#8e8e93; margin-bottom:10px; }
         .q2-includes { display:flex; flex-direction:column; gap:5px; }
-        .q2-include { display:flex; align-items:center; gap:6px; font-size:11px; color:#c7c7cc; }
+        .q2-include { display:flex; align-items:center; gap:6px; font-size: 13px; color:#c7c7cc; }
         .q2-check { width:13px; height:13px; border-radius:50%; background:rgba(0,200,83,0.12); border:1px solid rgba(0,200,83,0.2); display:flex; align-items:center; justify-content:center; font-size:7px; color:#00c853; font-weight:700; flex-shrink:0; }
         .q2-payment { background:rgba(255,149,0,0.05); border:1px solid rgba(255,149,0,0.2); border-radius:10px; padding:16px 20px; display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-        .q2-pay-icon { width:36px; height:36px; border-radius:8px; background:rgba(255,149,0,0.12); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
-        .q2-pay-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:12.5px; font-weight:700; margin-bottom:2px; }
-        .q2-pay-desc { font-size:11px; color:#8e8e93; }
-        .q2-pay-btn { display:inline-flex; align-items:center; gap:5px; background:#ff9500; color:#070708; padding:8px 14px; border-radius:7px; font-size:11.5px; font-weight:700; text-decoration:none; margin-left:auto; flex-shrink:0; }
+        .q2-pay-icon { width:36px; height:36px; border-radius:8px; background:rgba(255,149,0,0.12); display:flex; align-items:center; justify-content:center; font-size: 18px; flex-shrink:0; }
+        .q2-pay-title { font-family:'Plus Jakarta Sans',sans-serif; font-size: 14px; font-weight:700; margin-bottom:2px; }
+        .q2-pay-desc { font-size: 13px; color:#8e8e93; }
+        .q2-pay-btn { display:inline-flex; align-items:center; gap:5px; background:#ff9500; color:#070708; padding:8px 14px; border-radius:7px; font-size: 13px; font-weight:700; text-decoration:none; margin-left:auto; flex-shrink:0; }
         .q2-validity { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:12px 18px; }
-        .q2-validity-label { font-size:11.5px; color:#8e8e93; }
-        .q2-validity-date { font-family:'Plus Jakarta Sans',sans-serif; font-size:12.5px; font-weight:700; color:#e8e8ed; }
-        .q2-validity-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(255,59,48,0.1); border:1px solid rgba(255,59,48,0.2); border-radius:5px; padding:3px 8px; font-size:10px; font-weight:700; color:#ff6b6b; }
+        .q2-validity-label { font-size: 13px; color:#8e8e93; }
+        .q2-validity-date { font-family:'Plus Jakarta Sans',sans-serif; font-size: 14px; font-weight:700; color:#e8e8ed; }
+        .q2-validity-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(255,59,48,0.1); border:1px solid rgba(255,59,48,0.2); border-radius:5px; padding:3px 8px; font-size: 12px; font-weight:700; color:#ff6b6b; }
         .q2-footer { padding:24px 48px; border-top:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; }
-        .q2-footer-brand { font-family:'Plus Jakarta Sans',sans-serif; font-size:11.5px; font-weight:700; color:#3a3a3c; }
-        .q2-footer-note { font-size:10.5px; color:#3a3a3c; text-align:center; line-height:1.5; }
-        .q2-footer-folio { font-size:11px; color:#8e8e93; text-align:right; }
+        .q2-footer-brand { font-family:'Plus Jakarta Sans',sans-serif; font-size: 13px; font-weight:700; color:#3a3a3c; }
+        .q2-footer-note { font-size: 12px; color:#3a3a3c; text-align:center; line-height:1.5; }
+        .q2-footer-folio { font-size: 13px; color:#8e8e93; text-align:right; }
       `}</style>
 
       <div style={{ display: 'flex', gap: 24 }}>
         {/* Form */}
         <div style={{ width: 320, minWidth: 320, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="sa-card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 12 }}>Cliente</div>
+            <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 12 }}>Cliente</div>
             <div className="sa-form-row">
               <div className="sa-form-group" style={{ margin: 0 }}>
                 <label className="sa-form-label">Nombre</label>
@@ -1169,20 +1169,20 @@ function Quoter() {
           </div>
 
           <div className="sa-card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 10 }}>Módulos</div>
+            <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 10 }}>Módulos</div>
             <div className="sa-module-grid">
               {MODULES_CATALOG.map(m => (
                 <div key={m.id} className={clsx('sa-module-toggle', selectedModules.has(m.id) && 'on')} onClick={() => toggleMod(m.id)}>
                   <div className="sa-module-check">{selectedModules.has(m.id) && <Check size={12} />}</div>
-                  <span style={{ fontSize: 13 }}>{m.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{m.name}</span>
+                  <span style={{ fontSize: 15 }}>{m.icon}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{m.name}</span>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="sa-card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 12 }}>Inversión</div>
+            <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-5)', marginBottom: 12 }}>Inversión</div>
             <div className="sa-form-group">
               <label className="sa-form-label">Implementación</label>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -1332,7 +1332,7 @@ function Quoter() {
                 </div>
                 <div className="q2-validity-badge"><Hourglass size={12} /> {f.validityDays} días hábiles</div>
               </div>
-              {f.notes && <div style={{ marginTop: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--gray-4)' }}><strong style={{ color: 'var(--gray-3)' }}>Notas: </strong>{f.notes}</div>}
+              {f.notes && <div style={{ marginTop: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, fontSize: 14, color: 'var(--gray-4)' }}><strong style={{ color: 'var(--gray-3)' }}>Notas: </strong>{f.notes}</div>}
             </div>
 
             {/* Footer */}
@@ -1416,7 +1416,7 @@ export default function Superadmin() {
         {/* Sidebar */}
         <div className="sa-sidebar">
           <div className="sa-sidebar-header">
-            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/logo2.png" alt="Logo" style={{ height: 28, objectFit: "contain" }} /></div><div style={{ fontSize: 10, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
+            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/logo2.png" alt="Logo" style={{ height: 28, objectFit: "contain" }} /></div><div style={{ fontSize: 12, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
           </div>
 
           <div className="sa-nav">

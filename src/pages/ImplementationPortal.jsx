@@ -1,3 +1,4 @@
+import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, ClipboardList, Wrench, Key as KeyIcon, BarChart3, Globe, Smartphone, Lightbulb, GraduationCap, Search, Sparkles, Calendar, MessageCircle, Folder, Link as LinkIcon, Pencil, FileText, Image as ImageIcon, Paperclip, Zap, User, LogOut, Info, Users } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc, setDoc,
@@ -6,85 +7,40 @@ import {
 import { db } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { DEFAULT_TEMPLATE } from './TemplateEditor'
+import TemplateEditorComponent from './TemplateEditor'
 
-// ─── TEMPLATE STAGES ───
-const TEMPLATE_STAGES = [
-  {
-    id: 'kickoff',
-    name: 'Kickoff y diagnóstico',
-    icon: '🚀',
-    durationDays: 3,
-    tasks: [
-      { id: 't1', name: 'Reunión de kickoff por videollamada', responsible: 'qubit', how: 'Google Meet / Zoom — compartir link al cliente', requiresClient: true },
-      { id: 't2', name: 'Compartir cuestionario de diagnóstico comercial', responsible: 'qubit', how: 'Enviar formulario por WhatsApp o email', requiresClient: false },
-      { id: 't3', name: 'Entregar respuestas del diagnóstico', responsible: 'client', how: 'Cliente llena y envía el formulario', requiresClient: true },
-      { id: 't4', name: 'Definir arquitectura del pipeline', responsible: 'qubit', how: 'Documento interno con etapas y criterios acordados', requiresClient: false },
-    ]
-  },
-  {
-    id: 'pipeline',
-    name: 'Configuración del pipeline',
-    icon: '🎯',
-    durationDays: 4,
-    tasks: [
-      { id: 't5', name: 'Crear etapas personalizadas del pipeline', responsible: 'qubit', how: 'Configuración directa en plataforma', requiresClient: false },
-      { id: 't6', name: 'Configurar campos de calificación de leads', responsible: 'qubit', how: 'Según diagnóstico acordado en kickoff', requiresClient: false },
-      { id: 't7', name: 'Validar pipeline con el cliente', responsible: 'qubit', how: 'Videollamada de revisión — máx. 30 min', requiresClient: true },
-      { id: 't8', name: 'Aprobar pipeline o solicitar ajustes', responsible: 'client', how: 'Cliente confirma por escrito o en videollamada', requiresClient: true },
-    ]
-  },
-  {
-    id: 'meta',
-    name: 'Conexión de canales Meta',
-    icon: '💬',
-    durationDays: 5,
-    tasks: [
-      { id: 't9', name: 'Compartir acceso de administrador a Página de Facebook', responsible: 'client', how: 'Cliente agrega a Qubit Corp. como admin de su página', requiresClient: true },
-      { id: 't10', name: 'Configurar app Meta y webhook', responsible: 'qubit', how: 'Meta Developers — configuración técnica completa', requiresClient: false },
-      { id: 't11', name: 'Conectar Instagram Business', responsible: 'qubit', how: 'Vincular cuenta Instagram al Business Manager del cliente', requiresClient: false },
-      { id: 't12', name: 'Verificar flujo de mensajes en inbox', responsible: 'qubit', how: 'Prueba en vivo enviando mensaje de prueba', requiresClient: false },
-      { id: 't13', name: 'Proporcionar número para WhatsApp Business', responsible: 'client', how: 'Número dedicado (no personal) — puede ser Twilio', requiresClient: true },
-    ]
-  },
-  {
-    id: 'agent',
-    name: 'Entrenamiento del Agente IA',
-    icon: '🤖',
-    durationDays: 5,
-    tasks: [
-      { id: 't14', name: 'Reunión de briefing del agente IA', responsible: 'qubit', how: 'Videollamada para definir personalidad, técnica y objeciones', requiresClient: true },
-      { id: 't15', name: 'Entregar materiales del producto (brochures, FAQs)', responsible: 'client', how: 'Subir documentos en el portal', requiresClient: true },
-      { id: 't16', name: 'Configurar personalidad y técnica de venta', responsible: 'qubit', how: 'Configuración en panel de Agente IA de la plataforma', requiresClient: false },
-      { id: 't17', name: 'Cargar base de conocimiento', responsible: 'qubit', how: 'Subir documentos del cliente al RAG del agente', requiresClient: false },
-      { id: 't18', name: 'Prueba de conversación con el agente', responsible: 'qubit', how: 'Sesión en vivo con el cliente para validar respuestas', requiresClient: true },
-      { id: 't19', name: 'Aprobar agente o solicitar ajustes', responsible: 'client', how: 'Cliente confirma que el agente representa bien su negocio', requiresClient: true },
-    ]
-  },
-  {
-    id: 'content',
-    name: 'Configuración Content Studio',
-    icon: '🎬',
-    durationDays: 3,
-    tasks: [
-      { id: 't20', name: 'Definir temas del radar de noticias', responsible: 'qubit', how: 'Videollamada breve — 15 min para definir industria y temas', requiresClient: true },
-      { id: 't21', name: 'Configurar temas en el sistema', responsible: 'qubit', how: 'Guardar temas en Firestore del cliente', requiresClient: false },
-      { id: 't22', name: 'Sesión de prueba de generación de guiones', responsible: 'qubit', how: 'En vivo con el cliente — generar primer guión juntos', requiresClient: true },
-    ]
-  },
-  {
-    id: 'delivery',
-    name: 'Pruebas y entrega',
-    icon: '✅',
-    durationDays: 10,
-    tasks: [
-      { id: 't23', name: 'Pruebas con leads reales', responsible: 'qubit', how: 'Monitoreo activo de conversaciones e inbox', requiresClient: false },
-      { id: 't24', name: 'Ajustes finos según retroalimentación', responsible: 'qubit', how: 'Iteraciones según lo que reporte el cliente', requiresClient: false },
-      { id: 't25', name: 'Sesión de capacitación completa', responsible: 'qubit', how: 'Videollamada de 60 min — tour completo de la plataforma', requiresClient: true },
-      { id: 't26', name: 'Entrega de documento de accesos y credenciales', responsible: 'qubit', how: 'Subir PDF con todas las credenciales al portal', requiresClient: false },
-      { id: 't27', name: 'Firma de conformidad y cierre', responsible: 'client', how: 'Cliente confirma recepción conforme del proyecto', requiresClient: true },
-    ]
-  },
-]
+// Wrapper so TemplateEditor renders inside the same page
+const TemplateEditorInline = () => <TemplateEditorComponent />
+
+// ─── TEMPLATE STAGES — loaded dynamically from Firestore ───
+// Falls back to DEFAULT_TEMPLATE if nothing saved yet
+let TEMPLATE_STAGES = DEFAULT_TEMPLATE
+
+async function loadTemplate() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'implementationTemplate'))
+    if (snap.exists() && snap.data().stages?.length > 0) {
+      TEMPLATE_STAGES = snap.data().stages
+    }
+  } catch {}
+}
+
+// Hook to get live template stages
+function useTemplateStages() {
+  const [stages, setStages] = useState(TEMPLATE_STAGES)
+  useEffect(() => {
+    loadTemplate().then(() => setStages([...TEMPLATE_STAGES]))
+    const unsub = onSnapshot(doc(db, 'config', 'implementationTemplate'), snap => {
+      if (snap.exists() && snap.data().stages?.length > 0) {
+        TEMPLATE_STAGES = snap.data().stages
+        setStages([...TEMPLATE_STAGES])
+      }
+    })
+    return unsub
+  }, [])
+  return stages
+}
 
 const addBusinessDays = (date, days) => {
   let d = new Date(date), added = 0
@@ -105,6 +61,28 @@ const fmtDateInput = (d) => {
 }
 
 // ─── STYLES ───
+
+const StageIcon = ({ icon, size = 16 }) => {
+  const map = {
+    'rocket': <Rocket size={size} />,
+    'target': <Target size={size} />,
+    'message-square': <MessageSquare size={size} />,
+    'bot': <Bot size={size} />,
+    'clapperboard': <Clapperboard size={size} />,
+    'check-circle-2': <CheckCircle2 size={size} />,
+    'clipboard-list': <ClipboardList size={size} />,
+    'wrench': <Wrench size={size} />,
+    'key': <KeyIcon size={size} />,
+    'bar-chart-3': <BarChart3 size={size} />,
+    'globe': <Globe size={size} />,
+    'smartphone': <Smartphone size={size} />,
+    'lightbulb': <Lightbulb size={size} />,
+    'graduation-cap': <GraduationCap size={size} />,
+    'search': <Search size={size} />
+  }
+  return map[icon] || <Sparkles size={size} />
+}
+
 const css = `
   .ip-root { font-family: 'Inter', sans-serif; }
   .ip-root * { box-sizing: border-box; }
@@ -383,6 +361,8 @@ function NewClientModal({ onClose, onSave }) {
     if (!form.name || !form.email || !form.startDate) { toast.error('Nombre, email y fecha de inicio requeridos'); return }
     setSaving(true)
     try {
+      // Load latest template
+      await loadTemplate()
       const stageDates = computeStageDates(form.startDate)
       const tasks = {}
       TEMPLATE_STAGES.forEach(stage => {
@@ -442,7 +422,7 @@ function NewClientModal({ onClose, onSave }) {
           <input className="ip-form-input" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
         </div>
         <div style={{ background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#4d9fff', marginTop: 4 }}>
-          ℹ️ Se generará un password aleatorio para el acceso del cliente al portal. Aparecerá en el toast de confirmación — guárdalo para compartirlo con el cliente.
+          <Info size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Se generará un password aleatorio para el acceso del cliente al portal. Aparecerá en el toast de confirmación — guárdalo para compartirlo con el cliente.
         </div>
         <div className="ip-modal-actions">
           <button className="ip-btn ip-btn-ghost" onClick={onClose}>Cancelar</button>
@@ -486,7 +466,7 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
   return (
     <div className="ip-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="ip-modal">
-        <div className="ip-modal-title">💬 {stageTask.name}</div>
+        <div className="ip-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {stageTask.name}</div>
         <div style={{ fontSize: 12, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6 }}>
           <span style={{ marginRight: 8 }}>Responsable: <strong style={{ color: 'white' }}>{stageTask.responsible === 'qubit' ? 'Qubit Corp.' : 'Cliente'}</strong></span>
           <span>Cómo: {stageTask.how}</span>
@@ -528,6 +508,7 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
 
 // ─── IMPLEMENTATION DETAIL ───
 function ImplementationDetail({ impl, onUpdate }) {
+  const TEMPLATE_STAGES = useTemplateStages()
   const [expandedStages, setExpandedStages] = useState(new Set(['kickoff']))
   const [activeTab, setActiveTab] = useState('cronograma')
   const [chatMsg, setChatMsg] = useState('')
@@ -636,10 +617,10 @@ function ImplementationDetail({ impl, onUpdate }) {
           className="ip-link-badge"
           onClick={() => { navigator.clipboard.writeText(portalUrl); toast.success('URL del portal copiada') }}
         >
-          🔗 Copiar link del portal
+          <LinkIcon size={14} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Copiar link del portal
         </div>
         <div style={{ fontSize: 12, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, padding: '6px 12px' }}>
-          🔑 {impl.portalPassword}
+          <KeyIcon size={14} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> {impl.portalPassword}
         </div>
       </div>
 
@@ -659,7 +640,7 @@ function ImplementationDetail({ impl, onUpdate }) {
         </div>
         <div className="ip-stat">
           <div className="ip-stat-label">Etapa actual</div>
-          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, fontWeight: 700, marginTop: 4 }}>{currentStage.icon} {currentStage.name}</div>
+          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, fontWeight: 700, marginTop: 4 }}><StageIcon icon=<StageIcon icon={currentStage.icon} size={18} /> size={18} /> {currentStage.name}</div>
         </div>
         <div className="ip-stat">
           <div className="ip-stat-label">Inicio</div>
@@ -671,7 +652,7 @@ function ImplementationDetail({ impl, onUpdate }) {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
               <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, fontWeight: 700 }}>{fmtDate(impl.startDate)}</span>
-              <button className="ip-btn ip-btn-ghost ip-btn-sm" onClick={() => setEditDate(true)}>✏️</button>
+              <button className="ip-btn ip-btn-ghost ip-btn-sm" onClick={() => setEditDate(true)}><Pencil size={12} style={{ display: "inline-block", marginBottom: -1 }} /></button>
             </div>
           )}
         </div>
@@ -679,7 +660,7 @@ function ImplementationDetail({ impl, onUpdate }) {
 
       {/* Tabs */}
       <div className="ip-tabs">
-        {[['cronograma', '📅 Cronograma'], ['chat', '💬 Chat'], ['documentos', '📁 Documentos']].map(([id, label]) => (
+        {[['cronograma', '<Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Cronograma'], ['chat', '<MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat'], ['documentos', '<Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos']].map(([id, label]) => (
           <button key={id} className={clsx('ip-tab', activeTab === id && 'active')} onClick={() => setActiveTab(id)}>{label}</button>
         ))}
       </div>
@@ -696,7 +677,7 @@ function ImplementationDetail({ impl, onUpdate }) {
             return (
               <div key={stage.id} className="ip-stage" style={{ borderColor: isActive ? 'rgba(0,102,255,0.3)' : undefined }}>
                 <div className="ip-stage-header" onClick={() => toggleStage(stage.id)}>
-                  <span className="ip-stage-icon">{stage.icon}</span>
+                  <span className="ip-stage-icon"><StageIcon icon=<StageIcon icon={stage.icon} /> /></span>
                   <span className="ip-stage-name">{stage.name}</span>
                   <span className="ip-stage-dates">{getStageDate(stage.id)}</span>
                   <span className="ip-stage-progress" style={{
@@ -728,9 +709,9 @@ function ImplementationDetail({ impl, onUpdate }) {
                             <div className="ip-task-how">{task.how}</div>
                             <div className="ip-task-meta" style={{ marginTop: 5 }}>
                               <span className={clsx('ip-badge', task.responsible === 'qubit' ? 'ip-badge-qubit' : 'ip-badge-client')}>
-                                {task.responsible === 'qubit' ? '⚡ Qubit' : '👤 Cliente'}
+                                {task.responsible === 'qubit' ? '<Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Qubit' : '<User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Cliente'}
                               </span>
-                              {task.requiresClient && <span className="ip-badge ip-badge-meeting">📅 Requiere reunión</span>}
+                              {task.requiresClient && <span className="ip-badge ip-badge-meeting"><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Requiere reunión</span>}
                               {isDoneTask && taskState?.doneAt && (
                                 <span className="ip-task-date">✓ {fmtDate(taskState.doneAt)}</span>
                               )}
@@ -739,7 +720,7 @@ function ImplementationDetail({ impl, onUpdate }) {
                                 style={{ marginLeft: 'auto', fontSize: 10, padding: '3px 8px' }}
                                 onClick={() => setCommentModal({ task: taskState, stageTask: task })}
                               >
-                                💬 Comentarios
+                                <MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Comentarios
                               </button>
                             </div>
                           </div>
@@ -758,7 +739,7 @@ function ImplementationDetail({ impl, onUpdate }) {
       {activeTab === 'chat' && (
         <div className="ip-card">
           <div className="ip-card-header">
-            <div className="ip-card-title">💬 Chat del proyecto — {impl.name}</div>
+            <div className="ip-card-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat del proyecto — {impl.name}</div>
           </div>
           <div className="ip-chat">
             <div className="ip-chat-messages">
@@ -800,7 +781,7 @@ function ImplementationDetail({ impl, onUpdate }) {
       {activeTab === 'documentos' && (
         <div className="ip-card">
           <div className="ip-card-header">
-            <div className="ip-card-title">📁 Documentos del proyecto</div>
+            <div className="ip-card-title"><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos del proyecto</div>
             <label className="ip-btn ip-btn-white ip-btn-sm" style={{ cursor: 'pointer' }}>
               + Subir documento
               <input type="file" style={{ display: 'none' }} onChange={async e => {
@@ -820,7 +801,7 @@ function ImplementationDetail({ impl, onUpdate }) {
             {docs.length === 0 && <div className="ip-empty">Sin documentos — sube el primero</div>}
             {docs.map(d => (
               <div key={d.id} className="ip-doc-item">
-                <span className="ip-doc-icon">{d.type?.includes('pdf') ? '📄' : d.type?.includes('image') ? '🖼️' : '📎'}</span>
+                <span className="ip-doc-icon">{d.type?.includes('pdf') ? '<FileText size={16} style={{ display: "inline-block", marginBottom: -2 }} />' : d.type?.includes('image') ? '<ImageIcon size={16} style={{ display: "inline-block", marginBottom: -2 }} />' : '<Paperclip size={16} style={{ display: "inline-block", marginBottom: -2 }} />'}</span>
                 <div style={{ flex: 1 }}>
                   <div className="ip-doc-name">{d.name}</div>
                   <div className="ip-doc-meta">{d.uploadedBy} · {fmtDate(d.createdAt)}</div>
@@ -849,9 +830,11 @@ function ImplementationDetail({ impl, onUpdate }) {
 
 // ─── MAIN EXPORT ───
 export default function ImplementationPortal() {
+  const TEMPLATE_STAGES = useTemplateStages()
   const [impls, setImpls] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [showNew, setShowNew] = useState(false)
+  const [activeView, setActiveView] = useState('clients') // 'clients' | 'template'
   const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
@@ -878,48 +861,71 @@ export default function ImplementationPortal() {
     <div className="ip-root sa-content" style={{ maxWidth: '100%' }}>
       <style>{css}</style>
 
-      <div className="ip-grid">
-        {/* Client list */}
-        <div>
-          <div className="ip-card">
-            <div className="ip-card-header">
-              <div className="ip-card-title">Clientes ({impls.length})</div>
-              <button className="ip-btn ip-btn-white ip-btn-sm" onClick={() => setShowNew(true)}>+ Nuevo</button>
-            </div>
-            <div className="ip-client-list">
-              {impls.length === 0 && <div className="ip-empty">Sin implementaciones — crea la primera</div>}
-              {impls.map(impl => {
-                const pct = getProgress(impl)
-                return (
-                  <div
-                    key={impl.id}
-                    className={clsx('ip-client-item', selectedId === impl.id && 'active')}
-                    onClick={() => setSelectedId(impl.id)}
-                  >
-                    <div className="ip-client-avatar">{getInitials(impl.name)}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="ip-client-name">{impl.name}</div>
-                      <div className="ip-client-sub">{impl.company}</div>
-                      <div className="ip-progress-bar">
-                        <div className="ip-progress-fill" style={{ width: `${pct}%` }} />
+      {/* View toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <button
+          className={clsx('ip-btn', activeView === 'clients' ? 'ip-btn-white' : 'ip-btn-ghost')}
+          onClick={() => setActiveView('clients')}
+        >
+          <Users size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Clientes
+        </button>
+        <button
+          className={clsx('ip-btn', activeView === 'template' ? 'ip-btn-white' : 'ip-btn-ghost')}
+          onClick={() => setActiveView('template')}
+        >
+          <Pencil size={12} style={{ display: "inline-block", marginBottom: -1 }} /> Editar plantilla
+        </button>
+        <span style={{ fontSize: 11, color: 'var(--gray-5)', marginLeft: 4 }}>
+          {TEMPLATE_STAGES.length} etapas · {TEMPLATE_STAGES.reduce((s, st) => s + st.tasks.length, 0)} tareas
+        </span>
+      </div>
+
+      {activeView === 'template' && <TemplateEditorInline />}
+
+      {activeView === 'clients' && (
+        <div className="ip-grid">
+          {/* Client list */}
+          <div>
+            <div className="ip-card">
+              <div className="ip-card-header">
+                <div className="ip-card-title">Clientes ({impls.length})</div>
+                <button className="ip-btn ip-btn-white ip-btn-sm" onClick={() => setShowNew(true)}>+ Nuevo</button>
+              </div>
+              <div className="ip-client-list">
+                {impls.length === 0 && <div className="ip-empty">Sin implementaciones — crea la primera</div>}
+                {impls.map(impl => {
+                  const pct = getProgress(impl)
+                  return (
+                    <div
+                      key={impl.id}
+                      className={clsx('ip-client-item', selectedId === impl.id && 'active')}
+                      onClick={() => setSelectedId(impl.id)}
+                    >
+                      <div className="ip-client-avatar">{getInitials(impl.name)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ip-client-name">{impl.name}</div>
+                        <div className="ip-client-sub">{impl.company}</div>
+                        <div className="ip-progress-bar">
+                          <div className="ip-progress-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--gray-5)', marginTop: 3 }}>{pct}% completado</div>
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--gray-5)', marginTop: 3 }}>{pct}% completado</div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Detail */}
-        <div>
-          {selected
-            ? <ImplementationDetail key={selectedId} impl={selected} onUpdate={() => setRefresh(r => r + 1)} />
-            : <div className="ip-empty" style={{ paddingTop: 80 }}>Selecciona un cliente para ver su cronograma</div>
-          }
+          {/* Detail */}
+          <div>
+            {selected
+              ? <ImplementationDetail key={selectedId} impl={selected} onUpdate={() => setRefresh(r => r + 1)} />
+              : <div className="ip-empty" style={{ paddingTop: 80 }}>Selecciona un cliente para ver su cronograma</div>
+            }
+          </div>
         </div>
-      </div>
+      )}
 
       {showNew && (
         <NewClientModal
