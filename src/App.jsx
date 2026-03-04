@@ -63,16 +63,8 @@ export default function App() {
           <Route path="inbox" element={<Inbox />} />
         </Route>
 
-        {/* Superadmin — protected, role check inside ProtectedRoute */}
-        <Route
-          path="/superadmin"
-          element={
-            <ProtectedRoute requireSuperadmin={false}>
-              {/* requireSuperadmin=true cuando implementes roles */}
-              <Superadmin />
-            </ProtectedRoute>
-          }
-        />
+        {/* Superadmin */}
+        <Route path="/superadmin" element={<Superadmin />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/pipeline" replace />} />
