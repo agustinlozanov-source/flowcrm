@@ -7,8 +7,9 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
+import SupportTickets from './SupportTickets'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
 const SA_EMAIL = 'admin@qubitcorp.mx'
@@ -1388,9 +1389,10 @@ export default function Superadmin() {
     { id: 'apis', icon: <Key size={16} />, label: 'APIs por cliente' },
     { id: 'quoter', icon: <ClipboardList size={16} />, label: 'Cotizador' },
     { id: 'implementations', icon: <Calendar size={16} />, label: 'Implementaciones' },
+    { id: 'support', icon: <Ticket size={16} />, label: 'Soporte' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico' }
 
   if (!authed) {
     return (
@@ -1450,6 +1452,7 @@ export default function Superadmin() {
           {activeTab === 'apis' && <ApiConfig orgs={orgs} />}
           {activeTab === 'quoter' && <Quoter />}
           {activeTab === 'implementations' && <ImplementationPortal />}
+          {activeTab === 'support' && <SupportTickets />}
         </div>
       </div>
     </div>
