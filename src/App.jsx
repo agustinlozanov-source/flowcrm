@@ -18,6 +18,7 @@ import ContentStudio from '@/pages/ContentStudio'
 import Referrals from '@/pages/Referrals'
 import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
+import ClientPortal from '@/pages/ClientPortal'
 
 export default function App() {
   return (
@@ -65,6 +66,9 @@ export default function App() {
 
         {/* Superadmin */}
         <Route path="/superadmin" element={<Superadmin />} />
+
+        {/* Public Portal */}
+        <Route path="/portal" element={<ClientPortal />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/pipeline" replace />} />

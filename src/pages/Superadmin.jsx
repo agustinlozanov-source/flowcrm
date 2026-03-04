@@ -7,7 +7,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar } from 'lucide-react'
+import ImplementationPortal from './ImplementationPortal'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
 const SA_EMAIL = 'admin@qubitcorp.mx'
@@ -1386,9 +1387,10 @@ export default function Superadmin() {
     { id: 'plans', icon: <Package size={16} />, label: 'Planes' },
     { id: 'apis', icon: <Key size={16} />, label: 'APIs por cliente' },
     { id: 'quoter', icon: <ClipboardList size={16} />, label: 'Cotizador' },
+    { id: 'implementations', icon: <Calendar size={16} />, label: 'Implementaciones' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones' }
 
   if (!authed) {
     return (
@@ -1447,6 +1449,7 @@ export default function Superadmin() {
           {activeTab === 'plans' && <Plans />}
           {activeTab === 'apis' && <ApiConfig orgs={orgs} />}
           {activeTab === 'quoter' && <Quoter />}
+          {activeTab === 'implementations' && <ImplementationPortal />}
         </div>
       </div>
     </div>
