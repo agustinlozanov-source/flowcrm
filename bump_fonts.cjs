@@ -1,0 +1,46 @@
+const fs = require('fs');
+
+function bumpFonts(file) {
+  let c = fs.readFileSync(file, 'utf8');
+
+  c = c.replace(/font-size:\s*([\d.]+)(px)?/g, (match, valStr, px) => {
+    let size = parseFloat(valStr);
+    if (size < 10) return match; 
+    if (size === 10 || size === 10.5) return 'font-size: 12px';
+    if (size === 11 || size === 11.5) return 'font-size: 13px';
+    if (size === 12 || size === 12.5) return 'font-size: 14px';
+    if (size === 13 || size === 13.5) return 'font-size: 15px';
+    if (size === 14 || size === 14.5) return 'font-size: 16px';
+    if (size === 15 || size === 15.5) return 'font-size: 17px';
+    if (size === 16) return 'font-size: 18px';
+    if (size === 17) return 'font-size: 19px';
+    if (size === 18) return 'font-size: 20px';
+    if (size === 20) return 'font-size: 22px';
+    if (size === 22) return 'font-size: 24px';
+    if (size === 24) return 'font-size: 26px';
+    return match;
+  });
+
+  c = c.replace(/fontSize:\s*([\d.]+)/g, (match, valStr) => {
+    let size = parseFloat(valStr);
+    if (size < 10) return match; 
+    if (size === 10 || size === 10.5) return 'fontSize: 12';
+    if (size === 11 || size === 11.5) return 'fontSize: 13';
+    if (size === 12 || size === 12.5) return 'fontSize: 14';
+    if (size === 13 || size === 13.5) return 'fontSize: 15';
+    if (size === 14 || size === 14.5) return 'fontSize: 16';
+    if (size === 15 || size === 15.5) return 'fontSize: 17';
+    if (size === 16) return 'fontSize: 18';
+    if (size === 17) return 'fontSize: 19';
+    if (size === 18) return 'fontSize: 20';
+    if (size === 20) return 'fontSize: 22';
+    if (size === 22) return 'fontSize: 24';
+    if (size === 24) return 'fontSize: 26';
+    return match;
+  });
+
+  fs.writeFileSync(file, c);
+}
+
+bumpFonts('src/pages/ClientPortal.jsx');
+bumpFonts('src/pages/ImplementationPortal.jsx');

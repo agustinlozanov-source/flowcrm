@@ -120,7 +120,7 @@ const css = `
   .te-root { font-family: 'Inter', sans-serif; }
 
   .te-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-  .te-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
+  .te-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
 
   .te-stage {
     background: rgba(255,255,255,0.02);
@@ -135,7 +135,7 @@ const css = `
   }
 
   .te-stage-drag {
-    color: #3a3a3c; cursor: grab; font-size: 14px; flex-shrink: 0;
+    color: #3a3a3c; cursor: grab; font-size: 17px; flex-shrink: 0;
   }
 
   .te-icon-picker {
@@ -146,7 +146,7 @@ const css = `
     width: 32px; height: 32px; border-radius: 8px;
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 16px; flex-shrink: 0;
+    cursor: pointer; font-size: 19px; flex-shrink: 0;
     transition: background 0.15s;
   }
   .te-icon-btn:hover { background: rgba(255,255,255,0.1); }
@@ -162,7 +162,7 @@ const css = `
   .te-icon-opt {
     width: 32px; height: 32px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 16px; transition: background 0.1s;
+    cursor: pointer; font-size: 19px; transition: background 0.1s;
     border: none; background: transparent;
   }
   .te-icon-opt:hover { background: rgba(255,255,255,0.1); }
@@ -170,18 +170,18 @@ const css = `
   .te-stage-name-input {
     flex: 1; background: transparent; border: none; outline: none;
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 13px; font-weight: 800; color: white;
+    font-size: 15px; font-weight: 800; color: white;
     padding: 0;
   }
 
   .te-duration {
     display: flex; align-items: center; gap: 5px;
-    font-size: 11px; color: #8e8e93; flex-shrink: 0;
+    font-size: 13px; color: #8e8e93; flex-shrink: 0;
   }
 
   .te-duration-input {
     width: 36px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 5px; padding: 3px 5px; font-size: 11px; color: white;
+    border-radius: 5px; padding: 3px 5px; font-size: 13px; color: white;
     font-family: 'Inter', sans-serif; outline: none; text-align: center;
   }
 
@@ -195,7 +195,7 @@ const css = `
     display: flex; align-items: flex-start; gap: 8px;
   }
 
-  .te-task-drag { color: #3a3a3c; cursor: grab; font-size: 12px; margin-top: 2px; flex-shrink: 0; }
+  .te-task-drag { color: #3a3a3c; cursor: grab; font-size: 14px; margin-top: 2px; flex-shrink: 0; }
 
   .te-task-body { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 
@@ -203,7 +203,7 @@ const css = `
 
   .te-task-input {
     background: transparent; border: none; outline: none;
-    font-size: 12.5px; font-weight: 600; color: white;
+    font-size: 15px; font-weight: 600; color: white;
     font-family: 'Inter', sans-serif; flex: 1; padding: 0;
   }
 
@@ -211,7 +211,7 @@ const css = `
 
   .te-how-input {
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 6px; padding: 5px 9px; font-size: 11.5px; color: #8e8e93;
+    border-radius: 6px; padding: 5px 9px; font-size: 14px; color: #8e8e93;
     font-family: 'Inter', sans-serif; outline: none; width: 100%;
     transition: border-color 0.15s;
   }
@@ -220,14 +220,14 @@ const css = `
 
   .te-select {
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px; padding: 3px 7px; font-size: 10.5px; font-weight: 700;
+    border-radius: 6px; padding: 3px 7px; font-size: 13px; font-weight: 700;
     color: white; font-family: 'Inter', sans-serif; outline: none; cursor: pointer;
   }
   .te-select option { background: #1c1c1e; }
 
   .te-toggle {
     display: flex; align-items: center; gap: 4px;
-    font-size: 10px; color: #8e8e93; cursor: pointer; flex-shrink: 0;
+    font-size: 12px; color: #8e8e93; cursor: pointer; flex-shrink: 0;
   }
 
   .te-toggle-box {
@@ -242,7 +242,7 @@ const css = `
   .te-btn {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 6px 12px; border-radius: 7px;
-    font-size: 11.5px; font-weight: 700; cursor: pointer; border: none;
+    font-size: 14px; font-weight: 700; cursor: pointer; border: none;
     font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
 
@@ -254,13 +254,13 @@ const css = `
   .te-btn-danger:hover { background: rgba(255,59,48,0.15); }
   .te-btn-blue { background: #0066ff; color: white; }
   .te-btn-blue:hover { opacity: 0.88; }
-  .te-btn-sm { padding: 4px 8px; font-size: 10.5px; border-radius: 5px; }
+  .te-btn-sm { padding: 4px 8px; font-size: 13px; border-radius: 5px; }
   .te-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .te-add-task {
     display: flex; align-items: center; gap: 6px;
     padding: 6px 12px 10px;
-    font-size: 11.5px; font-weight: 600; color: #3a3a3c;
+    font-size: 14px; font-weight: 600; color: #3a3a3c;
     cursor: pointer; transition: color 0.15s; border: none;
     background: transparent; font-family: 'Inter', sans-serif;
     width: 100%;
@@ -272,7 +272,7 @@ const css = `
     padding: 14px 18px;
     background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);
     border-radius: 12px; cursor: pointer; transition: all 0.15s;
-    font-size: 13px; font-weight: 600; color: #3a3a3c;
+    font-size: 15px; font-weight: 600; color: #3a3a3c;
     border-style: dashed; width: 100%; font-family: 'Inter', sans-serif;
     justify-content: center;
   }
@@ -291,8 +291,8 @@ const css = `
     width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto;
   }
 
-  .te-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; margin-bottom: 6px; }
-  .te-modal-sub { font-size: 12.5px; color: #8e8e93; line-height: 1.6; margin-bottom: 18px; }
+  .te-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin-bottom: 6px; }
+  .te-modal-sub { font-size: 15px; color: #8e8e93; line-height: 1.6; margin-bottom: 18px; }
 
   .te-client-check {
     display: flex; align-items: center; gap: 10px;
@@ -311,15 +311,15 @@ const css = `
   }
   .te-client-check.selected .te-check-box { background: #0066ff; border-color: #0066ff; color: white; }
 
-  .te-client-name { font-size: 13px; font-weight: 600; }
-  .te-client-sub { font-size: 11px; color: #8e8e93; }
+  .te-client-name { font-size: 15px; font-weight: 600; }
+  .te-client-sub { font-size: 13px; color: #8e8e93; }
 
   .te-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
   .te-warning {
     background: rgba(255,149,0,0.06); border: 1px solid rgba(255,149,0,0.18);
     border-radius: 8px; padding: 10px 14px;
-    font-size: 12px; color: #ff9500; line-height: 1.6; margin-bottom: 16px;
+    font-size: 14px; color: #ff9500; line-height: 1.6; margin-bottom: 16px;
   }
 `
 
@@ -370,7 +370,7 @@ function ApplyModal({ impls, onApply, onClose }) {
         </div>
 
         {activeImpls.length === 0
-          ? <div style={{ fontSize: 13, color: '#8e8e93', textAlign: 'center', padding: '16px 0' }}>Sin implementaciones activas</div>
+          ? <div style={{ fontSize: 15, color: '#8e8e93', textAlign: 'center', padding: '16px 0' }}>Sin implementaciones activas</div>
           : activeImpls.map(impl => (
             <div
               key={impl.id}
@@ -532,16 +532,16 @@ export default function TemplateEditor() {
     setShowApply(false)
   }
 
-  if (loading) return <div style={{ padding: 32, color: '#8e8e93', fontSize: 13 }}>Cargando plantilla...</div>
+  if (loading) return <div style={{ padding: 32, color: '#8e8e93', fontSize: 15 }}>Cargando plantilla...</div>
 
   return (
-    <div className="te-root sa-content" style={{ maxWidth: 760 }}>
+    <div className="te-root sa-content" style={{ maxWidth: 760, background: "#070708", color: "white", minHeight: "100%", padding: 32 }}>
       <style>{css}</style>
 
       <div className="te-header">
         <div>
           <div className="te-title">Plantilla de implementación</div>
-          <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
+          <div style={{ fontSize: 14, color: '#8e8e93', marginTop: 2 }}>
             {stages.length} etapas · {stages.reduce((s, st) => s + st.tasks.length, 0)} tareas · {stages.reduce((s, st) => s + (st.durationDays || 0), 0)} días hábiles totales
           </div>
         </div>

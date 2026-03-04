@@ -1233,7 +1233,7 @@ function Quoter() {
 
         {/* Preview */}
         <div style={{ flex: 1, background: '#0d0d0f', borderRadius: 14, overflow: 'auto', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div id="sa-quote-preview" style={{ background: '#070708', minHeight: '100%' }}>
+          <div id="sa-quote-preview" style={{ background: "#070708", color: "white", minHeight: "100%" }}>
 
             {/* Header */}
             <div className="q2-header">

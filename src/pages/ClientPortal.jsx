@@ -149,14 +149,14 @@ const css = `
 
   .cp-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; justify-content: center; }
   .cp-logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #0066ff, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-  .cp-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; }
+  .cp-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; }
 
-  .cp-login-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 900; text-align: center; margin-bottom: 4px; }
-  .cp-login-sub { font-size: 14px; color: var(--gray-4); text-align: center; margin-bottom: 28px; line-height: 1.6; }
+  .cp-login-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 900; text-align: center; margin-bottom: 4px; }
+  .cp-login-sub { font-size: 17px; color: var(--gray-4); text-align: center; margin-bottom: 28px; line-height: 1.6; }
 
   .cp-input {
     width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 9px; padding: 11px 14px; font-size: 15px; color: white;
+    border-radius: 9px; padding: 11px 14px; font-size: 18px; color: white;
     font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.15s; margin-bottom: 10px;
   }
 
@@ -165,7 +165,7 @@ const css = `
 
   .cp-btn-primary {
     width: 100%; padding: 12px; background: white; color: #070708;
-    border: none; border-radius: 9px; font-size: 15px; font-weight: 700;
+    border: none; border-radius: 9px; font-size: 18px; font-weight: 700;
     cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; margin-top: 6px;
   }
   .cp-btn-primary:hover { background: #e8e8ed; }
@@ -182,10 +182,10 @@ const css = `
     display: flex; align-items: center; justify-content: space-between;
   }
 
-  .cp-welcome { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 600; color: var(--gray-4); margin-bottom: 2px; }
-  .cp-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 900; letter-spacing: -0.3px; }
+  .cp-welcome { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 600; color: var(--gray-4); margin-bottom: 2px; }
+  .cp-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -0.3px; }
 
-  .cp-logout { font-size: 14px; color: var(--gray-5); background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; padding: 6px 10px; border-radius: 6px; transition: all 0.15s; }
+  .cp-logout { font-size: 17px; color: var(--gray-5); background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; padding: 6px 10px; border-radius: 6px; transition: all 0.15s; }
   .cp-logout:hover { color: white; background: rgba(255,255,255,0.06); }
 
   /* PROGRESS HERO */
@@ -203,18 +203,18 @@ const css = `
     position: relative;
   }
 
-  .cp-progress-pct { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 900; }
+  .cp-progress-pct { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 900; }
 
   .cp-progress-info { flex: 1; }
-  .cp-progress-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; margin-bottom: 4px; }
-  .cp-progress-sub { font-size: 14px; color: var(--gray-4); line-height: 1.5; }
+  .cp-progress-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+  .cp-progress-sub { font-size: 17px; color: var(--gray-4); line-height: 1.5; }
   .cp-progress-track { height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; margin-top: 10px; overflow: hidden; }
   .cp-progress-fill { height: 100%; border-radius: 3px; background: #0066ff; transition: width 0.5s; }
 
   /* TABS */
   .cp-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px; }
   .cp-tab {
-    padding: 10px 16px; font-size: 15px; font-weight: 600; color: var(--gray-4);
+    padding: 10px 16px; font-size: 18px; font-weight: 600; color: var(--gray-4);
     border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s;
     background: none; border-top: none; border-left: none; border-right: none;
     font-family: 'Inter', sans-serif;
@@ -238,13 +238,13 @@ const css = `
   }
   .cp-stage-header:hover { background: rgba(255,255,255,0.02); }
 
-  .cp-stage-icon { font-size: 18px; }
-  .cp-stage-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
-  .cp-stage-dates { font-size: 13px; color: var(--gray-4); }
+  .cp-stage-icon { font-size: 21px; }
+  .cp-stage-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
+  .cp-stage-dates { font-size: 15px; color: var(--gray-4); }
   .cp-stage-badge {
-    font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
+    font-size: 14px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
   }
-  .cp-chevron { font-size: 12px; color: #3a3a3c; transition: transform 0.2s; }
+  .cp-chevron { font-size: 14px; color: #3a3a3c; transition: transform 0.2s; }
   .cp-chevron.open { transform: rotate(90deg); }
 
   /* TASKS */
@@ -264,9 +264,9 @@ const css = `
   }
   .cp-task-dot.done { background: #00c853; border-color: #00c853; color: white; }
 
-  .cp-task-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; color: white; }
+  .cp-task-name { font-size: 17px; font-weight: 600; margin-bottom: 3px; color: white; }
   .cp-task-name.done { color: var(--gray-5); text-decoration: line-through; }
-  .cp-task-how { font-size: 13px; color: var(--gray-4); line-height: 1.5; margin-bottom: 5px; }
+  .cp-task-how { font-size: 15px; color: var(--gray-4); line-height: 1.5; margin-bottom: 5px; }
 
   .cp-task-badges { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .cp-badge {
@@ -278,7 +278,7 @@ const css = `
   .cp-badge-meeting { background: rgba(255,149,0,0.08); color: #ff9500; border: 1px solid rgba(255,149,0,0.2); }
 
   .cp-comment-btn {
-    margin-left: auto; font-size: 12px; font-weight: 600; color: var(--gray-5);
+    margin-left: auto; font-size: 14px; font-weight: 600; color: var(--gray-5);
     background: none; border: 1px solid rgba(255,255,255,0.07); border-radius: 5px;
     padding: 2px 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
@@ -287,51 +287,51 @@ const css = `
   /* CHAT */
   .cp-chat-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; }
   .cp-chat-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px; }
-  .cp-chat-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; }
+  .cp-chat-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; }
   .cp-chat-messages { height: 360px; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .cp-chat-input-row { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; }
 
   .cp-msg { display: flex; gap: 8px; align-items: flex-end; }
   .cp-msg.mine { flex-direction: row-reverse; }
 
-  .cp-msg-avatar { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+  .cp-msg-avatar { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
 
   .cp-msg-bubble {
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09);
     border-radius: 4px 12px 12px 12px; padding: 8px 12px;
-    font-size: 15px; line-height: 1.55; max-width: 72%;
+    font-size: 18px; line-height: 1.55; max-width: 72%;
   }
   .cp-msg.mine .cp-msg-bubble {
     background: rgba(0,102,255,0.14); border-color: rgba(0,102,255,0.25);
     border-radius: 12px 4px 12px 12px;
   }
-  .cp-msg-author { font-size: 12px; font-weight: 700; color: var(--gray-4); margin-bottom: 2px; }
-  .cp-msg-time { font-size: 12px; color: #3a3a3c; margin-top: 3px; }
+  .cp-msg-author { font-size: 14px; font-weight: 700; color: var(--gray-4); margin-bottom: 2px; }
+  .cp-msg-time { font-size: 14px; color: #3a3a3c; margin-top: 3px; }
 
   /* DOCS */
   .cp-docs-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; }
   .cp-docs-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; }
-  .cp-docs-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
+  .cp-docs-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
 
   .cp-doc-item { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .cp-doc-item:last-child { border-bottom: none; }
-  .cp-doc-icon { font-size: 20px; }
-  .cp-doc-name { font-size: 15px; font-weight: 600; flex: 1; }
-  .cp-doc-meta { font-size: 13px; color: var(--gray-4); }
+  .cp-doc-icon { font-size: 24px; }
+  .cp-doc-name { font-size: 18px; font-weight: 600; flex: 1; }
+  .cp-doc-meta { font-size: 15px; color: var(--gray-4); }
 
-  .cp-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+  .cp-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
   .cp-upload-btn:hover { background: rgba(255,255,255,0.1); }
 
   /* MODAL */
   .cp-modal-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .cp-modal { background: #1c1c1e; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
-  .cp-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; margin-bottom: 16px; }
+  .cp-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 16px; }
 
-  .cp-empty { text-align: center; padding: 32px; color: #3a3a3c; font-size: 15px; }
-  .cp-error { color: #ff6b6b; font-size: 14px; margin-top: 6px; text-align: center; }
+  .cp-empty { text-align: center; padding: 32px; color: #3a3a3c; font-size: 18px; }
+  .cp-error { color: #ff6b6b; font-size: 17px; margin-top: 6px; text-align: center; }
 
   /* SEND BTN */
-  .cp-send-btn { background: #0066ff; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; transition: opacity 0.15s; flex-shrink: 0; }
+  .cp-send-btn { background: #0066ff; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 17px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; transition: opacity 0.15s; flex-shrink: 0; }
   .cp-send-btn:hover { opacity: 0.88; }
   .cp-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 `
@@ -370,7 +370,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
     <div className="cp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="cp-modal">
         <div className="cp-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {task.name}</div>
-        <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ fontSize: 17, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
           {task.how}
         </div>
         <div style={{ height: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
@@ -399,7 +399,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
           <button className="cp-send-btn" onClick={send} disabled={sending}>Enviar</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 14px', color: '#8e8e93', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>Cerrar</button>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 14px', color: '#8e8e93', cursor: 'pointer', fontSize: 17, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -538,7 +538,7 @@ export default function ClientPortal() {
         <div className="cp-header">
           <div>
             <div className="cp-welcome">Bienvenido de nuevo,</div>
-            <div className="cp-name">{impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 18 }}>· {impl.company}</span></div>
+            <div className="cp-name">{impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 21 }}>· {impl.company}</span></div>
           </div>
           <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}><LogOut size={14} style={{ marginRight: 6, display: "inline-block" }} /> Salir</button>
         </div>
@@ -630,7 +630,7 @@ export default function ClientPortal() {
         {activeTab === 'chat' && (
           <div className="cp-chat-wrap">
             <div className="cp-chat-header">
-              <span style={{ fontSize: 18 }}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /></span>
+              <span style={{ fontSize: 21 }}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /></span>
               <div className="cp-chat-title">Chat con Qubit Corp.</div>
             </div>
             <div className="cp-chat-messages">

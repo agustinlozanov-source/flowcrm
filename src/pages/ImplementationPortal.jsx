@@ -101,7 +101,7 @@ const css = `
     display: flex; align-items: center; gap: 10px;
   }
 
-  .ip-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
+  .ip-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
 
   .ip-client-list { display: flex; flex-direction: column; }
 
@@ -121,11 +121,11 @@ const css = `
     background: linear-gradient(135deg, #0066ff, #7c3aed);
     display: flex; align-items: center; justify-content: center;
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 15px; font-weight: 800; flex-shrink: 0;
+    font-size: 18px; font-weight: 800; flex-shrink: 0;
   }
 
-  .ip-client-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
-  .ip-client-sub { font-size: 13px; color: var(--gray-4); }
+  .ip-client-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .ip-client-sub { font-size: 15px; color: var(--gray-4); }
 
   .ip-progress-bar {
     height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px;
@@ -150,18 +150,18 @@ const css = `
 
   .ip-stage-header:hover { background: rgba(255,255,255,0.02); }
 
-  .ip-stage-icon { font-size: 18px; }
+  .ip-stage-icon { font-size: 21px; }
 
-  .ip-stage-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
+  .ip-stage-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
 
-  .ip-stage-dates { font-size: 13px; color: var(--gray-4); }
+  .ip-stage-dates { font-size: 15px; color: var(--gray-4); }
 
   .ip-stage-progress {
-    font-size: 13px; font-weight: 700;
+    font-size: 15px; font-weight: 700;
     padding: 2px 8px; border-radius: 5px;
   }
 
-  .ip-stage-chevron { font-size: 13px; color: var(--gray-5); transition: transform 0.2s; }
+  .ip-stage-chevron { font-size: 15px; color: var(--gray-5); transition: transform 0.2s; }
   .ip-stage-chevron.open { transform: rotate(90deg); }
 
   /* TASKS */
@@ -191,7 +191,7 @@ const css = `
   .ip-task-content { flex: 1; }
 
   .ip-task-name {
-    font-size: 14px; font-weight: 600; margin-bottom: 3px;
+    font-size: 17px; font-weight: 600; margin-bottom: 3px;
     text-decoration: none; color: white;
   }
 
@@ -199,7 +199,7 @@ const css = `
 
   .ip-task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-  .ip-task-how { font-size: 13px; color: var(--gray-4); flex: 1; line-height: 1.4; margin-top: 3px; }
+  .ip-task-how { font-size: 15px; color: var(--gray-4); flex: 1; line-height: 1.4; margin-top: 3px; }
 
   .ip-badge {
     font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
@@ -210,7 +210,7 @@ const css = `
   .ip-badge-client { background: rgba(0,200,83,0.12); color: #00c853; border: 1px solid rgba(0,200,83,0.2); }
   .ip-badge-meeting { background: rgba(255,149,0,0.1); color: #ff9500; border: 1px solid rgba(255,149,0,0.2); }
 
-  .ip-task-date { font-size: 12px; color: var(--gray-5); }
+  .ip-task-date { font-size: 14px; color: var(--gray-5); }
 
   /* TOPBAR */
   .ip-detail-topbar {
@@ -225,9 +225,9 @@ const css = `
     border-radius: 10px; padding: 14px 16px;
   }
 
-  .ip-stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; margin-bottom: 5px; }
-  .ip-stat-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; }
-  .ip-stat-sub { font-size: 12px; color: var(--gray-5); margin-top: 2px; }
+  .ip-stat-label { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; margin-bottom: 5px; }
+  .ip-stat-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -0.5px; }
+  .ip-stat-sub { font-size: 14px; color: var(--gray-5); margin-top: 2px; }
 
   /* CHAT */
   .ip-chat { display: flex; flex-direction: column; height: 340px; }
@@ -241,13 +241,13 @@ const css = `
   .ip-msg-avatar {
     width: 26px; height: 26px; border-radius: 7px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; flex-shrink: 0;
+    font-size: 14px; font-weight: 800; flex-shrink: 0;
   }
 
   .ip-msg-bubble {
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
     border-radius: 0 10px 10px 10px; padding: 8px 12px;
-    font-size: 14px; line-height: 1.5; max-width: 80%;
+    font-size: 17px; line-height: 1.5; max-width: 80%;
   }
 
   .ip-msg-bubble.mine {
@@ -255,12 +255,12 @@ const css = `
     border-radius: 10px 0 10px 10px;
   }
 
-  .ip-msg-name { font-size: 12px; color: var(--gray-4); margin-bottom: 3px; font-weight: 700; }
-  .ip-msg-time { font-size: 12px; color: var(--gray-5); margin-top: 3px; }
+  .ip-msg-name { font-size: 14px; color: var(--gray-4); margin-bottom: 3px; font-weight: 700; }
+  .ip-msg-time { font-size: 14px; color: var(--gray-5); margin-top: 3px; }
 
   .ip-input {
     flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; padding: 8px 12px; font-size: 14px; color: white;
+    border-radius: 8px; padding: 8px 12px; font-size: 17px; color: white;
     font-family: 'Inter', sans-serif; outline: none;
   }
   .ip-input:focus { border-color: #0066ff; }
@@ -269,7 +269,7 @@ const css = `
   .ip-btn {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 7px 14px; border-radius: 8px;
-    font-size: 14px; font-weight: 700; cursor: pointer; border: none;
+    font-size: 17px; font-weight: 700; cursor: pointer; border: none;
     font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
   .ip-btn-white { background: white; color: #070708; }
@@ -278,7 +278,7 @@ const css = `
   .ip-btn-ghost:hover { background: rgba(255,255,255,0.06); }
   .ip-btn-blue { background: #0066ff; color: white; }
   .ip-btn-blue:hover { opacity: 0.88; }
-  .ip-btn-sm { padding: 5px 10px; font-size: 13px; }
+  .ip-btn-sm { padding: 5px 10px; font-size: 15px; }
 
   /* DOCS */
   .ip-docs { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; }
@@ -287,9 +287,9 @@ const css = `
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
     border-radius: 8px;
   }
-  .ip-doc-icon { font-size: 18px; flex-shrink: 0; }
-  .ip-doc-name { font-size: 14px; font-weight: 600; flex: 1; }
-  .ip-doc-meta { font-size: 12px; color: var(--gray-4); }
+  .ip-doc-icon { font-size: 21px; flex-shrink: 0; }
+  .ip-doc-name { font-size: 17px; font-weight: 600; flex: 1; }
+  .ip-doc-meta { font-size: 14px; color: var(--gray-4); }
 
   /* MODAL */
   .ip-modal-overlay {
@@ -302,14 +302,14 @@ const css = `
     border-radius: 18px; padding: 28px; width: 100%; max-width: 560px;
     max-height: 90vh; overflow-y: auto;
   }
-  .ip-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin-bottom: 20px; }
+  .ip-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 20px; }
   .ip-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
   .ip-form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-  .ip-form-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; }
+  .ip-form-label { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; }
   .ip-form-input {
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; padding: 9px 13px; font-size: 14px; color: white;
+    border-radius: 8px; padding: 9px 13px; font-size: 17px; color: white;
     font-family: 'Inter', sans-serif; outline: none; width: 100%;
   }
   .ip-form-input:focus { border-color: #0066ff; }
@@ -319,7 +319,7 @@ const css = `
   .ip-link-badge {
     display: inline-flex; align-items: center; gap: 6px;
     background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.2);
-    border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600; color: #00c853;
+    border-radius: 8px; padding: 8px 14px; font-size: 17px; font-weight: 600; color: #00c853;
     cursor: pointer; transition: all 0.15s;
   }
   .ip-link-badge:hover { background: rgba(0,200,83,0.14); }
@@ -327,7 +327,7 @@ const css = `
   /* TABS */
   .ip-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 16px; }
   .ip-tab {
-    padding: 9px 14px; font-size: 14px; font-weight: 600; color: var(--gray-4);
+    padding: 9px 14px; font-size: 17px; font-weight: 600; color: var(--gray-4);
     border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s;
     background: none; border-top: none; border-left: none; border-right: none;
     font-family: 'Inter', sans-serif;
@@ -335,7 +335,7 @@ const css = `
   .ip-tab:hover { color: white; }
   .ip-tab.active { color: white; border-bottom-color: #0066ff; }
 
-  .ip-empty { text-align: center; padding: 32px; color: var(--gray-5); font-size: 15px; }
+  .ip-empty { text-align: center; padding: 32px; color: var(--gray-5); font-size: 18px; }
 `
 
 // ─── HELPER: compute stage dates from startDate ───
@@ -421,7 +421,7 @@ function NewClientModal({ onClose, onSave }) {
           <label className="ip-form-label">Fecha de inicio</label>
           <input className="ip-form-input" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
         </div>
-        <div style={{ background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#4d9fff', marginTop: 4 }}>
+        <div style={{ background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 8, padding: '10px 14px', fontSize: 17, color: '#4d9fff', marginTop: 4 }}>
           <Info size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Se generará un password aleatorio para el acceso del cliente al portal. Aparecerá en el toast de confirmación — guárdalo para compartirlo con el cliente.
         </div>
         <div className="ip-modal-actions">
@@ -467,7 +467,7 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
     <div className="ip-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="ip-modal">
         <div className="ip-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {stageTask.name}</div>
-        <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 17, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6 }}>
           <span style={{ marginRight: 8 }}>Responsable: <strong style={{ color: 'white' }}>{stageTask.responsible === 'qubit' ? 'Qubit Corp.' : 'Cliente'}</strong></span>
           <span>Cómo: {stageTask.how}</span>
         </div>
@@ -608,10 +608,10 @@ function ImplementationDetail({ impl, onUpdate }) {
       {/* Topbar */}
       <div className="ip-detail-topbar">
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.3px', marginBottom: 2 }}>
-            {impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 16 }}>/ {impl.company}</span>
+          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 24, fontWeight: 900, letterSpacing: '-0.3px', marginBottom: 2 }}>
+            {impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 19 }}>/ {impl.company}</span>
           </div>
-          <div style={{ fontSize: 14, color: 'var(--gray-4)' }}>{impl.email} · {impl.phone}</div>
+          <div style={{ fontSize: 17, color: 'var(--gray-4)' }}>{impl.email} · {impl.phone}</div>
         </div>
         <div
           className="ip-link-badge"
@@ -619,7 +619,7 @@ function ImplementationDetail({ impl, onUpdate }) {
         >
           <LinkIcon size={14} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Copiar link del portal
         </div>
-        <div style={{ fontSize: 14, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, padding: '6px 12px' }}>
+        <div style={{ fontSize: 17, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, padding: '6px 12px' }}>
           <KeyIcon size={14} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> {impl.portalPassword}
         </div>
       </div>
@@ -635,23 +635,23 @@ function ImplementationDetail({ impl, onUpdate }) {
         </div>
         <div className="ip-stat">
           <div className="ip-stat-label">Tareas</div>
-          <div className="ip-stat-value">{doneTasks}<span style={{ fontSize: 16, color: 'var(--gray-4)', fontWeight: 500 }}>/{totalTasks}</span></div>
+          <div className="ip-stat-value">{doneTasks}<span style={{ fontSize: 19, color: 'var(--gray-4)', fontWeight: 500 }}>/{totalTasks}</span></div>
           <div className="ip-stat-sub">completadas</div>
         </div>
         <div className="ip-stat">
           <div className="ip-stat-label">Etapa actual</div>
-          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 16, fontWeight: 700, marginTop: 4 }}><StageIcon icon={currentStage.icon} size={18} /> {currentStage.name}</div>
+          <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 19, fontWeight: 700, marginTop: 4 }}><StageIcon icon={currentStage.icon} size={18} /> {currentStage.name}</div>
         </div>
         <div className="ip-stat">
           <div className="ip-stat-label">Inicio</div>
           {editDate ? (
             <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-              <input className="ip-form-input" type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} style={{ fontSize: 13, padding: '4px 8px' }} />
+              <input className="ip-form-input" type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} style={{ fontSize: 15, padding: '4px 8px' }} />
               <button className="ip-btn ip-btn-blue ip-btn-sm" onClick={updateStartDate}>✓</button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 15, fontWeight: 700 }}>{fmtDate(impl.startDate)}</span>
+              <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 700 }}>{fmtDate(impl.startDate)}</span>
               <button className="ip-btn ip-btn-ghost ip-btn-sm" onClick={() => setEditDate(true)}><Pencil size={12} style={{ display: "inline-block", marginBottom: -1 }} /></button>
             </div>
           )}
@@ -717,7 +717,7 @@ function ImplementationDetail({ impl, onUpdate }) {
                               )}
                               <button
                                 className="ip-btn ip-btn-ghost ip-btn-sm"
-                                style={{ marginLeft: 'auto', fontSize: 12, padding: '3px 8px' }}
+                                style={{ marginLeft: 'auto', fontSize: 14, padding: '3px 8px' }}
                                 onClick={() => setCommentModal({ task: taskState, stageTask: task })}
                               >
                                 <MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Comentarios
@@ -858,7 +858,7 @@ export default function ImplementationPortal() {
   const getInitials = (name) => name?.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
 
   return (
-    <div className="ip-root sa-content" style={{ maxWidth: '100%' }}>
+    <div className="ip-root sa-content" style={{ maxWidth: "100%", background: "#070708", color: "white", minHeight: "100%", padding: 32 }}>
       <style>{css}</style>
 
       {/* View toggle */}
@@ -875,7 +875,7 @@ export default function ImplementationPortal() {
         >
           <Pencil size={12} style={{ display: "inline-block", marginBottom: -1 }} /> Editar plantilla
         </button>
-        <span style={{ fontSize: 13, color: 'var(--gray-5)', marginLeft: 4 }}>
+        <span style={{ fontSize: 15, color: 'var(--gray-5)', marginLeft: 4 }}>
           {TEMPLATE_STAGES.length} etapas · {TEMPLATE_STAGES.reduce((s, st) => s + st.tasks.length, 0)} tareas
         </span>
       </div>
@@ -908,7 +908,7 @@ export default function ImplementationPortal() {
                         <div className="ip-progress-bar">
                           <div className="ip-progress-fill" style={{ width: `${pct}%` }} />
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--gray-5)', marginTop: 3 }}>{pct}% completado</div>
+                        <div style={{ fontSize: 14, color: 'var(--gray-5)', marginTop: 3 }}>{pct}% completado</div>
                       </div>
                     </div>
                   )
