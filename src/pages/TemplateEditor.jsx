@@ -329,11 +329,11 @@ function IconPicker({ value, onChange }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="te-icon-picker">
-      <div className="te-icon-btn" onClick={() => setOpen(o => !o)}><StageIcon icon=<StageIcon icon={value} /> /></div>
+      <div className="te-icon-btn" onClick={() => setOpen(o => !o)}><StageIcon icon={value} /></div>
       {open && (
         <div className="te-icon-dropdown">
           {ICONS.map(ic => (
-            <button key=<StageIcon icon=<StageIcon icon={ic} /> /> className="te-icon-opt" onClick={() => { onChange(ic); setOpen(false) }}><StageIcon icon=<StageIcon icon={ic} /> /></button>
+            <button key={ic} className="te-icon-opt" onClick={() => { onChange(ic); setOpen(false) }}><StageIcon icon={ic} /></button>
           ))}
         </div>
       )}
@@ -450,7 +450,7 @@ export default function TemplateEditor() {
     const next = [...stages]
     const swap = idx + dir
     if (swap < 0 || swap >= next.length) return
-    ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
     setStages(next)
   }
 
@@ -481,7 +481,7 @@ export default function TemplateEditor() {
       const tasks = [...s.tasks]
       const swap = tIdx + dir
       if (swap < 0 || swap >= tasks.length) return s
-      ;[tasks[tIdx], tasks[swap]] = [tasks[swap], tasks[tIdx]]
+        ;[tasks[tIdx], tasks[swap]] = [tasks[swap], tasks[tIdx]]
       return { ...s, tasks }
     }))
   }
@@ -557,7 +557,7 @@ export default function TemplateEditor() {
           <div className="te-stage-header">
             <span className="te-stage-drag" title="Mover">⠿</span>
 
-            <IconPicker value=<StageIcon icon=<StageIcon icon={stage.icon} /> /> onChange={val => updateStage(sIdx, 'icon', val)} />
+            <IconPicker value=<StageIcon icon={stage.icon} /> onChange={val => updateStage(sIdx, 'icon', val)} />
 
             <input
               className="te-stage-name-input"
@@ -610,7 +610,7 @@ export default function TemplateEditor() {
                       title="¿Requiere reunión con el cliente?"
                     >
                       <div className={clsx('te-toggle-box', task.requiresClient && 'on')}>
-                        {task.requiresClient && '<Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} />'}
+                        {task.requiresClient && <Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} />}
                       </div>
                       <span>Reunión</span>
                     </div>
