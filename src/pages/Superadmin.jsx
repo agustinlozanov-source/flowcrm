@@ -7,6 +7,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check } from 'lucide-react'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
 const SA_EMAIL = 'admin@qubitcorp.mx'
@@ -14,13 +15,13 @@ const SA_PASSWORD = 'QubitAdmin2025!'
 
 // ─── MODULES CATALOG ───
 const MODULES_CATALOG = [
-  { id: 'pipeline', icon: '🎯', name: 'Pipeline de Ventas', tag: 'CRM' },
-  { id: 'inbox', icon: '💬', name: 'Inbox Unificado', tag: 'Meta' },
-  { id: 'agent', icon: '🤖', name: 'Agente IA de Ventas', tag: 'IA' },
-  { id: 'content', icon: '🎬', name: 'Content Studio', tag: 'Exclusivo' },
-  { id: 'landing', icon: '🌐', name: 'Landing Pages', tag: 'Conversión' },
-  { id: 'analytics', icon: '📊', name: 'Analytics & Reportes', tag: 'Data' },
-  { id: 'referrals', icon: '🎁', name: 'Programa de Referidos', tag: 'Growth' },
+  { id: 'pipeline', icon: <Target size={16} strokeWidth={2} />, name: 'Pipeline de Ventas', tag: 'CRM' },
+  { id: 'inbox', icon: <MessageSquare size={16} strokeWidth={2} />, name: 'Inbox Unificado', tag: 'Meta' },
+  { id: 'agent', icon: <Bot size={16} strokeWidth={2} />, name: 'Agente IA de Ventas', tag: 'IA' },
+  { id: 'content', icon: <Clapperboard size={16} strokeWidth={2} />, name: 'Content Studio', tag: 'Exclusivo' },
+  { id: 'landing', icon: <Globe size={16} strokeWidth={2} />, name: 'Landing Pages', tag: 'Conversión' },
+  { id: 'analytics', icon: <BarChart size={16} strokeWidth={2} />, name: 'Analytics & Reportes', tag: 'Data' },
+  { id: 'referrals', icon: <Gift size={16} strokeWidth={2} />, name: 'Programa de Referidos', tag: 'Growth' },
 ]
 
 const PLANS = [
@@ -178,14 +179,14 @@ const css = `
   .sa-logout:hover { color: var(--red); background: rgba(255,59,48,0.06); }
 
   /* MAIN */
-  .sa-main { flex: 1; overflow-y: auto; background: #070708; }
+  .sa-main { flex: 1; overflow-y: auto; background: #fdfdfd; color: #070708; }
 
   .sa-topbar {
     padding: 0 32px;
     height: 60px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    display: flex; align-items: center; gap-12px;
-    background: rgba(7,7,8,0.95);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex; align-items: center;
+    background: rgba(253,253,253,0.95);
     position: sticky; top: 0; z-index: 40;
     gap: 12px;
   }
@@ -197,15 +198,16 @@ const css = `
 
   /* CARDS */
   .sa-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: white;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     border-radius: var(--radius);
     overflow: hidden;
   }
 
   .sa-card-header {
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
     display: flex; align-items: center; gap: 10px;
   }
 
@@ -215,8 +217,9 @@ const css = `
   .sa-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
 
   .sa-stat {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: white;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     border-radius: var(--radius);
     padding: 18px 20px;
   }
@@ -231,16 +234,16 @@ const css = `
     padding: 10px 16px; text-align: left;
     font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--gray-5); font-weight: 700;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
   }
   .sa-table td {
     padding: 12px 16px;
     font-size: 12.5px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(0,0,0,0.04);
     vertical-align: middle;
   }
   .sa-table tr:last-child td { border-bottom: none; }
-  .sa-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .sa-table tr:hover td { background: rgba(0,0,0,0.02); }
 
   /* BADGES */
   .sa-badge {
@@ -264,8 +267,8 @@ const css = `
     font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
 
-  .sa-btn-white { background: white; color: #070708; }
-  .sa-btn-white:hover { background: #e8e8ed; }
+  .sa-btn-white { background: #070708; color: white; }
+  .sa-btn-white:hover { background: #1c1c1e; }
 
   .sa-btn-ghost {
     background: transparent; color: var(--gray-3);
@@ -285,15 +288,15 @@ const css = `
   .sa-form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
   .sa-form-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-4); font-weight: 700; }
   .sa-form-input {
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    background: white; border: 1px solid rgba(0,0,0,0.15);
     border-radius: 8px; padding: 9px 13px;
-    font-size: 13px; color: white; font-family: 'Inter', sans-serif; outline: none;
+    font-size: 13px; color: #070708; font-family: 'Inter', sans-serif; outline: none;
     transition: border-color 0.15s; width: 100%;
   }
   .sa-form-input:focus { border-color: #0066ff; }
   .sa-form-input::placeholder { color: var(--gray-5); }
   .sa-form-select { cursor: pointer; }
-  .sa-form-select option { background: #1c1c1e; }
+  .sa-form-select option { background: white; color: #070708; }
   .sa-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* MODAL */
@@ -318,14 +321,14 @@ const css = `
   .sa-module-toggle {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 12px; border-radius: 8px; cursor: pointer;
-    border: 1.5px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.02); transition: all 0.15s;
+    border: 1.5px solid rgba(0,0,0,0.1);
+    background: white; transition: all 0.15s;
   }
-  .sa-module-toggle:hover { border-color: rgba(255,255,255,0.15); }
+  .sa-module-toggle:hover { border-color: rgba(0,0,0,0.2); }
   .sa-module-toggle.on { border-color: rgba(0,102,255,0.4); background: rgba(0,102,255,0.06); }
   .sa-module-check {
     width: 16px; height: 16px; border-radius: 4px;
-    border: 1.5px solid rgba(255,255,255,0.2);
+    border: 1.5px solid rgba(0,0,0,0.15);
     display: flex; align-items: center; justify-content: center;
     font-size: 9px; flex-shrink: 0; transition: all 0.15s;
   }
@@ -343,8 +346,9 @@ const css = `
 
   /* PLAN CARD */
   .sa-plan-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: white;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     border-radius: var(--radius); padding: 20px;
     margin-bottom: 12px;
   }
@@ -353,7 +357,7 @@ const css = `
   .sa-plan-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; flex: 1; }
 
   /* DIVIDER */
-  .sa-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 16px 0; }
+  .sa-divider { height: 1px; background: rgba(0,0,0,0.05); margin: 16px 0; }
 
   /* EMPTY */
   .sa-empty { text-align: center; padding: 40px 20px; color: var(--gray-5); }
@@ -364,15 +368,15 @@ const css = `
   .sa-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
   /* TABS */
-  .sa-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px; }
+  .sa-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(0,0,0,0.06); margin-bottom: 20px; }
   .sa-tab {
     padding: 10px 16px; font-size: 12.5px; font-weight: 600;
     color: var(--gray-4); border-bottom: 2px solid transparent;
     cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
     background: none; border-top: none; border-left: none; border-right: none;
   }
-  .sa-tab:hover { color: white; }
-  .sa-tab.active { color: white; border-bottom-color: #0066ff; }
+  .sa-tab:hover { color: black; }
+  .sa-tab.active { color: black; border-bottom-color: #0066ff; }
 
   /* TOGGLE */
   .sa-toggle { position: relative; width: 36px; height: 20px; cursor: pointer; }
@@ -479,7 +483,7 @@ function Dashboard({ orgs, resellers }) {
               </tr>
             ))}
             {orgs.length === 0 && (
-              <tr><td colSpan={5} className="sa-empty"><div className="sa-empty-icon">🏢</div><div className="sa-empty-text">Sin organizaciones aún</div></td></tr>
+              <tr><td colSpan={5} className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones aún</div></td></tr>
             )}
           </tbody>
         </table>
@@ -622,7 +626,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
               </tr>
             ))}
             {orgs.length === 0 && (
-              <tr><td colSpan={8}><div className="sa-empty"><div className="sa-empty-icon">🏢</div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
+              <tr><td colSpan={8}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
             )}
           </tbody>
         </table>
@@ -691,7 +695,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
           <div className="sa-module-grid">
             {MODULES_CATALOG.map(m => (
               <div key={m.id} className={clsx('sa-module-toggle', form.modules?.includes(m.id) && 'on')} onClick={() => toggleModule(m.id)}>
-                <div className="sa-module-check">{form.modules?.includes(m.id) && '✓'}</div>
+                <div className="sa-module-check">{form.modules?.includes(m.id) && <Check size={12} />}</div>
                 <span style={{ fontSize: 13 }}>{m.icon}</span>
                 <span style={{ fontSize: 12.5, fontWeight: 600, flex: 1 }}>{m.name}</span>
                 <span style={{ fontSize: 10, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{m.tag}</span>
@@ -769,7 +773,7 @@ function Resellers({ resellers, orgs, onRefresh }) {
               )
             })}
             {resellers.length === 0 && (
-              <tr><td colSpan={8}><div className="sa-empty"><div className="sa-empty-icon">🤝</div><div className="sa-empty-text">Sin resellers — agrega el primero</div></div></td></tr>
+              <tr><td colSpan={8}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Handshake size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin resellers — agrega el primero</div></div></td></tr>
             )}
           </tbody>
         </table>
@@ -866,7 +870,7 @@ function Plans() {
   return (
     <div className="sa-content">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : '💾 Guardar planes'}</Btn>
+        <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{marginRight: 4}} /> Guardar planes</>}</Btn>
       </div>
       {plans.map(plan => (
         <div key={plan.id} className="sa-plan-card">
@@ -899,8 +903,8 @@ function Plans() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
-                  border: `1.5px solid ${plan.modules.includes(m.id) ? 'rgba(0,102,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                  background: plan.modules.includes(m.id) ? 'rgba(0,102,255,0.08)' : 'rgba(255,255,255,0.02)',
+                  border: `1.5px solid ${plan.modules.includes(m.id) ? 'rgba(0,102,255,0.4)' : 'rgba(0,0,0,0.08)'}`,
+                  background: plan.modules.includes(m.id) ? 'rgba(0,102,255,0.08)' : 'rgba(0,0,0,0.02)',
                   fontSize: 12, fontWeight: 600,
                   color: plan.modules.includes(m.id) ? '#4d9fff' : 'var(--gray-4)',
                   transition: 'all 0.15s',
@@ -977,7 +981,7 @@ function ApiConfig({ orgs }) {
         {selectedOrg && !loading && (
           <div style={{ padding: '0 20px 20px' }}>
             <div className="sa-api-section">
-              <div className="sa-api-title">💬 Meta — Messenger & Instagram</div>
+              <div className="sa-api-title"><MessageSquare size={16} /> Meta — Messenger & Instagram</div>
               <div className="sa-api-grid">
                 <Field label="Page Access Token" id="metaPageAccessToken" placeholder="EAAGm0..." />
                 <Field label="Verify Token" id="metaVerifyToken" placeholder="flowcrm2025" />
@@ -987,7 +991,7 @@ function ApiConfig({ orgs }) {
             </div>
             <div className="sa-divider" />
             <div className="sa-api-section">
-              <div className="sa-api-title">📱 WhatsApp Business</div>
+              <div className="sa-api-title"><Smartphone size={16} /> WhatsApp Business</div>
               <div className="sa-api-grid">
                 <Field label="WhatsApp Token" id="whatsappToken" placeholder="EAAGm0..." />
                 <Field label="Phone Number ID" id="whatsappPhoneId" placeholder="123456..." />
@@ -995,13 +999,13 @@ function ApiConfig({ orgs }) {
             </div>
             <div className="sa-divider" />
             <div className="sa-api-section">
-              <div className="sa-api-title">🤖 OpenAI</div>
+              <div className="sa-api-title"><Bot size={16} /> OpenAI</div>
               <div className="sa-api-grid">
                 <Field label="API Key" id="openaiApiKey" type="password" placeholder="sk-..." />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : '💾 Guardar APIs'}</Btn>
+              <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{marginRight: 4}} /> Guardar APIs</>}</Btn>
             </div>
           </div>
         )}
@@ -1012,7 +1016,7 @@ function ApiConfig({ orgs }) {
 
         {!selectedOrg && (
           <div className="sa-empty" style={{ padding: '32px 20px' }}>
-            <div className="sa-empty-icon">🔑</div>
+            <div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Key size={32} strokeWidth={1.5} /></div>
             <div className="sa-empty-text">Selecciona una organización para configurar sus APIs</div>
           </div>
         )}
@@ -1168,7 +1172,7 @@ function Quoter() {
             <div className="sa-module-grid">
               {MODULES_CATALOG.map(m => (
                 <div key={m.id} className={clsx('sa-module-toggle', selectedModules.has(m.id) && 'on')} onClick={() => toggleMod(m.id)}>
-                  <div className="sa-module-check">{selectedModules.has(m.id) && '✓'}</div>
+                  <div className="sa-module-check">{selectedModules.has(m.id) && <Check size={12} />}</div>
                   <span style={{ fontSize: 13 }}>{m.icon}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{m.name}</span>
                 </div>
@@ -1223,7 +1227,7 @@ function Quoter() {
             </div>
           </div>
 
-          <Btn variant="white" onClick={downloadHTML}>⬇ Descargar HTML</Btn>
+          <Btn variant="white" onClick={downloadHTML}><Download size={14} /> Descargar HTML</Btn>
         </div>
 
         {/* Preview */}
@@ -1319,19 +1323,19 @@ function Quoter() {
                 </div>
               </div>
               <div className="q2-payment">
-                <div className="q2-pay-icon">💳</div>
+                <div className="q2-pay-icon"><CreditCard size={20} /></div>
                 <div>
                   <div className="q2-pay-title">Condiciones de pago — {f.paymentTerms}</div>
                   <div className="q2-pay-desc">La renta mensual se activa al finalizar la implementación.</div>
                 </div>
-                {f.payLink && <a href={f.payLink} className="q2-pay-btn" target="_blank" rel="noreferrer">💳 {f.payBtnText}</a>}
+                {f.payLink && <a href={f.payLink} className="q2-pay-btn" target="_blank" rel="noreferrer"><CreditCard size={14} /> {f.payBtnText}</a>}
               </div>
               <div className="q2-validity">
                 <div>
                   <div className="q2-validity-label">Vigencia de esta cotización</div>
                   <div className="q2-validity-date">Válida hasta el {formatDate(expiry)}</div>
                 </div>
-                <div className="q2-validity-badge">⏳ {f.validityDays} días hábiles</div>
+                <div className="q2-validity-badge"><Hourglass size={12} /> {f.validityDays} días hábiles</div>
               </div>
               {f.notes && <div style={{ marginTop: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--gray-4)' }}><strong style={{ color: 'var(--gray-3)' }}>Notas: </strong>{f.notes}</div>}
             </div>
@@ -1382,12 +1386,12 @@ export default function Superadmin() {
   }, [authed])
 
   const NAV = [
-    { id: 'dashboard', icon: '⚡', label: 'Dashboard' },
-    { id: 'orgs', icon: '🏢', label: 'Organizaciones' },
-    { id: 'resellers', icon: '🤝', label: 'Resellers' },
-    { id: 'plans', icon: '📦', label: 'Planes' },
-    { id: 'apis', icon: '🔑', label: 'APIs por cliente' },
-    { id: 'quoter', icon: '📋', label: 'Cotizador' },
+    { id: 'dashboard', icon: <Zap size={16} />, label: 'Dashboard' },
+    { id: 'orgs', icon: <Building2 size={16} />, label: 'Organizaciones' },
+    { id: 'resellers', icon: <Handshake size={16} />, label: 'Resellers' },
+    { id: 'plans', icon: <Package size={16} />, label: 'Planes' },
+    { id: 'apis', icon: <Key size={16} />, label: 'APIs por cliente' },
+    { id: 'quoter', icon: <ClipboardList size={16} />, label: 'Cotizador' },
   ]
 
   const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador' }
@@ -1448,7 +1452,7 @@ export default function Superadmin() {
 
           <div className="sa-sidebar-footer">
             <button className="sa-logout" onClick={() => setAuthed(false)}>
-              ↩ Cerrar sesión
+              <LogOut size={14} /> Cerrar sesión
             </button>
           </div>
         </div>
