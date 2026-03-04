@@ -6,8 +6,7 @@ import {
 import { db } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-
-// ─── DEFAULT TEMPLATE (used if Firestore has nothing yet) ───
+import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, ClipboardList, Wrench, Key as KeyIcon, BarChart3, Globe, Smartphone, Lightbulb, GraduationCap, Search, Sparkles, Calendar, MessageCircle, Folder, Link as LinkIcon, Pencil, FileText, Image as ImageIcon, Paperclip, Zap, User, LogOut, Info, Users } from 'lucide-react'
 export const DEFAULT_TEMPLATE = [
   {
     id: 'kickoff', name: 'Kickoff y diagnóstico', icon: 'rocket', durationDays: 3,
