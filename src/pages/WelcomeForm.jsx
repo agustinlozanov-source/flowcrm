@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { Building2, Target, BarChart, MessageSquare, Settings, Rocket, Check, ArrowRight, ArrowLeft } from 'lucide-react'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
@@ -42,54 +43,54 @@ const css = `
     background: linear-gradient(135deg, #0066ff, #7c3aed);
     display: flex; align-items: center; justify-content: center;
   }
-  .wf-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; }
+  .wf-logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; }
 
   .wf-hero { margin-bottom: 40px; }
   .wf-hero-tag {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 8px;
     background: rgba(0,102,255,0.1); border: 1px solid rgba(0,102,255,0.2);
-    border-radius: 20px; padding: 4px 12px;
-    font-size: 11.5px; font-weight: 700; color: #4d9fff;
+    border-radius: 20px; padding: 5px 14px;
+    font-size: 15px; font-weight: 500; font-weight: 700; color: #4d9fff;
     margin-bottom: 14px;
   }
   .wf-hero-title {
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 28px; font-weight: 900; letter-spacing: -0.5px;
+    font-size: 34px; font-weight: 900; letter-spacing: -0.5px;
     line-height: 1.25; margin-bottom: 12px;
   }
-  .wf-hero-sub { font-size: 14px; color: var(--gray-4); line-height: 1.7; max-width: 520px; }
+  .wf-hero-sub { font-size: 16px; color: var(--gray-4); line-height: 1.7; max-width: 520px; }
 
   /* PROGRESS */
   .wf-progress { margin-bottom: 36px; }
-  .wf-progress-track { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-bottom: 10px; }
+  .wf-progress-track { height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-bottom: 10px; }
   .wf-progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #0066ff, #7c3aed); transition: width 0.4s ease; }
-  .wf-progress-label { font-size: 11.5px; color: var(--gray-4); font-weight: 600; }
-  .wf-progress-label span { color: white; }
+  .wf-progress-label { font-size: 15px; font-weight: 500; color: var(--gray-4); font-weight: 600; }
+  .wf-progress-label span { color: white; font-weight: 700; }
 
   /* SECTION */
   .wf-section {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 16px; padding: 28px;
+    border-radius: 16px; padding: 32px;
     margin-bottom: 16px;
   }
 
-  .wf-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .wf-section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
   .wf-section-icon {
-    width: 36px; height: 36px; border-radius: 10px;
-    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
     flex-shrink: 0;
   }
-  .wf-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; }
-  .wf-section-sub { font-size: 12px; color: var(--gray-4); margin-top: 1px; }
+  .wf-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; }
+  .wf-section-sub { font-size: 14px; color: var(--gray-4); margin-top: 2px; }
 
   /* FIELDS */
-  .wf-field { margin-bottom: 18px; }
+  .wf-field { margin-bottom: 22px; }
   .wf-field:last-child { margin-bottom: 0; }
 
   .wf-label {
-    display: block; font-size: 11.5px; font-weight: 700;
-    color: var(--gray-3); margin-bottom: 7px; letter-spacing: 0.1px;
+    display: block; font-size: 14px; font-weight: 700;
+    color: var(--gray-3); margin-bottom: 8px; letter-spacing: 0.1px;
   }
   .wf-label-req { color: #4d9fff; margin-left: 2px; }
 
@@ -97,8 +98,8 @@ const css = `
     width: 100%;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 10px; padding: 11px 14px;
-    font-size: 13px; color: white;
+    border-radius: 10px; padding: 13px 16px;
+    font-size: 15px; color: white;
     font-family: 'Inter', sans-serif;
     outline: none; transition: all 0.15s;
   }
@@ -107,37 +108,37 @@ const css = `
     background: rgba(0,102,255,0.04);
   }
   .wf-input::placeholder, .wf-textarea::placeholder { color: #3a3a3c; }
-  .wf-textarea { resize: vertical; min-height: 88px; line-height: 1.6; }
+  .wf-textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
   .wf-select { cursor: pointer; }
   .wf-select option { background: #1c1c1e; }
 
-  .wf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .wf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
   /* RADIO / CHECKBOX GROUPS */
-  .wf-options { display: flex; flex-direction: column; gap: 7px; }
-  .wf-options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .wf-options { display: flex; flex-direction: column; gap: 9px; }
+  .wf-options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 
   .wf-option {
     display: flex; align-items: center; gap: 10px;
-    padding: 10px 14px; border-radius: 9px; cursor: pointer;
+    padding: 13px 16px; border-radius: 9px; cursor: pointer;
     border: 1.5px solid rgba(255,255,255,0.07);
     background: rgba(255,255,255,0.02);
-    transition: all 0.15s; font-size: 13px;
+    transition: all 0.15s; font-size: 15px; font-weight: 500;
   }
   .wf-option:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.04); }
   .wf-option.selected { border-color: rgba(0,102,255,0.45); background: rgba(0,102,255,0.07); color: #4d9fff; }
 
   .wf-option-dot {
-    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
     border: 1.5px solid rgba(255,255,255,0.2);
     display: flex; align-items: center; justify-content: center;
     transition: all 0.15s;
   }
   .wf-option.selected .wf-option-dot { background: #0066ff; border-color: #0066ff; }
-  .wf-option-dot-inner { width: 6px; height: 6px; border-radius: 50%; background: white; }
+  .wf-option-dot-inner { width: 8px; height: 8px; border-radius: 50%; background: white; }
 
   .wf-check-dot {
-    width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+    width: 18px; height: 18px; border-radius: 4px; flex-shrink: 0;
     border: 1.5px solid rgba(255,255,255,0.2);
     display: flex; align-items: center; justify-content: center;
     font-size: 9px; transition: all 0.15s;
@@ -145,27 +146,27 @@ const css = `
   .wf-option.selected .wf-check-dot { background: #0066ff; border-color: #0066ff; }
 
   /* SCALE */
-  .wf-scale { display: flex; gap: 6px; }
+  .wf-scale { display: flex; gap: 8px; }
   .wf-scale-btn {
-    flex: 1; padding: 9px 4px; border-radius: 8px; cursor: pointer; text-align: center;
+    flex: 1; padding: 11px 4px; border-radius: 8px; cursor: pointer; text-align: center;
     border: 1.5px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02);
-    font-size: 12px; font-weight: 700; color: var(--gray-4);
+    font-size: 14px; font-weight: 700; color: var(--gray-4);
     transition: all 0.15s; font-family: 'Inter', sans-serif;
   }
   .wf-scale-btn:hover { border-color: rgba(255,255,255,0.15); color: white; }
   .wf-scale-btn.selected { background: rgba(0,102,255,0.12); border-color: rgba(0,102,255,0.4); color: #4d9fff; }
-  .wf-scale-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10.5px; color: var(--gray-5); }
+  .wf-scale-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; font-weight: 600; color: var(--gray-5); }
 
   /* HINT */
-  .wf-hint { font-size: 11.5px; color: var(--gray-5); margin-top: 6px; line-height: 1.5; }
+  .wf-hint { font-size: 13px; color: var(--gray-5); margin-top: 6px; line-height: 1.5; }
 
   /* NAVIGATION */
-  .wf-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 28px; }
+  .wf-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 32px; }
 
   .wf-btn {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 12px 22px; border-radius: 11px;
-    font-size: 13.5px; font-weight: 700; cursor: pointer; border: none;
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 26px; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer; border: none;
     font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
   .wf-btn-white { background: white; color: #070708; }
@@ -180,7 +181,7 @@ const css = `
   }
   .wf-success-icon { font-size: 52px; margin-bottom: 20px; }
   .wf-success-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 900; margin-bottom: 12px; letter-spacing: -0.3px; }
-  .wf-success-sub { font-size: 14px; color: var(--gray-4); line-height: 1.7; max-width: 400px; margin: 0 auto; }
+  .wf-success-sub { font-size: 16px; color: var(--gray-4); line-height: 1.7; max-width: 400px; margin: 0 auto; }
 
   @media (max-width: 600px) {
     .wf-row { grid-template-columns: 1fr; }
@@ -194,7 +195,7 @@ const css = `
 const SECTIONS = [
   {
     id: 'general',
-    icon: '🏢',
+    icon: <Building2 size={24} strokeWidth={2} />,
     iconBg: 'rgba(0,102,255,0.12)',
     title: 'Datos generales',
     sub: 'Información básica de tu empresa',
@@ -212,7 +213,7 @@ const SECTIONS = [
   },
   {
     id: 'sales',
-    icon: '🎯',
+    icon: <Target size={24} strokeWidth={2} />,
     iconBg: 'rgba(124,58,237,0.12)',
     title: 'Proceso de ventas actual',
     sub: 'Cómo funciona tu ciclo comercial hoy',
@@ -232,7 +233,7 @@ const SECTIONS = [
   },
   {
     id: 'metrics',
-    icon: '📊',
+    icon: <BarChart size={24} strokeWidth={2} />,
     iconBg: 'rgba(0,200,83,0.1)',
     title: 'Métricas actuales',
     sub: 'Números aproximados — no necesitan ser exactos',
@@ -245,7 +246,7 @@ const SECTIONS = [
   },
   {
     id: 'channels',
-    icon: '💬',
+    icon: <MessageSquare size={24} strokeWidth={2} />,
     iconBg: 'rgba(255,149,0,0.1)',
     title: 'Canales de comunicación',
     sub: 'Cómo te comunicas con tus clientes y prospectos',
@@ -268,7 +269,7 @@ const SECTIONS = [
   },
   {
     id: 'tech',
-    icon: '⚙️',
+    icon: <Settings size={24} strokeWidth={2} />,
     iconBg: 'rgba(255,59,48,0.08)',
     title: 'Tecnología y herramientas',
     sub: 'Tu nivel de adopción tecnológica actual',
@@ -291,7 +292,7 @@ const SECTIONS = [
   },
   {
     id: 'goals',
-    icon: '🚀',
+    icon: <Rocket size={24} strokeWidth={2} />,
     iconBg: 'rgba(0,102,255,0.1)',
     title: 'Objetivos y expectativas',
     sub: 'Qué esperas lograr con FlowCRM',
@@ -345,7 +346,7 @@ function CheckboxGroup({ field, value = [], onChange }) {
           onClick={() => toggle(opt)}
         >
           <div className="wf-check-dot">
-            {value.includes(opt) && '✓'}
+            {value.includes(opt) && <Check size={14} strokeWidth={3} />}
           </div>
           {opt}
         </div>
@@ -579,16 +580,16 @@ export default function WelcomeForm() {
             onClick={back}
             disabled={currentSection === 0}
           >
-            ← Anterior
+            <ArrowLeft size={16} /> Anterior
           </button>
 
           {isLast ? (
             <button className="wf-btn wf-btn-white" onClick={submit} disabled={submitting}>
-              {submitting ? 'Enviando...' : '✓ Enviar formulario'}
+              {submitting ? 'Enviando...' : <><Check size={16} /> Enviar formulario</>}
             </button>
           ) : (
             <button className="wf-btn wf-btn-white" onClick={next}>
-              Siguiente →
+              Siguiente <ArrowRight size={16} />
             </button>
           )}
         </div>
