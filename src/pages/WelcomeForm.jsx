@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Building2, Target, BarChart, MessageSquare, Settings, Rocket, Check, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Building2, Target, BarChart, MessageSquare, Settings, Rocket, Check, ArrowRight, ArrowLeft, ClipboardList, SmilePlus, Lightbulb, PartyPopper, AlertTriangle } from 'lucide-react'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
@@ -407,7 +407,7 @@ function Field({ field, value, onChange }) {
       {field.type === 'checkbox' && <CheckboxGroup field={field} value={val} onChange={onChange} />}
       {field.type === 'scale' && <ScaleGroup field={field} value={val} onChange={onChange} />}
 
-      {field.hint && <div className="wf-hint">💡 {field.hint}</div>}
+      {field.hint && <div className="wf-hint"><Lightbulb size={14} style={{ display: 'inline-block', verticalAlign: 'text-bottom', marginRight: 4, color: '#ffd166' }} /> {field.hint}</div>}
     </div>
   )
 }
@@ -494,7 +494,7 @@ export default function WelcomeForm() {
             <div className="wf-logo-text">Qubit Corp.</div>
           </div>
           <div className="wf-success">
-            <div className="wf-success-icon">🎉</div>
+            <div className="wf-success-icon"><PartyPopper size={52} strokeWidth={1.5} color="#7c3aed" /></div>
             <div className="wf-success-title">¡Formulario enviado!</div>
             <div className="wf-success-sub">
               Recibimos toda tu información. El equipo de Qubit Corp. la revisará antes del Kickoff para que la sesión sea lo más productiva posible.<br /><br />
@@ -525,9 +525,9 @@ export default function WelcomeForm() {
         {/* Hero — only on first section */}
         {currentSection === 0 && (
           <div className="wf-hero">
-            <div className="wf-hero-tag">📋 Formulario de bienvenida</div>
+            <div className="wf-hero-tag"><ClipboardList size={14} style={{ marginRight: 6, display: 'inline-block', verticalAlign: 'middle' }} /> Formulario de bienvenida</div>
             <div className="wf-hero-title">
-              {clientName ? `Hola, ${clientName} 👋` : 'Bienvenido a FlowCRM 👋'}<br />
+              {clientName ? `Hola, ${clientName} <SmilePlus size={28} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} />` : 'Bienvenido a FlowCRM <SmilePlus size={28} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} />'}<br />
               Cuéntanos sobre tu negocio
             </div>
             <div className="wf-hero-sub">
@@ -569,7 +569,7 @@ export default function WelcomeForm() {
         {/* Error */}
         {error && (
           <div style={{ fontSize: 12.5, color: '#ff6b6b', marginBottom: 12, padding: '10px 14px', background: 'rgba(255,59,48,0.07)', border: '1px solid rgba(255,59,48,0.15)', borderRadius: 8 }}>
-            ⚠️ {error}
+            <AlertTriangle size={14} style={{ marginRight: 6, display: 'inline-block', verticalAlign: 'text-bottom' }} /> {error}
           </div>
         )}
 
