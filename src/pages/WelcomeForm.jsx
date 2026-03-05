@@ -488,7 +488,7 @@ export default function WelcomeForm() {
           <div className="wf-logo">
             <div className="wf-logo-icon">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </div>
             <div className="wf-logo-text">Qubit Corp.</div>
@@ -516,7 +516,7 @@ export default function WelcomeForm() {
         <div className="wf-logo">
           <div className="wf-logo-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
           </div>
           <div className="wf-logo-text">Qubit Corp.</div>
@@ -527,7 +527,7 @@ export default function WelcomeForm() {
           <div className="wf-hero">
             <div className="wf-hero-tag"><ClipboardList size={14} style={{ marginRight: 6, display: 'inline-block', verticalAlign: 'middle' }} /> Formulario de bienvenida</div>
             <div className="wf-hero-title">
-              {clientName ? `Hola, ${clientName} <SmilePlus size={28} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} />` : 'Bienvenido a FlowCRM <SmilePlus size={28} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} />'}<br />
+              {clientName ? `Hola, ${clientName}` : 'Bienvenido a FlowCRM'} <SmilePlus size={28} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} /><br />
               Cuéntanos sobre tu negocio
             </div>
             <div className="wf-hero-sub">
