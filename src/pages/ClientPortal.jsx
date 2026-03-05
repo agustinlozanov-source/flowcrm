@@ -510,7 +510,7 @@ export default function ClientPortal() {
         <div className="cp-login">
           <div className="cp-login-card">
             <div className="cp-logo">
-              <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 40, objectFit: "contain" }} />
+              <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 64, objectFit: "contain" }} />
             </div>
             <div className="cp-login-title">Portal de implementación</div>
             <div className="cp-login-sub">Sigue el avance de tu proyecto en tiempo real, comunícate con el equipo y entrega los documentos necesarios.</div>

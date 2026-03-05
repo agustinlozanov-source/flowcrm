@@ -486,7 +486,7 @@ export default function WelcomeForm() {
         <div className="wf-bg" />
         <div className="wf-wrap">
           <div className="wf-logo">
-            <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 38, objectFit: "contain" }} />
+            <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 64, objectFit: "contain" }} />
           </div>
           <div className="wf-success">
             <div className="wf-success-icon"><PartyPopper size={52} strokeWidth={1.5} color="#7c3aed" /></div>
@@ -509,8 +509,8 @@ export default function WelcomeForm() {
 
         {/* Logo */}
         <div className="wf-logo">
-            <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 38, objectFit: "contain" }} />
-          </div>
+          <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 64, objectFit: "contain" }} />
+        </div>
 
         {/* Hero — only on first section */}
         {currentSection === 0 && (

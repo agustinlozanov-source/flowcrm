@@ -1240,7 +1240,7 @@ function Quoter() {
             {/* Header */}
             <div className="q2-header">
               <div style={{ position: 'relative', zIndex: 1 }}>
-                <div className="q2-logo-row"><img src="/qubit-corp.png" alt="Logo" style={{ height: 40, objectFit: "contain" }} /></div><div className="q2-title">Propuesta Comercial</div>
+                <div className="q2-logo-row"><img src="/qubit-corp.png" alt="Logo" style={{ height: 56, objectFit: "contain" }} /></div><div className="q2-title">Propuesta Comercial</div>
                 <div className="q2-meta">
                   <strong>Solución:</strong> FlowCRM — Suite completa<br />
                   <strong>Elaborado por:</strong> Equipo &nbsp;·&nbsp; <strong>Fecha:</strong> {formatDate(today)}
@@ -1402,7 +1402,7 @@ export default function Superadmin() {
         <style>{css}</style>
         <div className="sa-login">
           <div className="sa-login-card">
-            <div className="sa-login-logo" style={{ flexDirection: "column" }}><img src="/qubit-corp.png" alt="Logo" style={{ height: 48, objectFit: "contain" }} /><span className="sa-logo-badge" style={{ marginTop: 8 }}>Superadmin</span></div><div className="sa-login-title">Acceso restringido</div>
+            <div className="sa-login-logo" style={{ flexDirection: "column" }}><img src="/qubit-corp.png" alt="Logo" style={{ height: 72, objectFit: "contain" }} /><span className="sa-logo-badge" style={{ marginTop: 8 }}>Superadmin</span></div><div className="sa-login-title">Acceso restringido</div>
             <div className="sa-login-sub">Solo para administradores.</div>
             <input className="sa-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
             <input className="sa-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
@@ -1420,7 +1420,7 @@ export default function Superadmin() {
         {/* Sidebar */}
         <div className="sa-sidebar">
           <div className="sa-sidebar-header">
-            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/qubit-corp.png" alt="Logo" style={{ height: 28, objectFit: "contain" }} /></div><div style={{ fontSize: 12, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
+            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/qubit-corp.png" alt="Logo" style={{ height: 36, objectFit: "contain" }} /></div><div style={{ fontSize: 12, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
           </div>
 
           <div className="sa-nav">
