@@ -10,6 +10,7 @@ import clsx from 'clsx'
 import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
+import OnboardingResponses from './OnboardingResponses'
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
 const SA_EMAIL = 'admin@qubitcorp.mx'
@@ -1390,9 +1391,10 @@ export default function Superadmin() {
     { id: 'quoter', icon: <ClipboardList size={16} />, label: 'Cotizador' },
     { id: 'implementations', icon: <Calendar size={16} />, label: 'Implementaciones' },
     { id: 'support', icon: <Ticket size={16} />, label: 'Soporte' },
+    { id: 'onboarding', icon: '📋', label: 'Formularios' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida' }
 
   if (!authed) {
     return (
@@ -1453,6 +1455,7 @@ export default function Superadmin() {
           {activeTab === 'quoter' && <Quoter />}
           {activeTab === 'implementations' && <ImplementationPortal />}
           {activeTab === 'support' && <SupportTickets />}
+          {activeTab === 'onboarding' && <OnboardingResponses />}
         </div>
       </div>
     </div>

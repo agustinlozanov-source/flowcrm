@@ -20,6 +20,8 @@ import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
 
+import WelcomeForm from '@/pages/WelcomeForm'
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -41,6 +43,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="/welcome" element={<WelcomeForm />} />
 
         {/* Protected app */}
         <Route
