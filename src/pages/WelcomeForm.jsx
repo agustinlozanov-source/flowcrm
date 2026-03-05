@@ -486,12 +486,7 @@ export default function WelcomeForm() {
         <div className="wf-bg" />
         <div className="wf-wrap">
           <div className="wf-logo">
-            <div className="wf-logo-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            </div>
-            <div className="wf-logo-text">Qubit Corp.</div>
+            <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 38, objectFit: "contain" }} />
           </div>
           <div className="wf-success">
             <div className="wf-success-icon"><PartyPopper size={52} strokeWidth={1.5} color="#7c3aed" /></div>
@@ -514,13 +509,8 @@ export default function WelcomeForm() {
 
         {/* Logo */}
         <div className="wf-logo">
-          <div className="wf-logo-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
+            <img src="/qubit-corp.png" alt="Qubit Corp" style={{ height: 38, objectFit: "contain" }} />
           </div>
-          <div className="wf-logo-text">Qubit Corp.</div>
-        </div>
 
         {/* Hero — only on first section */}
         {currentSection === 0 && (
