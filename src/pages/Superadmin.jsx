@@ -7,10 +7,116 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
+
+// ─── DIAGNOSTICO CONFIG ───
+const DEFAULT_DIAG_CATEGORIES = [
+  {
+    id: 'proceso', name: 'Proceso comercial', color: '#0066ff',
+    questions: [
+      'Tengo claro cuáles son los pasos que sigue un prospecto desde que me contacta hasta que toma una decisión.',
+      'Cuando un prospecto no responde, tengo un proceso definido para darle seguimiento sin perder el hilo.',
+      'Sé exactamente en qué punto del proceso se me pierden más prospectos.',
+      'Registro la información de mis prospectos en algún lugar antes de que se me olvide.',
+      'Mis cierres de venta son el resultado de un proceso consistente, no de la improvisación.',
+      'Cuando termino una conversación con un prospecto, siempre queda claro cuál es el siguiente paso.',
+      'Tengo un tiempo de respuesta promedio definido para cuando alguien me escribe por primera vez.',
+      'Distingo claramente entre prospectos que tienen potencial real y los que no van a comprar.',
+      'Cuando un prospecto dice "lo pienso", tengo una respuesta y una estrategia preparada.',
+      'Puedo describir mi proceso de ventas en menos de cinco pasos sin esfuerzo.',
+    ]
+  },
+  {
+    id: 'producto', name: 'Conocimiento del producto', color: '#7c3aed',
+    questions: [
+      'Puedo explicar los beneficios de mi producto con claridad y confianza sin necesitar apoyarme en materiales.',
+      'Conozco la diferencia entre cada producto o servicio de mi catálogo y sé cuál recomendar según el perfil del prospecto.',
+      'Tengo respuestas preparadas para las objeciones más frecuentes que recibo sobre lo que vendo.',
+      'Sé argumentar el precio de mi producto en términos de valor, no de costo.',
+      'Cuando un prospecto compara mi producto con otra opción, sé cómo posicionarlo sin hablar mal de la competencia.',
+      'Conozco los componentes o características clave de mi producto y puedo explicarlos de forma sencilla.',
+      'Entiendo el modelo de negocio detrás de lo que vendo lo suficientemente bien como para explicárselo a alguien desde cero.',
+      'Sé qué tipo de resultados puede esperar un cliente nuevo en sus primeras semanas usando mi producto.',
+      'Tengo claridad sobre qué diferencia mi producto de otras opciones que existen en el mercado hoy.',
+      'Me siento seguro respondiendo preguntas difíciles o técnicas sobre mi producto sin dudar.',
+    ]
+  },
+  {
+    id: 'cliente', name: 'Conocimiento del cliente ideal', color: '#00c853',
+    questions: [
+      'Tengo claro el perfil de la persona que tiene más probabilidades de comprar lo que vendo.',
+      'Sé qué problema específico resuelve mi producto en la vida de mi cliente ideal.',
+      'Conozco las razones emocionales que llevan a mi cliente a tomar la decisión de compra.',
+      'Puedo identificar rápidamente si un prospecto encaja con mi cliente ideal o no.',
+      'Sé en qué canales o espacios se encuentra la mayoría de mis clientes potenciales.',
+      'Entiendo qué objeciones son típicas de mi cliente ideal y por qué las tiene.',
+      'Conozco el nivel de ingreso o contexto económico promedio de las personas a las que le vendo.',
+      'Sé qué otras soluciones ha probado mi cliente ideal antes de llegar a mí.',
+      'Puedo describir a mi cliente ideal con suficiente detalle como para que alguien más lo identifique por mí.',
+      'Distingo claramente entre el cliente que compra una vez y el que se convierte en cliente recurrente.',
+    ]
+  },
+  {
+    id: 'herramientas', name: 'Herramientas y hábitos actuales', color: '#ff9500',
+    questions: [
+      'Tengo un lugar definido donde registro la información de cada prospecto con el que hablo.',
+      'Reviso mis pendientes y conversaciones abiertas al inicio de cada día de trabajo.',
+      'Cuando termino mi jornada, sé exactamente qué quedó pendiente y qué sigue al día siguiente.',
+      'Uso algún sistema para recordarme dar seguimiento a prospectos sin depender de mi memoria.',
+      'Tengo un horario de trabajo definido y lo respeto la mayoría de los días.',
+      'Cuando recibo un mensaje de un prospecto, tengo el hábito de responder dentro de un tiempo razonable.',
+      'Mi información de prospectos está organizada de una forma que puedo consultar fácilmente en cualquier momento.',
+      'Separo el tiempo de prospección del tiempo de seguimiento para no mezclar tareas.',
+      'Llevo algún registro de mis resultados semanales aunque sea de forma básica.',
+      'Siento que mis herramientas actuales me ayudan a vender más, no me generan trabajo extra.',
+    ]
+  },
+  {
+    id: 'digital', name: 'Canales y presencia digital', color: '#00b8d9',
+    questions: [
+      'Tengo perfiles activos en las redes sociales donde se encuentra mi cliente ideal.',
+      'Publico contenido de forma regular y con una intención clara de atraer prospectos.',
+      'Mis perfiles en redes sociales comunican con claridad qué vendo y a quién le puede servir.',
+      'Recibo prospectos de forma orgánica gracias a mi presencia digital, sin tener que buscarlos siempre yo.',
+      'Sé responder mensajes directos de prospectos de forma oportuna desde cualquier canal donde me contacten.',
+      'Tengo una forma clara de llevar a un prospecto desde una red social hasta una conversación de venta.',
+      'Uso WhatsApp de forma profesional y separada de mi uso personal para atender prospectos.',
+      'Sé qué tipo de contenido genera más interés y conversaciones entre mi audiencia.',
+      'Tengo claridad sobre en qué canal me llegan más prospectos de calidad actualmente.',
+      'Cuando invierto en publicidad pagada, tengo claro qué quiero lograr y cómo medir si funcionó.',
+    ]
+  },
+  {
+    id: 'mentalidad', name: 'Mentalidad y disciplina', color: '#ff3b30',
+    questions: [
+      'Mantengo un ritmo de trabajo constante incluso en semanas donde los resultados no son los esperados.',
+      'Cuando un prospecto me dice que no, lo proceso rápido y continúo sin que afecte mi energía.',
+      'Invierto tiempo regularmente en aprender y mejorar mis habilidades de venta.',
+      'Tengo metas claras de ventas y las reviso con frecuencia para saber si voy bien.',
+      'Priorizo las tareas que generan ingresos antes que las que solo generan actividad.',
+      'Soy consistente en mis hábitos de trabajo independientemente de cómo me sienta ese día.',
+      'Cuando algo no funciona, analizo qué salió mal antes de seguir haciendo lo mismo.',
+      'Me organizo con suficiente anticipación para no trabajar siempre apagando incendios.',
+      'Confío en el proceso y no abandono una estrategia antes de darle el tiempo suficiente para funcionar.',
+      'Siento que mi mentalidad actual es un activo para mis resultados, no un obstáculo.',
+    ]
+  }
+]
+
+const SCALE_LABELS_DIAG = ['', 'Nunca', 'Casi nunca', 'A veces', 'Casi siempre', 'Siempre']
+const SCALE_COLORS_DIAG = ['', '#ff3b30', '#ff9500', '#ffcc00', '#00c853', '#0066ff']
+
+function diagScoreLevel(score, min, max) {
+  const pct = (score - min) / (max - min)
+  if (pct < 0.2) return { label: 'Inicial', color: '#ff3b30' }
+  if (pct < 0.4) return { label: 'En desarrollo', color: '#ff9500' }
+  if (pct < 0.6) return { label: 'Intermedio', color: '#ffcc00' }
+  if (pct < 0.8) return { label: 'Avanzado', color: '#00c853' }
+  return { label: 'Profesional', color: '#0066ff' }
+}
 
 // ─── SUPERADMIN CREDENTIALS (change as needed) ───
 const SA_EMAIL = 'admin@qubitcorp.mx'
@@ -1351,6 +1457,352 @@ function Quoter() {
   )
 }
 
+// ─── DIAGNOSTICO CONFIG ───
+function DiagnosticoConfig() {
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [expanded, setExpanded] = useState({})
+  const [editingCat, setEditingCat] = useState(null)
+  const [editingQ, setEditingQ] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    getDoc(doc(db, 'diagnostico_config', 'v1')).then(snap => {
+      setCategories(snap.exists() ? snap.data().categories : DEFAULT_DIAG_CATEGORIES)
+      if (!snap.exists()) setDirty(true)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await setDoc(doc(db, 'diagnostico_config', 'v1'), { categories, updatedAt: serverTimestamp() })
+      toast.success('Configuración guardada')
+      setDirty(false)
+    } catch { toast.error('Error guardando') } finally { setSaving(false) }
+  }
+
+  const toggleExpand = id => setExpanded(p => ({ ...p, [id]: !p[id] }))
+
+  const addCategory = () => {
+    const c = { id: 'cat_' + Date.now(), name: 'Nueva categoría', color: '#8e8e93', questions: ['Nueva afirmación.'] }
+    setCategories(p => [...p, c])
+    setExpanded(p => ({ ...p, [c.id]: true }))
+    setDirty(true)
+  }
+
+  const deleteCategory = id => {
+    if (!window.confirm('¿Eliminar esta categoría y todas sus preguntas?')) return
+    setCategories(p => p.filter(c => c.id !== id))
+    setDirty(true)
+  }
+
+  const updateCat = (id, key, val) => { setCategories(p => p.map(c => c.id === id ? { ...c, [key]: val } : c)); setDirty(true) }
+
+  const addQuestion = catId => { setCategories(p => p.map(c => c.id === catId ? { ...c, questions: [...c.questions, 'Nueva afirmación.'] } : c)); setDirty(true) }
+  const deleteQuestion = (catId, qi) => { setCategories(p => p.map(c => c.id === catId ? { ...c, questions: c.questions.filter((_, i) => i !== qi) } : c)); setDirty(true) }
+
+  const saveEditQ = () => {
+    setCategories(p => p.map(c => c.id === editingQ.catId ? { ...c, questions: c.questions.map((q, i) => i === editingQ.qi ? editText : q) } : c))
+    setEditingQ(null); setDirty(true)
+  }
+
+  const totalQ = categories.reduce((s, c) => s + c.questions.length, 0)
+
+  if (loading) return <div className="sa-content" style={{ color: 'var(--gray-4)', paddingTop: 40 }}>Cargando...</div>
+
+  return (
+    <div className="sa-content">
+      <style>{diagConfigCss}</style>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ flex: 1, fontSize: 13, color: 'var(--gray-4)' }}>{categories.length} categorías · {totalQ} afirmaciones · Score máximo: {totalQ * 5} pts</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {dirty && <span style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>● Cambios sin guardar</span>}
+          <button className="sa-btn sa-btn-blue" onClick={save} disabled={saving || !dirty}>{saving ? 'Guardando...' : '💾 Guardar cambios'}</button>
+        </div>
+      </div>
+
+      <div className="sa-card" style={{ padding: '14px 20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-4)', marginBottom: 8 }}>Escala de respuestas (igual para todas las afirmaciones)</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['Nunca', 'Casi nunca', 'A veces', 'Casi siempre', 'Siempre'].map((opt, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f5f5f7', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 20, padding: '5px 12px', fontSize: 13, fontWeight: 600, color: '#3a3a3c' }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#070708', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>{i + 1}</div>
+              {opt}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+        {categories.map((cat) => (
+          <div key={cat.id} className="sa-card">
+            <div className="dc-cat-header" onClick={() => toggleExpand(cat.id)}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+              {editingCat === cat.id
+                ? <input className="dc-cat-name-input" value={cat.name} onChange={e => updateCat(cat.id, 'name', e.target.value)} onClick={e => e.stopPropagation()} onBlur={() => setEditingCat(null)} autoFocus />
+                : <div className="dc-cat-name">{cat.name}</div>
+              }
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                <span style={{ fontSize: 12, color: 'var(--gray-4)', fontWeight: 600 }}>{cat.questions.length} afirmaciones</span>
+                <input type="color" value={cat.color} onChange={e => updateCat(cat.id, 'color', e.target.value)} onClick={e => e.stopPropagation()} style={{ width: 22, height: 22, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 4 }} />
+                <button className="dc-icon-btn" onClick={e => { e.stopPropagation(); setEditingCat(cat.id) }} title="Renombrar"><Edit2 size={13} /></button>
+                <button className="dc-icon-btn dc-icon-btn-danger" onClick={e => { e.stopPropagation(); deleteCategory(cat.id) }}><Trash2 size={13} /></button>
+                {expanded[cat.id] ? <ChevronDown size={15} color="var(--gray-4)" /> : <ChevronRight size={15} color="var(--gray-4)" />}
+              </div>
+            </div>
+
+            {expanded[cat.id] && (
+              <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', padding: '10px 18px 14px' }}>
+                {cat.questions.map((q, qi) => (
+                  <div key={qi} className="dc-q-row">
+                    <div style={{ width: 24, height: 24, borderRadius: 6, background: cat.color + '22', color: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{qi + 1}</div>
+                    {editingQ?.catId === cat.id && editingQ?.qi === qi
+                      ? <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                          <textarea className="dc-q-textarea" value={editText} onChange={e => setEditText(e.target.value)} autoFocus rows={2} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <button className="dc-icon-btn" style={{ color: '#00c853', borderColor: 'rgba(0,200,83,0.3)' }} onClick={saveEditQ}><Check size={13} /></button>
+                            <button className="dc-icon-btn" onClick={() => setEditingQ(null)}><X size={13} /></button>
+                          </div>
+                        </div>
+                      : <>
+                          <div style={{ flex: 1, fontSize: 14, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 2 }}>{q}</div>
+                          <div className="dc-q-actions">
+                            <button className="dc-icon-btn" onClick={() => { setEditingQ({ catId: cat.id, qi }); setEditText(q) }}><Edit2 size={12} /></button>
+                            <button className="dc-icon-btn dc-icon-btn-danger" onClick={() => deleteQuestion(cat.id, qi)}><Trash2 size={12} /></button>
+                          </div>
+                        </>
+                    }
+                  </div>
+                ))}
+                <button className="dc-add-q-btn" onClick={() => addQuestion(cat.id)}><Plus size={13} /> Agregar afirmación</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <button className="dc-add-cat-btn" onClick={addCategory}><Plus size={15} /> Agregar categoría</button>
+    </div>
+  )
+}
+
+// ─── DIAGNOSTICO RESPONSES ───
+function DiagnosticoResponses({ orgs }) {
+  const [responses, setResponses] = useState([])
+  const [config, setConfig] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState({})
+  const [generating, setGenerating] = useState({})
+
+  useEffect(() => {
+    getDoc(doc(db, 'diagnostico_config', 'v1')).then(snap => { if (snap.exists()) setConfig(snap.data()) })
+    const q = query(collection(db, 'diagnosticos'), orderBy('respondedAt', 'desc'))
+    const unsub = onSnapshot(q, snap => { setResponses(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false) })
+    return () => unsub()
+  }, [])
+
+  const generateAndExport = async (resp) => {
+    if (!config) return toast.error('Configuración no cargada')
+    setGenerating(p => ({ ...p, [resp.id]: true }))
+    try {
+      const cats = config.categories
+      const totalQ = cats.reduce((s, c) => s + c.questions.length, 0)
+      const minScore = totalQ, maxScore = totalQ * 5
+      const catSummaries = cats.map(cat => {
+        const score = cat.questions.reduce((s, _, qi) => s + (resp.answers?.[`${cat.id}_${qi}`] || 1), 0)
+        const max = cat.questions.length * 5, min = cat.questions.length
+        return { name: cat.name, score, max, min, level: diagScoreLevel(score, min, max), color: cat.color }
+      })
+      const weakCats = [...catSummaries].sort((a, b) => (a.score / a.max) - (b.score / b.max)).slice(0, 3)
+      const totalLevel = diagScoreLevel(resp.totalScore, minScore, maxScore)
+
+      const prompt = `Eres un consultor de ventas y CRM experto. Recibiste los resultados del diagnóstico comercial de un vendedor. Genera un reporte profesional, directo y útil.
+
+PARTICIPANTE: ${resp.respondentName || 'Participante'} · ${resp.orgName || 'Sin org'}
+SCORE TOTAL: ${resp.totalScore} / ${maxScore} — Nivel: ${totalLevel.label}
+SCORES POR CATEGORÍA:
+${catSummaries.map(c => `- ${c.name}: ${c.score}/${c.max} (${c.level.label})`).join('\n')}
+CATEGORÍAS MÁS DÉBILES: ${weakCats.map(c => c.name).join(', ')}
+
+Genera el reporte con tono humilde, profesional, directo. Sin drama. Máximo 3-4 oraciones por sección.
+
+Responde SOLO con JSON válido, sin markdown ni backticks, con estas claves:
+resumen, fortalezas, oportunidades, recomendaciones, implementacion, mensaje`
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
+      })
+      const data = await res.json()
+      const analysis = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
+      const html = buildDiagReportHTML(resp, catSummaries, totalLevel, analysis, maxScore, minScore)
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `diagnostico-${(resp.respondentName || resp.id).replace(/\s+/g, '-').toLowerCase()}.html`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Reporte exportado')
+    } catch (e) { console.error(e); toast.error('Error generando reporte') }
+    finally { setGenerating(p => ({ ...p, [resp.id]: false })) }
+  }
+
+  const cats = config?.categories || []
+  const totalQ = cats.reduce((s, c) => s + c.questions.length, 0)
+  const minScore = totalQ, maxScore = totalQ * 5
+
+  if (loading) return <div className="sa-content" style={{ color: 'var(--gray-4)', paddingTop: 40 }}>Cargando respuestas...</div>
+
+  return (
+    <div className="sa-content">
+      <style>{diagRespCss}</style>
+      {responses.length === 0
+        ? <div className="sa-card"><div className="sa-empty" style={{ padding: '60px 20px' }}><div className="sa-empty-icon" style={{ display: 'flex', justifyContent: 'center' }}><BarChart size={40} strokeWidth={1.2} /></div><div className="sa-empty-text">Aún no hay respuestas del diagnóstico</div></div></div>
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {responses.map(resp => {
+              const level = diagScoreLevel(resp.totalScore || minScore, minScore, maxScore)
+              const pct = Math.round(((resp.totalScore || minScore) - minScore) / (maxScore - minScore) * 100)
+              const isOpen = expanded[resp.id]
+              return (
+                <div key={resp.id} className="sa-card">
+                  <div className="dr-row-header" onClick={() => setExpanded(p => ({ ...p, [resp.id]: !p[resp.id] }))}>
+                    <div className="dr-avatar">{(resp.respondentName || '?')[0].toUpperCase()}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 15 }}>{resp.respondentName || 'Sin nombre'}</div>
+                      <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 2 }}>{resp.orgName || resp.id}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', minWidth: 80 }}>
+                      <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, fontWeight: 900, color: level.color, lineHeight: 1 }}>{resp.totalScore || '—'}<span style={{ fontSize: 13, color: 'var(--gray-4)', fontWeight: 500 }}>/{maxScore}</span></div>
+                      <div style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 20, background: level.color + '18', color: level.color, border: `1px solid ${level.color}33`, fontSize: 11, fontWeight: 700 }}>{level.label}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 110 }}>
+                      {cats.map(cat => {
+                        const cs = cat.questions.reduce((s, _, qi) => s + (resp.answers?.[`${cat.id}_${qi}`] || 1), 0)
+                        const cp = Math.round((cs - cat.questions.length) / (cat.questions.length * 4) * 100)
+                        return <div key={cat.id} style={{ height: 4, background: 'rgba(0,0,0,0.07)', borderRadius: 2, overflow: 'hidden' }} title={`${cat.name}: ${cs}/${cat.questions.length * 5}`}><div style={{ height: '100%', width: cp + '%', background: cat.color, borderRadius: 2 }} /></div>
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>{resp.respondedAt?.toDate?.()?.toLocaleDateString('es-MX') || '—'}</div>
+                      <button className="sa-btn sa-btn-blue sa-btn-sm" onClick={e => { e.stopPropagation(); generateAndExport(resp) }} disabled={generating[resp.id]}><Download size={13} />{generating[resp.id] ? 'Generando...' : 'Exportar'}</button>
+                      {isOpen ? <ChevronDown size={15} color="var(--gray-4)" /> : <ChevronRight size={15} color="var(--gray-4)" />}
+                    </div>
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', padding: 20 }}>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-4)' }}>Score total</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: level.color }}>{resp.totalScore} pts · {pct}%</span>
+                        </div>
+                        <div style={{ height: 8, background: 'rgba(0,0,0,0.07)', borderRadius: 4, overflow: 'hidden' }}><div style={{ height: '100%', width: pct + '%', background: level.color, borderRadius: 4 }} /></div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
+                        {cats.map(cat => {
+                          const cs = cat.questions.reduce((s, _, qi) => s + (resp.answers?.[`${cat.id}_${qi}`] || 1), 0)
+                          const cp = Math.round((cs - cat.questions.length) / (cat.questions.length * 4) * 100)
+                          const cl = diagScoreLevel(cs, cat.questions.length, cat.questions.length * 5)
+                          return (
+                            <div key={cat.id} style={{ background: '#f9f9f9', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 10, padding: 12 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: cat.color }} />
+                                <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>{cat.name}</div>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: cl.color }}>{cs}/{cat.questions.length * 5}</div>
+                              </div>
+                              <div style={{ height: 5, background: 'rgba(0,0,0,0.08)', borderRadius: 3, overflow: 'hidden' }}><div style={{ height: '100%', width: cp + '%', background: cat.color, borderRadius: 3 }} /></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 11, color: 'var(--gray-4)' }}><span>{cl.label}</span><span>{cp}%</span></div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-4)', marginBottom: 12 }}>Respuestas individuales</div>
+                      {cats.map(cat => (
+                        <div key={cat.id} style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: cat.color, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color }} />{cat.name}
+                          </div>
+                          {cat.questions.map((q, qi) => {
+                            const val = resp.answers?.[`${cat.id}_${qi}`] || 1
+                            return (
+                              <div key={qi} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '7px 10px', borderRadius: 7, marginBottom: 3 }}>
+                                <div style={{ flex: 1, fontSize: 13, color: '#3a3a3c', lineHeight: 1.45 }}>{q}</div>
+                                <div style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap', background: SCALE_COLORS_DIAG[val] + '18', color: SCALE_COLORS_DIAG[val], border: `1px solid ${SCALE_COLORS_DIAG[val]}33` }}>{val} · {SCALE_LABELS_DIAG[val]}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+      }
+    </div>
+  )
+}
+
+function buildDiagReportHTML(resp, catSummaries, totalLevel, analysis, maxScore, minScore) {
+  const pct = Math.round(((resp.totalScore || minScore) - minScore) / (maxScore - minScore) * 100)
+  const date = resp.respondedAt?.toDate?.()?.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }) || 'Reciente'
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Diagnóstico — ${resp.respondentName || 'Participante'}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;background:#f5f5f7;color:#070708}.page{max-width:860px;margin:0 auto;padding:48px 24px}.header{background:#070708;border-radius:20px;padding:40px 44px;margin-bottom:24px;position:relative;overflow:hidden}.header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 70% at 20% 50%,rgba(0,102,255,.2) 0%,transparent 60%),radial-gradient(ellipse 50% 60% at 80% 30%,rgba(124,58,237,.15) 0%,transparent 60%)}.hi{position:relative;z-index:1}.logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}.lm{width:32px;height:32px;background:linear-gradient(135deg,#0066ff,#7c3aed);border-radius:9px;display:flex;align-items:center;justify-content:center}.lt{font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:white}.card{background:white;border:1px solid rgba(0,0,0,.07);border-radius:16px;padding:28px;margin-bottom:16px}.ct{font-family:'Plus Jakarta Sans',sans-serif;font-size:17px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:10px}.ci{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}.st{font-size:15px;line-height:1.7;color:#3a3a3c}.cg{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cc{border:1px solid rgba(0,0,0,.07);border-radius:12px;padding:16px}.cn{font-size:13px;font-weight:700;margin-bottom:8px}.cb{height:6px;background:#f0f0f2;border-radius:3px;overflow:hidden;margin-bottom:6px}.cbf{height:100%;border-radius:3px}.cm{display:flex;justify-content:space-between;font-size:11px;color:#8e8e93}.footer{text-align:center;padding:32px 0 0;color:#8e8e93;font-size:13px;border-top:1px solid rgba(0,0,0,.07);margin-top:32px}</style></head><body><div class="page">
+<div class="header"><div class="hi">
+<div class="logo"><div class="lm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="lt">FlowCRM</span></div>
+<div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:8px">Diagnóstico Comercial · ${date}</div>
+<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:900;color:white;letter-spacing:-1px;margin-bottom:4px">${resp.respondentName || 'Participante'}</div>
+<div style="font-size:15px;color:rgba(255,255,255,.4);margin-bottom:28px">${resp.orgName || ''}</div>
+<div style="display:flex;align-items:center;gap:20px">
+<div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:52px;font-weight:900;color:white;letter-spacing:-2px;line-height:1">${resp.totalScore}<span style="font-size:18px;color:rgba(255,255,255,.35);font-weight:500">/${maxScore}</span></div>
+<div style="margin-top:8px"><span style="display:inline-flex;padding:6px 18px;border-radius:20px;background:${totalLevel.color}18;color:${totalLevel.color};border:1px solid ${totalLevel.color}33;font-weight:700;font-size:14px">${totalLevel.label}</span></div></div>
+<div style="flex:1"><div style="height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#0066ff,#7c3aed);border-radius:3px"></div></div>
+<div style="font-size:12px;color:rgba(255,255,255,.3);margin-top:6px">${pct}% del máximo posible</div></div></div>
+</div></div>
+
+<div class="card"><div class="ct"><div class="ci" style="background:#f5f5f7">📊</div>Resultados por categoría</div>
+<div class="cg">${catSummaries.map(c => { const cp = Math.round((c.score - c.min) / (c.max - c.min) * 100); return `<div class="cc"><div class="cn" style="color:${c.color}">${c.name}</div><div class="cb"><div class="cbf" style="width:${cp}%;background:${c.color}"></div></div><div class="cm"><span>${c.level.label}</span><span>${c.score}/${c.max} · ${cp}%</span></div></div>` }).join('')}</div></div>
+
+<div class="card"><div class="ct"><div class="ci" style="background:#f0f7ff">🔍</div>Resumen ejecutivo</div><div class="st">${analysis.resumen || ''}</div></div>
+<div class="card"><div class="ct"><div class="ci" style="background:#f0fdf4">💪</div>Fortalezas</div><div class="st">${analysis.fortalezas || ''}</div></div>
+<div class="card"><div class="ct"><div class="ci" style="background:#fffbeb">🎯</div>Áreas de oportunidad</div><div class="st">${analysis.oportunidades || ''}</div></div>
+<div class="card"><div class="ct"><div class="ci" style="background:#fdf4ff">⚡</div>Recomendaciones específicas</div><div class="st">${analysis.recomendaciones || ''}</div></div>
+<div class="card" style="border-color:rgba(0,102,255,.2);background:rgba(0,102,255,.02)"><div class="ct"><div class="ci" style="background:rgba(0,102,255,.1)">🚀</div>Cómo enfocar su implementación de FlowCRM</div><div class="st">${analysis.implementacion || ''}</div></div>
+<div style="background:#070708;border-radius:16px;padding:32px;text-align:center;margin-bottom:16px"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;font-weight:900;color:white;line-height:1.3;max-width:600px;margin:0 auto">"${analysis.mensaje || ''}"</div><div style="margin-top:16px;font-size:13px;color:rgba(255,255,255,.3)">FlowCRM · Qubit Corp.</div></div>
+<div class="footer">Reporte generado el ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })} · FlowCRM by Qubit Corp.</div>
+</div></body></html>`
+}
+
+const diagConfigCss = `
+  .dc-cat-header{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;transition:background .15s;border-radius:14px 14px 0 0}
+  .dc-cat-header:hover{background:rgba(0,0,0,.02)}
+  .dc-cat-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;flex:1;color:#070708}
+  .dc-cat-name-input{flex:1;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:#070708;border:1px solid #0066ff;border-radius:6px;padding:3px 8px;outline:none}
+  .dc-icon-btn{width:27px;height:27px;border-radius:6px;border:1px solid rgba(0,0,0,.1);background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray-4);transition:all .15s}
+  .dc-icon-btn:hover{color:#070708;border-color:rgba(0,0,0,.2)}
+  .dc-icon-btn-danger:hover{color:#ff3b30;border-color:rgba(255,59,48,.3);background:rgba(255,59,48,.05)}
+  .dc-q-row{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border-radius:8px;margin-bottom:3px;transition:background .1s}
+  .dc-q-row:hover{background:rgba(0,0,0,.02)}
+  .dc-q-actions{display:flex;gap:4px;opacity:0;transition:opacity .15s}
+  .dc-q-row:hover .dc-q-actions{opacity:1}
+  .dc-q-textarea{flex:1;width:100%;padding:8px 10px;border:1px solid #0066ff;border-radius:8px;font-size:14px;color:#070708;font-family:'Inter',sans-serif;outline:none;resize:vertical;line-height:1.5}
+  .dc-add-q-btn{display:flex;align-items:center;gap:6px;margin-top:8px;padding:7px 12px;border:1px dashed rgba(0,0,0,.15);border-radius:8px;background:transparent;color:var(--gray-4);font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;width:100%}
+  .dc-add-q-btn:hover{border-color:#0066ff;color:#0066ff;background:rgba(0,102,255,.03)}
+  .dc-add-cat-btn{display:flex;align-items:center;gap:8px;padding:12px 20px;width:100%;border:2px dashed rgba(0,0,0,.1);border-radius:14px;background:transparent;color:var(--gray-4);font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+  .dc-add-cat-btn:hover{border-color:#0066ff;color:#0066ff;background:rgba(0,102,255,.02)}
+`
+const diagRespCss = `
+  .dr-row-header{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;transition:background .15s;border-radius:14px}
+  .dr-row-header:hover{background:rgba(0,0,0,.015)}
+  .dr-avatar{width:38px;height:38px;border-radius:10px;flex-shrink:0;background:linear-gradient(135deg,#0066ff,#7c3aed);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:white}
+`
+
 // ─── MAIN SUPERADMIN ───
 export default function Superadmin() {
   const [authed, setAuthed] = useState(false)
@@ -1392,9 +1844,11 @@ export default function Superadmin() {
     { id: 'implementations', icon: <Calendar size={16} />, label: 'Implementaciones' },
     { id: 'support', icon: <Ticket size={16} />, label: 'Soporte' },
     { id: 'onboarding', icon: '📋', label: 'Formularios' },
+    { id: 'diag_config', icon: <ClipboardList size={16} />, label: 'Diagnóstico' },
+    { id: 'diag_resp', icon: <BarChart size={16} />, label: 'Respuestas Diag.' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas' }
 
   if (!authed) {
     return (
@@ -1456,6 +1910,8 @@ export default function Superadmin() {
           {activeTab === 'implementations' && <ImplementationPortal />}
           {activeTab === 'support' && <SupportTickets />}
           {activeTab === 'onboarding' && <OnboardingResponses />}
+          {activeTab === 'diag_config' && <DiagnosticoConfig />}
+          {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
         </div>
       </div>
     </div>
