@@ -21,6 +21,7 @@ import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
 
 import WelcomeForm from '@/pages/WelcomeForm'
+import DiagnosticoForm from '@/pages/DiagnosticoForm'
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/welcome" element={<WelcomeForm />} />
+        <Route path="/diagnostico" element={<DiagnosticoForm />} />
 
         {/* Protected app */}
         <Route

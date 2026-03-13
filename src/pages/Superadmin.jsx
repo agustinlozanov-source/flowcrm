@@ -1458,7 +1458,7 @@ function Quoter() {
 }
 
 // ─── DIAGNOSTICO CONFIG ───
-function DiagnosticoConfig() {
+function DiagnosticoConfig({ orgs = [] }) {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -1467,6 +1467,23 @@ function DiagnosticoConfig() {
   const [editingQ, setEditingQ] = useState(null)
   const [editText, setEditText] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [linkOrg, setLinkOrg] = useState('')
+  const [linkName, setLinkName] = useState('')
+
+  const baseUrl = window.location.origin
+  const selectedOrgData = orgs.find(o => o.id === linkOrg)
+  const generatedLink = linkOrg
+    ? `${baseUrl}/diagnostico?org=${linkOrg}&orgName=${encodeURIComponent(selectedOrgData?.name || '')}&name=${encodeURIComponent(linkName)}`
+    : ''
+
+  const copyLink = () => {
+    if (!generatedLink) return
+    navigator.clipboard.writeText(generatedLink)
+    setCopied(true)
+    toast.success('Link copiado al portapapeles')
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     getDoc(doc(db, 'diagnostico_config', 'v1')).then(snap => {
@@ -1522,6 +1539,36 @@ function DiagnosticoConfig() {
           {dirty && <span style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>● Cambios sin guardar</span>}
           <button className="sa-btn sa-btn-blue" onClick={save} disabled={saving || !dirty}>{saving ? 'Guardando...' : '💾 Guardar cambios'}</button>
         </div>
+      </div>
+
+      <div className="sa-card" style={{ padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-4)', marginBottom: 14 }}>Generar link del cuestionario</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 12, color: 'var(--gray-4)', fontWeight: 600, marginBottom: 5 }}>Organización</div>
+            <select className="sa-form-input sa-form-select" value={linkOrg} onChange={e => setLinkOrg(e.target.value)}>
+              <option value="">— Selecciona —</option>
+              {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontSize: 12, color: 'var(--gray-4)', fontWeight: 600, marginBottom: 5 }}>Nombre del participante</div>
+            <input className="sa-form-input" placeholder="Omar Pizarro" value={linkName} onChange={e => setLinkName(e.target.value)} />
+          </div>
+          <button
+            className="sa-btn sa-btn-blue"
+            onClick={copyLink}
+            disabled={!generatedLink}
+            style={{ opacity: generatedLink ? 1 : 0.4 }}
+          >
+            {copied ? <><Check size={14} /> Copiado</> : <><Download size={14} /> Copiar link</>}
+          </button>
+        </div>
+        {generatedLink && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: '#f5f5f7', borderRadius: 8, fontSize: 12, color: 'var(--gray-4)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            {generatedLink}
+          </div>
+        )}
       </div>
 
       <div className="sa-card" style={{ padding: '14px 20px', marginBottom: 16 }}>
@@ -1910,7 +1957,7 @@ export default function Superadmin() {
           {activeTab === 'implementations' && <ImplementationPortal />}
           {activeTab === 'support' && <SupportTickets />}
           {activeTab === 'onboarding' && <OnboardingResponses />}
-          {activeTab === 'diag_config' && <DiagnosticoConfig />}
+          {activeTab === 'diag_config' && <DiagnosticoConfig orgs={orgs} />}
           {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
         </div>
       </div>
