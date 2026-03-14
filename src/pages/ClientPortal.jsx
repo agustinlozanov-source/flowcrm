@@ -475,15 +475,77 @@ export default function ClientPortal() {
     })
   }
 
-  const sendChat = async () => {
+  const sendChat = async (askAI = false) => {
     if (!chatMsg.trim()) return
     setSending(true)
+    const userMsgText = chatMsg.trim()
     try {
       await addDoc(collection(db, 'implementations', impl.id, 'chat'), {
-        text: chatMsg.trim(), author: impl.name, authorType: 'client',
+        text: userMsgText, author: impl.name, authorType: 'client',
         createdAt: serverTimestamp(),
       })
       setChatMsg('')
+
+      if (askAI) {
+        // Build context
+        const historyText = chatMessages.slice(-8).map(m =>
+          `${m.authorType === 'client' ? impl.name : m.isAI ? 'Claude IA' : 'Qubit Corp'}: ${m.text}`
+        ).join('\n')
+
+        const pendingTasks = TEMPLATE_STAGES.flatMap(s => s.tasks)
+          .filter(t => !impl?.tasks?.[t.id]?.done)
+          .slice(0, 5)
+          .map(t => `- ${t.name} (responsable: ${t.responsible === 'qubit' ? 'Qubit Corp' : 'el cliente'})`)
+          .join('\n')
+
+        const prompt = `Eres el asistente de implementación de FlowCRM, desarrollado por Qubit Corp. Estás dentro del portal privado del cliente.
+
+DATOS DEL CLIENTE:
+- Nombre: ${impl.name}
+- Empresa: ${impl.company || 'No especificada'}
+- Progreso actual: ${progress}% completado
+- Etapa actual: ${currentStage?.name || 'En proceso'}
+
+TAREAS PENDIENTES MÁS PRÓXIMAS:
+${pendingTasks || '- Sin tareas pendientes identificadas'}
+
+HISTORIAL RECIENTE DEL CHAT:
+${historyText || 'Sin historial previo'}
+
+PREGUNTA DEL CLIENTE:
+${userMsgText}
+
+INSTRUCCIONES:
+- Responde directamente, de forma clara y concisa
+- Si la pregunta es sobre una tarea pendiente específica, explica qué se necesita y cómo avanzar
+- Si es una duda técnica del CRM, respóndela con contexto de FlowCRM
+- Si necesita intervención humana de Qubit Corp (algo urgente, un error técnico, una decisión de negocio), díselo y pídele que use el botón "Enviar" para que el equipo lo vea
+- Máximo 3-4 oraciones. Sin listas largas. Tono profesional pero cercano.`
+
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 800,
+            messages: [{ role: 'user', content: prompt }]
+          })
+        })
+        const data = await res.json()
+        const aiResponse = data.content?.[0]?.text || "Tuve un pequeño problema al procesar mi respuesta, por favor intenta de nuevo en unos segundos."
+        
+        await addDoc(collection(db, 'implementations', impl.id, 'chat'), {
+          text: aiResponse, author: 'Claude IA', authorType: 'qubit', isAI: true,
+          createdAt: serverTimestamp(),
+        })
+      }
+    } catch (e) {
+      console.error(e)
     } finally { setSending(false) }
   }
 
@@ -633,7 +695,12 @@ export default function ClientPortal() {
               {chatMessages.map(m => (
                 <div key={m.id} className={clsx('cp-msg', m.authorType === 'client' && 'mine')}>
                   {m.authorType !== 'client' && (
-                    <div className="cp-msg-avatar" style={{ background: 'rgba(0,102,255,0.15)', color: '#4d9fff' }}>Q</div>
+                    <div className="cp-msg-avatar" style={{
+                      background: m.isAI ? 'rgba(124,58,237,0.2)' : 'rgba(0,102,255,0.15)',
+                      color: m.isAI ? '#a78bfa' : '#4d9fff'
+                    }}>
+                      {m.isAI ? <Sparkles size={13} /> : 'Q'}
+                    </div>
                   )}
                   <div>
                     <div className={clsx('cp-msg-bubble')}>
@@ -655,10 +722,14 @@ export default function ClientPortal() {
                 style={{ margin: 0, flex: 1 }}
                 value={chatMsg}
                 onChange={e => setChatMsg(e.target.value)}
-                placeholder="Escribe un mensaje al equipo..."
+                placeholder="Escribe un mensaje al equipo o pregúntale a IA..."
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
               />
-              <button className="cp-send-btn" onClick={sendChat} disabled={sending}>Enviar</button>
+              <button className="cp-send-btn" style={{ background: 'transparent', border: '1px solid rgba(0,102,255,0.4)', color: '#4d9fff' }} onClick={() => sendChat(true)} disabled={sending} title="Que Claude responda ahora mismo">
+                <Sparkles size={16} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> 
+                Preguntar a IA
+              </button>
+              <button className="cp-send-btn" onClick={() => sendChat()} disabled={sending}>Enviar</button>
             </div>
           </div>
         )}
