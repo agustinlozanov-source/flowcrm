@@ -464,11 +464,6 @@ export default function ProductCatalog() {
   )
 }
 
-
-const EMPTY_FORM = { name: '', description: '', price: '', imageUrl: '' }
-
-export default function ProductCatalog() {
-  const { products, loading, createProduct, updateProduct, deleteProduct } = useProducts()
   const [showModal, setShowModal] = useState(false)
   const [editProduct, setEditProduct] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
