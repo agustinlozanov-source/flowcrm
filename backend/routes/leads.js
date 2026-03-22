@@ -53,4 +53,106 @@ router.post('/submit', async (req, res) => {
   }
 })
 
+// ── POST /leads — Crear lead ──
+router.post('/', async (req, res) => {
+  try {
+    const {
+      orgId, name, lastName, email, phone, company,
+      stageId, pipelineId, productId, productValue, source,
+    } = req.body
+
+    if (!orgId || !name) {
+      return res.status(400).json({ error: 'orgId y name son requeridos' })
+    }
+
+    const leadRef = await db.collection('organizations').doc(orgId).collection('leads').add({
+      name: name || '',
+      lastName: lastName || '',
+      email: email || '',
+      phone: phone || '',
+      company: company || '',
+      stageId: stageId || null,
+      pipelineId: pipelineId || null,
+      productId: productId || null,
+      productValue: productValue ?? null,
+      source: source || 'manual',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    res.status(201).json({ success: true, leadId: leadRef.id })
+  } catch (err) {
+    console.error('POST /leads error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── GET /leads?orgId=&pipelineId= — Listar leads por pipeline ──
+router.get('/', async (req, res) => {
+  try {
+    const { orgId, pipelineId } = req.query
+
+    if (!orgId) {
+      return res.status(400).json({ error: 'orgId es requerido' })
+    }
+
+    let query = db.collection('organizations').doc(orgId).collection('leads')
+      .orderBy('createdAt', 'desc')
+
+    if (pipelineId) {
+      query = query.where('pipelineId', '==', pipelineId)
+    }
+
+    const snap = await query.get()
+    const leads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+
+    res.json({ leads })
+  } catch (err) {
+    console.error('GET /leads error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── PUT /leads/:id/stage?orgId= — Actualizar stageId de un lead ──
+router.put('/:id/stage', async (req, res) => {
+  try {
+    const { orgId } = req.query
+    const { stageId } = req.body
+    const { id } = req.params
+
+    if (!orgId || !stageId) {
+      return res.status(400).json({ error: 'orgId y stageId son requeridos' })
+    }
+
+    await db.collection('organizations').doc(orgId).collection('leads').doc(id).update({
+      stageId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('PUT /leads/:id/stage error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── DELETE /leads/:id?orgId= — Eliminar lead ──
+router.delete('/:id', async (req, res) => {
+  try {
+    const { orgId } = req.query
+    const { id } = req.params
+
+    if (!orgId) {
+      return res.status(400).json({ error: 'orgId es requerido' })
+    }
+
+    await db.collection('organizations').doc(orgId).collection('leads').doc(id).delete()
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /leads/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router

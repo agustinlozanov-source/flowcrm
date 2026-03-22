@@ -1,9 +1,9 @@
 const { Router } = require('express')
 const { admin, db } = require('../config/firebase')
-const OpenAI = require('openai')
+const Anthropic = require('@anthropic-ai/sdk')
 
 const router = Router()
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.VITE_ANTHROPIC_KEY })
 
 // ── BUILD SYSTEM PROMPT ──
 function buildSystemPrompt(config) {
@@ -82,44 +82,28 @@ INSTRUCCIONES GENERALES:
 ${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
 }
 
-// ── SYNC ASSISTANT ──
-async function syncAssistant(orgId, config) {
+// ── SYNC AGENT CONFIG ── (guarda config en Firestore, sin OpenAI Assistants)
+async function syncAgent(orgId, config) {
   const settingsRef = db.collection('organizations').doc(orgId).collection('settings').doc('agent')
-  const settingsSnap = await settingsRef.get()
-  const current = settingsSnap.exists ? settingsSnap.data() : {}
-  const systemPrompt = buildSystemPrompt(config)
-
-  const assistantParams = {
-    name: config.agentName || 'Agente FlowCRM',
-    instructions: systemPrompt,
-    model: 'gpt-4o-mini',
-  }
-
-  let assistantId = current.assistantId
-  if (assistantId) {
-    await openai.beta.assistants.update(assistantId, assistantParams)
-  } else {
-    const assistant = await openai.beta.assistants.create(assistantParams)
-    assistantId = assistant.id
-  }
-
-  await settingsRef.set({ ...config, assistantId, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
-  return { assistantId }
+  await settingsRef.set({
+    ...config,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true })
+  return { success: true }
 }
 
-// ── UPLOAD FILE ──
+// ── UPLOAD FILE (Firebase Storage) ──
 async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
-  const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  const { assistantId } = settingsSnap.data() || {}
-  if (!assistantId) throw new Error('Guarda el agente primero antes de subir archivos.')
+  const bucket = admin.storage().bucket()
+  const filePath = `organizations/${orgId}/agent_files/${Date.now()}_${fileName}`
+  const fileRef = bucket.file(filePath)
 
-  const file = await openai.files.create({
-    file: new File([fileBuffer], fileName, { type: mimeType }),
-    purpose: 'assistants',
-  })
+  await fileRef.save(fileBuffer, { metadata: { contentType: mimeType } })
+  const [url] = await fileRef.getSignedUrl({ action: 'read', expires: '01-01-2500' })
 
-  const fileRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
-    openaiFileId: file.id,
+  const docRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
+    storagePath: filePath,
+    downloadUrl: url,
     name: fileName,
     size: fileBuffer.length,
     mimeType,
@@ -127,53 +111,76 @@ async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   })
 
-  return { fileId: fileRef.id, openaiFileId: file.id }
+  return { fileId: docRef.id, downloadUrl: url }
 }
 
-// ── DELETE FILE ──
+// ── DELETE FILE (Firebase Storage) ──
 async function deleteFile(orgId, fileDocId) {
   const fileSnap = await db.collection('organizations').doc(orgId).collection('agent_files').doc(fileDocId).get()
   if (!fileSnap.exists) return
-  const { openaiFileId } = fileSnap.data()
-  try { await openai.files.del(openaiFileId) } catch (e) { console.error('OpenAI delete:', e.message) }
+  const { storagePath } = fileSnap.data()
+  try {
+    if (storagePath) await admin.storage().bucket().file(storagePath).delete()
+  } catch (e) {
+    console.error('Storage delete error:', e.message)
+  }
   await fileSnap.ref.delete()
 }
 
-// ── CHAT WITH ASSISTANT ──
+// ── CHAT WITH CLAUDE ──
 async function chatWithAssistant(orgId, leadId, message) {
+  // 1. Cargar config del agente desde Firestore
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  if (!settingsSnap.exists) throw new Error('Assistant not configured')
-  const { assistantId } = settingsSnap.data() || {}
-  if (!assistantId) throw new Error('Assistant not configured')
+  const config = settingsSnap.exists ? settingsSnap.data() : {}
+  const systemPrompt = buildSystemPrompt(config)
 
-  const threadKey = `thread_${leadId}`
-  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
-  const leadSnap = await leadRef.get()
-  let threadId = null
+  // 2. Cargar últimos 20 mensajes del historial
+  const convRef = db
+    .collection('organizations').doc(orgId)
+    .collection('leads').doc(leadId)
+    .collection('conversations')
 
-  if (leadSnap.exists && leadSnap.data()?.[threadKey]) {
-    threadId = leadSnap.data()[threadKey]
-  }
+  const histSnap = await convRef.orderBy('createdAt', 'asc').limitToLast(20).get()
+  const history = histSnap.docs.map(doc => {
+    const { role, content } = doc.data()
+    return { role, content }
+  })
 
-  if (!threadId) {
-    const thread = await openai.beta.threads.create()
-    threadId = thread.id
-    if (leadSnap.exists) {
-      await leadRef.update({ [threadKey]: threadId })
-    } else {
-      await db.collection('organizations').doc(orgId)
-        .collection('agent_threads').doc(leadId)
-        .set({ threadId }, { merge: true })
-    }
-  }
+  // 3. Construir messages array con historial + mensaje nuevo
+  const messages = [...history, { role: 'user', content: message }]
 
-  await openai.beta.threads.messages.create(threadId, { role: 'user', content: message })
-  const run = await openai.beta.threads.runs.createAndPoll(threadId, { assistant_id: assistantId })
-  if (run.status !== 'completed') throw new Error(`Run status: ${run.status}`)
+  // 4. Llamar a Claude
+  const claudeRes = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages,
+  })
 
-  const messages = await openai.beta.threads.messages.list(threadId, { limit: 1, order: 'desc' })
-  const response = messages.data[0]?.content[0]?.text?.value || 'Sin respuesta'
-  return { response, threadId }
+  const assistantReply = claudeRes.content[0]?.text || 'Sin respuesta'
+
+  // 5. Guardar mensaje del usuario y respuesta en Firestore
+  const batch = db.batch()
+  batch.set(convRef.doc(), {
+    role: 'user',
+    content: message,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+  batch.set(convRef.doc(), {
+    role: 'assistant',
+    content: assistantReply,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+  await batch.commit()
+
+  // 6. Actualizar lastAgentReply en el lead
+  await db.collection('organizations').doc(orgId).collection('leads').doc(leadId).update({
+    lastAgentReply: assistantReply,
+    lastAgentReplyAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(() => {})
+
+  return { response: assistantReply, conversationId: leadId }
 }
 
 // ── POST /agent ──
@@ -183,7 +190,7 @@ router.post('/', async (req, res) => {
 
   try {
     if (action === 'sync') {
-      return res.json(await syncAssistant(orgId, req.body.config))
+      return res.json(await syncAgent(orgId, req.body.config))
     }
     if (action === 'upload') {
       const buffer = Buffer.from(req.body.fileData, 'base64')
