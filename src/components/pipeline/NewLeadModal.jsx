@@ -64,10 +64,7 @@ export default function NewLeadModal({ stages, products = [], onClose, onCreate 
         lastName: form.lastName.trim(),
         company: form.company,
         email: form.email,
-        phone: {
-          lada: form.phoneLada,
-          number: form.phoneNumber,
-        },
+        phone: form.phoneNumber ? `${form.phoneLada}${form.phoneNumber}` : '',
         productId: form.productId || null,
         value: Number(form.value) || 0,
         source: form.source,

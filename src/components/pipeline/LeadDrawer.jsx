@@ -318,7 +318,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
               )}
               {lead.phone && (
                 <a
-                  href={`https://wa.me/${lead.phone?.replace(/\D/g, '')}`}
+                  href={`https://wa.me/${String(lead.phone || '').replace(/\D/g, '')}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all"
