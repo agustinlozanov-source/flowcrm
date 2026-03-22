@@ -3,7 +3,8 @@ import {
   collection, query, orderBy, onSnapshot,
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { db, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 
 export function useProducts() {
@@ -26,40 +27,58 @@ export function useProducts() {
     return () => unsub()
   }, [orgId])
 
-  const createProduct = async (data) => {
+  const uploadImage = async (file, productId) => {
+    const ext = file.name.split('.').pop()
+    const storageRef = ref(storage, `organizations/${orgId}/products/${productId}.${ext}`)
+    await uploadBytes(storageRef, file)
+    return await getDownloadURL(storageRef)
+  }
+
+  const createProduct = async (data, imageFile = null) => {
     if (!orgId) return
-    const ref = await addDoc(
+    const docRef = await addDoc(
       collection(db, 'organizations', orgId, 'products'),
       {
         name: data.name || '',
         description: data.description || '',
         price: Number(data.price) || 0,
-        imageUrl: data.imageUrl || '',
+        currency: data.currency || 'USD',
+        type: data.type || 'service',
+        category: data.category || '',
+        sku: data.sku || '',
+        status: data.status ?? 'active',
+        imageUrl: '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
     )
-    return { id: ref.id, name: data.name, price: Number(data.price), description: data.description }
+    let imageUrl = ''
+    if (imageFile) {
+      imageUrl = await uploadImage(imageFile, docRef.id)
+      await updateDoc(docRef, { imageUrl })
+    }
+    return { id: docRef.id, name: data.name, price: Number(data.price), imageUrl }
   }
 
-  const updateProduct = async (productId, data) => {
+  const updateProduct = async (productId, data, imageFile = null) => {
     if (!orgId) return
-    await updateDoc(
-      doc(db, 'organizations', orgId, 'products', productId),
-      { ...data, updatedAt: serverTimestamp() }
-    )
+    const docRef = doc(db, 'organizations', orgId, 'products', productId)
+    const updateData = { ...data, updatedAt: serverTimestamp() }
+    if (imageFile) {
+      updateData.imageUrl = await uploadImage(imageFile, productId)
+    }
+    await updateDoc(docRef, updateData)
   }
 
-  const deleteProduct = async (productId) => {
+  const deleteProduct = async (productId, imageUrl) => {
     if (!orgId) return
+    if (imageUrl) {
+      try { await deleteObject(ref(storage, imageUrl)) } catch {}
+    }
     await deleteDoc(doc(db, 'organizations', orgId, 'products', productId))
   }
 
-  return {
-    products,
-    loading,
-    createProduct,
-    updateProduct,
-    deleteProduct,
-  }
+  const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort()
+
+  return { products, loading, categories, createProduct, updateProduct, deleteProduct }
 }
