@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { X, Plus, Package } from 'lucide-react'
+import { X, Plus, Package, Search, ChevronDown } from 'lucide-react'
+import { useProducts } from '@/hooks/useProducts'
 
 const SOURCES = [
   { value: 'manual', label: 'Manual' },
@@ -25,7 +26,8 @@ const LADAS = [
   { code: '+34', flag: '🇪🇸', label: 'España' },
 ]
 
-export default function NewLeadModal({ stages, products = [], onClose, onCreate }) {
+export default function NewLeadModal({ stages, onClose, onCreate }) {
+  const { products, createProduct } = useProducts()
   const [form, setForm] = useState({
     name: '',
     lastName: '',
@@ -40,17 +42,73 @@ export default function NewLeadModal({ stages, products = [], onClose, onCreate 
   })
   const [loading, setLoading] = useState(false)
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  // ── Product fuzzy search ──
+  const [productQuery, setProductQuery] = useState('')
+  const [productOpen, setProductOpen] = useState(false)
+  const [showCreateProduct, setShowCreateProduct] = useState(false)
+  const [newProductForm, setNewProductForm] = useState({ name: '', price: '', description: '' })
+  const [savingProduct, setSavingProduct] = useState(false)
+  const productRef = useRef(null)
 
-  const handleProductChange = (e) => {
-    const productId = e.target.value
-    const selected = products.find(p => p.id === productId)
-    setForm(f => ({
-      ...f,
-      productId,
-      value: selected ? String(selected.price) : f.value,
-    }))
+  const selectedProduct = products.find(p => p.id === form.productId)
+
+  const filteredProducts = productQuery.trim()
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(productQuery.toLowerCase()) ||
+        (p.description || '').toLowerCase().includes(productQuery.toLowerCase())
+      )
+    : products
+
+  // Cerrar dropdown al click fuera
+  useEffect(() => {
+    const handler = (e) => {
+      if (productRef.current && !productRef.current.contains(e.target)) {
+        setProductOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleSelectProduct = (p) => {
+    setForm(f => ({ ...f, productId: p.id, value: String(p.price) }))
+    setProductQuery('')
+    setProductOpen(false)
+    setShowCreateProduct(false)
   }
+
+  const handleClearProduct = () => {
+    setForm(f => ({ ...f, productId: '', value: '' }))
+    setProductQuery('')
+  }
+
+  const handleCreateProduct = async () => {
+    if (!newProductForm.name.trim()) { toast.error('Nombre requerido'); return }
+    if (!newProductForm.price || isNaN(Number(newProductForm.price))) { toast.error('Precio inválido'); return }
+    setSavingProduct(true)
+    try {
+      const created = await createProduct({
+        name: newProductForm.name.trim(),
+        description: newProductForm.description.trim(),
+        price: Number(newProductForm.price),
+        imageUrl: '',
+      })
+      // createProduct retorna el doc — seleccionarlo automáticamente
+      if (created?.id) {
+        setForm(f => ({ ...f, productId: created.id, value: String(newProductForm.price) }))
+      }
+      setShowCreateProduct(false)
+      setProductOpen(false)
+      setNewProductForm({ name: '', price: '', description: '' })
+      toast.success('Producto creado')
+    } catch {
+      toast.error('Error al crear producto')
+    } finally {
+      setSavingProduct(false)
+    }
+  }
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -182,30 +240,127 @@ export default function NewLeadModal({ stages, products = [], onClose, onCreate 
             </div>
           </div>
 
-          {/* Producto */}
+          {/* Producto — fuzzy search */}
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
               Producto / Servicio
             </label>
-            {products.length === 0 ? (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-[10px] border border-dashed border-black/[0.14] text-[12.5px] text-tertiary">
-                <Package size={14} strokeWidth={2} />
-                Sin productos — crea uno primero en el catálogo
-              </div>
-            ) : (
-              <select
-                value={form.productId}
-                onChange={handleProductChange}
-                className="input"
+            <div ref={productRef} className="relative">
+              {/* Trigger */}
+              <div
+                onClick={() => { setProductOpen(o => !o); setShowCreateProduct(false) }}
+                className="input flex items-center gap-2 cursor-pointer select-none pr-3"
               >
-                <option value="">— Seleccionar producto —</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — ${p.price.toLocaleString()}
-                  </option>
-                ))}
-              </select>
-            )}
+                <Package size={13} className="text-tertiary flex-shrink-0" />
+                {selectedProduct ? (
+                  <span className="flex-1 text-[13px] text-primary truncate">{selectedProduct.name} — ${Number(selectedProduct.price).toLocaleString()}</span>
+                ) : (
+                  <span className="flex-1 text-[13px] text-tertiary">Buscar producto...</span>
+                )}
+                {selectedProduct ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleClearProduct() }} className="text-tertiary hover:text-primary">
+                    <X size={13} />
+                  </button>
+                ) : (
+                  <ChevronDown size={13} className="text-tertiary" />
+                )}
+              </div>
+
+              {/* Dropdown */}
+              {productOpen && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface border border-black/[0.1] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden">
+                  {/* Search input */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/[0.07]">
+                    <Search size={13} className="text-tertiary flex-shrink-0" />
+                    <input
+                      autoFocus
+                      value={productQuery}
+                      onChange={e => { setProductQuery(e.target.value); setShowCreateProduct(false) }}
+                      placeholder="Buscar por nombre..."
+                      className="flex-1 text-[12.5px] bg-transparent outline-none text-primary placeholder-tertiary"
+                    />
+                  </div>
+
+                  {/* Results */}
+                  <div className="max-h-[180px] overflow-y-auto">
+                    {filteredProducts.length > 0 ? (
+                      filteredProducts.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectProduct(p)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 text-left transition-colors"
+                        >
+                          <span className="text-[13px] text-primary font-medium truncate">{p.name}</span>
+                          <span className="text-[12px] text-secondary font-semibold ml-3 flex-shrink-0">${Number(p.price).toLocaleString()}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-[12.5px] text-tertiary text-center py-3">Sin resultados</p>
+                    )}
+                  </div>
+
+                  {/* Create product */}
+                  <div className="border-t border-black/[0.07]">
+                    {!showCreateProduct ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateProduct(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-[12.5px] font-semibold text-accent-blue hover:bg-blue-50 transition-colors"
+                      >
+                        <Plus size={13} strokeWidth={2.5} />
+                        Crear nuevo producto
+                      </button>
+                    ) : (
+                      <div className="p-3 flex flex-col gap-2">
+                        <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide">Nuevo producto</p>
+                        <input
+                          autoFocus
+                          value={newProductForm.name}
+                          onChange={e => setNewProductForm(f => ({ ...f, name: e.target.value }))}
+                          placeholder="Nombre del producto"
+                          className="input text-[12.5px] py-1.5"
+                        />
+                        <input
+                          type="number"
+                          value={newProductForm.price}
+                          onChange={e => setNewProductForm(f => ({ ...f, price: e.target.value }))}
+                          placeholder="Precio (USD)"
+                          className="input text-[12.5px] py-1.5"
+                          min="0"
+                        />
+                        <input
+                          value={newProductForm.description}
+                          onChange={e => setNewProductForm(f => ({ ...f, description: e.target.value }))}
+                          placeholder="Descripción (opcional)"
+                          className="input text-[12.5px] py-1.5"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateProduct(false)}
+                            className="btn-secondary text-xs py-1.5 flex-1"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCreateProduct}
+                            disabled={savingProduct}
+                            className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1"
+                          >
+                            {savingProduct
+                              ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                              : <><Plus size={12} strokeWidth={3} color="white" /> Guardar</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Valor del deal + Fuente */}

@@ -39,7 +39,7 @@ export function useProducts() {
         updatedAt: serverTimestamp(),
       }
     )
-    return ref.id
+    return { id: ref.id, name: data.name, price: Number(data.price), description: data.description }
   }
 
   const updateProduct = async (productId, data) => {

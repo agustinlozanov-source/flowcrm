@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { normalizePhone } from '@/lib/utils'
 import { usePipeline } from '@/hooks/usePipeline'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
@@ -51,7 +52,7 @@ export default function Contacts() {
         l.name?.toLowerCase().includes(q) ||
         l.company?.toLowerCase().includes(q) ||
         l.email?.toLowerCase().includes(q) ||
-        l.phone?.includes(q)
+        normalizePhone(l.phone).includes(q)
       )
     }
 
@@ -247,7 +248,7 @@ export default function Contacts() {
 
                     {/* Teléfono */}
                     <td className="px-4 py-3 text-[12.5px] text-secondary">
-                      {lead.phone || '—'}
+                      {normalizePhone(lead.phone) || '—'}
                     </td>
 
                     {/* Email */}

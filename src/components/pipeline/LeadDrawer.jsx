@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { doc, collection, addDoc, onSnapshot, serverTimestamp, orderBy, query } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import { normalizePhone } from '@/lib/utils'
 import { usePipeline } from '@/hooks/usePipeline'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -79,9 +80,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
   const { stages, updateLead, deleteLead } = usePipeline()
 
   // Normaliza phone: puede ser string o { lada, number } en datos viejos
-  const phoneStr = typeof lead.phone === 'object' && lead.phone !== null
-    ? `${lead.phone.lada || ''}${lead.phone.number || ''}`.trim()
-    : String(lead.phone || '')
+  const phoneStr = normalizePhone(lead.phone)
 
   const [interactions, setInteractions] = useState([])
   const [noteText, setNoteText] = useState('')
