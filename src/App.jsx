@@ -11,6 +11,7 @@ import Superadmin from '@/pages/Superadmin'
 import Setup from '@/pages/Setup'
 import Agent from '@/pages/Agent'
 import Contacts from '@/pages/Contacts'
+import ProductCatalog from '@/pages/ProductCatalog'
 import Meetings from '@/pages/Meetings'
 import Import from '@/pages/Import'
 import Analytics from '@/pages/Analytics'
@@ -59,6 +60,7 @@ export default function App() {
           <Route index element={<Navigate to="/pipeline" replace />} />
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="leads" element={<Contacts />} />
+          <Route path="products" element={<ProductCatalog />} />
           <Route path="agent" element={<Agent />} />
           <Route path="meetings" element={<Meetings />} />
           <Route path="import" element={<Import />} />

@@ -33,6 +33,18 @@ const navSections = [
         ),
       },
       {
+        to: '/products',
+        label: 'Catálogo',
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="2" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            <rect x="10" y="2" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            <rect x="2" y="10" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            <rect x="10" y="10" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+          </svg>
+        ),
+      },
+      {
         to: '/agent',
         label: 'Agente IA',
         icon: (
