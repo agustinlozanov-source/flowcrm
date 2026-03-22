@@ -28,7 +28,7 @@ router.post('/meta', async (req, res) => {
   res.sendStatus(200) // Meta requiere respuesta inmediata
   try {
     const body = req.body
-    const orgId = process.env.DEFAULT_ORG_ID
+    const orgId = process.env.DEFAULT_ORG_ID?.trim()
     if (!orgId) return console.error('DEFAULT_ORG_ID not set')
 
     for (const entry of (body.entry || [])) {
