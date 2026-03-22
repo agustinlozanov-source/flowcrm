@@ -3,7 +3,7 @@ import {
   collection, onSnapshot, query, orderBy, doc, setDoc,
   updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, getDocs
 } from 'firebase/firestore'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -117,10 +117,6 @@ function diagScoreLevel(score, min, max) {
   if (pct < 0.8) return { label: 'Avanzado', color: '#00c853' }
   return { label: 'Profesional', color: '#0066ff' }
 }
-
-// ─── SUPERADMIN CREDENTIALS (change as needed) ───
-const SA_EMAIL = 'admin@qubitcorp.mx'
-const SA_PASSWORD = 'QubitAdmin2025!'
 
 // ─── MODULES CATALOG ───
 const MODULES_CATALOG = [
@@ -1863,13 +1859,24 @@ export default function Superadmin() {
   const login = async () => {
     setLogging(true)
     try {
-      if (email === SA_EMAIL && password === SA_PASSWORD) {
-        setAuthed(true)
-        toast.success('Bienvenido, Agustín')
-      } else {
-        toast.error('Credenciales incorrectas')
+      const cred = await signInWithEmailAndPassword(auth, email, password)
+      const userSnap = await getDoc(doc(db, 'users', cred.user.uid))
+      if (!userSnap.exists() || userSnap.data()?.role !== 'superadmin') {
+        await auth.signOut()
+        toast.error('Acceso denegado: no tienes permisos de superadmin')
+        return
       }
-    } finally { setLogging(false) }
+      setAuthed(true)
+      toast.success('Bienvenido')
+    } catch (err) {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        toast.error('Credenciales incorrectas')
+      } else {
+        toast.error(err.message)
+      }
+    } finally {
+      setLogging(false)
+    }
   }
 
   useEffect(() => {
