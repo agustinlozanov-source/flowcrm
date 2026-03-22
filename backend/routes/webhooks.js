@@ -41,8 +41,9 @@ router.post('/meta', async (req, res) => {
         await processMessaging(entry, 'instagram', orgId)
       }
     }
+    console.log('✅ META WEBHOOK procesado correctamente')
   } catch (err) {
-    console.error('meta-webhook error:', err)
+    console.error('❌ meta-webhook error:', err.message, err.stack)
   }
 })
 
