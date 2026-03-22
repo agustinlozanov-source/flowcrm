@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, Package } from 'lucide-react'
 
 const SOURCES = [
   { value: 'manual', label: 'Manual' },
@@ -17,15 +17,40 @@ const SOURCE_ICONS = {
   whatsapp: '💬', linkedin: '💼', web: '🌐', referral: '⭐',
 }
 
-export default function NewLeadModal({ stages, onClose, onCreate }) {
+const LADAS = [
+  { code: '+52', flag: '🇲🇽', label: 'México' },
+  { code: '+1',  flag: '🇺🇸', label: 'USA / Canadá' },
+  { code: '+54', flag: '🇦🇷', label: 'Argentina' },
+  { code: '+57', flag: '🇨🇴', label: 'Colombia' },
+  { code: '+34', flag: '🇪🇸', label: 'España' },
+]
+
+export default function NewLeadModal({ stages, products = [], onClose, onCreate }) {
   const [form, setForm] = useState({
-    name: '', company: '', email: '', phone: '',
-    value: '', source: 'manual',
+    name: '',
+    lastName: '',
+    company: '',
+    email: '',
+    phoneLada: '+52',
+    phoneNumber: '',
+    productId: '',
+    value: '',
+    source: 'manual',
     stageId: stages[0]?.id || '',
   })
   const [loading, setLoading] = useState(false)
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleProductChange = (e) => {
+    const productId = e.target.value
+    const selected = products.find(p => p.id === productId)
+    setForm(f => ({
+      ...f,
+      productId,
+      value: selected ? String(selected.price) : f.value,
+    }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -34,7 +59,20 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
 
     setLoading(true)
     try {
-      await onCreate(form)
+      await onCreate({
+        name: form.name.trim(),
+        lastName: form.lastName.trim(),
+        company: form.company,
+        email: form.email,
+        phone: {
+          lada: form.phoneLada,
+          number: form.phoneNumber,
+        },
+        productId: form.productId || null,
+        value: Number(form.value) || 0,
+        source: form.source,
+        stageId: form.stageId,
+      })
       toast.success('Lead creado')
       onClose()
     } catch (err) {
@@ -71,9 +109,9 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
 
-          {/* Name + Company */}
+          {/* Nombre + Apellido */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
@@ -81,8 +119,32 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
               </label>
               <input
                 value={form.name} onChange={set('name')}
-                placeholder="Carlos Ramírez"
+                placeholder="Carlos"
                 className="input" required autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Apellido
+              </label>
+              <input
+                value={form.lastName} onChange={set('lastName')}
+                placeholder="Ramírez"
+                className="input"
+              />
+            </div>
+          </div>
+
+          {/* Email + Empresa */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+                Email
+              </label>
+              <input
+                type="email" value={form.email} onChange={set('email')}
+                placeholder="carlos@empresa.com"
+                className="input"
               />
             </div>
             <div>
@@ -97,31 +159,59 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
             </div>
           </div>
 
-          {/* Email + Phone */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
-                Email
-              </label>
+          {/* Teléfono con lada */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+              Teléfono
+            </label>
+            <div className="flex gap-2">
+              <select
+                value={form.phoneLada}
+                onChange={set('phoneLada')}
+                className="input w-[140px] flex-shrink-0"
+              >
+                {LADAS.map(l => (
+                  <option key={l.code} value={l.code}>
+                    {l.flag} {l.code}
+                  </option>
+                ))}
+              </select>
               <input
-                type="email" value={form.email} onChange={set('email')}
-                placeholder="carlos@empresa.com"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
-                Teléfono
-              </label>
-              <input
-                value={form.phone} onChange={set('phone')}
-                placeholder="+52 81 0000 0000"
-                className="input"
+                value={form.phoneNumber} onChange={set('phoneNumber')}
+                placeholder="81 1234 5678"
+                className="input flex-1"
+                type="tel"
               />
             </div>
           </div>
 
-          {/* Value + Source */}
+          {/* Producto */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
+              Producto / Servicio
+            </label>
+            {products.length === 0 ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-[10px] border border-dashed border-black/[0.14] text-[12.5px] text-tertiary">
+                <Package size={14} strokeWidth={2} />
+                Sin productos — crea uno primero en el catálogo
+              </div>
+            ) : (
+              <select
+                value={form.productId}
+                onChange={handleProductChange}
+                className="input"
+              >
+                <option value="">— Seleccionar producto —</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — ${p.price.toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Valor del deal + Fuente */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
@@ -148,7 +238,7 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
             </div>
           </div>
 
-          {/* Stage */}
+          {/* Etapa */}
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
               Etapa inicial *
@@ -166,10 +256,7 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
                     color: form.stageId === stage.id ? stage.color : '#6e6e73',
                   }}
                 >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: stage.color }}
-                  />
+                  <div className="w-2 h-2 rounded-full" style={{ background: stage.color }} />
                   {stage.name}
                 </button>
               ))}

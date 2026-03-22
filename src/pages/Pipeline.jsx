@@ -4,6 +4,7 @@ import {
   PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
 import { usePipeline } from '@/hooks/usePipeline'
+import { useProducts } from '@/hooks/useProducts'
 import KanbanColumn from '@/components/pipeline/KanbanColumn'
 import LeadCard from '@/components/pipeline/LeadCard'
 import NewLeadModal from '@/components/pipeline/NewLeadModal'
@@ -23,6 +24,7 @@ const SOURCES = [
 
 export default function Pipeline() {
   const { stages, leads, leadsByStage, loading, moveLead, createLead } = usePipeline()
+  const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
   const [showNewLead, setShowNewLead] = useState(false)
   const [defaultStageId, setDefaultStageId] = useState(null)
@@ -184,6 +186,7 @@ export default function Pipeline() {
         <NewLeadModal
           stages={stages}
           defaultStageId={defaultStageId}
+          products={products}
           onClose={() => { setShowNewLead(false); setDefaultStageId(null) }}
           onCreate={async (data) => {
             await createLead({ ...data, stageId: data.stageId || defaultStageId })
