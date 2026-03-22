@@ -77,6 +77,12 @@ function InteractionItem({ item }) {
 export default function LeadDrawer({ lead, onClose, onUpdate }) {
   const { org } = useAuthStore()
   const { stages, updateLead, deleteLead } = usePipeline()
+
+  // Normaliza phone: puede ser string o { lada, number } en datos viejos
+  const phoneStr = typeof lead.phone === 'object' && lead.phone !== null
+    ? `${lead.phone.lada || ''}${lead.phone.number || ''}`.trim()
+    : String(lead.phone || '')
+
   const [interactions, setInteractions] = useState([])
   const [noteText, setNoteText] = useState('')
   const [noteType, setNoteType] = useState('note')
@@ -86,7 +92,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
     name: lead.name || '',
     company: lead.company || '',
     email: lead.email || '',
-    phone: lead.phone || '',
+    phone: phoneStr,
     value: lead.value || '',
   })
   const [saving, setSaving] = useState(false)
@@ -236,7 +242,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Tel</span>
-                <span className="text-[12.5px] text-primary">{lead.phone || '—'}</span>
+                <span className="text-[12.5px] text-primary">{phoneStr || '—'}</span>
               </div>
             </div>
           </div>
@@ -308,17 +314,17 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
           <div className="px-6 py-4 border-b border-black/[0.06]">
             <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3">Acciones rápidas</p>
             <div className="flex gap-2">
-              {lead.phone && (
+              {phoneStr && (
                 <a
-                  href={`tel:${lead.phone}`}
+                  href={`tel:${phoneStr}`}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-black/[0.2] hover:text-primary transition-all"
                 >
                   <Phone size={13} className="opacity-70" /> Llamar
                 </a>
               )}
-              {lead.phone && (
+              {phoneStr && (
                 <a
-                  href={`https://wa.me/${String(lead.phone || '').replace(/\D/g, '')}`}
+                  href={`https://wa.me/${phoneStr.replace(/\D/g, '')}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all"
