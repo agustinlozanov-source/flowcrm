@@ -1,4 +1,4 @@
-require('dotenv').config()
+require('dotenv').config({ override: false }) // No sobreescribir variables ya definidas en Railway
 const express = require('express')
 const cors = require('cors')
 
@@ -8,6 +8,16 @@ app.use(express.json())
 
 // ── Health check ──
 app.get('/', (req, res) => res.json({ status: 'ok', service: 'FlowCRM Backend', version: '1.0.0' }))
+
+// ── Debug temporal (eliminar luego) ──
+app.get('/debug/env', (req, res) => {
+  res.json({
+    META_VERIFY_TOKEN: process.env.META_VERIFY_TOKEN ? `SET (${process.env.META_VERIFY_TOKEN.length} chars)` : 'NOT SET',
+    DEFAULT_ORG_ID: process.env.DEFAULT_ORG_ID ? 'SET' : 'NOT SET',
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET',
+    NODE_ENV: process.env.NODE_ENV,
+  })
+})
 
 // ── Routes ──
 app.use('/webhooks', require('./routes/webhooks'))
