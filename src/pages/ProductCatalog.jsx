@@ -70,7 +70,15 @@ export default function ProductCatalog() {
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('Máximo 5MB'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('La imagen no debe superar 5MB'); return }
+    const img = new Image()
+    img.onload = () => {
+      if (img.width < 200 || img.height < 200) {
+        toast('Imagen pequeña — se recomienda mínimo 400×400px', { icon: '⚠️' })
+      }
+      URL.revokeObjectURL(img.src)
+    }
+    img.src = URL.createObjectURL(file)
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
   }
@@ -340,9 +348,10 @@ export default function ProductCatalog() {
                       </div>
                     </>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 text-tertiary">
+                    <div className="flex flex-col items-center gap-1.5 text-tertiary">
                       <Upload size={20} strokeWidth={1.5} />
-                      <span className="text-[12px]">Subir imagen (máx. 5MB)</span>
+                      <span className="text-[12px] font-medium">Subir imagen</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">400×400px recomendado · máx. 5MB<br/>JPG, PNG o WEBP</span>
                     </div>
                   )}
                 </div>
