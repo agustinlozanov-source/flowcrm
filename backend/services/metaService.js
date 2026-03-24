@@ -168,7 +168,9 @@ async function processMessaging(entry, channel, orgId) {
     if (!event.message?.text || event.message.is_echo) continue
     const senderId = event.sender.id
     const text = event.message.text
-    const pageToken = process.env.META_PAGE_ACCESS_TOKEN
+    const pageToken = channel === 'instagram'
+      ? process.env.INSTAGRAM_ACCESS_TOKEN
+      : process.env.META_PAGE_ACCESS_TOKEN
     let name = 'Usuario'
     try {
       const profileRes = await fetch(`https://graph.facebook.com/v19.0/${senderId}?fields=name&access_token=${pageToken}`)
