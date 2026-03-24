@@ -1,5 +1,5 @@
 const { Router } = require('express')
-const { processWhatsApp, processMessaging, processFacebookLead } = require('../services/metaService')
+const { processWhatsApp, processMessaging, processInstagram, processFacebookLead } = require('../services/metaService')
 const { db } = require('../config/firebase')
 const { FieldValue } = require('firebase-admin/firestore')
 const OpenAI = require('openai')
@@ -41,7 +41,7 @@ router.post('/meta', async (req, res) => {
       if (body.object === 'whatsapp_business_account') {
         await processWhatsApp(entry, orgId)
       } else if (body.object === 'instagram') {
-        await processMessaging(entry, 'instagram', orgId)
+        await processInstagram(entry, orgId)
       } else if (body.object === 'page') {
         if (entry.messaging) {
           // Instagram DMs a veces llegan con object=page, detectar por campo

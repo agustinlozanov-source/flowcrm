@@ -209,4 +209,29 @@ async function processFacebookLead(entry, orgId) {
   }
 }
 
-module.exports = { findOrCreateLead, saveMessage, sendMetaMessage, agentAutoReply, processWhatsApp, processMessaging, processFacebookLead }
+// ── PROCESS INSTAGRAM DMs ──
+async function processInstagram(entry, orgId) {
+  for (const change of (entry.changes || [])) {
+    const val = change.value
+    if (!val?.message?.text) continue
+    const senderId = val.sender?.id
+    const text = val.message.text
+    if (!senderId) continue
+    const pageToken = process.env.INSTAGRAM_ACCESS_TOKEN
+    let name = 'Usuario Instagram'
+    try {
+      const profileRes = await fetch(`https://graph.facebook.com/v19.0/${senderId}?fields=name&access_token=${pageToken}`)
+      const profile = await profileRes.json()
+      name = profile.name || name
+    } catch { }
+    const lead = await findOrCreateLead(orgId, { name, channelUserId: senderId, channel: 'instagram' })
+    await saveMessage(orgId, lead.id, { text, channel: 'instagram', role: 'user', channelMsgId: val.message.mid })
+    const reply = await agentAutoReply(orgId, lead, text, 'instagram')
+    if (reply) {
+      await sendMetaMessage('instagram', senderId, reply, pageToken)
+      await saveMessage(orgId, lead.id, { text: reply, channel: 'instagram', role: 'bot' })
+    }
+  }
+}
+
+module.exports = { findOrCreateLead, saveMessage, sendMetaMessage, agentAutoReply, processWhatsApp, processMessaging, processInstagram, processFacebookLead }
