@@ -32,13 +32,26 @@ router.post('/meta', async (req, res) => {
     if (!orgId) return console.error('DEFAULT_ORG_ID not set')
 
     for (const entry of (body.entry || [])) {
+      // Detectar si es Instagram aunque venga con object === 'page'
+      const isInstagram = body.object === 'instagram' ||
+        entry.messaging?.some(m => m.sender?.id && String(m.sender.id).length > 15)
+
+      console.log(`🔍 object=${body.object} | isInstagram=${isInstagram} | entry keys=${Object.keys(entry).join(',')}`)
+
       if (body.object === 'whatsapp_business_account') {
         await processWhatsApp(entry, orgId)
-      } else if (body.object === 'page') {
-        if (entry.messaging) await processMessaging(entry, 'messenger', orgId)
-        if (entry.changes?.some(c => c.field === 'leadgen')) await processFacebookLead(entry, orgId)
       } else if (body.object === 'instagram') {
         await processMessaging(entry, 'instagram', orgId)
+      } else if (body.object === 'page') {
+        if (entry.messaging) {
+          // Instagram DMs a veces llegan con object=page, detectar por campo
+          const channel = entry.messaging?.some(m => m.sender?.id && String(m.sender.id).length > 15)
+            ? 'instagram'
+            : 'messenger'
+          console.log(`📩 Procesando messaging como canal: ${channel}`)
+          await processMessaging(entry, channel, orgId)
+        }
+        if (entry.changes?.some(c => c.field === 'leadgen')) await processFacebookLead(entry, orgId)
       }
     }
     console.log('✅ META WEBHOOK procesado correctamente')
