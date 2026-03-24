@@ -1,8 +1,9 @@
 const { Router } = require('express')
-const { processWhatsApp, processMessaging, processInstagram, processFacebookLead } = require('../services/metaService')
+const { processWhatsApp, processMessaging, processInstagram, processFacebookLead, findOrCreateLead, saveMessage, agentAutoReply } = require('../services/metaService')
 const { db } = require('../config/firebase')
 const { FieldValue } = require('firebase-admin/firestore')
 const OpenAI = require('openai')
+const twilio = require('twilio')
 
 const router = Router()
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -168,6 +169,55 @@ router.post('/telegram/reply', async (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+// ─────────────────────────────────────────────
+// TWILIO WHATSAPP
+// ─────────────────────────────────────────────
+
+// POST /webhooks/whatsapp — Mensajes de Twilio WhatsApp
+router.post('/whatsapp', async (req, res) => {
+  console.log('📱 TWILIO WHATSAPP recibido:', JSON.stringify(req.body))
+  // Twilio espera respuesta TwiML vacía inmediatamente
+  res.set('Content-Type', 'text/xml')
+  res.send('<Response></Response>')
+  try {
+    const orgId = process.env.DEFAULT_ORG_ID?.trim()
+    if (!orgId) return console.error('DEFAULT_ORG_ID not set')
+
+    const { Body: text, From, MessageSid } = req.body
+    if (!text || !From) return
+
+    // Limpiar prefijo "whatsapp:"
+    const phone = From.replace('whatsapp:', '')
+
+    const lead = await findOrCreateLead(orgId, {
+      name: phone,
+      phone,
+      channelUserId: phone,
+      channel: 'whatsapp_twilio',
+    })
+
+    await saveMessage(orgId, lead.id, {
+      text,
+      channel: 'whatsapp_twilio',
+      role: 'user',
+      channelMsgId: MessageSid,
+    })
+
+    const reply = await agentAutoReply(orgId, lead, text, 'whatsapp_twilio')
+    if (reply) {
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+      await client.messages.create({
+        from: req.body.To,
+        to: From,
+        body: reply,
+      })
+      await saveMessage(orgId, lead.id, { text: reply, channel: 'whatsapp_twilio', role: 'bot' })
+    }
+  } catch (err) {
+    console.error('❌ twilio-whatsapp error:', err.message, err.stack)
   }
 })
 
