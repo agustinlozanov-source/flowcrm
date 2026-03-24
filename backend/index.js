@@ -5,6 +5,7 @@ const cors = require('cors')
 const app = express()
 app.use(cors())
 app.use(express.json())
+app.use(express.urlencoded({ extended: false }))
 
 // ── Health check ──
 app.get('/', (req, res) => res.json({ status: 'ok', service: 'FlowCRM Backend', version: '1.0.0' }))
