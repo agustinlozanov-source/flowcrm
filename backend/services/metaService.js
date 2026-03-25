@@ -143,6 +143,7 @@ async function sendMetaMessage(channel, recipientId, text, pageAccessToken) {
 
 // ── PROCESS WHATSAPP ──
 async function processWhatsApp(entry, orgId) {
+  console.log('processWhatsApp entry:', JSON.stringify(entry, null, 2))
   for (const change of (entry.changes || [])) {
     const value = change.value
     if (!value?.messages) continue
