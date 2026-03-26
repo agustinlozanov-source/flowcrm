@@ -54,43 +54,32 @@ export default function Login() {
       </div>
 
       {/* ── RIGHT: Login panel 1/4 ── */}
-      <div className="w-full md:w-1/4 flex flex-col justify-center px-8 py-12 bg-white">
+      <div className="w-full md:w-1/4 flex flex-col justify-between px-8 py-10 bg-white">
 
-        {/* Logo mobile (solo visible en pantallas pequeñas) */}
-        <div className="flex md:hidden justify-center mb-10">
-          <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain" />
+        {/* Top: lang button */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-500 hover:border-gray-300 transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            EN
+          </button>
         </div>
 
+        {/* Center: form */}
         <div className="w-full max-w-xs mx-auto">
 
-          {/* Pills estilo landing */}
-          <div className="flex flex-col items-start gap-2 mb-6">
-            {/* AI for Sales — pill pequeño */}
-            <span
-              className="text-xs font-semibold px-4 py-1 rounded-full"
-              style={{
-                background: 'transparent',
-                border: '1.5px solid transparent',
-                backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #1aab99, #3533cd)',
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
-                WebkitTextFillColor: 'transparent',
-                WebkitBackgroundClip: 'text, border-box',
-                color: 'transparent',
-              }}
-            >
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, #1aab99, #3533cd)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                AI for Sales
-              </span>
-            </span>
+          {/* Logo mobile */}
+          <div className="flex md:hidden justify-center mb-10">
+            <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain" />
+          </div>
 
-            {/* Welcome — pill principal con dot */}
+          {/* Pill AI for Sales estilo Welcome */}
+          <div className="flex flex-col items-start mb-6">
             <span
               className="text-sm font-semibold px-5 py-1.5 rounded-full flex items-center gap-2"
               style={{
@@ -112,20 +101,23 @@ export default function Login() {
                   WebkitTextFillColor: 'transparent',
                 }}
               >
-                Welcome
+                AI for Sales
               </span>
             </span>
           </div>
 
-          {/* Título */}
+          {/* Título en degradado */}
           <h1
-            className="text-gray-900 mb-1"
+            className="mb-1"
             style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontWeight: 900,
               fontSize: 'clamp(26px, 2.4vw, 36px)',
               lineHeight: 1.05,
               letterSpacing: '-1.5px',
+              background: 'linear-gradient(135deg, #1aab99, #3533cd)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
             }}
           >
             Bienvenido
@@ -188,10 +180,16 @@ export default function Login() {
             </p>
           </div>
 
-          <p className="text-center text-xs text-gray-300 mt-8">
+          <p className="text-center text-xs text-gray-300 mt-8 hidden">
             © 2026 FlowCRM. Todos los derechos reservados.
           </p>
         </div>
+
+        {/* Footer bottom */}
+        <p className="text-center text-xs text-gray-300">
+          © 2026 FlowCRM. Todos los derechos reservados.
+        </p>
+
       </div>
 
     </div>
