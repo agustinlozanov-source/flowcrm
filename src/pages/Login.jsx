@@ -62,7 +62,72 @@ export default function Login() {
         </div>
 
         <div className="w-full max-w-xs mx-auto">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-1">
+
+          {/* Pills estilo landing */}
+          <div className="flex flex-col items-start gap-2 mb-6">
+            {/* AI for Sales — pill pequeño */}
+            <span
+              className="text-xs font-semibold px-4 py-1 rounded-full"
+              style={{
+                background: 'transparent',
+                border: '1.5px solid transparent',
+                backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #1aab99, #3533cd)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+                WebkitTextFillColor: 'transparent',
+                WebkitBackgroundClip: 'text, border-box',
+                color: 'transparent',
+              }}
+            >
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #1aab99, #3533cd)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                AI for Sales
+              </span>
+            </span>
+
+            {/* Welcome — pill principal con dot */}
+            <span
+              className="text-sm font-semibold px-5 py-1.5 rounded-full flex items-center gap-2"
+              style={{
+                background: 'transparent',
+                border: '1.5px solid transparent',
+                backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #1aab99, #3533cd)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}
+              />
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #1aab99, #3533cd)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Welcome
+              </span>
+            </span>
+          </div>
+
+          {/* Título */}
+          <h1
+            className="text-gray-900 mb-1"
+            style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: 900,
+              fontSize: 'clamp(26px, 2.4vw, 36px)',
+              lineHeight: 1.05,
+              letterSpacing: '-1.5px',
+            }}
+          >
             Bienvenido
           </h1>
           <p className="text-sm text-gray-400 mb-8">
