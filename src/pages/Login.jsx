@@ -3,28 +3,29 @@ import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { useLang } from '@/hooks/useLang'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { lang, toggleLang, t } = useLang()
 
   const handleLogin = async (e) => {
     e.preventDefault()
     if (!email || !password) return
-
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
       navigate('/pipeline')
     } catch (err) {
       const msg = {
-        'auth/user-not-found': 'No existe una cuenta con ese email.',
-        'auth/wrong-password': 'Contraseña incorrecta.',
-        'auth/invalid-credential': 'Email o contraseña incorrectos.',
-        'auth/too-many-requests': 'Demasiados intentos. Espera un momento.',
-      }[err.code] || 'Error al iniciar sesión.'
+        'auth/user-not-found': lang === 'es' ? 'No existe una cuenta con ese email.' : 'No account found with that email.',
+        'auth/wrong-password': lang === 'es' ? 'Contraseña incorrecta.' : 'Wrong password.',
+        'auth/invalid-credential': lang === 'es' ? 'Email o contraseña incorrectos.' : 'Invalid email or password.',
+        'auth/too-many-requests': lang === 'es' ? 'Demasiados intentos. Espera un momento.' : 'Too many attempts. Please wait.',
+      }[err.code] || (lang === 'es' ? 'Error al iniciar sesión.' : 'Sign in error.')
       toast.error(msg)
     } finally {
       setLoading(false)
@@ -44,10 +45,7 @@ export default function Login() {
           playsInline
           className="absolute inset-0 w-full h-full object-cover"
         />
-        {/* Overlay sutil para que el logo resalte */}
         <div className="absolute inset-0 bg-black/10" />
-
-        {/* Logo top-left */}
         <div className="absolute top-8 left-8 z-10">
           <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain brightness-0 invert" />
         </div>
@@ -60,13 +58,14 @@ export default function Login() {
         <div className="flex justify-end">
           <button
             type="button"
+            onClick={toggleLang}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-500 hover:border-gray-300 transition"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
-            EN
+            {lang === 'es' ? 'EN' : 'ES'}
           </button>
         </div>
 
@@ -78,7 +77,7 @@ export default function Login() {
             <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain" />
           </div>
 
-          {/* Pill AI for Sales estilo Welcome */}
+          {/* Pill AI for Sales */}
           <div className="flex flex-col items-start mb-6">
             <span
               className="text-sm font-semibold px-5 py-1.5 rounded-full flex items-center gap-2"
@@ -90,18 +89,9 @@ export default function Login() {
                 backgroundClip: 'padding-box, border-box',
               }}
             >
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}
-              />
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, #1aab99, #3533cd)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                AI for Sales
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }} />
+              <span style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                {t('login.pill')}
               </span>
             </span>
           </div>
@@ -120,16 +110,14 @@ export default function Login() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Bienvenido
+            {t('login.title')}
           </h1>
-          <p className="text-sm text-gray-400 mb-8">
-            Inicia sesión en tu cuenta
-          </p>
+          <p className="text-sm text-gray-400 mb-8">{t('login.subtitle')}</p>
 
           <form onSubmit={handleLogin} className="flex flex-col gap-5">
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-                Email
+                {t('login.email')}
               </label>
               <input
                 type="email"
@@ -144,7 +132,7 @@ export default function Login() {
 
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-                Contraseña
+                {t('login.password')}
               </label>
               <input
                 type="password"
@@ -165,33 +153,26 @@ export default function Login() {
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Entrando...
+                  {t('login.submitting')}
                 </>
-              ) : 'Iniciar sesión'}
+              ) : t('login.submit')}
             </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-400">
-              ¿No tienes cuenta?{' '}
-              <Link to="/register" className="font-semibold text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #1aab99, #3533cd)' }}>
-                Registra tu empresa
+              {t('login.noAccount')}{' '}
+              <Link to="/register" className="font-semibold" style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                {t('login.register')}
               </Link>
             </p>
           </div>
-
-          <p className="text-center text-xs text-gray-300 mt-8 hidden">
-            © 2026 FlowCRM. Todos los derechos reservados.
-          </p>
         </div>
 
         {/* Footer bottom */}
-        <p className="text-center text-xs text-gray-300">
-          © 2026 FlowCRM. Todos los derechos reservados.
-        </p>
+        <p className="text-center text-xs text-gray-300">{t('login.footer')}</p>
 
       </div>
-
     </div>
   )
 }

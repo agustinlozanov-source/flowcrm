@@ -3,16 +3,17 @@ import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import { useLang } from '@/hooks/useLang'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
 const navSections = [
   {
-    label: 'CRM',
+    labelKey: 'nav.crm',
     items: [
       {
         to: '/pipeline',
-        label: 'Pipeline',
+        labelKey: 'nav.pipeline',
         badge: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
@@ -24,7 +25,7 @@ const navSections = [
       },
       {
         to: '/leads',
-        label: 'Contactos',
+        labelKey: 'nav.contacts',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.5" />
@@ -34,7 +35,7 @@ const navSections = [
       },
       {
         to: '/products',
-        label: 'Catálogo',
+        labelKey: 'nav.catalog',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="2" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
@@ -46,7 +47,7 @@ const navSections = [
       },
       {
         to: '/agent',
-        label: 'Agente IA',
+        labelKey: 'nav.agent',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M9 1.5L11.47 6.5H16.5L12.5 9.97L14 15L9 12L4 15L5.5 9.97L1.5 6.5H6.53L9 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -55,7 +56,7 @@ const navSections = [
       },
       {
         to: '/inbox',
-        label: 'Inbox',
+        labelKey: 'nav.inbox',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M2 9a7 7 0 1114 0 7 7 0 01-14 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -65,7 +66,7 @@ const navSections = [
       },
       {
         to: '/meetings',
-        label: 'Reuniones',
+        labelKey: 'nav.meetings',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="1" y="3" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -76,11 +77,11 @@ const navSections = [
     ],
   },
   {
-    label: 'Herramientas',
+    labelKey: 'nav.tools',
     items: [
       {
         to: '/import',
-        label: 'Importar',
+        labelKey: 'nav.import',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M9 1v10M5 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -90,7 +91,7 @@ const navSections = [
       },
       {
         to: '/analytics',
-        label: 'Analytics',
+        labelKey: 'nav.analytics',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M3 12L6 9 9 11 13 6 16 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -100,7 +101,7 @@ const navSections = [
       },
       {
         to: '/content',
-        label: 'Content Studio',
+        labelKey: 'nav.content',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="3" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -110,7 +111,7 @@ const navSections = [
       },
       {
         to: '/landing',
-        label: 'Landing Pages',
+        labelKey: 'nav.landing',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -120,7 +121,7 @@ const navSections = [
       },
       {
         to: '/referrals',
-        label: 'Referidos',
+        labelKey: 'nav.referrals',
         badge: '3',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
@@ -136,6 +137,7 @@ export default function AppLayout() {
   const { org, user } = useAuthStore()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
+  const { lang, toggleLang, t } = useLang()
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -163,9 +165,9 @@ export default function AppLayout() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2">
           {navSections.map((section) => (
-            <div key={section.label} className="px-3 mb-4">
+            <div key={section.labelKey} className="px-3 mb-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-tertiary px-2 py-1 mb-1">
-                {section.label}
+                {t(section.labelKey)}
               </div>
               {section.items.map((item) => (
                 <NavLink
@@ -185,7 +187,7 @@ export default function AppLayout() {
                       <span className={isActive ? 'opacity-100' : 'opacity-60'}>
                         {item.icon}
                       </span>
-                      <span className="flex-1">{item.label}</span>
+                      <span className="flex-1">{t(item.labelKey)}</span>
                       {item.badge && (
                         <span className={clsx(
                           'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
@@ -204,6 +206,17 @@ export default function AppLayout() {
 
         {/* User footer */}
         <div className="border-t border-black/[0.08] p-3">
+          {/* Lang switcher */}
+          <button
+            onClick={toggleLang}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 mb-1 rounded-lg text-[12px] font-semibold text-tertiary hover:bg-surface-2 hover:text-secondary transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            {lang === 'es' ? 'English' : 'Español'}
+          </button>
           <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer group">
             <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
               <span className="text-[11px] font-bold text-white">
