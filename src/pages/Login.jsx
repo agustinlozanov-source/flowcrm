@@ -32,26 +32,46 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="flex h-screen w-screen overflow-hidden bg-white">
 
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-8">
-          <img src="/logo.png" alt="Logo" className="h-10 object-contain" />
+      {/* ── LEFT: Video 3/4 ── */}
+      <div className="relative hidden md:flex md:w-3/4 h-full overflow-hidden">
+        <video
+          src="/video-login.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Overlay sutil para que el logo resalte */}
+        <div className="absolute inset-0 bg-black/10" />
+
+        {/* Logo top-left */}
+        <div className="absolute top-8 left-8 z-10">
+          <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain brightness-0 invert" />
+        </div>
+      </div>
+
+      {/* ── RIGHT: Login panel 1/4 ── */}
+      <div className="w-full md:w-1/4 flex flex-col justify-center px-8 py-12 bg-white">
+
+        {/* Logo mobile (solo visible en pantallas pequeñas) */}
+        <div className="flex md:hidden justify-center mb-10">
+          <img src="/logo.png" alt="FlowCRM" className="h-8 object-contain" />
         </div>
 
-        {/* Card */}
-        <div className="card p-8">
-          <h1 className="font-display font-bold text-2xl tracking-tight text-primary mb-1">
+        <div className="w-full max-w-xs mx-auto">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-1">
             Bienvenido
           </h1>
-          <p className="text-secondary text-sm mb-6">
+          <p className="text-sm text-gray-400 mb-8">
             Inicia sesión en tu cuenta
           </p>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+          <form onSubmit={handleLogin} className="flex flex-col gap-5">
             <div>
-              <label className="text-xs font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
                 Email
               </label>
               <input
@@ -59,14 +79,14 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
-                className="input"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-transparent focus:ring-2 focus:ring-[#1aab99]/40 transition"
                 required
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
                 Contraseña
               </label>
               <input
@@ -74,7 +94,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="input"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-transparent focus:ring-2 focus:ring-[#1aab99]/40 transition"
                 required
               />
             </div>
@@ -82,7 +102,8 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full mt-2 py-2.5 flex items-center justify-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}
+              className="w-full mt-1 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60"
             >
               {loading ? (
                 <>
@@ -93,20 +114,21 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-black/[0.06] text-center">
-            <p className="text-sm text-secondary">
+          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p className="text-sm text-gray-400">
               ¿No tienes cuenta?{' '}
-              <Link to="/register" className="text-accent-blue font-semibold hover:underline">
+              <Link to="/register" className="font-semibold text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #1aab99, #3533cd)' }}>
                 Registra tu empresa
               </Link>
             </p>
           </div>
-        </div>
 
-        <p className="text-center text-xs text-tertiary mt-6">
-          © 2025 FlowCRM. Todos los derechos reservados.
-        </p>
+          <p className="text-center text-xs text-gray-300 mt-8">
+            © 2026 FlowCRM. Todos los derechos reservados.
+          </p>
+        </div>
       </div>
+
     </div>
   )
 }
