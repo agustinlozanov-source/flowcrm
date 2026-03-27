@@ -1,4 +1,4 @@
-const OpenAI = require('openai')
+const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
 
 if (!admin.apps.length) {
@@ -12,7 +12,7 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore()
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── BUILD SYSTEM PROMPT FROM CONFIG ──
 function buildSystemPrompt(config) {
@@ -113,117 +113,97 @@ INSTRUCCIONES GENERALES:
 ${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
 }
 
-// ── CREATE OR UPDATE ASSISTANT (sin Vector Stores) ──
+// ── SYNC AGENT CONFIG — solo guarda en Firestore ──
 async function syncAssistant(orgId, config) {
   const settingsRef = db.collection('organizations').doc(orgId).collection('settings').doc('agent')
-  const settingsSnap = await settingsRef.get()
-  const current = settingsSnap.exists ? settingsSnap.data() : {}
-
-  const systemPrompt = buildSystemPrompt(config)
-
-  const assistantParams = {
-    name: config.agentName || 'Agente FlowCRM',
-    instructions: systemPrompt,
-    model: 'gpt-4o-mini',
-  }
-
-  let assistantId = current.assistantId
-
-  if (assistantId) {
-    await openai.beta.assistants.update(assistantId, assistantParams)
-  } else {
-    const assistant = await openai.beta.assistants.create(assistantParams)
-    assistantId = assistant.id
-  }
-
   await settingsRef.set({
     ...config,
-    assistantId,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true })
-
-  return { assistantId }
+  return { success: true }
 }
 
-// ── UPLOAD FILE ──
+// ── UPLOAD FILE (guarda metadata en Firestore) ──
 async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
-  const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  const { assistantId } = settingsSnap.data() || {}
-
-  if (!assistantId) throw new Error('Guarda el agente primero antes de subir archivos.')
-
-  const file = await openai.files.create({
-    file: new File([fileBuffer], fileName, { type: mimeType }),
-    purpose: 'assistants',
-  })
-
   const fileRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
-    openaiFileId: file.id,
     name: fileName,
     size: fileBuffer.length,
     mimeType,
     status: 'ready',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   })
-
-  return { fileId: fileRef.id, openaiFileId: file.id }
+  return { fileId: fileRef.id }
 }
 
 // ── DELETE FILE ──
 async function deleteFile(orgId, fileDocId) {
   const fileSnap = await db.collection('organizations').doc(orgId).collection('agent_files').doc(fileDocId).get()
   if (!fileSnap.exists) return
-  const { openaiFileId } = fileSnap.data()
-  try { await openai.files.del(openaiFileId) } catch (e) { console.error('OpenAI delete:', e.message) }
   await fileSnap.ref.delete()
 }
 
-// ── CHAT WITH ASSISTANT ──
+// ── GET CONVERSATION HISTORY ──
+async function getConversationHistory(orgId, leadId) {
+  // test mode — usar colección temporal
+  const collPath = leadId === 'test'
+    ? db.collection('organizations').doc(orgId).collection('agent_test_threads').doc(leadId).collection('messages')
+    : db.collection('organizations').doc(orgId).collection('leads').doc(leadId).collection('conversations')
+
+  const snap = await collPath.orderBy('createdAt', 'desc').limit(10).get()
+  return snap.docs.reverse().map(d => ({
+    role: d.data().role === 'user' ? 'user' : 'assistant',
+    content: d.data().text || d.data().content || '',
+  }))
+}
+
+// ── SAVE MESSAGE (solo en test mode) ──
+async function saveTestMessage(orgId, leadId, role, text) {
+  if (leadId !== 'test') return
+  await db.collection('organizations').doc(orgId)
+    .collection('agent_test_threads').doc(leadId)
+    .collection('messages').add({
+      role,
+      text,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+}
+
+// ── CHAT WITH CLAUDE ──
 async function chatWithAssistant(orgId, leadId, message) {
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  if (!settingsSnap.exists) throw new Error('Assistant not configured')
-  
-  const { assistantId } = settingsSnap.data() || {}
-  if (!assistantId) throw new Error('Assistant not configured')
+  if (!settingsSnap.exists) throw new Error('Agente no configurado. Guarda primero la configuración.')
 
-  // Get or create thread for this lead
-  const threadKey = `thread_${leadId}`
-  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
-  const leadSnap = await leadRef.get()
-  let threadId = null
+  const agentConfig = settingsSnap.data() || {}
 
-  if (leadSnap.exists && leadSnap.data()?.[threadKey]) {
-    threadId = leadSnap.data()[threadKey]
-  }
+  // Mismo orden de prioridad que metaService.agentAutoReply
+  const systemPrompt = (
+    agentConfig.customInstructions ||
+    agentConfig.systemPrompt ||
+    agentConfig.instructions ||
+    buildSystemPrompt(agentConfig)
+  ) + `\n\nModo: simulador de pruebas interno.`
 
-  if (!threadId) {
-    const thread = await openai.beta.threads.create()
-    threadId = thread.id
-    if (leadSnap.exists) {
-      await leadRef.update({ [threadKey]: threadId })
-    } else {
-      // test mode — store in a temp doc
-      await db.collection('organizations').doc(orgId)
-        .collection('agent_threads').doc(leadId)
-        .set({ threadId }, { merge: true })
-    }
-  }
+  const history = await getConversationHistory(orgId, leadId)
 
-  // Add user message
-  await openai.beta.threads.messages.create(threadId, { role: 'user', content: message })
+  // Guardar el mensaje del usuario
+  await saveTestMessage(orgId, leadId, 'user', message)
 
-  // Run and poll
-  const run = await openai.beta.threads.runs.createAndPoll(threadId, {
-    assistant_id: assistantId,
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages: [
+      ...history,
+      { role: 'user', content: message },
+    ],
   })
 
-  if (run.status !== 'completed') throw new Error(`Run status: ${run.status}`)
+  const reply = response.content[0]?.text || 'Sin respuesta'
 
-  // Get latest assistant message
-  const messages = await openai.beta.threads.messages.list(threadId, { limit: 1, order: 'desc' })
-  const response = messages.data[0]?.content[0]?.text?.value || 'Sin respuesta'
+  // Guardar la respuesta del agente
+  await saveTestMessage(orgId, leadId, 'assistant', reply)
 
-  return { response, threadId }
+  return { response: reply }
 }
 
 // ── MAIN HANDLER ──
