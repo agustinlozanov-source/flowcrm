@@ -10,13 +10,14 @@ const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
 // Recibe mensajes de ManyChat
 app.post('/webhook/manychat', async (req, res) => {
-  res.sendStatus(200) // responde rápido a ManyChat
+  const subscriber_id = req.body.id
+  const text = req.body.last_input_text
 
-  const { subscriber_id, text } = req.body
-  if (!text || !subscriber_id) return
+  if (!text || !subscriber_id) {
+    return res.sendStatus(200)
+  }
 
   try {
-    // Agente responde
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
@@ -25,7 +26,6 @@ app.post('/webhook/manychat', async (req, res) => {
 
     const reply = response.content[0].text
 
-    // Envía respuesta via ManyChat API
     await axios.post(
       'https://api.manychat.com/fb/sending/sendContent',
       {
@@ -39,8 +39,11 @@ app.post('/webhook/manychat', async (req, res) => {
       },
       { headers: { Authorization: `Bearer ${MANYCHAT_API_KEY}` } }
     )
+
+    res.sendStatus(200)
   } catch (err) {
     console.error('Error:', err.message)
+    res.sendStatus(200)
   }
 })
 
