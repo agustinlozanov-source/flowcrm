@@ -3,7 +3,7 @@ const { admin, db } = require('../config/firebase')
 const Anthropic = require('@anthropic-ai/sdk')
 
 const router = Router()
-const anthropic = new Anthropic({ apiKey: process.env.VITE_ANTHROPIC_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── BUILD SYSTEM PROMPT ──
 function buildSystemPrompt(config) {
