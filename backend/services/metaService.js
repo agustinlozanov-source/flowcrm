@@ -1,7 +1,7 @@
 const { admin, db } = require('../config/firebase')
-const OpenAI = require('openai')
+const Anthropic = require('@anthropic-ai/sdk')
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── FIND OR CREATE LEAD ──
 async function findOrCreateLead(orgId, contact) {
@@ -98,29 +98,23 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
   if (!agentConfig.autoRespond) return null
 
   const history = await getConversationHistory(orgId, lead.id)
-  const personality = {
-    profesional: 'formal, directo y enfocado en resultados',
-    amigable: 'cálido, cercano y conversacional',
-    consultivo: 'analítico, hace reflexionar y da perspectivas únicas',
-  }[agentConfig.personality || 'amigable']
 
-  const systemPrompt = `Eres ${agentConfig.name || 'un asistente de ventas'}, con personalidad ${personality}.
-Tu objetivo es calificar leads y agendar una llamada o reunión.
-Responde de forma breve (máximo 3 oraciones). Siempre en español.
-No menciones que eres una IA a menos que te lo pregunten directamente.
-Contexto del lead: nombre=${lead.name}, canal=${channel}`
+  const basePrompt = agentConfig.customInstructions?.trim()
+    ? agentConfig.customInstructions.trim()
+    : 'Eres un asistente de ventas. Tu objetivo es calificar leads y agendar una llamada o reunión. Responde de forma breve (máximo 3 oraciones). Siempre en español. No menciones que eres una IA a menos que te lo pregunten directamente.'
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const systemPrompt = `${basePrompt}\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    system: systemPrompt,
     messages: [
-      { role: 'system', content: systemPrompt },
       ...history,
       { role: 'user', content: incomingText },
     ],
-    max_tokens: 300,
-    temperature: 0.7,
   })
-  return completion.choices[0].message.content
+  return response.content[0].text
 }
 
 // ── SEND META MESSAGE ──
