@@ -199,13 +199,11 @@ async function chatWithAssistant(orgId, leadId, message) {
     .join('\n\n---\n\n')
 
   console.log('📄 archivos RAG encontrados:', filesSnap.docs.length, '| chars:', filesContent.length)
+  console.log('📝 primeros 300 chars del contenido:', filesContent.slice(0, 300))
 
-  // El system prompt es SOLO el RAG. Si no hay archivos, avisar.
-  const systemPrompt = filesContent
-    ? `Eres ${agentConfig.agentName || 'un asistente'}. Responde EXCLUSIVAMENTE basándote en el siguiente conocimiento base. No inventes ni agregues información que no esté en este documento. Si la respuesta no está en el documento, dilo claramente.\n\n${filesContent}`
-    : `Eres ${agentConfig.agentName || 'un asistente'}. Aún no tienes documentos de conocimiento cargados. Pide al administrador que suba archivos en la sección de conocimiento del agente.`
-
-  console.log('📝 systemPrompt primeros 300 chars:', systemPrompt.slice(0, 300))
+  // Usar el contenido del archivo directamente como system prompt
+  // Si no hay archivos, usar un prompt mínimo
+  const systemPrompt = filesContent || `Eres ${agentConfig.agentName || 'un asistente'}. No tienes documentos cargados aún.`
 
   const history = await getConversationHistory(orgId, leadId)
   console.log('💬 historial mensajes:', history.length)

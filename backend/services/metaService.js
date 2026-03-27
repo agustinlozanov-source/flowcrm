@@ -107,10 +107,9 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     .filter(Boolean)
     .join('\n\n---\n\n')
 
-  // El system prompt es SOLO el RAG
-  const systemPrompt = filesContent
-    ? `Eres ${agentConfig.agentName || 'un asistente'}. Responde EXCLUSIVAMENTE basándote en el siguiente conocimiento base. No inventes ni agregues información que no esté en este documento. Si la respuesta no está en el documento, dilo claramente.\n\n${filesContent}\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
-    : `Eres ${agentConfig.agentName || 'un asistente de ventas'}. Aún no hay documentos de conocimiento cargados.\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+  // Usar el contenido del archivo directamente como system prompt
+  const systemPrompt = (filesContent || `Eres ${agentConfig.agentName || 'un asistente de ventas'}.`)
+    + `\n\nContexto: nombre del lead=${lead.name}, canal=${channel}`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
