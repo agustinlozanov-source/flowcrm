@@ -189,6 +189,9 @@ async function chatWithAssistant(orgId, leadId, message) {
   if (!settingsSnap.exists) throw new Error('Agente no configurado. Guarda primero la configuración.')
 
   const agentConfig = settingsSnap.data() || {}
+  console.log('🤖 agentConfig keys:', Object.keys(agentConfig))
+  console.log('🤖 autoRespond:', agentConfig.autoRespond)
+  console.log('🤖 customInstructions length:', agentConfig.customInstructions?.length)
 
   // Leer archivos subidos con contenido
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
@@ -197,6 +200,7 @@ async function chatWithAssistant(orgId, leadId, message) {
     .map(d => d.data().content || '')
     .filter(Boolean)
     .join('\n\n---\n\n')
+  console.log('📄 archivos encontrados:', filesSnap.docs.length, '| contenido total chars:', filesContent.length)
 
   // Mismo orden de prioridad que metaService.agentAutoReply
   const basePrompt = (
@@ -210,27 +214,34 @@ async function chatWithAssistant(orgId, leadId, message) {
     + (filesContent ? `\n\nCONOCIMIENTO BASE (archivos subidos):\n${filesContent}` : '')
     + `\n\nModo: simulador de pruebas interno.`
 
+  console.log('📝 systemPrompt primeros 200 chars:', systemPrompt.slice(0, 200))
+
   const history = await getConversationHistory(orgId, leadId)
+  console.log('💬 historial mensajes:', history.length)
 
   // Guardar el mensaje del usuario
   await saveTestMessage(orgId, leadId, 'user', message)
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1000,
-    system: systemPrompt,
-    messages: [
-      ...history,
-      { role: 'user', content: message },
-    ],
-  })
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [
+        ...history,
+        { role: 'user', content: message },
+      ],
+    })
+    console.log('✅ Anthropic response stop_reason:', response.stop_reason)
+    console.log('✅ content[0] type:', response.content[0]?.type)
 
-  const reply = response.content[0]?.text || 'Sin respuesta'
-
-  // Guardar la respuesta del agente
-  await saveTestMessage(orgId, leadId, 'assistant', reply)
-
-  return { response: reply }
+    const reply = response.content[0]?.text || 'Sin respuesta'
+    await saveTestMessage(orgId, leadId, 'assistant', reply)
+    return { response: reply }
+  } catch (err) {
+    console.error('❌ Anthropic error:', err.status, err.message)
+    throw err
+  }
 }
 
 // ── MAIN HANDLER ──
