@@ -99,13 +99,25 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
 
   const history = await getConversationHistory(orgId, lead.id)
 
+  // Leer archivos subidos con contenido
+  const filesSnap = await db.collection('organizations').doc(orgId)
+    .collection('agent_files').where('status', '==', 'ready').get()
+  const filesContent = filesSnap.docs
+    .map(d => d.data().content || '')
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+
   // Leer system prompt en orden de prioridad
-  const systemPrompt = (
+  const basePrompt = (
     agentConfig.customInstructions ||
     agentConfig.systemPrompt ||
     agentConfig.instructions ||
     'Eres un asistente de ventas amigable. Responde en español, máximo 3-4 oraciones.'
-  ) + `\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+  )
+
+  const systemPrompt = basePrompt
+    + (filesContent ? `\n\nCONOCIMIENTO BASE (archivos subidos):\n${filesContent}` : '')
+    + `\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

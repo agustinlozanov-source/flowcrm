@@ -123,12 +123,27 @@ async function syncAssistant(orgId, config) {
   return { success: true }
 }
 
-// ── UPLOAD FILE (guarda metadata en Firestore) ──
+// ── UPLOAD FILE (guarda metadata + contenido en Firestore) ──
 async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
+  // Decodificar contenido de texto (txt, pdf-texto, etc.)
+  let content = ''
+  try {
+    // Para archivos de texto plano decodificar directamente
+    if (mimeType === 'text/plain' || fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+      content = fileBuffer.toString('utf-8')
+    } else {
+      // Para otros tipos (PDF, Word) guardar el texto que venga como fallback
+      content = fileBuffer.toString('utf-8')
+    }
+  } catch (e) {
+    content = ''
+  }
+
   const fileRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
     name: fileName,
     size: fileBuffer.length,
     mimeType,
+    content,
     status: 'ready',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   })
@@ -175,13 +190,25 @@ async function chatWithAssistant(orgId, leadId, message) {
 
   const agentConfig = settingsSnap.data() || {}
 
+  // Leer archivos subidos con contenido
+  const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
+    .where('status', '==', 'ready').get()
+  const filesContent = filesSnap.docs
+    .map(d => d.data().content || '')
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+
   // Mismo orden de prioridad que metaService.agentAutoReply
-  const systemPrompt = (
+  const basePrompt = (
     agentConfig.customInstructions ||
     agentConfig.systemPrompt ||
     agentConfig.instructions ||
     buildSystemPrompt(agentConfig)
-  ) + `\n\nModo: simulador de pruebas interno.`
+  )
+
+  const systemPrompt = basePrompt
+    + (filesContent ? `\n\nCONOCIMIENTO BASE (archivos subidos):\n${filesContent}` : '')
+    + `\n\nModo: simulador de pruebas interno.`
 
   const history = await getConversationHistory(orgId, leadId)
 
