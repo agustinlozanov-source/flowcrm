@@ -47,4 +47,8 @@ app.post('/webhook/manychat', async (req, res) => {
   }
 })
 
+app.get('/health', (req, res) => {
+  res.sendStatus(200)
+})
+
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
