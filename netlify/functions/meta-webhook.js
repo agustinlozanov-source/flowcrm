@@ -1,5 +1,5 @@
 const admin = require('firebase-admin')
-const OpenAI = require('openai')
+const Anthropic = require('@anthropic-ai/sdk')
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -12,7 +12,7 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore()
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── VERIFY WEBHOOK (Meta handshake) ──
 function verifyWebhook(event) {
@@ -136,30 +136,30 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
   if (!agentConfig.autoRespond) return null
 
   const history = await getConversationHistory(orgId, lead.id)
-  const personality = {
-    profesional: 'formal, directo y enfocado en resultados',
-    amigable: 'cálido, cercano y conversacional',
-    consultivo: 'analítico, hace reflexionar y da perspectivas únicas',
-  }[agentConfig.personality || 'amigable']
 
-  const systemPrompt = `Eres ${agentConfig.name || 'un asistente de ventas'}, un agente de ventas con personalidad ${personality}.
-Tu objetivo es calificar leads y agendar una llamada o reunión.
-Responde de forma breve (máximo 3 oraciones). Siempre en español.
-No menciones que eres una IA a menos que te lo pregunten directamente.
-Contexto del lead: nombre=${lead.name}, canal=${channel}`
+  // Leer archivos RAG con contenido
+  const filesSnap = await db.collection('organizations').doc(orgId)
+    .collection('agent_files').where('status', '==', 'ready').get()
+  const filesContent = filesSnap.docs
+    .map(d => d.data().content || '')
+    .filter(Boolean)
+    .join('\n\n---\n\n')
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  // Usar el contenido del archivo directamente como system prompt
+  const systemPrompt = (filesContent || `Eres ${agentConfig.agentName || 'un asistente de ventas'}.`)
+    + `\n\nContexto: nombre del lead=${lead.name}, canal=${channel}`
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    system: systemPrompt,
     messages: [
-      { role: 'system', content: systemPrompt },
       ...history,
       { role: 'user', content: incomingText },
     ],
-    max_tokens: 300,
-    temperature: 0.7,
   })
 
-  return completion.choices[0].message.content
+  return response.content[0]?.text || null
 }
 
 // ── SEND META MESSAGE ──
