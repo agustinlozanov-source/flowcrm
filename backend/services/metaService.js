@@ -99,11 +99,13 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
 
   const history = await getConversationHistory(orgId, lead.id)
 
-  const basePrompt = agentConfig.customInstructions?.trim()
-    ? agentConfig.customInstructions.trim()
-    : 'Eres un asistente de ventas. Tu objetivo es calificar leads y agendar una llamada o reunión. Responde de forma breve (máximo 3 oraciones). Siempre en español. No menciones que eres una IA a menos que te lo pregunten directamente.'
-
-  const systemPrompt = `${basePrompt}\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+  // Leer system prompt en orden de prioridad
+  const systemPrompt = (
+    agentConfig.customInstructions ||
+    agentConfig.systemPrompt ||
+    agentConfig.instructions ||
+    'Eres un asistente de ventas amigable. Responde en español, máximo 3-4 oraciones.'
+  ) + `\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -114,7 +116,8 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
       { role: 'user', content: incomingText },
     ],
   })
-  return response.content[0].text
+
+  return response.content[0]?.text || null
 }
 
 // ── SEND META MESSAGE ──
