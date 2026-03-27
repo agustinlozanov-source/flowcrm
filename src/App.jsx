@@ -20,6 +20,7 @@ import Referrals from '@/pages/Referrals'
 import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
+import Team from '@/pages/Team'
 
 import WelcomeForm from '@/pages/WelcomeForm'
 import DiagnosticoForm from '@/pages/DiagnosticoForm'
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="referrals" element={<Referrals />} />
           <Route path="landing" element={<LandingPages />} />
           <Route path="inbox" element={<Inbox />} />
+          <Route path="team" element={<Team />} />
         </Route>
 
         {/* Superadmin */}
