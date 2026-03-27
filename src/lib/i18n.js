@@ -29,7 +29,6 @@ export const translations = {
     'nav.content': 'Contenido',
     'nav.referrals': 'Referidos',
     'nav.landing': 'Páginas',
-    'nav.team': 'Equipo',
 
     // User
     'user.role': 'Admin',
@@ -66,7 +65,6 @@ export const translations = {
     'nav.content': 'Content',
     'nav.referrals': 'Referrals',
     'nav.landing': 'Pages',
-    'nav.team': 'Team',
 
     // User
     'user.role': 'Admin',

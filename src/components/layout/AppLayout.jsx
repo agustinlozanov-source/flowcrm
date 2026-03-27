@@ -128,17 +128,6 @@ const navSections = [
             <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
           </svg>
         ),
-      },      {
-        to: '/team',
-        labelKey: 'nav.team',
-        icon: (
-          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
-            <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="13" cy="6" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M1 15c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            <path d="M13 11c1.5 0 3 .8 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        ),
       },    ],
   },
 ]
