@@ -189,37 +189,27 @@ async function chatWithAssistant(orgId, leadId, message) {
   if (!settingsSnap.exists) throw new Error('Agente no configurado. Guarda primero la configuración.')
 
   const agentConfig = settingsSnap.data() || {}
-  console.log('🤖 agentConfig keys:', Object.keys(agentConfig))
-  console.log('🤖 autoRespond:', agentConfig.autoRespond)
-  console.log('🤖 customInstructions length:', agentConfig.customInstructions?.length)
 
-  // Leer archivos subidos con contenido
+  // Leer archivos RAG con contenido
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
     .where('status', '==', 'ready').get()
   const filesContent = filesSnap.docs
     .map(d => d.data().content || '')
     .filter(Boolean)
     .join('\n\n---\n\n')
-  console.log('📄 archivos encontrados:', filesSnap.docs.length, '| contenido total chars:', filesContent.length)
 
-  // Mismo orden de prioridad que metaService.agentAutoReply
-  const basePrompt = (
-    agentConfig.customInstructions ||
-    agentConfig.systemPrompt ||
-    agentConfig.instructions ||
-    buildSystemPrompt(agentConfig)
-  )
+  console.log('📄 archivos RAG encontrados:', filesSnap.docs.length, '| chars:', filesContent.length)
 
-  const systemPrompt = basePrompt
-    + (filesContent ? `\n\nCONOCIMIENTO BASE (archivos subidos):\n${filesContent}` : '')
-    + `\n\nModo: simulador de pruebas interno.`
+  // El system prompt es SOLO el RAG. Si no hay archivos, avisar.
+  const systemPrompt = filesContent
+    ? `Eres ${agentConfig.agentName || 'un asistente'}. Responde EXCLUSIVAMENTE basándote en el siguiente conocimiento base. No inventes ni agregues información que no esté en este documento. Si la respuesta no está en el documento, dilo claramente.\n\n${filesContent}`
+    : `Eres ${agentConfig.agentName || 'un asistente'}. Aún no tienes documentos de conocimiento cargados. Pide al administrador que suba archivos en la sección de conocimiento del agente.`
 
-  console.log('📝 systemPrompt primeros 200 chars:', systemPrompt.slice(0, 200))
+  console.log('📝 systemPrompt primeros 300 chars:', systemPrompt.slice(0, 300))
 
   const history = await getConversationHistory(orgId, leadId)
   console.log('💬 historial mensajes:', history.length)
 
-  // Guardar el mensaje del usuario
   await saveTestMessage(orgId, leadId, 'user', message)
 
   try {
@@ -232,10 +222,9 @@ async function chatWithAssistant(orgId, leadId, message) {
         { role: 'user', content: message },
       ],
     })
-    console.log('✅ Anthropic response stop_reason:', response.stop_reason)
-    console.log('✅ content[0] type:', response.content[0]?.type)
 
     const reply = response.content[0]?.text || 'Sin respuesta'
+    console.log('✅ reply primeros 100 chars:', reply.slice(0, 100))
     await saveTestMessage(orgId, leadId, 'assistant', reply)
     return { response: reply }
   } catch (err) {

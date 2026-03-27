@@ -99,7 +99,7 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
 
   const history = await getConversationHistory(orgId, lead.id)
 
-  // Leer archivos subidos con contenido
+  // Leer archivos RAG con contenido
   const filesSnap = await db.collection('organizations').doc(orgId)
     .collection('agent_files').where('status', '==', 'ready').get()
   const filesContent = filesSnap.docs
@@ -107,17 +107,10 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     .filter(Boolean)
     .join('\n\n---\n\n')
 
-  // Leer system prompt en orden de prioridad
-  const basePrompt = (
-    agentConfig.customInstructions ||
-    agentConfig.systemPrompt ||
-    agentConfig.instructions ||
-    'Eres un asistente de ventas amigable. Responde en español, máximo 3-4 oraciones.'
-  )
-
-  const systemPrompt = basePrompt
-    + (filesContent ? `\n\nCONOCIMIENTO BASE (archivos subidos):\n${filesContent}` : '')
-    + `\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+  // El system prompt es SOLO el RAG
+  const systemPrompt = filesContent
+    ? `Eres ${agentConfig.agentName || 'un asistente'}. Responde EXCLUSIVAMENTE basándote en el siguiente conocimiento base. No inventes ni agregues información que no esté en este documento. Si la respuesta no está en el documento, dilo claramente.\n\n${filesContent}\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
+    : `Eres ${agentConfig.agentName || 'un asistente de ventas'}. Aún no hay documentos de conocimiento cargados.\n\nContexto del lead: nombre=${lead.name}, canal=${channel}`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
