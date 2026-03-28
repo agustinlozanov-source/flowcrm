@@ -23,8 +23,6 @@ app.get('/health', (req, res) => res.sendStatus(200))
 
 // Webhook por tenant
 app.post('/webhook/manychat/:orgId', (req, res) => {
-  console.log('Webhook recibido:', req.params.orgId, req.body.last_input_text)
-  console.log('Body completo:', JSON.stringify(req.body))
   res.sendStatus(200)
 
   const { orgId } = req.params
