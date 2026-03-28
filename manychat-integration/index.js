@@ -15,7 +15,6 @@ admin.initializeApp({
 })
 
 const db = admin.firestore()
-const ENV = process.env.FIREBASE_ENV || 'dev'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
@@ -34,9 +33,6 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 
   if (!text || !subscriber_id) return
 
-  const LEADS_COL = `manychat_${ENV}_leads`
-  const CONVERSATIONS_COL = `manychat_${ENV}_conversations`
-
   setImmediate(async () => {
     try {
       // Detectar canal
@@ -44,8 +40,13 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       if (body.ig_id) channel = 'instagram'
       if (body.whatsapp_phone) channel = 'whatsapp'
 
-      // 1. Guardar lead bajo el tenant
-      const leadRef = db.collection(LEADS_COL).doc(`${orgId}_${subscriber_id}`)
+      const leadRef = db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('leads')
+        .doc(subscriber_id)
+
+      // 1. Guardar / actualizar lead
       await leadRef.set({
         subscriber_id,
         orgId,
@@ -53,28 +54,28 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         page_id,
         channel,
         lastMessage: text,
+        hasUnread: true,
+        lastMessageChannel: channel,
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true })
 
       // 2. Guardar mensaje entrante
-      await db.collection(CONVERSATIONS_COL).add({
-        subscriber_id,
-        orgId,
+      await leadRef.collection('conversations').add({
         role: 'user',
         text,
+        channel,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
-      // 3. Leer historial del tenant
-      const historySnap = await db.collection(CONVERSATIONS_COL)
-        .where('subscriber_id', '==', subscriber_id)
-        .where('orgId', '==', orgId)
+      // 3. Leer historial
+      const historySnap = await leadRef.collection('conversations')
         .orderBy('createdAt', 'asc')
         .limitToLast(10)
         .get()
 
       const messages = historySnap.docs.map(d => ({
-        role: d.data().role,
+        role: d.data().role === 'bot' ? 'assistant' : d.data().role,
         content: d.data().text
       }))
 
@@ -88,11 +89,10 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       const reply = response.content[0].text
 
       // 5. Guardar respuesta
-      await db.collection(CONVERSATIONS_COL).add({
-        subscriber_id,
-        orgId,
-        role: 'assistant',
+      await leadRef.collection('conversations').add({
+        role: 'bot',
         text: reply,
+        channel,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
