@@ -46,6 +46,7 @@ app.post('/webhook/manychat', (req, res) => {
     console.log('Processing message:', { subscriber_id, text })
     try {
       // 1. Crear o actualizar lead
+      console.log('1. Guardando lead...')
       const leadRef = db.collection(LEADS_COL).doc(subscriber_id)
       await leadRef.set({
         subscriber_id,
@@ -57,6 +58,7 @@ app.post('/webhook/manychat', (req, res) => {
       }, { merge: true })
 
       // 2. Guardar mensaje entrante
+      console.log('2. Guardando mensaje entrante...')
       await db.collection(CONVERSATIONS_COL).add({
         subscriber_id,
         role: 'user',
@@ -65,6 +67,7 @@ app.post('/webhook/manychat', (req, res) => {
       })
 
       // 3. Leer historial
+      console.log('3. Leyendo historial...')
       const historySnap = await db.collection(CONVERSATIONS_COL)
         .where('subscriber_id', '==', subscriber_id)
         .orderBy('createdAt', 'asc')
@@ -77,6 +80,7 @@ app.post('/webhook/manychat', (req, res) => {
       }))
 
       // 4. Claude responde
+      console.log('4. Llamando a Claude...')
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
@@ -84,6 +88,7 @@ app.post('/webhook/manychat', (req, res) => {
       })
 
       const reply = response.content[0].text
+      console.log('5. Respuesta de Claude:', reply)
 
       // 5. Guardar respuesta
       await db.collection(CONVERSATIONS_COL).add({
@@ -94,6 +99,7 @@ app.post('/webhook/manychat', (req, res) => {
       })
 
       // 6. Enviar via ManyChat
+      console.log('6. Enviando a ManyChat...')
       await axios.post(
         'https://api.manychat.com/fb/sending/sendContent',
         {
@@ -107,6 +113,7 @@ app.post('/webhook/manychat', (req, res) => {
         },
         { headers: { Authorization: `Bearer ${MANYCHAT_API_KEY}` } }
       )
+      console.log('7. Listo.')
     } catch (err) {
       console.error('Error:', err.message)
     }
