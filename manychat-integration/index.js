@@ -39,6 +39,11 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 
   setImmediate(async () => {
     try {
+      // Detectar canal
+      let channel = 'messenger'
+      if (body.ig_id) channel = 'instagram'
+      if (body.whatsapp_phone) channel = 'whatsapp'
+
       // 1. Guardar lead bajo el tenant
       const leadRef = db.collection(LEADS_COL).doc(`${orgId}_${subscriber_id}`)
       await leadRef.set({
@@ -46,7 +51,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         orgId,
         name,
         page_id,
-        channel: 'manychat',
+        channel,
         lastMessage: text,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true })
