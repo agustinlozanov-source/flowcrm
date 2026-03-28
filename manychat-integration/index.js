@@ -21,6 +21,11 @@ const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
 app.get('/health', (req, res) => res.sendStatus(200))
 
+app.post('/webhook/manychat', (req, res) => {
+  res.sendStatus(200)
+  console.log('Webhook sin orgId recibido:', req.body.last_input_text)
+})
+
 // Webhook por tenant
 app.post('/webhook/manychat/:orgId', (req, res) => {
   console.log('Webhook recibido:', req.params.orgId, req.body.last_input_text)
