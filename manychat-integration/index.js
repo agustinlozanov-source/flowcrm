@@ -3,16 +3,9 @@ const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
 
-console.log('ENV CHECK:', {
-  hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
-  hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
-  hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
-})
-
 const app = express()
 app.use(express.json())
 
-// Firebase init
 admin.initializeApp({
   credential: admin.credential.cert({
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -23,17 +16,16 @@ admin.initializeApp({
 
 const db = admin.firestore()
 const ENV = process.env.FIREBASE_ENV || 'dev'
-const LEADS_COL = `manychat_${ENV}_leads`
-const CONVERSATIONS_COL = `manychat_${ENV}_conversations`
-
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
 app.get('/health', (req, res) => res.sendStatus(200))
 
-app.post('/webhook/manychat', (req, res) => {
+// Webhook por tenant
+app.post('/webhook/manychat/:orgId', (req, res) => {
   res.sendStatus(200)
 
+  const { orgId } = req.params
   const body = req.body
   const subscriber_id = body.id
   const text = body.last_input_text
@@ -42,14 +34,16 @@ app.post('/webhook/manychat', (req, res) => {
 
   if (!text || !subscriber_id) return
 
+  const LEADS_COL = `manychat_${ENV}_leads`
+  const CONVERSATIONS_COL = `manychat_${ENV}_conversations`
+
   setImmediate(async () => {
-    console.log('Processing message:', { subscriber_id, text })
     try {
-      // 1. Crear o actualizar lead
-      console.log('1. Guardando lead...')
-      const leadRef = db.collection(LEADS_COL).doc(subscriber_id)
+      // 1. Guardar lead bajo el tenant
+      const leadRef = db.collection(LEADS_COL).doc(`${orgId}_${subscriber_id}`)
       await leadRef.set({
         subscriber_id,
+        orgId,
         name,
         page_id,
         channel: 'manychat',
@@ -58,18 +52,18 @@ app.post('/webhook/manychat', (req, res) => {
       }, { merge: true })
 
       // 2. Guardar mensaje entrante
-      console.log('2. Guardando mensaje entrante...')
       await db.collection(CONVERSATIONS_COL).add({
         subscriber_id,
+        orgId,
         role: 'user',
         text,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
-      // 3. Leer historial
-      console.log('3. Leyendo historial...')
+      // 3. Leer historial del tenant
       const historySnap = await db.collection(CONVERSATIONS_COL)
         .where('subscriber_id', '==', subscriber_id)
+        .where('orgId', '==', orgId)
         .orderBy('createdAt', 'asc')
         .limitToLast(10)
         .get()
@@ -80,7 +74,6 @@ app.post('/webhook/manychat', (req, res) => {
       }))
 
       // 4. Claude responde
-      console.log('4. Llamando a Claude...')
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
@@ -88,18 +81,17 @@ app.post('/webhook/manychat', (req, res) => {
       })
 
       const reply = response.content[0].text
-      console.log('5. Respuesta de Claude:', reply)
 
       // 5. Guardar respuesta
       await db.collection(CONVERSATIONS_COL).add({
         subscriber_id,
+        orgId,
         role: 'assistant',
         text: reply,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
       // 6. Enviar via ManyChat
-      console.log('6. Enviando a ManyChat...')
       await axios.post(
         'https://api.manychat.com/fb/sending/sendContent',
         {
@@ -113,12 +105,12 @@ app.post('/webhook/manychat', (req, res) => {
         },
         { headers: { Authorization: `Bearer ${MANYCHAT_API_KEY}` } }
       )
-      console.log('7. Listo.')
+
+      console.log(`[${orgId}] Mensaje procesado para ${name}`)
     } catch (err) {
-      console.error('Error:', err.message)
+      console.error(`[${orgId}] Error:`, err.message)
     }
   })
 })
 
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
-
