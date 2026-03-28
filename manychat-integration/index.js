@@ -1,33 +1,92 @@
 const express = require('express')
 const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
+const admin = require('firebase-admin')
 
 const app = express()
 app.use(express.json())
 
+// Firebase init
+admin.initializeApp({
+  credential: admin.credential.cert({
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    projectId: process.env.FIREBASE_PROJECT_ID,
+  })
+})
+
+const db = admin.firestore()
+const ENV = process.env.FIREBASE_ENV || 'dev'
+const LEADS_COL = `manychat_${ENV}_leads`
+const CONVERSATIONS_COL = `manychat_${ENV}_conversations`
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
-// Recibe mensajes de ManyChat
-app.post('/webhook/manychat', (req, res) => {
-  res.sendStatus(200) // responde inmediato a ManyChat
+app.get('/health', (req, res) => res.sendStatus(200))
 
-  const subscriber_id = req.body.id
-  const text = req.body.last_input_text
+app.post('/webhook/manychat', (req, res) => {
+  res.sendStatus(200)
+
+  const body = req.body
+  const subscriber_id = body.id
+  const text = body.last_input_text
+  const name = body.name || 'Sin nombre'
+  const page_id = body.page_id
 
   if (!text || !subscriber_id) return
 
-  // procesa en background sin bloquear
   setImmediate(async () => {
     try {
+      // 1. Crear o actualizar lead
+      const leadRef = db.collection(LEADS_COL).doc(subscriber_id)
+      await leadRef.set({
+        subscriber_id,
+        name,
+        page_id,
+        channel: 'manychat',
+        lastMessage: text,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })
+
+      // 2. Guardar mensaje entrante
+      await db.collection(CONVERSATIONS_COL).add({
+        subscriber_id,
+        role: 'user',
+        text,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      })
+
+      // 3. Leer historial
+      const historySnap = await db.collection(CONVERSATIONS_COL)
+        .where('subscriber_id', '==', subscriber_id)
+        .orderBy('createdAt', 'asc')
+        .limitToLast(10)
+        .get()
+
+      const messages = historySnap.docs.map(d => ({
+        role: d.data().role,
+        content: d.data().text
+      }))
+
+      // 4. Claude responde
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
-        messages: [{ role: 'user', content: text }]
+        messages
       })
 
       const reply = response.content[0].text
 
+      // 5. Guardar respuesta
+      await db.collection(CONVERSATIONS_COL).add({
+        subscriber_id,
+        role: 'assistant',
+        text: reply,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      })
+
+      // 6. Enviar via ManyChat
       await axios.post(
         'https://api.manychat.com/fb/sending/sendContent',
         {
@@ -47,8 +106,5 @@ app.post('/webhook/manychat', (req, res) => {
   })
 })
 
-app.get('/health', (req, res) => {
-  res.sendStatus(200)
-})
-
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
+
