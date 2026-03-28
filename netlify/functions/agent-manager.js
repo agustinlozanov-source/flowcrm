@@ -157,6 +157,17 @@ async function deleteFile(orgId, fileDocId) {
   await fileSnap.ref.delete()
 }
 
+// ── CLEAR TEST THREAD ──
+async function clearTestThread(orgId) {
+  const ref = db.collection('organizations').doc(orgId)
+    .collection('agent_test_threads').doc('test')
+    .collection('messages')
+  const snap = await ref.get()
+  const batch = db.batch()
+  snap.docs.forEach(d => batch.delete(d.ref))
+  await batch.commit()
+}
+
 // ── GET CONVERSATION HISTORY ──
 async function getConversationHistory(orgId, leadId) {
   // test mode — usar colección temporal
@@ -256,6 +267,11 @@ exports.handler = async (event) => {
 
     if (action === 'delete_file') {
       await deleteFile(orgId, body.fileDocId)
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
+    }
+
+    if (action === 'clear_thread') {
+      await clearTestThread(orgId)
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
 
