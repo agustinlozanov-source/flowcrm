@@ -90,6 +90,7 @@ function TestPanel({ orgId, config }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const bottomRef = useRef()
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -111,6 +112,20 @@ function TestPanel({ orgId, config }) {
     } catch {
       setMessages(m => [...m, { role: 'agent', text: 'Error al conectar con el agente.' }])
     } finally { setLoading(false) }
+  }
+
+  const clearConversation = async () => {
+    setClearing(true)
+    try {
+      await fetch('/.netlify/functions/agent-manager', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_thread', orgId, leadId: 'test' }),
+      })
+      setMessages([])
+    } catch {
+      setMessages([])
+    } finally { setClearing(false) }
   }
 
   return (
@@ -155,7 +170,9 @@ function TestPanel({ orgId, config }) {
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendMessage() }}
           placeholder="Escribe como si fueras el lead..." className="flex-1 input text-sm py-2" />
         <button onClick={sendMessage} disabled={!text.trim() || loading} className="btn-primary px-4 py-2 text-sm disabled:opacity-40">Enviar</button>
-        <button onClick={() => setMessages([])} className="btn-secondary px-3 py-2 text-sm">Limpiar</button>
+        <button onClick={clearConversation} disabled={clearing} className="btn-secondary px-3 py-2 text-sm disabled:opacity-40">
+          {clearing ? '...' : 'Nueva conversación'}
+        </button>
       </div>
     </div>
   )
