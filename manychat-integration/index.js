@@ -3,6 +3,12 @@ const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
 
+console.log('ENV CHECK:', {
+  hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+  hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+  hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+})
+
 const app = express()
 app.use(express.json())
 
