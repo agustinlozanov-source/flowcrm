@@ -43,6 +43,7 @@ app.post('/webhook/manychat', (req, res) => {
   if (!text || !subscriber_id) return
 
   setImmediate(async () => {
+    console.log('Processing message:', { subscriber_id, text })
     try {
       // 1. Crear o actualizar lead
       const leadRef = db.collection(LEADS_COL).doc(subscriber_id)
