@@ -97,24 +97,24 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       })
 
       // 6. Enviar via ManyChat
-      let sendEndpoint = 'https://api.manychat.com/fb/sending/sendContent'
-      if (channel === 'whatsapp') {
-        sendEndpoint = 'https://api.manychat.com/whatsapp/sending/sendContent'
-      } else if (channel === 'instagram') {
-        sendEndpoint = 'https://api.manychat.com/ig/sending/sendContent'
-      }
-
-      await axios.post(
-        sendEndpoint,
-        {
-          subscriber_id,
-          data: {
+      const contentData = channel === 'whatsapp'
+        ? {
+            version: 'v2',
+            content: {
+              type: 'whatsapp',
+              messages: [{ type: 'text', text: reply }]
+            }
+          }
+        : {
             version: 'v2',
             content: {
               messages: [{ type: 'text', text: reply }]
             }
           }
-        },
+
+      await axios.post(
+        'https://api.manychat.com/fb/sending/sendContent',
+        { subscriber_id, data: contentData },
         { headers: { Authorization: `Bearer ${MANYCHAT_API_KEY}` } }
       )
 
