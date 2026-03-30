@@ -16,7 +16,6 @@ admin.initializeApp({
 
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY
 
 app.get('/health', (req, res) => res.sendStatus(200))
 
@@ -68,6 +67,10 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
+      // Leer API Key del tenant
+      const orgDoc = await db.collection('organizations').doc(orgId).get()
+      const manychatApiKey = orgDoc.data()?.manychatApiKey || process.env.MANYCHAT_API_KEY
+
       // 3. Leer historial
       const historySnap = await leadRef.collection('conversations')
         .orderBy('createdAt', 'asc')
@@ -115,12 +118,12 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       await axios.post(
         'https://api.manychat.com/fb/sending/sendContent',
         { subscriber_id, data: contentData },
-        { headers: { Authorization: `Bearer ${MANYCHAT_API_KEY}` } }
+        { headers: { Authorization: `Bearer ${manychatApiKey}` } }
       )
 
       console.log(`[${orgId}] Mensaje procesado para ${name}`)
     } catch (err) {
-      console.error(`[${orgId}] Error:`, err.message)
+      console.error(`[${orgId}] Error:`, err.response?.data || err.message)
     }
   })
 })
