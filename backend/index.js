@@ -78,7 +78,7 @@ app.post('/web-leads', async (req, res) => {
       return res.json({ success: true, leadId: existing.docs[0].id, action: 'updated' });
     }
 
-    const stages = await orgRef.collection('stages')
+    const stages = await orgRef.collection('pipeline_stages')
       .orderBy('order', 'asc').limit(1).get();
     const stageId = stages.empty ? null : stages.docs[0].id;
 
