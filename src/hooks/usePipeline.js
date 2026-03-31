@@ -90,6 +90,22 @@ export function usePipeline() {
     await deleteDoc(doc(db, 'organizations', orgId, 'leads', leadId))
   }
 
+  // Create new stage
+  const createStage = async (name, color) => {
+    if (!orgId) return
+    const maxOrder = stages.reduce((max, s) => Math.max(max, s.order ?? 0), 0)
+    await addDoc(
+      collection(db, 'organizations', orgId, 'pipeline_stages'),
+      {
+        name,
+        color: color || '#6366f1',
+        order: maxOrder + 1,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    )
+  }
+
   // Leads grouped by stage
   const leadsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = leads.filter(l => l.stageId === stage.id)
@@ -105,5 +121,6 @@ export function usePipeline() {
     createLead,
     updateLead,
     deleteLead,
+    createStage,
   }
 }

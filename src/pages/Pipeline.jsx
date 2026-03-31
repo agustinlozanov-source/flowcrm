@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
@@ -23,7 +23,7 @@ const SOURCES = [
 ]
 
 export default function Pipeline() {
-  const { stages, leads, leadsByStage, loading, moveLead, createLead } = usePipeline()
+  const { stages, leads, leadsByStage, loading, moveLead, createLead, createStage } = usePipeline()
   const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
   const [showNewLead, setShowNewLead] = useState(false)
@@ -31,6 +31,30 @@ export default function Pipeline() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
+  const [showNewStage, setShowNewStage] = useState(false)
+  const [newStageName, setNewStageName] = useState('')
+  const [newStageColor, setNewStageColor] = useState('#6366f1')
+  const [savingStage, setSavingStage] = useState(false)
+  const stageInputRef = useRef(null)
+
+  const STAGE_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#ef4444','#64748b']
+
+  const handleCreateStage = async () => {
+    const name = newStageName.trim()
+    if (!name) return
+    setSavingStage(true)
+    try {
+      await createStage(name, newStageColor)
+      setNewStageName('')
+      setNewStageColor('#6366f1')
+      setShowNewStage(false)
+      toast.success('Etapa creada')
+    } catch {
+      toast.error('Error al crear la etapa')
+    } finally {
+      setSavingStage(false)
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -164,11 +188,52 @@ export default function Pipeline() {
               />
             ))}
 
-            <div className="w-[240px] min-w-[240px] flex items-start pt-1">
-              <button className="flex items-center gap-2 px-3 py-2 rounded-[10px] border border-dashed border-black/[0.14] text-[12.5px] text-tertiary hover:text-secondary hover:border-black/25 transition-all duration-150 w-full">
-                <Plus size={14} strokeWidth={2.5} />
-                Nueva etapa
-              </button>
+            <div className="w-[260px] min-w-[260px] flex flex-col gap-2 pt-1">
+              {!showNewStage ? (
+                <button
+                  onClick={() => { setShowNewStage(true); setTimeout(() => stageInputRef.current?.focus(), 50) }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-[10px] border border-dashed border-black/[0.14] text-[12.5px] text-tertiary hover:text-secondary hover:border-black/25 transition-all duration-150 w-full"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  Nueva etapa
+                </button>
+              ) : (
+                <div className="bg-surface border border-black/[0.08] rounded-[12px] p-3 flex flex-col gap-3 shadow-sm">
+                  <input
+                    ref={stageInputRef}
+                    value={newStageName}
+                    onChange={e => setNewStageName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleCreateStage(); if (e.key === 'Escape') setShowNewStage(false) }}
+                    placeholder="Nombre de la etapa"
+                    className="w-full text-[13px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 outline-none focus:border-primary/40 text-primary placeholder-tertiary"
+                  />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {STAGE_COLORS.map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setNewStageColor(c)}
+                        className="w-5 h-5 rounded-full transition-transform"
+                        style={{ background: c, outline: newStageColor === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: newStageColor === c ? 'scale(1.2)' : 'scale(1)' }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreateStage}
+                      disabled={!newStageName.trim() || savingStage}
+                      className="btn-primary text-[12px] py-1.5 px-3 flex-1 disabled:opacity-40"
+                    >
+                      {savingStage ? 'Guardando...' : 'Crear etapa'}
+                    </button>
+                    <button
+                      onClick={() => { setShowNewStage(false); setNewStageName(''); setNewStageColor('#6366f1') }}
+                      className="text-[12px] py-1.5 px-3 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

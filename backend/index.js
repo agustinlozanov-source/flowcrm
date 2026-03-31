@@ -22,6 +22,7 @@ app.get('/debug/env', (req, res) => {
 
 // ── Routes ──
 app.use('/webhooks', require('./routes/webhooks'))
+app.use('/web-leads', require('./routes/webLeads'))
 app.use('/leads', require('./routes/leads'))
 app.use('/contacts', require('./routes/contacts'))
 app.use('/meetings', require('./routes/meetings'))
