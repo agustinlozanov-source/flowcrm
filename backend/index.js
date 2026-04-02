@@ -44,7 +44,8 @@ app.post('/web-leads', async (req, res) => {
       tipo_activo, proposito, urgencia,
       valor_estimado, estado, descripcion,
       landingPageId = 'landing',
-      orgId = 'uZMwlNxde6TnqGo0HWiD'
+      orgId = 'uZMwlNxde6TnqGo0HWiD',
+      tracking = {}
     } = req.body;
 
     if (!nombre || !telefono || !correo) {
@@ -74,6 +75,18 @@ app.post('/web-leads', async (req, res) => {
         lastMessage: descripcion || `Nuevo contacto desde ${landingPageId}`,
         lastMessageAt: admin.firestore.Timestamp.now(),
         hasUnread: true,
+        tracking: {
+          utm_source: tracking.utm_source || '',
+          utm_medium: tracking.utm_medium || '',
+          utm_campaign: tracking.utm_campaign || '',
+          utm_content: tracking.utm_content || '',
+          utm_term: tracking.utm_term || '',
+          fbclid: tracking.fbclid || '',
+          fbc: tracking.fbc || '',
+          fbp: tracking.fbp || '',
+          event_id: tracking.event_id || '',
+          landing_name: tracking.landing_name || '',
+        },
       });
       return res.json({ success: true, leadId: existing.docs[0].id, action: 'updated' });
     }
@@ -106,6 +119,18 @@ app.post('/web-leads', async (req, res) => {
         urgencia: urgencia || '',
         valor_estimado: valor_estimado || '',
         estado_activo: estado || '',
+      },
+      tracking: {
+        utm_source: tracking.utm_source || '',
+        utm_medium: tracking.utm_medium || '',
+        utm_campaign: tracking.utm_campaign || '',
+        utm_content: tracking.utm_content || '',
+        utm_term: tracking.utm_term || '',
+        fbclid: tracking.fbclid || '',
+        fbc: tracking.fbc || '',
+        fbp: tracking.fbp || '',
+        event_id: tracking.event_id || '',
+        landing_name: tracking.landing_name || '',
       }
     });
 
