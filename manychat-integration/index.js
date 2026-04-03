@@ -147,6 +147,8 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         })
       } else {
         await leadRef.update({
+          name,
+          ...(body.whatsapp_phone ? { phone: body.whatsapp_phone } : {}),
           lastMessage: text,
           hasUnread: true,
           lastMessageChannel: channel,
