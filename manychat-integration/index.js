@@ -39,25 +39,51 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       if (body.ig_id) channel = 'instagram'
       if (body.whatsapp_phone) channel = 'whatsapp'
 
-      const leadRef = db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('leads')
-        .doc(subscriber_id)
+      const orgRef = db.collection('organizations').doc(orgId)
+      const leadRef = orgRef.collection('leads').doc(subscriber_id)
 
-      // 1. Guardar / actualizar lead
-      await leadRef.set({
-        subscriber_id,
-        orgId,
-        name,
-        page_id,
-        channel,
-        lastMessage: text,
-        hasUnread: true,
-        lastMessageChannel: channel,
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true })
+      // Leer org doc (API key + datos del tenant)
+      const orgDoc = await orgRef.get()
+      const manychatApiKey = orgDoc.data()?.manychatApiKey || process.env.MANYCHAT_API_KEY
+
+      // 1. Guardar / actualizar lead con estructura completa del pipeline
+      const existingSnap = await leadRef.get()
+      if (!existingSnap.exists) {
+        // Buscar primer stage del pipeline
+        const stagesSnap = await orgRef.collection('pipeline_stages')
+          .orderBy('order', 'asc').limit(1).get()
+        const stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+
+        await leadRef.set({
+          subscriber_id,
+          orgId,
+          name,
+          page_id,
+          channel,
+          source: channel,
+          email: '',
+          phone: body.whatsapp_phone || '',
+          company: '',
+          stageId,
+          score: 0,
+          assignedTo: null,
+          channelIds: { [channel]: subscriber_id },
+          lastMessage: text,
+          hasUnread: true,
+          lastMessageChannel: channel,
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        })
+      } else {
+        await leadRef.update({
+          lastMessage: text,
+          hasUnread: true,
+          lastMessageChannel: channel,
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        })
+      }
 
       // 2. Guardar mensaje entrante
       await leadRef.collection('conversations').add({
@@ -66,10 +92,6 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         channel,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
-
-      // Leer API Key del tenant
-      const orgDoc = await db.collection('organizations').doc(orgId).get()
-      const manychatApiKey = orgDoc.data()?.manychatApiKey || process.env.MANYCHAT_API_KEY
 
       // 3. Leer historial
       const historySnap = await leadRef.collection('conversations')
@@ -82,16 +104,36 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         content: d.data().text
       }))
 
-      // 4. Claude responde
+      // 4. Leer knowledge base del agente
+      const agentSnap = await orgRef.collection('settings').doc('agent').get()
+      const agentConfig = agentSnap.exists ? agentSnap.data() : {}
+
+      if (agentConfig.autoRespond === false) {
+        console.log(`[${orgId}] autoRespond desactivado, no se responde`)
+        return
+      }
+
+      const filesSnap = await orgRef.collection('agent_files')
+        .where('status', '==', 'ready').get()
+      const filesContent = filesSnap.docs
+        .map(d => d.data().content || '')
+        .filter(Boolean)
+        .join('\n\n---\n\n')
+
+      const systemPrompt = (filesContent || `Eres ${agentConfig.agentName || 'un asistente de ventas'}.`)
+        + `\n\nContexto: nombre del lead=${name}, canal=${channel}`
+
+      // 5. Claude responde
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
+        system: systemPrompt,
         messages
       })
 
       const reply = response.content[0].text
 
-      // 5. Guardar respuesta
+      // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
         role: 'bot',
         text: reply,
@@ -99,7 +141,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
-      // 6. Enviar via ManyChat
+      // 7. Enviar via ManyChat
       const contentData = channel === 'whatsapp'
         ? {
             version: 'v2',
@@ -115,11 +157,12 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
             }
           }
 
-      await axios.post(
+      const mcResponse = await axios.post(
         'https://api.manychat.com/fb/sending/sendContent',
         { subscriber_id, data: contentData },
         { headers: { Authorization: `Bearer ${manychatApiKey}` } }
       )
+      console.log(`[${orgId}] ManyChat API response:`, JSON.stringify(mcResponse.data))
 
       console.log(`[${orgId}] Mensaje procesado para ${name}`)
     } catch (err) {
