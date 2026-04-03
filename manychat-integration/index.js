@@ -183,7 +183,19 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         return
       }
 
-      const systemPrompt = buildSystemPrompt(agentConfig)
+      // Leer archivos RAG (igual que el tab de Prueba)
+      const filesSnap = await orgRef.collection('agent_files')
+        .where('status', '==', 'ready').get()
+      const filesContent = filesSnap.docs
+        .map(d => d.data().content || '')
+        .filter(Boolean)
+        .join('\n\n---\n\n')
+
+      console.log(`[${orgId}] RAG archivos: ${filesSnap.docs.length} | chars: ${filesContent.length}`)
+
+      // Si hay archivos RAG, usarlos como prompt (igual que Prueba)
+      // Si no, caer a buildSystemPrompt con la config del agente
+      const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
         + `\n\nContexto: nombre del lead=${name}, canal=${channel}`
 
       // 5. Claude responde
