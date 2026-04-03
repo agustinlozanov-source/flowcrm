@@ -17,6 +17,76 @@ admin.initializeApp({
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ── BUILD SYSTEM PROMPT (igual que agent.js) ──
+function buildSystemPrompt(config) {
+  const {
+    agentName = 'Asistente',
+    personality = 'amigable',
+    productDescription = '',
+    prices = '',
+    mainObjective = 'agendar_llamada',
+    salesTechnique = 'aida',
+    closingTechnique = 'valor_primero',
+    objections = [],
+    qualifyingQuestions = [],
+    limits = [],
+    customInstructions = '',
+  } = config
+
+  const personalities = {
+    profesional: 'formal, directo, enfocado en resultados y datos concretos.',
+    amigable: 'cálido, cercano, conversacional. Usas el nombre del lead frecuentemente.',
+    consultivo: 'analítico, haces preguntas poderosas, das perspectivas únicas.',
+    energico: 'entusiasta, motivador, creas urgencia de forma natural.',
+  }
+  const objectives = {
+    agendar_llamada: 'Tu objetivo principal es AGENDAR UNA LLAMADA O REUNIÓN.',
+    calificar: 'Tu objetivo es CALIFICAR AL LEAD usando el método BANT.',
+    cerrar_chat: 'Tu objetivo es CERRAR LA VENTA DIRECTAMENTE POR CHAT.',
+    nutrir: 'Tu objetivo es NUTRIR AL LEAD. Educa, comparte valor, construye confianza.',
+  }
+  const techniques = {
+    spin: 'Usa SPIN Selling: Situación, Problema, Implicación, Necesidad-Beneficio.',
+    aida: 'Usa AIDA: Atención, Interés, Deseo, Acción.',
+    challenger: 'Usa Challenger Sale: Enseña, Adapta, Toma control.',
+    rapport: 'Prioriza construir RAPPORT primero antes de vender.',
+  }
+  const closings = {
+    valor_primero: 'Siempre presenta el VALOR antes de mencionar el precio.',
+    urgencia: 'Crea urgencia GENUINA basada en hechos reales.',
+    alternativas: 'Usa el cierre de alternativas: "¿prefieres el plan A o el plan B?"',
+    directo: 'Cuando el lead muestre señales de compra, ve directo al cierre.',
+  }
+  const objectionsText = objections.filter(o => o.objection && o.response).length > 0
+    ? `\nMANEJO DE OBJECIONES:\n${objections.filter(o => o.objection && o.response).map(o => `- "${o.objection}": ${o.response}`).join('\n')}`
+    : ''
+  const questionsText = qualifyingQuestions.filter(Boolean).length > 0
+    ? `\nPREGUNTAS DE CALIFICACIÓN:\n${qualifyingQuestions.filter(Boolean).map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+    : ''
+  const limitsText = limits.filter(Boolean).length > 0
+    ? `\nREGLAS ABSOLUTAS:\n${limits.filter(Boolean).map(l => `- ${l}`).join('\n')}`
+    : ''
+
+  return `Eres ${agentName}, un agente de ventas con personalidad ${personalities[personality] || personalities.amigable}
+
+${objectives[mainObjective] || objectives.agendar_llamada}
+
+PRODUCTO/SERVICIO:
+${productDescription || 'Responde preguntas de forma general.'}
+
+${prices ? `PRECIOS:\n${prices}` : ''}
+
+TÉCNICA DE PROSPECCIÓN: ${techniques[salesTechnique] || techniques.aida}
+TÉCNICA DE CIERRE: ${closings[closingTechnique] || closings.valor_primero}
+${objectionsText}${questionsText}${limitsText}
+
+INSTRUCCIONES GENERALES:
+- Responde siempre en español, máximo 3-4 oraciones por mensaje
+- Nunca menciones que eres una IA a menos que te lo pregunten directamente
+- Siempre termina con una pregunta o llamada a acción concreta
+${customInstructions ? `\nINSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
+}
+
 app.get('/health', (req, res) => res.sendStatus(200))
 
 // Webhook por tenant
@@ -88,7 +158,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       // 2. Guardar mensaje entrante
       await leadRef.collection('conversations').add({
         role: 'user',
-        text,
+        content: text,
         channel,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
@@ -101,10 +171,10 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 
       const messages = historySnap.docs.map(d => ({
         role: d.data().role === 'bot' ? 'assistant' : d.data().role,
-        content: d.data().text
+        content: d.data().content || d.data().text || ''
       }))
 
-      // 4. Leer knowledge base del agente
+      // 4. Leer config del agente y construir system prompt
       const agentSnap = await orgRef.collection('settings').doc('agent').get()
       const agentConfig = agentSnap.exists ? agentSnap.data() : {}
 
@@ -113,14 +183,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         return
       }
 
-      const filesSnap = await orgRef.collection('agent_files')
-        .where('status', '==', 'ready').get()
-      const filesContent = filesSnap.docs
-        .map(d => d.data().content || '')
-        .filter(Boolean)
-        .join('\n\n---\n\n')
-
-      const systemPrompt = (filesContent || `Eres ${agentConfig.agentName || 'un asistente de ventas'}.`)
+      const systemPrompt = buildSystemPrompt(agentConfig)
         + `\n\nContexto: nombre del lead=${name}, canal=${channel}`
 
       // 5. Claude responde
@@ -135,8 +198,8 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 
       // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
-        role: 'bot',
-        text: reply,
+        role: 'assistant',
+        content: reply,
         channel,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       })
