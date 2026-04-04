@@ -1912,7 +1912,7 @@ export default function Superadmin() {
         <style>{css}</style>
         <div className="sa-login">
           <div className="sa-login-card">
-            <div className="sa-login-logo" style={{ flexDirection: "column" }}><img src="/flowhub-logo2.png" alt="Logo" style={{ height: 72, objectFit: "contain" }} /><span className="sa-logo-badge" style={{ marginTop: 8 }}>Superadmin</span></div><div className="sa-login-title">Acceso restringido</div>
+            <div className="sa-login-logo" style={{ flexDirection: "column" }}><img src="/flowhub-logo2.png" alt="Logo" style={{ height: 72, objectFit: "contain" }} /><span className="sa-logo-badge" style={{ marginTop: 8, background: 'linear-gradient(90deg, #1aab99, #3533cd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Superadmin</span></div><div className="sa-login-title">Acceso restringido</div>
             <div className="sa-login-sub">Solo para administradores.</div>
             <input className="sa-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
             <input className="sa-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} />
@@ -1930,7 +1930,7 @@ export default function Superadmin() {
         {/* Sidebar */}
         <div className="sa-sidebar">
           <div className="sa-sidebar-header">
-            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/flowhub-logo2.png" alt="Logo" style={{ height: 36, objectFit: "contain" }} /></div><div style={{ fontSize: 12, color: 'var(--gray-5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Superadmin</div>
+            <div className="sa-login-logo" style={{ justifyContent: "flex-start", margin: 0, marginBottom: 4 }}><img src="/flowhub-logo2.png" alt="Logo" style={{ height: 36, objectFit: "contain" }} /></div><div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'linear-gradient(90deg, #1aab99, #3533cd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Superadmin</div>
           </div>
 
           <div className="sa-nav">
