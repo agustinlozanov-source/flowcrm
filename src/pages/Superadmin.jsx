@@ -11,6 +11,7 @@ import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, B
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
+import PipelineBuilder from './PipelineBuilder'
 
 // ─── DIAGNOSTICO CONFIG ───
 const DEFAULT_DIAG_CATEGORIES = [
@@ -1900,9 +1901,10 @@ export default function Superadmin() {
     { id: 'onboarding', icon: '📋', label: 'Formularios' },
     { id: 'diag_config', icon: <ClipboardList size={16} />, label: 'Diagnóstico' },
     { id: 'diag_resp', icon: <BarChart size={16} />, label: 'Respuestas Diag.' },
+    { id: 'pipelines', icon: <Target size={16} />, label: 'Pipeline Builder' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder' }
 
   if (!authed) {
     return (
@@ -1966,6 +1968,7 @@ export default function Superadmin() {
           {activeTab === 'onboarding' && <OnboardingResponses />}
           {activeTab === 'diag_config' && <DiagnosticoConfig orgs={orgs} />}
           {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
+          {activeTab === 'pipelines' && <PipelineBuilder orgs={orgs} />}
         </div>
       </div>
     </div>
