@@ -153,10 +153,63 @@ export default function Pipeline() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
-        <h1 className="font-display font-bold text-[15px] tracking-tight">Pipeline</h1>
+      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-4 flex-shrink-0">
+        <h1 className="font-display font-bold text-[15px] tracking-tight flex-shrink-0">Pipeline</h1>
 
-        <div className="flex items-center gap-2 ml-2">
+        {/* Tabs de pipeline */}
+        {showPipelineSelector && (
+          <div className="flex items-center gap-0.5 bg-surface-2 border border-black/[0.08] rounded-[10px] p-1 flex-shrink-0">
+            {hasOrphans && (
+              <div
+                onClick={() => setActivePipelineId(null)}
+                className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-[7px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  !activePipelineId ? 'bg-surface shadow-sm text-primary' : 'text-tertiary hover:text-secondary'
+                }`}
+              >
+                <span>General</span>
+                {!activePipelineId && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowEditPipeline(true) }}
+                    className="text-tertiary hover:text-primary transition-colors rounded p-0.5 hover:bg-black/[0.06]"
+                    title="Configurar pipeline"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                )}
+              </div>
+            )}
+            {pipelines.map(p => (
+              <div
+                key={p.id}
+                onClick={() => setActivePipelineId(p.id)}
+                className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-[7px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  activePipelineId === p.id ? 'bg-surface shadow-sm text-primary' : 'text-tertiary hover:text-secondary'
+                }`}
+              >
+                <span>{p.name}</span>
+                {activePipelineId === p.id && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowEditPipeline(true) }}
+                    className="text-tertiary hover:text-primary transition-colors rounded p-0.5 hover:bg-black/[0.06]"
+                    title="Editar pipeline"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setShowNewPipeline(true)}
+              className="p-1.5 rounded-[7px] text-tertiary hover:text-primary hover:bg-surface transition-colors"
+              title="Nuevo pipeline"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
+
+        {/* Badges */}
+        <div className="flex items-center gap-2">
           <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary">
             {leads.length} leads
           </span>
@@ -167,56 +220,25 @@ export default function Pipeline() {
           )}
         </div>
 
-        {showPipelineSelector && (
-          <div className="flex items-center gap-1.5 ml-2">
-            <select
-              value={activePipelineId || ''}
-              onChange={e => setActivePipelineId(e.target.value || null)}
-              className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer max-w-[160px]"
-            >
-              {hasOrphans && <option value="">General</option>}
-              {pipelines.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => setShowEditPipeline(true)}
-              className="p-1.5 rounded-[8px] border border-black/[0.08] text-tertiary hover:text-primary hover:bg-surface-2 transition-colors"
-              title={activePipelineId ? 'Editar pipeline' : 'Configurar pipeline'}
-            >
-              <Pencil size={13} />
-            </button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 ml-2 w-52">
-          <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar lead..."
-            className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none"
-          />
-        </div>
-
-        <select
-          value={sourceFilter}
-          onChange={e => setSourceFilter(e.target.value)}
-          className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer"
-        >
-          {SOURCES.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setShowNewPipeline(true)}
-            className="text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 hover:text-primary transition-colors"
+          <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 w-44">
+            <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar lead..."
+              className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none"
+            />
+          </div>
+          <select
+            value={sourceFilter}
+            onChange={e => setSourceFilter(e.target.value)}
+            className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer"
           >
-            <Plus size={14} strokeWidth={2.5} />
-            Nuevo pipeline
-          </button>
+            {SOURCES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => setShowNewLead(true)}
             className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5"
