@@ -10,7 +10,8 @@ import LeadCard from '@/components/pipeline/LeadCard'
 import NewLeadModal from '@/components/pipeline/NewLeadModal'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import NewPipelineModal from '@/components/pipeline/NewPipelineModal'
-import { Search, Plus } from 'lucide-react'
+import EditPipelineModal from '@/components/pipeline/EditPipelineModal'
+import { Search, Plus, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const SOURCES = [
@@ -24,11 +25,17 @@ const SOURCES = [
 ]
 
 export default function Pipeline() {
-  const { stages, leads, leadsByStage, loading, moveLead, createLead, createStage, createPipeline } = usePipeline()
+  const {
+    pipelines, activePipelineId, setActivePipelineId,
+    allStages, stages, leads, leadsByStage, loading,
+    moveLead, createLead, updateLead, deleteLead,
+    createStage, updateStage, createPipeline, updatePipeline, adoptOrphanStages,
+  } = usePipeline()
   const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
   const [showNewLead, setShowNewLead] = useState(false)
   const [showNewPipeline, setShowNewPipeline] = useState(false)
+  const [showEditPipeline, setShowEditPipeline] = useState(false)
   const [defaultStageId, setDefaultStageId] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -40,6 +47,26 @@ export default function Pipeline() {
   const stageInputRef = useRef(null)
 
   const STAGE_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#ef4444','#64748b']
+
+  const hasOrphans = allStages.some(s => !s.pipelineId)
+  const showPipelineSelector = pipelines.length > 0 || hasOrphans
+
+  const handleSaveEditPipeline = async ({ name, purpose, stageEdits }) => {
+    if (!activePipelineId) {
+      const newId = await adoptOrphanStages({ name, purpose })
+      for (const s of stageEdits) {
+        await updateStage(s.id, { name: s.name, color: s.color })
+      }
+      setActivePipelineId(newId)
+      toast.success(`Pipeline "${name}" configurado`)
+    } else {
+      await updatePipeline(activePipelineId, { name, purpose })
+      for (const s of stageEdits) {
+        await updateStage(s.id, { name: s.name, color: s.color })
+      }
+      toast.success('Pipeline actualizado')
+    }
+  }
 
   const handleCreateStage = async () => {
     const name = newStageName.trim()
@@ -139,6 +166,28 @@ export default function Pipeline() {
             </span>
           )}
         </div>
+
+        {showPipelineSelector && (
+          <div className="flex items-center gap-1.5 ml-2">
+            <select
+              value={activePipelineId || ''}
+              onChange={e => setActivePipelineId(e.target.value || null)}
+              className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer max-w-[160px]"
+            >
+              {hasOrphans && <option value="">General</option>}
+              {pipelines.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowEditPipeline(true)}
+              className="p-1.5 rounded-[8px] border border-black/[0.08] text-tertiary hover:text-primary hover:bg-surface-2 transition-colors"
+              title={activePipelineId ? 'Editar pipeline' : 'Configurar pipeline'}
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 ml-2 w-52">
           <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
@@ -279,9 +328,20 @@ export default function Pipeline() {
         <NewPipelineModal
           onClose={() => setShowNewPipeline(false)}
           onCreate={async (data) => {
-            await createPipeline(data)
+            const newId = await createPipeline(data)
             toast.success(`Pipeline "${data.name}" creado`)
+            setActivePipelineId(newId)
           }}
+        />
+      )}
+
+      {showEditPipeline && (
+        <EditPipelineModal
+          mode={activePipelineId ? 'edit' : 'adopt'}
+          pipeline={activePipelineId ? pipelines.find(p => p.id === activePipelineId) : null}
+          stages={stages}
+          onSave={handleSaveEditPipeline}
+          onClose={() => setShowEditPipeline(false)}
         />
       )}
     </div>

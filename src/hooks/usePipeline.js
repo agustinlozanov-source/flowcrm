@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  collection, query, orderBy, onSnapshot,
-  addDoc, updateDoc, deleteDoc, doc, serverTimestamp
+  collection, query, orderBy, onSnapshot, where,
+  addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
@@ -10,12 +10,27 @@ export function usePipeline() {
   const { org } = useAuthStore()
   const orgId = org?.id
 
-  const [stages, setStages] = useState([])
+  const [pipelines, setPipelines] = useState([])
+  const [activePipelineId, setActivePipelineId] = useState(null) // null = mostrar todo (legacy)
+  const [allStages, setAllStages] = useState([])   // todas las stages, siempre
   const [leads, setLeads] = useState([])
   const [loadingStages, setLoadingStages] = useState(true)
   const [loadingLeads, setLoadingLeads] = useState(true)
 
-  // Real-time stages listener
+  // Real-time pipelines listener
+  useEffect(() => {
+    if (!orgId) return
+    const q = query(
+      collection(db, 'organizations', orgId, 'pipelines'),
+      orderBy('createdAt', 'asc')
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      setPipelines(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsub()
+  }, [orgId])
+
+  // Real-time stages listener — siempre trae todas, filtramos en JS
   useEffect(() => {
     if (!orgId) return
     const q = query(
@@ -23,13 +38,13 @@ export function usePipeline() {
       orderBy('order', 'asc')
     )
     const unsub = onSnapshot(q, (snap) => {
-      setStages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setAllStages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
       setLoadingStages(false)
     })
     return () => unsub()
   }, [orgId])
 
-  // Real-time leads listener
+  // Real-time leads listener — siempre trae todos, filtramos en JS
   useEffect(() => {
     if (!orgId) return
     const q = query(
@@ -42,6 +57,23 @@ export function usePipeline() {
     })
     return () => unsub()
   }, [orgId])
+
+  // Stages filtradas según el pipeline activo
+  // null → etapas huérfanas (sin pipelineId) + legacy
+  // '__all__' → todas
+  // 'someId' → solo las de ese pipeline
+  const stages = activePipelineId === '__all__'
+    ? allStages
+    : activePipelineId
+      ? allStages.filter(s => s.pipelineId === activePipelineId)
+      : allStages.filter(s => !s.pipelineId)
+
+  // Leads filtrados igual
+  const filteredLeads = activePipelineId === '__all__'
+    ? leads
+    : activePipelineId
+      ? leads.filter(l => l.pipelineId === activePipelineId)
+      : leads.filter(l => !l.pipelineId)
 
   // Move lead to different stage
   const moveLead = async (leadId, newStageId) => {
@@ -100,6 +132,7 @@ export function usePipeline() {
         name,
         color: color || '#6366f1',
         order: maxOrder + 1,
+        pipelineId: activePipelineId || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
@@ -109,43 +142,80 @@ export function usePipeline() {
   // Create a new pipeline and its stages
   const createPipeline = async ({ name, purpose, stages: stageList }) => {
     if (!orgId) return
-    // 1. Create the pipeline document
     const pipelineRef = await addDoc(
       collection(db, 'organizations', orgId, 'pipelines'),
-      {
-        name,
-        purpose: purpose || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }
+      { name, purpose: purpose || null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
     )
-    // 2. Create each stage linked to this pipeline
     for (let i = 0; i < stageList.length; i++) {
       const s = stageList[i]
       await addDoc(
         collection(db, 'organizations', orgId, 'pipeline_stages'),
         {
-          name: s.name,
-          color: s.color || '#6366f1',
-          order: i + 1,
+          name: s.name, color: s.color || '#6366f1', order: i + 1,
           pipelineId: pipelineRef.id,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         }
       )
     }
     return pipelineRef.id
   }
 
-  // Leads grouped by stage
+  // Update pipeline name/purpose
+  const updatePipeline = async (pipelineId, { name, purpose }) => {
+    if (!orgId) return
+    await updateDoc(
+      doc(db, 'organizations', orgId, 'pipelines', pipelineId),
+      { name, purpose: purpose || null, updatedAt: serverTimestamp() }
+    )
+  }
+
+  // Update a single stage (name, color)
+  const updateStage = async (stageId, data) => {
+    if (!orgId) return
+    await updateDoc(
+      doc(db, 'organizations', orgId, 'pipeline_stages', stageId),
+      { ...data, updatedAt: serverTimestamp() }
+    )
+  }
+
+  // Adopt orphan stages+leads into a new named pipeline
+  const adoptOrphanStages = async ({ name, purpose }) => {
+    if (!orgId) return
+    const pipelineRef = await addDoc(
+      collection(db, 'organizations', orgId, 'pipelines'),
+      { name, purpose: purpose || null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+    )
+    const pipelineId = pipelineRef.id
+    // Stamp orphan stages
+    const stagesSnap = await getDocs(collection(db, 'organizations', orgId, 'pipeline_stages'))
+    for (const d of stagesSnap.docs) {
+      if (!d.data().pipelineId) {
+        await updateDoc(d.ref, { pipelineId, updatedAt: serverTimestamp() })
+      }
+    }
+    // Stamp orphan leads
+    const leadsSnap = await getDocs(collection(db, 'organizations', orgId, 'leads'))
+    for (const d of leadsSnap.docs) {
+      if (!d.data().pipelineId) {
+        await updateDoc(d.ref, { pipelineId, updatedAt: serverTimestamp() })
+      }
+    }
+    return pipelineId
+  }
+
+  // Leads grouped by stage (usando leads filtrados)
   const leadsByStage = stages.reduce((acc, stage) => {
-    acc[stage.id] = leads.filter(l => l.stageId === stage.id)
+    acc[stage.id] = filteredLeads.filter(l => l.stageId === stage.id)
     return acc
   }, {})
 
   return {
+    pipelines,
+    activePipelineId,
+    setActivePipelineId,
+    allStages,
     stages,
-    leads,
+    leads: filteredLeads,
     leadsByStage,
     loading: loadingStages || loadingLeads,
     moveLead,
@@ -153,6 +223,9 @@ export function usePipeline() {
     updateLead,
     deleteLead,
     createStage,
+    updateStage,
     createPipeline,
+    updatePipeline,
+    adoptOrphanStages,
   }
 }
