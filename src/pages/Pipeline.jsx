@@ -11,6 +11,7 @@ import NewLeadModal from '@/components/pipeline/NewLeadModal'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import { Search, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
+import PipelineBuilder from './PipelineBuilder'
 
 const SOURCES = [
   { value: 'all', label: 'Todas las fuentes' },
@@ -23,7 +24,7 @@ const SOURCES = [
 ]
 
 export default function Pipeline() {
-  const { stages, leads, leadsByStage, loading, moveLead, createLead, createStage } = usePipeline()
+  const { pipelines, activePipelineId, setActivePipelineId, stages, leads, leadsByStage, loading, moveLead, createLead, createStage } = usePipeline()
   const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
   const [showNewLead, setShowNewLead] = useState(false)
@@ -35,6 +36,7 @@ export default function Pipeline() {
   const [newStageName, setNewStageName] = useState('')
   const [newStageColor, setNewStageColor] = useState('#6366f1')
   const [savingStage, setSavingStage] = useState(false)
+  const [showBuilder, setShowBuilder] = useState(false)
   const stageInputRef = useRef(null)
 
   const STAGE_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#ef4444','#64748b']
@@ -137,6 +139,34 @@ export default function Pipeline() {
             </span>
           )}
         </div>
+
+        {/* Pipeline selector */}
+        {pipelines.length > 0 && (
+          <div className="flex items-center gap-1 ml-2">
+            <select
+              value={activePipelineId || ''}
+              onChange={e => {
+                if (e.target.value === '__new__') { setShowBuilder(true) }
+                else { setActivePipelineId(e.target.value) }
+              }}
+              className="text-[12.5px] font-semibold bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-primary outline-none cursor-pointer"
+            >
+              {pipelines.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              <option value="__new__">+ Nuevo pipeline</option>
+            </select>
+          </div>
+        )}
+
+        {pipelines.length === 0 && (
+          <button
+            onClick={() => setShowBuilder(true)}
+            className="ml-2 text-[12px] text-accent-blue hover:underline font-medium"
+          >
+            + Crear primer pipeline
+          </button>
+        )}
 
         <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 ml-2 w-52">
           <Search size={14} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
@@ -264,6 +294,13 @@ export default function Pipeline() {
           lead={leads.find(l => l.id === selectedLead.id) || selectedLead}
           onClose={() => setSelectedLead(null)}
         />
+      )}
+
+      {/* Pipeline Builder overlay */}
+      {showBuilder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: '#070708' }}>
+          <PipelineBuilder onDone={() => setShowBuilder(false)} />
+        </div>
       )}
     </div>
   )

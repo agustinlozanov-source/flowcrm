@@ -1,9 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
-import {
-  collection, onSnapshot, query, orderBy, doc,
-  setDoc, serverTimestamp, getDoc
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { useState, useCallback } from 'react'
 import {
   Target, Users, Globe, PenLine, Send, MessageCircle, Instagram,
   MessageSquare, Info, AlertTriangle, Zap, Ear, TrendingUp, TrendingDown,
@@ -12,10 +7,11 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { usePipeline } from '@/hooks/usePipeline'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
 const STEPS = [
-  'Cliente', 'Fuentes', 'Canales', 'Pipelines', 'Etapas',
+  'Fuentes', 'Canales', 'Pipelines', 'Etapas',
   'Agente', 'Score', 'Recursos', 'Plantillas', 'Resumen'
 ]
 
@@ -399,50 +395,16 @@ function StageMetaTag({ label }) {
 
 // ─── STEP COMPONENTS ─────────────────────────────────────────────
 
-// Step 0 — Cliente
-function StepCliente({ data, onChange, onNext }) {
-  const [name, setName] = useState(data.clientName)
-  const [industry, setIndustry] = useState(data.industry)
-  return (
-    <>
-      <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 1 de 10</div>
-        <div className="pb-card-title">Identificación del <em>cliente</em></div>
-        <div className="pb-card-desc">Define para quién estás construyendo este pipeline. Esta información aparecerá en todo el proceso.</div>
-      </div>
-      <div className="pb-card-body">
-        <div className="pb-field">
-          <label className="pb-label">Nombre del cliente o empresa</label>
-          <input className="pb-input" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Distribuidora Gómez" />
-        </div>
-        <div className="pb-field">
-          <label className="pb-label">Industria / giro <span className="pb-hint">opcional</span></label>
-          <input className="pb-input" value={industry} onChange={e => setIndustry(e.target.value)} placeholder="Ej: Venta de suplementos, Servicios financieros..." />
-        </div>
-      </div>
-      <div className="pb-nav-row">
-        <div />
-        <span className="pb-step-counter">Paso 1 de 10</span>
-        <button className="pb-btn pb-btn-primary" onClick={() => {
-          if (!name.trim()) return toast.error('Ingresa el nombre del cliente.')
-          onChange({ clientName: name.trim(), industry: industry.trim() })
-          onNext()
-        }}>Continuar <ArrowRight size={15} /></button>
-      </div>
-    </>
-  )
-}
-
-// Step 1 — Fuentes
+// Step 0 — Fuentes
 function StepFuentes({ data, onChange, onNext, onPrev }) {
   const [selected, setSelected] = useState(data.fuentes || [])
   const toggle = id => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 2 de 10</div>
+        <div className="pb-eyebrow">Paso 1 de 9</div>
         <div className="pb-card-title">Fuentes de <em>entrada</em></div>
-        <div className="pb-card-desc">¿Por qué canales van a llegar los leads a este cliente? Selecciona todas las que apliquen.</div>
+        <div className="pb-card-desc">¿Por qué canales van a llegar los leads a este pipeline? Selecciona todas las que apliquen.</div>
       </div>
       <div className="pb-card-body">
         {selected.includes('masiva') && (
@@ -467,8 +429,8 @@ function StepFuentes({ data, onChange, onNext, onPrev }) {
         </div>
       </div>
       <div className="pb-nav-row">
-        <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 2 de 10</span>
+        <div />
+        <span className="pb-step-counter">Paso 1 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => {
           if (!selected.length) return toast.error('Selecciona al menos una fuente.')
           onChange({ fuentes: selected }); onNext()
@@ -478,14 +440,14 @@ function StepFuentes({ data, onChange, onNext, onPrev }) {
   )
 }
 
-// Step 2 — Canales
+// Step 1 — Canales
 function StepCanales({ data, onChange, onNext, onPrev }) {
   const [selected, setSelected] = useState(data.canales || [])
   const toggle = id => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 3 de 10</div>
+        <div className="pb-eyebrow">Paso 2 de 9</div>
         <div className="pb-card-title">Canales <em>activos</em></div>
         <div className="pb-card-desc">Cada canal tiene su propia política de ventana. Esto define qué puede hacer el agente cuando la conversación se cierra.</div>
       </div>
@@ -514,7 +476,7 @@ function StepCanales({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 3 de 10</span>
+        <span className="pb-step-counter">Paso 2 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => {
           if (!selected.length) return toast.error('Selecciona al menos un canal.')
           onChange({ canales: selected }); onNext()
@@ -524,7 +486,7 @@ function StepCanales({ data, onChange, onNext, onPrev }) {
   )
 }
 
-// Step 3 — Pipelines
+// Step 2 — Pipelines
 function StepPipelines({ data, onChange, onNext, onPrev }) {
   const [pipelines, setPipelines] = useState(
     data.pipelines?.length ? data.pipelines : [{ name: '', purpose: '', stages: [] }]
@@ -536,7 +498,7 @@ function StepPipelines({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 4 de 10</div>
+        <div className="pb-eyebrow">Paso 3 de 9</div>
         <div className="pb-card-title">Definición de <em>pipelines</em></div>
         <div className="pb-card-desc">¿Cuántos pipelines necesita este cliente? Cada uno tiene un propósito y flujo independiente.</div>
       </div>
@@ -567,7 +529,7 @@ function StepPipelines({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 4 de 10</span>
+        <span className="pb-step-counter">Paso 3 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => {
           if (!pipelines.every(p => p.name.trim() && p.purpose)) return toast.error('Completa nombre y propósito de cada pipeline.')
           const ps = pipelines.map(p => ({ ...p, stages: p.stages?.length ? p.stages : [newStage()] }))
@@ -578,7 +540,7 @@ function StepPipelines({ data, onChange, onNext, onPrev }) {
   )
 }
 
-// Step 4 — Etapas
+// Step 3 — Etapas
 function StepEtapas({ data, onChange, onNext, onPrev }) {
   const [pipelines, setPipelines] = useState(data.pipelines)
   const updateStage = (pi, si, field, val) => setPipelines(ps => ps.map((p, i) => i !== pi ? p : {
@@ -593,7 +555,7 @@ function StepEtapas({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 5 de 10</div>
+        <div className="pb-eyebrow">Paso 4 de 9</div>
         <div className="pb-card-title">Etapas del <em>pipeline</em></div>
         <div className="pb-card-desc">Define las etapas de cada pipeline y sus condiciones de entrada y salida.</div>
       </div>
@@ -646,7 +608,7 @@ function StepEtapas({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 5 de 10</span>
+        <span className="pb-step-counter">Paso 4 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => {
           if (!pipelines.every(p => p.stages.every(s => s.name.trim()))) return toast.error('Ponle nombre a todas las etapas.')
           onChange({ pipelines }); onNext()
@@ -656,7 +618,7 @@ function StepEtapas({ data, onChange, onNext, onPrev }) {
   )
 }
 
-// Step 5 — Agente
+// Step 4 — Agente
 function StepAgente({ data, onChange, onNext, onPrev }) {
   const [pipelines, setPipelines] = useState(data.pipelines)
   const updateStage = (pi, si, field, val) => setPipelines(ps => ps.map((p, i) => i !== pi ? p : {
@@ -665,7 +627,7 @@ function StepAgente({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 6 de 10</div>
+        <div className="pb-eyebrow">Paso 5 de 9</div>
         <div className="pb-card-title">Comportamiento del <em>agente</em></div>
         <div className="pb-card-desc">En cada etapa el agente puede ser activo (inicia la acción) o reactivo (espera al lead).</div>
       </div>
@@ -717,7 +679,7 @@ function StepAgente({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 6 de 10</span>
+        <span className="pb-step-counter">Paso 5 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => {
           if (!pipelines.every(p => p.stages.every(s => s.agent))) return toast.error('Define el modo del agente en cada etapa.')
           onChange({ pipelines }); onNext()
@@ -727,7 +689,7 @@ function StepAgente({ data, onChange, onNext, onPrev }) {
   )
 }
 
-// Step 6 — Score
+// Step 5 — Score
 function StepScore({ data, onChange, onNext, onPrev }) {
   const [pipelines, setPipelines] = useState(data.pipelines)
 
@@ -785,7 +747,7 @@ function StepScore({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 7 de 10</div>
+        <div className="pb-eyebrow">Paso 6 de 9</div>
         <div className="pb-card-title">Sistema de <em>score</em></div>
         <div className="pb-card-desc">Define qué comportamientos suman o restan puntos, y los umbrales que mueven al lead dentro del pipeline.</div>
       </div>
@@ -820,14 +782,14 @@ function StepScore({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 7 de 10</span>
+        <span className="pb-step-counter">Paso 6 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => { onChange({ pipelines }); onNext() }}>Continuar <ArrowRight size={15} /></button>
       </div>
     </>
   )
 }
 
-// Step 7 — Recursos
+// Step 6 — Recursos
 function StepRecursos({ data, onChange, onNext, onPrev }) {
   const [resources, setResources] = useState(data.resources || {})
   const key = (pi, si) => `${pi}_${si}`
@@ -840,7 +802,7 @@ function StepRecursos({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 8 de 10</div>
+        <div className="pb-eyebrow">Paso 7 de 9</div>
         <div className="pb-card-title">Recursos y <em>contenido</em></div>
         <div className="pb-card-desc">¿El agente comparte archivos o links en alguna etapa? Cada recurso genera una tarea pendiente para el cliente.</div>
       </div>
@@ -879,14 +841,14 @@ function StepRecursos({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 8 de 10</span>
+        <span className="pb-step-counter">Paso 7 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => { onChange({ resources }); onNext() }}>Continuar <ArrowRight size={15} /></button>
       </div>
     </>
   )
 }
 
-// Step 8 — Plantillas
+// Step 7 — Plantillas
 function StepPlantillas({ data, onChange, onNext, onPrev }) {
   const [templates, setTemplates] = useState(data.templates || {})
   const key = (pi, si) => `${pi}_${si}`
@@ -900,7 +862,7 @@ function StepPlantillas({ data, onChange, onNext, onPrev }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 9 de 10</div>
+        <div className="pb-eyebrow">Paso 8 de 9</div>
         <div className="pb-card-title">Plantillas de <em>WhatsApp</em></div>
         <div className="pb-card-desc">Cuando la ventana se cierra, el agente solo puede usar plantillas pre-aprobadas por Meta. Planifica cuáles tramitar.</div>
       </div>
@@ -950,14 +912,14 @@ function StepPlantillas({ data, onChange, onNext, onPrev }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 9 de 10</span>
+        <span className="pb-step-counter">Paso 8 de 9</span>
         <button className="pb-btn pb-btn-primary" onClick={() => { onChange({ templates }); onNext() }}>Continuar <ArrowRight size={15} /></button>
       </div>
     </>
   )
 }
 
-// Step 9 — Resumen
+// Step 8 — Resumen
 function StepResumen({ data, onPrev, onSave, saving }) {
   const tasks = []
   Object.entries(data.resources || {}).forEach(([k, res]) => {
@@ -979,7 +941,7 @@ function StepResumen({ data, onPrev, onSave, saving }) {
   return (
     <>
       <div className="pb-card-header">
-        <div className="pb-eyebrow">Paso 10 de 10</div>
+        <div className="pb-eyebrow">Paso 9 de 9</div>
         <div className="pb-card-title">Resumen y <em>tareas del cliente</em></div>
         <div className="pb-card-desc">Configuración completa. El cliente debe salir de esta sesión con sus tareas claras y definidas.</div>
       </div>
@@ -1019,7 +981,7 @@ function StepResumen({ data, onPrev, onSave, saving }) {
       </div>
       <div className="pb-nav-row">
         <button className="pb-btn pb-btn-ghost" onClick={onPrev}><ArrowLeft size={15} /> Atrás</button>
-        <span className="pb-step-counter">Paso 10 de 10</span>
+        <span className="pb-step-counter">Paso 9 de 9</span>
         <button className="pb-btn pb-btn-success" onClick={onSave} disabled={saving}>
           {saving ? 'Guardando...' : <><CheckCircle2 size={15} /> Guardar configuración</>}
         </button>
@@ -1029,13 +991,13 @@ function StepResumen({ data, onPrev, onSave, saving }) {
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────
-export default function PipelineBuilder({ orgs }) {
+export default function PipelineBuilder({ onDone }) {
+  const { createPipeline } = usePipeline()
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const [formData, setFormData] = useState({
-    clientName: '', industry: '',
     fuentes: [], canales: [],
     pipelines: [],
     resources: {}, templates: {},
@@ -1049,15 +1011,19 @@ export default function PipelineBuilder({ orgs }) {
   const save = async () => {
     setSaving(true)
     try {
-      const orgMatch = orgs?.find(o => o.name?.toLowerCase() === formData.clientName?.toLowerCase())
-      const orgId = orgMatch?.id || formData.clientName.replace(/\s+/g, '_').toLowerCase()
-      await setDoc(doc(db, 'pipeline_configs', orgId), {
-        ...formData,
-        orgId,
-        updatedAt: serverTimestamp(),
-      })
+      for (const pipeline of formData.pipelines) {
+        await createPipeline({
+          name: pipeline.name,
+          purpose: pipeline.purpose,
+          fuentes: formData.fuentes,
+          canales: formData.canales,
+          stages: pipeline.stages,
+          templates: formData.templates,
+        })
+      }
       setSaved(true)
-      toast.success(`Pipeline de "${formData.clientName}" guardado correctamente`)
+      toast.success(`Pipeline${formData.pipelines.length > 1 ? 's creados' : ' creado'} correctamente`)
+      setTimeout(() => onDone?.(), 1200)
     } catch (e) {
       toast.error(e.message)
     } finally {
@@ -1068,24 +1034,24 @@ export default function PipelineBuilder({ orgs }) {
   const stepProps = { data: formData, onChange: merge, onNext: next, onPrev: prev }
 
   return (
-    <div className="pb-root sa-content" style={{ maxWidth: '100%', background: '#070708', color: 'white', minHeight: '100%', padding: 32 }}>
+    <div className="pb-root" style={{ background: '#070708', color: 'white', minHeight: '100%', padding: 32 }}>
       <style>{css}</style>
 
-      {/* Top info row */}
+      {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Target size={16} style={{ color: '#0066ff' }} />
-          <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800 }}>Pipeline Builder</span>
+          <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800 }}>Nuevo Pipeline</span>
         </div>
-        {formData.clientName && (
-          <div style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(0,102,255,0.1)', border: '1px solid rgba(0,102,255,0.3)', color: '#0066ff' }}>
-            {formData.clientName}
-          </div>
-        )}
         {saved && (
           <div style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(0,200,83,0.1)', border: '1px solid rgba(0,200,83,0.3)', color: '#00c853', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Check size={11} /> Guardado
           </div>
+        )}
+        {onDone && (
+          <button onClick={onDone} style={{ marginLeft: 'auto', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gray-4)', padding: '5px 12px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <X size={13} /> Cancelar
+          </button>
         )}
       </div>
 
@@ -1106,16 +1072,15 @@ export default function PipelineBuilder({ orgs }) {
 
       {/* Step card */}
       <div className="pb-card">
-        {step === 0 && <StepCliente   {...stepProps} />}
-        {step === 1 && <StepFuentes   {...stepProps} />}
-        {step === 2 && <StepCanales   {...stepProps} />}
-        {step === 3 && <StepPipelines {...stepProps} />}
-        {step === 4 && <StepEtapas    {...stepProps} />}
-        {step === 5 && <StepAgente    {...stepProps} />}
-        {step === 6 && <StepScore     {...stepProps} />}
-        {step === 7 && <StepRecursos  {...stepProps} />}
-        {step === 8 && <StepPlantillas {...stepProps} />}
-        {step === 9 && <StepResumen data={formData} onPrev={prev} onSave={save} saving={saving} />}
+        {step === 0 && <StepFuentes   {...stepProps} />}
+        {step === 1 && <StepCanales   {...stepProps} />}
+        {step === 2 && <StepPipelines {...stepProps} />}
+        {step === 3 && <StepEtapas    {...stepProps} />}
+        {step === 4 && <StepAgente    {...stepProps} />}
+        {step === 5 && <StepScore     {...stepProps} />}
+        {step === 6 && <StepRecursos  {...stepProps} />}
+        {step === 7 && <StepPlantillas {...stepProps} />}
+        {step === 8 && <StepResumen data={formData} onPrev={prev} onSave={save} saving={saving} />}
       </div>
     </div>
   )
