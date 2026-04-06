@@ -9,6 +9,7 @@ import KanbanColumn from '@/components/pipeline/KanbanColumn'
 import LeadCard from '@/components/pipeline/LeadCard'
 import NewLeadModal from '@/components/pipeline/NewLeadModal'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
+import NewPipelineModal from '@/components/pipeline/NewPipelineModal'
 import { Search, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -23,10 +24,11 @@ const SOURCES = [
 ]
 
 export default function Pipeline() {
-  const { stages, leads, leadsByStage, loading, moveLead, createLead, createStage } = usePipeline()
+  const { stages, leads, leadsByStage, loading, moveLead, createLead, createStage, createPipeline } = usePipeline()
   const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
   const [showNewLead, setShowNewLead] = useState(false)
+  const [showNewPipeline, setShowNewPipeline] = useState(false)
   const [defaultStageId, setDefaultStageId] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -158,7 +160,14 @@ export default function Pipeline() {
           ))}
         </select>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowNewPipeline(true)}
+            className="text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 hover:text-primary transition-colors"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+            Nuevo pipeline
+          </button>
           <button
             onClick={() => setShowNewLead(true)}
             className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5"
@@ -263,6 +272,16 @@ export default function Pipeline() {
         <LeadDrawer
           lead={leads.find(l => l.id === selectedLead.id) || selectedLead}
           onClose={() => setSelectedLead(null)}
+        />
+      )}
+
+      {showNewPipeline && (
+        <NewPipelineModal
+          onClose={() => setShowNewPipeline(false)}
+          onCreate={async (data) => {
+            await createPipeline(data)
+            toast.success(`Pipeline "${data.name}" creado`)
+          }}
         />
       )}
     </div>

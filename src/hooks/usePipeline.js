@@ -106,6 +106,37 @@ export function usePipeline() {
     )
   }
 
+  // Create a new pipeline and its stages
+  const createPipeline = async ({ name, purpose, stages: stageList }) => {
+    if (!orgId) return
+    // 1. Create the pipeline document
+    const pipelineRef = await addDoc(
+      collection(db, 'organizations', orgId, 'pipelines'),
+      {
+        name,
+        purpose: purpose || null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    )
+    // 2. Create each stage linked to this pipeline
+    for (let i = 0; i < stageList.length; i++) {
+      const s = stageList[i]
+      await addDoc(
+        collection(db, 'organizations', orgId, 'pipeline_stages'),
+        {
+          name: s.name,
+          color: s.color || '#6366f1',
+          order: i + 1,
+          pipelineId: pipelineRef.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      )
+    }
+    return pipelineRef.id
+  }
+
   // Leads grouped by stage
   const leadsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = leads.filter(l => l.stageId === stage.id)
@@ -122,5 +153,6 @@ export function usePipeline() {
     updateLead,
     deleteLead,
     createStage,
+    createPipeline,
   }
 }
