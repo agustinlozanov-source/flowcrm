@@ -29,7 +29,7 @@ export default function Pipeline() {
     pipelines, activePipelineId, setActivePipelineId,
     allStages, stages, leads, leadsByStage, loading,
     moveLead, createLead, updateLead, deleteLead,
-    createStage, updateStage, createPipeline, updatePipeline, adoptOrphanStages,
+    createStage, updateStage, deleteStage, createPipeline, updatePipeline, adoptOrphanStages,
   } = usePipeline()
   const { products } = useProducts()
   const [activeId, setActiveId] = useState(null)
@@ -51,19 +51,23 @@ export default function Pipeline() {
   const hasOrphans = allStages.some(s => !s.pipelineId)
   const showPipelineSelector = pipelines.length > 0 || hasOrphans
 
-  const handleSaveEditPipeline = async ({ name, purpose, stageEdits }) => {
+  const handleSaveEditPipeline = async ({ name, purpose, stageEdits, deletedIds = [] }) => {
     if (!activePipelineId) {
       const newId = await adoptOrphanStages({ name, purpose })
-      for (const s of stageEdits) {
-        await updateStage(s.id, { name: s.name, color: s.color })
+      for (let i = 0; i < stageEdits.length; i++) {
+        const s = stageEdits[i]
+        await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
       }
+      for (const id of deletedIds) await deleteStage(id)
       setActivePipelineId(newId)
       toast.success(`Pipeline "${name}" configurado`)
     } else {
       await updatePipeline(activePipelineId, { name, purpose })
-      for (const s of stageEdits) {
-        await updateStage(s.id, { name: s.name, color: s.color })
+      for (let i = 0; i < stageEdits.length; i++) {
+        const s = stageEdits[i]
+        await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
       }
+      for (const id of deletedIds) await deleteStage(id)
       toast.success('Pipeline actualizado')
     }
   }

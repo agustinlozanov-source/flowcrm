@@ -153,6 +153,8 @@ export function usePipeline() {
         {
           name: s.name, color: s.color || '#6366f1', order: i + 1,
           pipelineId: pipelineRef.id,
+          scoreMin: s.scoreMin ?? 0,
+          scoreMax: s.scoreMax ?? 100,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         }
       )
@@ -169,13 +171,19 @@ export function usePipeline() {
     )
   }
 
-  // Update a single stage (name, color)
+  // Update a single stage (name, color, scoreMin, scoreMax, order)
   const updateStage = async (stageId, data) => {
     if (!orgId) return
     await updateDoc(
       doc(db, 'organizations', orgId, 'pipeline_stages', stageId),
       { ...data, updatedAt: serverTimestamp() }
     )
+  }
+
+  // Delete a stage permanently
+  const deleteStage = async (stageId) => {
+    if (!orgId) return
+    await deleteDoc(doc(db, 'organizations', orgId, 'pipeline_stages', stageId))
   }
 
   // Adopt orphan stages+leads into a new named pipeline
@@ -224,6 +232,7 @@ export function usePipeline() {
     deleteLead,
     createStage,
     updateStage,
+    deleteStage,
     createPipeline,
     updatePipeline,
     adoptOrphanStages,

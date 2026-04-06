@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { X, GitBranch, Pencil } from 'lucide-react'
+import { X, GitBranch, Pencil, GripVertical, Trash2 } from 'lucide-react'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const PURPOSES = [
   { value: 'adquisicion',  label: 'Adquisición',  desc: 'Convertir prospectos nuevos en clientes' },
@@ -12,27 +15,96 @@ const STAGE_COLORS = [
   '#eab308','#22c55e','#14b8a6','#3b82f6','#ef4444','#64748b',
 ]
 
-const PURPOSE_LABEL = { adquisicion: 'Adquisición', retencion: 'Retención', distribucion: 'Distribución' }
+const clamp = v => Math.max(0, Math.min(100, Number(v) || 0))
+
+function SortableStageRow({ stage, index, total, onChange, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : 1 }}
+      className="flex items-center gap-2 bg-surface border border-black/[0.08] rounded-[10px] px-2.5 py-2 shadow-sm"
+    >
+      <button {...attributes} {...listeners} className="flex-shrink-0 text-tertiary/40 hover:text-tertiary cursor-grab active:cursor-grabbing touch-none p-0.5">
+        <GripVertical size={13} />
+      </button>
+      <div className="relative flex-shrink-0">
+        <div className="w-[18px] h-[18px] rounded-full" style={{ background: stage.color }} />
+        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={stage.color} onChange={e => onChange('color', e.target.value)}>
+          {STAGE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <input
+        value={stage.name}
+        onChange={e => onChange('name', e.target.value)}
+        placeholder={`Etapa ${index + 1}`}
+        className="flex-1 min-w-0 bg-transparent text-[13px] text-primary placeholder-tertiary outline-none"
+      />
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <span className="text-[10px] font-semibold text-tertiary uppercase tracking-wide">Score</span>
+        <input
+          type="number" min={0} max={100} value={stage.scoreMin}
+          onChange={e => onChange('scoreMin', clamp(e.target.value))}
+          className="w-10 text-center bg-surface-2 border border-black/[0.08] rounded-[5px] py-[3px] text-[12px] outline-none focus:border-primary/40 text-primary"
+        />
+        <span className="text-[11px] text-tertiary">–</span>
+        <input
+          type="number" min={0} max={100} value={stage.scoreMax}
+          onChange={e => onChange('scoreMax', clamp(e.target.value))}
+          className="w-10 text-center bg-surface-2 border border-black/[0.08] rounded-[5px] py-[3px] text-[12px] outline-none focus:border-primary/40 text-primary"
+        />
+      </div>
+      <button
+        onClick={onRemove}
+        className={`flex-shrink-0 p-1 rounded-[5px] text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors ${total <= 1 ? 'opacity-0 pointer-events-none' : ''}`}
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  )
+}
 
 // mode: 'edit' (pipeline existente) | 'adopt' (etapas huérfanas sin pipeline)
 export default function EditPipelineModal({ mode = 'edit', pipeline, stages = [], onSave, onClose }) {
   const isAdopt = mode === 'adopt'
+  const originalIds = stages.map(s => s.id)
 
   const [name, setName] = useState(pipeline?.name || '')
   const [purpose, setPurpose] = useState(pipeline?.purpose || 'adquisicion')
   const [stageEdits, setStageEdits] = useState(
-    stages.map(s => ({ id: s.id, name: s.name, color: s.color || '#6366f1' }))
+    stages.map(s => ({
+      id: s.id,
+      name: s.name,
+      color: s.color || '#6366f1',
+      scoreMin: s.scoreMin ?? 0,
+      scoreMax: s.scoreMax ?? 100,
+    }))
   )
   const [saving, setSaving] = useState(false)
 
-  const updateStage = (i, field, val) =>
-    setStageEdits(s => s.map((st, idx) => idx === i ? { ...st, [field]: val } : st))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const updateStage = (id, field, val) =>
+    setStageEdits(s => s.map(st => st.id === id ? { ...st, [field]: val } : st))
+
+  const removeStage = (id) =>
+    setStageEdits(s => s.filter(st => st.id !== id))
+
+  const handleDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return
+    setStageEdits(prev => {
+      const from = prev.findIndex(s => s.id === active.id)
+      const to   = prev.findIndex(s => s.id === over.id)
+      return arrayMove(prev, from, to)
+    })
+  }
 
   const handleSubmit = async () => {
     if (!name.trim()) return
     setSaving(true)
+    const deletedIds = originalIds.filter(id => !stageEdits.find(s => s.id === id))
     try {
-      await onSave({ name: name.trim(), purpose, stageEdits })
+      await onSave({ name: name.trim(), purpose, stageEdits, deletedIds })
       onClose()
     } finally {
       setSaving(false)
@@ -113,36 +185,27 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
 
           {/* Etapas */}
           {stageEdits.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wide text-tertiary">
-                Etapas <span className="font-normal normal-case tracking-normal text-tertiary">({stageEdits.length}) — renombrar o cambiar color</span>
-              </label>
-              <div className="flex flex-col gap-2">
-                {stageEdits.map((stage, i) => (
-                  <div key={stage.id} className="flex items-center gap-2">
-                    <span className="text-[11px] text-tertiary w-4 text-right flex-shrink-0">{i + 1}</span>
-                    {/* Color picker */}
-                    <div className="relative flex-shrink-0">
-                      <div
-                        className="w-6 h-6 rounded-full ring-2 ring-offset-1 ring-offset-surface cursor-pointer"
-                        style={{ background: stage.color, outlineColor: stage.color }}
-                      />
-                      <select
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={stage.color}
-                        onChange={e => updateStage(i, 'color', e.target.value)}
-                      >
-                        {STAGE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <input
-                      value={stage.name}
-                      onChange={e => updateStage(i, 'name', e.target.value)}
-                      className="flex-1 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-[13px] text-primary outline-none focus:border-primary/40 transition-colors"
-                    />
-                  </div>
-                ))}
+            <div className="flex flex-col gap-2">
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-tertiary">Etapas ({stageEdits.length})</label>
+                <p className="text-[11px] text-tertiary mt-0.5">El agente asigna leads a la etapa cuyo rango de score coincida. Arrastra para reordenar.</p>
               </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={stageEdits.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="flex flex-col gap-1.5">
+                    {stageEdits.map((stage, i) => (
+                      <SortableStageRow
+                        key={stage.id}
+                        stage={stage}
+                        index={i}
+                        total={stageEdits.length}
+                        onChange={(field, val) => updateStage(stage.id, field, val)}
+                        onRemove={() => removeStage(stage.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 
