@@ -1968,7 +1968,7 @@ export default function Superadmin() {
           {activeTab === 'onboarding' && <OnboardingResponses />}
           {activeTab === 'diag_config' && <DiagnosticoConfig orgs={orgs} />}
           {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
-          {activeTab === 'pipelines' && <PipelineBuilder />}
+          {activeTab === 'pipelines' && <PipelineBuilder orgs={orgs} />}
         </div>
       </div>
     </div>
