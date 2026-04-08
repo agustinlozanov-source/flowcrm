@@ -1,12 +1,12 @@
 import { useState, useRef } from 'react'
 import { useProducts } from '@/hooks/useProducts'
-import { Plus, Package, Pencil, Trash2, X, ImageOff, Search, Upload, Tag } from 'lucide-react'
+import { Plus, Package, Pencil, Trash2, X, ImageOff, Search, Upload, Tag, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
 const EMPTY_FORM = {
   name: '', description: '', price: '', currency: 'USD',
-  type: 'service', category: '', sku: '', status: 'active',
+  type: 'service', category: '', sku: '', durationDays: '', problemTags: [], status: 'active',
 }
 
 const TYPES = [
@@ -30,6 +30,7 @@ export default function ProductCatalog() {
   const [showModal, setShowModal] = useState(false)
   const [editProduct, setEditProduct] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [problemInput, setProblemInput] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
   const [saving, setSaving] = useState(false)
@@ -45,6 +46,7 @@ export default function ProductCatalog() {
   const openNew = () => {
     setEditProduct(null)
     setForm(EMPTY_FORM)
+    setProblemInput('')
     setImageFile(null)
     setImagePreview('')
     setShowModal(true)
@@ -60,11 +62,38 @@ export default function ProductCatalog() {
       type: product.type || 'service',
       category: product.category || '',
       sku: product.sku || '',
+      durationDays: product.durationDays || '',
+      problemTags: product.problemTags || [],
       status: product.status || 'active',
     })
+    setProblemInput('')
     setImageFile(null)
     setImagePreview(product.imageUrl || '')
     setShowModal(true)
+  }
+
+  const addProblemTag = (value) => {
+    const tag = value.trim().replace(/,$/, '')
+    if (!tag) return
+    setForm(f => ({
+      ...f,
+      problemTags: f.problemTags.includes(tag) ? f.problemTags : [...f.problemTags, tag],
+    }))
+    setProblemInput('')
+  }
+
+  const removeProblemTag = (tag) => {
+    setForm(f => ({ ...f, problemTags: f.problemTags.filter(item => item !== tag) }))
+  }
+
+  const handleProblemKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addProblemTag(problemInput)
+    }
+    if (e.key === 'Backspace' && !problemInput && form.problemTags.length > 0) {
+      removeProblemTag(form.problemTags[form.problemTags.length - 1])
+    }
   }
 
   const handleImageChange = (e) => {
@@ -87,6 +116,12 @@ export default function ProductCatalog() {
     e.preventDefault()
     if (!form.name.trim()) { toast.error('El nombre es requerido'); return }
     if (!form.price || isNaN(Number(form.price))) { toast.error('El precio debe ser un número válido'); return }
+    if (['product', 'subscription_monthly', 'subscription_annual'].includes(form.type)) {
+      if (!form.durationDays || !Number.isInteger(Number(form.durationDays)) || Number(form.durationDays) < 1) {
+        toast.error('La duración debe ser un número entero mayor o igual a 1')
+        return
+      }
+    }
     setSaving(true)
     try {
       const data = {
@@ -97,6 +132,8 @@ export default function ProductCatalog() {
         type: form.type,
         category: form.category.trim(),
         sku: form.sku.trim(),
+        durationDays: form.durationDays ? Number(form.durationDays) : null,
+        problemTags: form.problemTags,
         status: form.status,
       }
       if (editProduct) {
@@ -277,12 +314,32 @@ export default function ProductCatalog() {
                     {product.description && (
                       <p className="text-[12px] text-secondary mt-1 line-clamp-2 leading-relaxed">{product.description}</p>
                     )}
+                    {product.problemTags?.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-2">
+                        {product.problemTags.slice(0, 3).map(tag => (
+                          <span key={tag} className="text-[10.5px] px-1.5 py-0.5 rounded-full bg-surface-2 border border-black/[0.08] text-secondary">
+                            {tag}
+                          </span>
+                        ))}
+                        {product.problemTags.length > 3 && (
+                          <span className="text-[10.5px] text-tertiary">+{product.problemTags.length - 3} más</span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3 flex items-center justify-between">
                       <div>
-                        <span className="text-[15px] font-bold text-primary">
-                          ${Number(product.price).toLocaleString()}
-                        </span>
-                        <span className="text-[11px] text-tertiary ml-1">{product.currency || 'USD'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[15px] font-bold text-primary">
+                            ${Number(product.price).toLocaleString()}
+                          </span>
+                          <span className="text-[11px] text-tertiary">{product.currency || 'USD'}</span>
+                          {product.durationDays > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[10.5px] text-tertiary">
+                              <Clock size={10} strokeWidth={2} />
+                              {product.durationDays} días
+                            </span>
+                          )}
+                        </div>
                         {product.sku && (
                           <div className="text-[10.5px] text-tertiary mt-0.5">SKU: {product.sku}</div>
                         )}
@@ -410,6 +467,52 @@ export default function ProductCatalog() {
                     {categories.map(c => <option key={c} value={c} />)}
                   </datalist>
                 </div>
+              </div>
+
+              {['product', 'subscription_monthly', 'subscription_annual'].includes(form.type) && (
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">Duración del producto</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.durationDays}
+                    onChange={set('durationDays')}
+                    placeholder="30"
+                    className="input"
+                  />
+                  <p className="text-[11px] text-tertiary mt-1">Días que dura el producto — activa la recompra automática</p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">Problemas que resuelve</label>
+                <div className="input min-h-[44px] h-auto flex flex-wrap items-center gap-1.5 py-2">
+                  {form.problemTags.map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-surface-2 border border-black/[0.08] text-[11.5px] text-primary"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeProblemTag(tag)}
+                        className="text-tertiary hover:text-red-500 transition-colors"
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={problemInput}
+                    onChange={e => setProblemInput(e.target.value)}
+                    onKeyDown={handleProblemKeyDown}
+                    onBlur={() => addProblemTag(problemInput)}
+                    placeholder="ej: pérdida de peso, energía, dolor articular..."
+                    className="flex-1 min-w-[220px] bg-transparent text-[12.5px] text-primary placeholder-tertiary outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-tertiary mt-1">El agente usa esto para asociar leads al producto correcto</p>
               </div>
 
               {/* Estado */}
