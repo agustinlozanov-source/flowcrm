@@ -9,7 +9,7 @@ import {
   Bot, Brain, Package, BarChart2, Zap,
   FileText, Trash2, Plus, X, Clock,
   ChevronDown, ChevronUp, AlertTriangle,
-  CheckCircle2, MessageSquare, User
+  CheckCircle2, MessageSquare, User, Save
 } from 'lucide-react'
 
 // ─── TABS ────────────────────────────────────────────────────────
@@ -1157,7 +1157,7 @@ export default function Agent() {
             className="btn-primary text-[12.5px] py-1.5 px-4 flex items-center gap-1.5">
             {saving
               ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
-              : '💾 Guardar y sincronizar'}
+              : <><Save size={14} /> Guardar y sincronizar</>}
           </button>
         </div>
       </div>
