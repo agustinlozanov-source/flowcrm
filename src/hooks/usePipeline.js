@@ -5,6 +5,8 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import { useTeam } from '@/hooks/useTeam'
+import { useTeam } from '@/hooks/useTeam'
 
 // ─── SYSTEM STAGES — fixed, not in Firestore ─────────────────────
 export const SYSTEM_STAGES = {
@@ -65,6 +67,7 @@ export function usePipeline() {
   const { org, user } = useAuthStore()
   const orgId = org?.id
   const userId = user?.uid
+  const { updateMemberStats } = useTeam()
 
   const [pipelines, setPipelines] = useState([])
   const [activePipelineId, setActivePipelineId] = useState(null)
@@ -306,6 +309,10 @@ export function usePipeline() {
       createdAt: serverTimestamp(),
       createdBy: userId,
     })
+    // Update stats for assigned member and closer
+    const closedLead = leads.find(l => l.id === leadId)
+    await updateMemberStats(closedLead?.assignedTo)
+    await updateMemberStats(userId)
   }
 
   // Discard a lead
@@ -331,6 +338,9 @@ export function usePipeline() {
       createdAt: serverTimestamp(),
       createdBy: userId,
     })
+    // Update stats for assigned member and discarding user
+    await updateMemberStats(lead?.assignedTo)
+    await updateMemberStats(userId)
   }
 
   // Handoff Bound — called when timer expires
