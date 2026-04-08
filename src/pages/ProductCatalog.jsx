@@ -551,64 +551,63 @@ export default function ProductCatalog() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
-        <h1 className="font-display font-bold text-[15px] tracking-tight">Catálogo</h1>
-        <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary ml-1">
-          {products.length} productos
-        </span>
-
-        {/* Search */}
-        <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 ml-2 w-52">
-          <Search size={13} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-            className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none" />
-        </div>
-
-        {/* Filters */}
-        {categories.length > 0 && (
-          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-            className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
-            <option value="all">Todas las categorías</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-          className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
-          <option value="all">Todos los tipos</option>
-          {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
-          <option value="all">Activos e inactivos</option>
-          <option value="active">Solo activos</option>
-          <option value="inactive">Solo inactivos</option>
-        </select>
-
-        <div className="ml-auto flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
-            <button onClick={() => setViewMode('grid')}
-              className={clsx('px-2.5 py-1.5 rounded-[6px] transition-all',
-                viewMode === 'grid' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary')}>
-              <LayoutGrid size={13} />
+      <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex flex-col gap-2.5 flex-shrink-0">
+        {/* Row 1 — título + acciones */}
+        <div className="flex items-center gap-3">
+          <h1 className="font-display font-bold text-[15px] tracking-tight">Catálogo</h1>
+          <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-0.5 rounded-full text-secondary">
+            {products.length} productos
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
+              <button onClick={() => setViewMode('grid')}
+                className={clsx('px-2.5 py-1.5 rounded-[6px] transition-all',
+                  viewMode === 'grid' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary')}>
+                <LayoutGrid size={13} />
+              </button>
+              <button onClick={() => setViewMode('list')}
+                className={clsx('px-2.5 py-1.5 rounded-[6px] transition-all',
+                  viewMode === 'list' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary')}>
+                <List size={13} />
+              </button>
+            </div>
+            <button onClick={() => setShowImport(true)}
+              className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
+              <Upload size={13} /> Importar
             </button>
-            <button onClick={() => setViewMode('list')}
-              className={clsx('px-2.5 py-1.5 rounded-[6px] transition-all',
-                viewMode === 'list' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary')}>
-              <List size={13} />
+            <button onClick={openNew}
+              className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
+              <Plus size={14} strokeWidth={3} color="white" /> Nuevo producto
             </button>
           </div>
+        </div>
 
-          <button onClick={() => setShowImport(true)}
-            className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
-            <Upload size={13} /> Importar
-          </button>
-          <button onClick={openNew}
-            className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-            <Plus size={14} strokeWidth={3} color="white" /> Nuevo producto
-          </button>
+        {/* Row 2 — búsqueda + filtros */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 w-56">
+            <Search size={13} strokeWidth={2.5} className="text-tertiary flex-shrink-0" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar producto..."
+              className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none" />
+          </div>
+          {categories.length > 0 && (
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+              className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
+              <option value="all">Todas las categorías</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
+            <option value="all">Todos los tipos</option>
+            {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
+            <option value="all">Activos e inactivos</option>
+            <option value="active">Solo activos</option>
+            <option value="inactive">Solo inactivos</option>
+          </select>
         </div>
       </div>
 
