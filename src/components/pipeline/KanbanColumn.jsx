@@ -3,39 +3,52 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import LeadCard from './LeadCard'
 import clsx from 'clsx'
 import { Plus } from 'lucide-react'
+import { fmt } from '@/hooks/usePipeline'
 
-const formatTotal = (leads) => {
-  const total = leads.reduce((sum, l) => sum + (l.value || 0), 0)
-  if (!total) return null
-  if (total >= 1000000) return `$${(total / 1000000).toFixed(1)}M`
-  if (total >= 1000) return `$${(total / 1000).toFixed(0)}K`
-  return `$${total}`
-}
-
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, onAssignProduct }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+
+  const openLeads = leads.filter(l => !l.systemStage && !l.discarded)
+  const totalValue = openLeads.reduce((sum, l) => sum + (l.value || 0), 0)
+  const closedValue = leads
+    .filter(l => l.systemStage === 'closed')
+    .reduce((sum, l) => sum + (l.closedProduct?.price || l.value || 0), 0)
 
   return (
     <div className="flex flex-col w-[272px] min-w-[272px]">
 
       {/* Column header */}
-      <div className="flex items-center gap-2 mb-3 px-1">
+      <div className="flex items-center gap-2 mb-2 px-1">
         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
         <span className="font-display font-bold text-[13px] text-primary flex-1 truncate">
           {stage.name}
         </span>
         <span
-          className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-full"
+          className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
           style={{ background: `${stage.color}15`, color: stage.color }}
         >
           {leads.length}
         </span>
-        {formatTotal(leads) && (
-          <span className="text-[10.5px] font-semibold text-tertiary">
-            {formatTotal(leads)}
-          </span>
-        )}
       </div>
+
+      {/* Value row */}
+      {(totalValue > 0 || closedValue > 0) && (
+        <div className="flex items-center gap-2 px-1 mb-2.5">
+          {totalValue > 0 && (
+            <span className="text-[10px] font-semibold text-tertiary">
+              {fmt(totalValue)} potencial
+            </span>
+          )}
+          {totalValue > 0 && closedValue > 0 && (
+            <span className="text-[10px] text-tertiary opacity-40">·</span>
+          )}
+          {closedValue > 0 && (
+            <span className="text-[10px] font-semibold text-green-600">
+              {fmt(closedValue)} cerrado
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Drop zone */}
       <div
@@ -58,6 +71,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }) {
                 lead={lead}
                 stageColor={stage.color}
                 onClick={() => onLeadClick(lead)}
+                onAssignProduct={onAssignProduct}
               />
             </div>
           ))}

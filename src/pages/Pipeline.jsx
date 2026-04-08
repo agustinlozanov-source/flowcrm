@@ -3,9 +3,10 @@ import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
-import { usePipeline } from '@/hooks/usePipeline'
+import { usePipeline, SYSTEM_STAGES, fmt } from '@/hooks/usePipeline'
 import { useProducts } from '@/hooks/useProducts'
 import KanbanColumn from '@/components/pipeline/KanbanColumn'
+import SystemStageColumn from '@/components/pipeline/SystemStageColumn'
 import LeadCard from '@/components/pipeline/LeadCard'
 import NewLeadModal from '@/components/pipeline/NewLeadModal'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
@@ -27,7 +28,7 @@ const SOURCES = [
 export default function Pipeline() {
   const {
     pipelines, activePipelineId, setActivePipelineId,
-    allStages, stages, leads, leadsByStage, loading,
+    allStages, stages, leads, leadsByStage, leadsBySystemStage, pipelineStats, loading,
     moveLead, createLead, updateLead, deleteLead,
     createStage, updateStage, deleteStage, createPipeline, updatePipeline, adoptOrphanStages,
   } = usePipeline()
@@ -135,12 +136,8 @@ export default function Pipeline() {
     setShowNewLead(true)
   }
 
-  const totalValue = leads.reduce((sum, l) => sum + (l.value || 0), 0)
-  const formatBig = (v) => {
-    if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`
-    if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`
-    return `$${v}`
-  }
+  const activePipeline = pipelines.find(p => p.id === activePipelineId)
+  const handoffBoundDays = activePipeline?.handoffBoundDays || 3
 
   if (loading) {
     return (
@@ -217,9 +214,19 @@ export default function Pipeline() {
           <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary">
             {leads.length} leads
           </span>
-          {totalValue > 0 && (
+          {pipelineStats.potential > 0 && (
             <span className="text-[11px] font-semibold bg-blue-50 text-accent-blue px-2.5 py-1 rounded-full">
-              {formatBig(totalValue)} en pipeline
+              {fmt(pipelineStats.potential)} potencial
+            </span>
+          )}
+          {pipelineStats.secure > 0 && (
+            <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full">
+              {fmt(pipelineStats.secure)} seguro
+            </span>
+          )}
+          {pipelineStats.closed > 0 && (
+            <span className="text-[11px] font-semibold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">
+              {fmt(pipelineStats.closed)} cerrado
             </span>
           )}
         </div>
@@ -269,6 +276,7 @@ export default function Pipeline() {
                 leads={filteredLeadsByStage[stage.id] || []}
                 onLeadClick={(lead) => setSelectedLead(lead)}
                 onAddLead={handleAddLead}
+                onAssignProduct={(lead) => setSelectedLead(lead)}
               />
             ))}
 
@@ -318,6 +326,20 @@ export default function Pipeline() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* ── System Stage Columns — always visible, non-droppable ── */}
+            <div className="flex items-stretch gap-4 pl-5 border-l-2 border-black/[0.06] ml-2">
+              {Object.values(SYSTEM_STAGES).map(ss => (
+                <SystemStageColumn
+                  key={ss.id}
+                  systemStage={ss}
+                  leads={leadsBySystemStage[ss.id] || []}
+                  onLeadClick={(lead) => setSelectedLead(lead)}
+                  onAssignProduct={(lead) => setSelectedLead(lead)}
+                  handoffBoundDays={ss.id === 'handoff' ? handoffBoundDays : null}
+                />
+              ))}
             </div>
           </div>
 
