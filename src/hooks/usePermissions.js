@@ -36,6 +36,9 @@ export function usePermissions() {
     // Admins always get everything regardless of stored permissions
     if (isAdmin) return DEFAULT_PERMISSIONS.admin
 
+    // If the user has no member document yet, treat as admin
+    if (memberData === null || memberData === undefined) return DEFAULT_PERMISSIONS.admin
+
     // Sellers get their stored custom permissions, falling back to defaults
     const stored = memberData?.permissions || {}
     return {

@@ -836,13 +836,13 @@ export default function Team() {
                 className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none" />
             </div>
           )}
-          {canInviteMembers && (
+          {(canInviteMembers || members.length === 0) && (
             <button onClick={() => { setInviteForMember(null); setShowInviteModal(true) }}
               className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
               <Link2 size={13} /> Invitar
             </button>
           )}
-          {canManageTeam && (
+          {(canManageTeam || members.length === 0) && (
             <button onClick={() => { setEditMember(null); setShowMemberModal(true) }}
               className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
               <Plus size={14} strokeWidth={3} color="white" /> Nuevo miembro
@@ -878,7 +878,7 @@ export default function Team() {
                 <Users size={32} className="text-tertiary" strokeWidth={1.5} />
                 <p className="font-display font-bold text-lg text-primary">Sin miembros</p>
                 <p className="text-sm text-secondary">Crea el primer miembro de tu equipo</p>
-                {canManageTeam && (
+                {(canManageTeam || members.length === 0) && (
                   <button onClick={() => setShowMemberModal(true)} className="btn-primary text-sm py-2 px-4 mt-1">
                     Nuevo miembro
                   </button>
