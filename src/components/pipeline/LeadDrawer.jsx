@@ -1,51 +1,49 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { doc, collection, addDoc, onSnapshot, serverTimestamp, orderBy, query } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { normalizePhone } from '@/lib/utils'
-import { usePipeline } from '@/hooks/usePipeline'
+import { usePipeline, SYSTEM_STAGES, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
+import { useProducts } from '@/hooks/useProducts'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar } from 'lucide-react'
+import {
+  Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar,
+  Package, ChevronDown, Search, Plus, Star, AlertTriangle, Clock,
+  CheckCircle2, XCircle, ArrowRight
+} from 'lucide-react'
 
 const SOURCE_CONFIG = {
-  meta_ads: { icon: '🔵', label: 'Meta Ads' },
+  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
   instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp: { icon: '💬', label: 'WhatsApp' },
-  linkedin: { icon: '💼', label: 'LinkedIn' },
-  web: { icon: '🌐', label: 'Web' },
-  referral: { icon: '⭐', label: 'Referido' },
-  manual: { icon: '✏️', label: 'Manual' },
+  whatsapp:  { icon: '💬', label: 'WhatsApp' },
+  linkedin:  { icon: '💼', label: 'LinkedIn' },
+  web:       { icon: '🌐', label: 'Web' },
+  referral:  { icon: '⭐', label: 'Referido' },
+  manual:    { icon: '✏️', label: 'Manual' },
 }
 
 const INTERACTION_TYPES = [
-  { value: 'note', label: 'Nota', icon: <FileText size={14} /> },
-  { value: 'call', label: 'Llamada', icon: <Phone size={14} /> },
+  { value: 'note',     label: 'Nota',     icon: <FileText size={14} /> },
+  { value: 'call',     label: 'Llamada',  icon: <Phone size={14} /> },
   { value: 'whatsapp', label: 'WhatsApp', icon: <MessageCircle size={14} /> },
-  { value: 'email', label: 'Email', icon: <Mail size={14} /> },
-  { value: 'meeting', label: 'Reunión', icon: <Calendar size={14} /> },
+  { value: 'email',    label: 'Email',    icon: <Mail size={14} /> },
+  { value: 'meeting',  label: 'Reunión',  icon: <Calendar size={14} /> },
 ]
 
+// ── ScoreRing ────────────────────────────────────────────────────
 function ScoreRing({ score }) {
-  const r = 28
-  const circ = 2 * Math.PI * r
-  const pct = (score || 0) / 100
+  const r = 28, circ = 2 * Math.PI * r, pct = (score || 0) / 100
   const color = score >= 80 ? '#00c853' : score >= 50 ? '#f59e0b' : '#6e6e73'
-
   return (
     <div className="relative flex items-center justify-center w-20 h-20">
       <svg width="80" height="80" className="-rotate-90">
         <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="6" />
-        <circle
-          cx="40" cy="40" r={r} fill="none"
-          stroke={color} strokeWidth="6"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - pct)}
-          strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-        />
+        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="6"
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+          strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
       </svg>
       <div className="absolute flex flex-col items-center">
         <span className="font-display font-bold text-xl leading-none" style={{ color }}>{score || 0}</span>
@@ -55,14 +53,20 @@ function ScoreRing({ score }) {
   )
 }
 
+// ── InteractionItem ──────────────────────────────────────────────
 function InteractionItem({ item }) {
   const type = INTERACTION_TYPES.find(t => t.value === item.type) || INTERACTION_TYPES[0]
   const date = item.createdAt?.toDate ? format(item.createdAt.toDate(), "d MMM · HH:mm", { locale: es }) : ''
-
+  const isSystem = ['close', 'discard'].includes(item.type)
   return (
     <div className="flex gap-3 py-3 border-b border-black/[0.05] last:border-0">
-      <div className="w-7 h-7 rounded-lg bg-surface-2 border border-black/[0.06] flex items-center justify-center text-sm flex-shrink-0 mt-0.5">
-        {type.icon}
+      <div className={clsx(
+        'w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 mt-0.5',
+        isSystem ? 'bg-blue-50 border border-blue-100' : 'bg-surface-2 border border-black/[0.06]'
+      )}>
+        {item.type === 'close' ? <CheckCircle2 size={14} className="text-green-500" />
+          : item.type === 'discard' ? <XCircle size={14} className="text-red-400" />
+          : type.icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
@@ -75,18 +79,483 @@ function InteractionItem({ item }) {
   )
 }
 
-export default function LeadDrawer({ lead, onClose, onUpdate }) {
+// ── ProductPicker ────────────────────────────────────────────────
+function ProductPicker({ value, onChange, onCreate }) {
+  const { products, createProduct } = useProducts()
+  const [query2, setQuery2] = useState('')
+  const [open, setOpen] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newForm, setNewForm] = useState({ name: '', price: '', currency: 'USD' })
+  const [saving, setSaving] = useState(false)
+  const ref = useRef()
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selected = products.find(p => p.id === value?.id)
+  const filtered = query2.trim()
+    ? products.filter(p => p.name.toLowerCase().includes(query2.toLowerCase()))
+    : products
+
+  const handleSelect = (p) => {
+    onChange({ id: p.id, name: p.name, price: p.price, currency: p.currency || 'USD' })
+    setQuery2(''); setOpen(false); setShowCreate(false)
+  }
+
+  const handleCreate = async () => {
+    if (!newForm.name.trim() || !newForm.price) return
+    setSaving(true)
+    try {
+      const created = await createProduct({
+        name: newForm.name.trim(),
+        price: Number(newForm.price),
+        currency: newForm.currency,
+        description: '',
+      })
+      if (created?.id) {
+        onChange({ id: created.id, name: newForm.name.trim(), price: Number(newForm.price), currency: newForm.currency })
+      }
+      setShowCreate(false); setOpen(false)
+      setNewForm({ name: '', price: '', currency: 'USD' })
+      toast.success('Producto creado')
+    } catch { toast.error('Error al crear producto') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => { setOpen(o => !o); setShowCreate(false) }}
+        className="input flex items-center gap-2 cursor-pointer select-none pr-3"
+      >
+        <Package size={13} className="text-tertiary flex-shrink-0" />
+        {value?.name ? (
+          <span className="flex-1 text-[13px] text-primary truncate">
+            {value.name} — ${Number(value.price).toLocaleString()} {value.currency}
+          </span>
+        ) : (
+          <span className="flex-1 text-[13px] text-tertiary">Selecciona un producto...</span>
+        )}
+        {value?.name ? (
+          <button type="button" onClick={e => { e.stopPropagation(); onChange(null) }} className="text-tertiary hover:text-primary">
+            <X size={13} />
+          </button>
+        ) : <ChevronDown size={13} className="text-tertiary" />}
+      </div>
+
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface border border-black/[0.1] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/[0.07]">
+            <Search size={13} className="text-tertiary flex-shrink-0" />
+            <input autoFocus value={query2} onChange={e => setQuery2(e.target.value)}
+              placeholder="Buscar producto..." className="flex-1 text-[12.5px] bg-transparent outline-none text-primary placeholder-tertiary" />
+          </div>
+          <div className="max-h-[160px] overflow-y-auto">
+            {filtered.length > 0 ? filtered.map(p => (
+              <button key={p.id} type="button" onClick={() => handleSelect(p)}
+                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 text-left transition-colors">
+                <span className="text-[13px] text-primary font-medium truncate">{p.name}</span>
+                <span className="text-[12px] text-secondary font-semibold ml-3 flex-shrink-0">
+                  ${Number(p.price).toLocaleString()} {p.currency || 'USD'}
+                </span>
+              </button>
+            )) : <p className="text-[12.5px] text-tertiary text-center py-3">Sin resultados</p>}
+          </div>
+          <div className="border-t border-black/[0.07]">
+            {!showCreate ? (
+              <button type="button" onClick={() => setShowCreate(true)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-[12.5px] font-semibold text-accent-blue hover:bg-blue-50 transition-colors">
+                <Plus size={13} strokeWidth={2.5} /> Crear nuevo producto
+              </button>
+            ) : (
+              <div className="p-3 flex flex-col gap-2">
+                <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide">Nuevo producto</p>
+                <input autoFocus value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Nombre del producto" className="input text-[12.5px] py-1.5" />
+                <div className="flex gap-2">
+                  <input type="number" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))}
+                    placeholder="Precio" className="input text-[12.5px] py-1.5 flex-1" min="0" />
+                  <select value={newForm.currency} onChange={e => setNewForm(f => ({ ...f, currency: e.target.value }))}
+                    className="input text-[12.5px] py-1.5 w-20">
+                    {['USD', 'MXN', 'COP', 'ARS', 'EUR'].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary text-xs py-1.5 flex-1">Cancelar</button>
+                  <button type="button" onClick={handleCreate} disabled={saving}
+                    className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1">
+                    {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <><Plus size={12} strokeWidth={3} color="white" /> Guardar</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ClosePanel ───────────────────────────────────────────────────
+function ClosePanel({ lead, onClose: onCloseDrawer }) {
+  const { closeLead } = usePipeline()
+  const [product, setProduct] = useState(
+    lead.closedProduct || (lead.productId ? { id: lead.productId } : null)
+  )
+  const [price, setPrice] = useState(lead.closedProduct?.price || lead.value || '')
+  const [currency, setCurrency] = useState(lead.closedProduct?.currency || 'USD')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleProductChange = (p) => {
+    setProduct(p)
+    if (p?.price) setPrice(p.price)
+    if (p?.currency) setCurrency(p.currency)
+  }
+
+  const handleClose = async () => {
+    if (!product?.name && !product?.id) { toast.error('Selecciona un producto'); return }
+    if (!price) { toast.error('Ingresa el precio de venta'); return }
+    setSaving(true)
+    try {
+      await closeLead(lead.id, {
+        productId: product?.id || null,
+        productName: product?.name,
+        price: Number(price),
+        currency,
+        notes,
+      })
+      toast.success('¡Venta cerrada! 🎉')
+    } catch { toast.error('Error al cerrar la venta') }
+    finally { setSaving(false) }
+  }
+
+  if (lead.systemStage === 'closed') {
+    return (
+      <div className="px-6 py-4 border-b border-black/[0.06] bg-green-50">
+        <div className="flex items-center gap-2 mb-3">
+          <CheckCircle2 size={16} className="text-green-600" />
+          <p className="text-[12px] font-bold text-green-700 uppercase tracking-wide">Venta cerrada</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-tertiary w-20">Producto</span>
+            <span className="text-[13px] font-semibold text-primary">{lead.closedProduct?.name || '—'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-tertiary w-20">Precio</span>
+            <span className="text-[13px] font-bold text-green-700">
+              ${Number(lead.closedProduct?.price || 0).toLocaleString()} {lead.closedProduct?.currency}
+            </span>
+          </div>
+          {lead.closedNotes && (
+            <div className="flex items-start gap-2">
+              <span className="text-[11px] font-semibold text-tertiary w-20 mt-0.5">Notas</span>
+              <span className="text-[12px] text-secondary flex-1">{lead.closedNotes}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-6 py-4 border-b border-black/[0.06]">
+      <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <CheckCircle2 size={13} className="text-green-600" /> Cerrar venta
+      </p>
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+            Producto vendido *
+          </label>
+          <ProductPicker value={product} onChange={handleProductChange} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+              Precio de venta *
+            </label>
+            <input
+              type="number" value={price} onChange={e => setPrice(e.target.value)}
+              placeholder="0" className="input text-sm" min="0"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+              Moneda
+            </label>
+            <select value={currency} onChange={e => setCurrency(e.target.value)} className="input text-sm">
+              {['USD', 'MXN', 'COP', 'ARS', 'EUR'].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+            Notas del cierre <span className="text-tertiary lowercase font-normal tracking-normal">opcional</span>
+          </label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            rows={2} className="input resize-none text-sm" placeholder="¿Cómo se cerró? ¿Qué fue clave..." />
+        </div>
+        <button onClick={handleClose} disabled={saving}
+          className="btn-primary flex items-center justify-center gap-2 py-2.5">
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : <><CheckCircle2 size={14} /> Confirmar cierre</>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── DiscardPanel ─────────────────────────────────────────────────
+function DiscardPanel({ lead, onClose: onCloseDrawer }) {
+  const { discardLead } = usePipeline()
+  const [category, setCategory] = useState('')
+  const [notes, setNotes] = useState('')
+  const [retakeDate, setRetakeDate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const selectedCat = DISCARD_CATEGORIES.find(c => c.value === category)
+
+  const handleDiscard = async () => {
+    if (!category) { toast.error('Selecciona una razón de descarte'); return }
+    setSaving(true)
+    try {
+      await discardLead(lead.id, { category, notes, retakeDate: retakeDate || null })
+      toast.success('Lead descartado')
+      onCloseDrawer()
+    } catch { toast.error('Error al descartar') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="px-6 py-4 border-b border-black/[0.06]">
+      <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <XCircle size={13} className="text-red-400" /> Descartar lead
+      </p>
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+            Razón de descarte *
+          </label>
+          <div className="grid grid-cols-1 gap-1.5">
+            {DISCARD_CATEGORIES.map(cat => (
+              <button key={cat.value} type="button"
+                onClick={() => setCategory(cat.value)}
+                className={clsx(
+                  'flex items-start gap-2.5 px-3 py-2.5 rounded-[8px] border text-left transition-all',
+                  category === cat.value
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-black/[0.08] hover:border-black/[0.16]'
+                )}>
+                <div className={clsx(
+                  'w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 mt-0.5 transition-all',
+                  category === cat.value ? 'border-red-500 bg-red-500' : 'border-black/20'
+                )} />
+                <div>
+                  <div className="text-[12px] font-semibold text-primary">{cat.label}</div>
+                  <div className="text-[10.5px] text-tertiary">{cat.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Retake date — only for categories that can be retaken */}
+        {selectedCat?.canRetake && category !== 'blacklist' && (
+          <div>
+            <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+              Fecha de retoma <span className="font-normal lowercase tracking-normal text-tertiary">opcional</span>
+            </label>
+            <input type="date" value={retakeDate} onChange={e => setRetakeDate(e.target.value)}
+              className="input text-sm" min={new Date().toISOString().split('T')[0]} />
+            {retakeDate && (
+              <p className="text-[10px] text-blue-600 mt-1">
+                ℹ Este lead aparecerá en alertas el {format(new Date(retakeDate), "d 'de' MMMM 'de' yyyy", { locale: es })}
+              </p>
+            )}
+          </div>
+        )}
+
+        {category === 'blacklist' && (
+          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-[10px]">
+            <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[11.5px] text-red-700">
+              <strong>Solicitud expresa.</strong> Este lead no volverá a aparecer en el pipeline y nunca será reasignado.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1.5">
+            Notas <span className="font-normal lowercase tracking-normal">opcional</span>
+          </label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            rows={2} className="input resize-none text-sm" placeholder="¿Por qué exactamente? Contexto para futuras retomas..." />
+        </div>
+
+        <button onClick={handleDiscard} disabled={saving || !category}
+          className="flex items-center justify-center gap-2 py-2 px-4 rounded-[10px] bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold transition-colors">
+          {saving
+            ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+            : <><XCircle size={14} /> Confirmar descarte</>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── HandoffPanel ─────────────────────────────────────────────────
+function HandoffPanel({ lead }) {
+  const { resolveHandoff } = usePipeline()
+  const [outcome, setOutcome] = useState(null)
+  const [paymentDate, setPaymentDate] = useState('')
+  const [discardCategory, setDiscardCategory] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleResolve = async () => {
+    if (!outcome) { toast.error('Selecciona el resultado de la llamada'); return }
+    setSaving(true)
+    try {
+      if (outcome === 'secure_opportunity') {
+        if (!paymentDate) { toast.error('Ingresa la fecha de pago'); setSaving(false); return }
+        await resolveHandoff(lead.id, 'secure_opportunity', { paymentDate, handoffNotes: notes })
+        toast.success('Movido a Oportunidad Segura')
+      } else if (outcome === 'open_opportunity') {
+        await resolveHandoff(lead.id, 'open_opportunity', { handoffNotes: notes })
+        toast.success('Movido a Oportunidad Abierta')
+      } else if (outcome === 'discard') {
+        if (!discardCategory) { toast.error('Selecciona la razón de descarte'); setSaving(false); return }
+        await resolveHandoff(lead.id, 'discard', { category: discardCategory, notes })
+        toast.success('Lead descartado')
+      }
+    } catch { toast.error('Error al registrar resultado') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="px-6 py-4 border-b border-black/[0.06] bg-amber-50">
+      <div className="flex items-center gap-2 mb-4">
+        <Phone size={14} className="text-amber-600" />
+        <p className="text-[12px] font-bold text-amber-700 uppercase tracking-wide">Resultado de la llamada</p>
+      </div>
+
+      <p className="text-[12.5px] text-amber-800 mb-4 leading-relaxed">
+        ¿Cómo terminó la conversación telefónica con <strong>{lead.name}</strong>?
+      </p>
+
+      <div className="flex flex-col gap-2 mb-4">
+        {[
+          {
+            value: 'secure_opportunity',
+            label: 'Tiene fecha de pago',
+            desc: 'Se comprometió a pagar en una fecha específica',
+            color: '#0066ff',
+            bg: 'rgba(0,102,255,0.06)',
+            border: 'rgba(0,102,255,0.2)',
+            icon: <CheckCircle2 size={14} className="text-blue-600" />,
+          },
+          {
+            value: 'open_opportunity',
+            label: 'Interesado pero sin fecha',
+            desc: 'Hubo interés pero no se confirmó fecha de pago',
+            color: '#6366f1',
+            bg: 'rgba(99,102,241,0.06)',
+            border: 'rgba(99,102,241,0.2)',
+            icon: <Clock size={14} className="text-indigo-500" />,
+          },
+          {
+            value: 'discard',
+            label: 'No se va a cerrar',
+            desc: 'La llamada no resultó en oportunidad viable',
+            color: '#ef4444',
+            bg: 'rgba(239,68,68,0.06)',
+            border: 'rgba(239,68,68,0.2)',
+            icon: <XCircle size={14} className="text-red-500" />,
+          },
+        ].map(opt => (
+          <button key={opt.value} type="button"
+            onClick={() => setOutcome(opt.value)}
+            className="flex items-start gap-3 px-3.5 py-3 rounded-[10px] border text-left transition-all"
+            style={{
+              borderColor: outcome === opt.value ? opt.color : 'rgba(0,0,0,0.1)',
+              background: outcome === opt.value ? opt.bg : 'white',
+            }}>
+            <div className="mt-0.5 flex-shrink-0">{opt.icon}</div>
+            <div>
+              <div className="text-[12.5px] font-semibold text-primary">{opt.label}</div>
+              <div className="text-[11px] text-tertiary">{opt.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Secure: payment date */}
+      {outcome === 'secure_opportunity' && (
+        <div className="mb-3">
+          <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+            Fecha de pago *
+          </label>
+          <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+            className="input text-sm" min={new Date().toISOString().split('T')[0]} />
+        </div>
+      )}
+
+      {/* Discard: category */}
+      {outcome === 'discard' && (
+        <div className="mb-3">
+          <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+            Razón del descarte *
+          </label>
+          <select value={discardCategory} onChange={e => setDiscardCategory(e.target.value)} className="input text-sm">
+            <option value="">Selecciona una razón...</option>
+            {DISCARD_CATEGORIES.filter(c => c.value !== 'handoff_bound').map(c => (
+              <option key={c.value} value={c.value}>{c.label} — {c.desc}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Notes */}
+      {outcome && (
+        <div className="mb-4">
+          <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+            Notas de la llamada <span className="font-normal lowercase tracking-normal">opcional</span>
+          </label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            rows={2} className="input resize-none text-sm" placeholder="¿Qué dijo? ¿Qué pasó en la llamada?" />
+        </div>
+      )}
+
+      <button onClick={handleResolve} disabled={saving || !outcome}
+        className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+        {saving
+          ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+          : <><ArrowRight size={14} /> Registrar resultado</>}
+      </button>
+    </div>
+  )
+}
+
+// ── MAIN DRAWER ──────────────────────────────────────────────────
+export default function LeadDrawer({ lead, onClose }) {
   const { org } = useAuthStore()
-  const { stages, updateLead, deleteLead } = usePipeline()
+  const { stages, updateLead, deleteLead, markProfileB, moveToHandoff, members } = usePipeline()
 
-  // Normaliza phone: puede ser string o { lada, number } en datos viejos
   const phoneStr = normalizePhone(lead.phone)
-
   const [interactions, setInteractions] = useState([])
   const [noteText, setNoteText] = useState('')
   const [noteType, setNoteType] = useState('note')
   const [addingNote, setAddingNote] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [showClose, setShowClose] = useState(false)
+  const [showDiscard, setShowDiscard] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     name: lead.name || '',
     company: lead.company || '',
@@ -94,12 +563,15 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
     phone: phoneStr,
     value: lead.value || '',
   })
-  const [saving, setSaving] = useState(false)
 
   const currentStage = stages.find(s => s.id === lead.stageId)
   const source = SOURCE_CONFIG[lead.source] || SOURCE_CONFIG.manual
+  const assignedMember = members.find(m => m.id === lead.assignedTo)
+  const isClosed = lead.systemStage === 'closed'
+  const isDiscarded = lead.discarded
+  const isHandoff = lead.systemStage === 'handoff'
+  const isSystemStage = !!lead.systemStage
 
-  // Real-time interactions
   useEffect(() => {
     if (!org?.id || !lead.id) return
     const q = query(
@@ -116,42 +588,30 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
     if (!noteText.trim()) return
     setAddingNote(true)
     try {
-      await addDoc(
-        collection(db, 'organizations', org.id, 'leads', lead.id, 'interactions'),
-        { type: noteType, content: noteText.trim(), createdAt: serverTimestamp() }
-      )
+      await addDoc(collection(db, 'organizations', org.id, 'leads', lead.id, 'interactions'), {
+        type: noteType, content: noteText.trim(), createdAt: serverTimestamp()
+      })
       setNoteText('')
       toast.success('Guardado')
-    } catch {
-      toast.error('Error al guardar')
-    } finally {
-      setAddingNote(false)
-    }
+    } catch { toast.error('Error al guardar') }
+    finally { setAddingNote(false) }
   }
 
   const handleSaveEdit = async () => {
     setSaving(true)
     try {
-      await updateLead(lead.id, {
-        ...editForm,
-        value: Number(editForm.value) || 0,
-      })
+      await updateLead(lead.id, { ...editForm, value: Number(editForm.value) || 0 })
       setEditing(false)
       toast.success('Actualizado')
-    } catch {
-      toast.error('Error al actualizar')
-    } finally {
-      setSaving(false)
-    }
+    } catch { toast.error('Error al actualizar') }
+    finally { setSaving(false) }
   }
 
   const handleStageChange = async (stageId) => {
     try {
-      await updateLead(lead.id, { stageId })
+      await updateLead(lead.id, { stageId, systemStage: null })
       toast.success('Etapa actualizada')
-    } catch {
-      toast.error('Error')
-    }
+    } catch { toast.error('Error') }
   }
 
   const handleDelete = async () => {
@@ -160,60 +620,79 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
       await deleteLead(lead.id)
       toast.success('Lead eliminado')
       onClose()
-    } catch {
-      toast.error('Error al eliminar')
-    }
+    } catch { toast.error('Error al eliminar') }
+  }
+
+  const handleMarkProfileB = async () => {
+    try {
+      await markProfileB(lead.id)
+      toast.success('Perfil B marcado — alerta creada para el equipo')
+    } catch { toast.error('Error') }
+  }
+
+  const handleMoveToHandoff = async () => {
+    try {
+      await moveToHandoff(lead.id)
+      toast.success('Lead movido a Handoff')
+    } catch { toast.error('Error') }
   }
 
   const formatValue = (v) => v ? `$${Number(v).toLocaleString()} USD` : '—'
+  const stageColor = currentStage?.color ||
+    (lead.systemStage ? SYSTEM_STAGES[lead.systemStage]?.color : '#0a0a0a')
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40"
-        onClick={onClose}
-      />
-
-      {/* Drawer */}
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40" onClick={onClose} />
       <div className="fixed right-0 top-0 bottom-0 w-[480px] bg-surface z-50 flex flex-col shadow-[−8px_0_40px_rgba(0,0,0,0.12)] border-l border-black/[0.08]">
 
         {/* Header */}
         <div className="flex items-start gap-4 px-6 py-5 border-b border-black/[0.08] flex-shrink-0">
-          <div
-            className="w-10 h-10 rounded-[10px] flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-            style={{ background: currentStage?.color || '#0a0a0a' }}
-          >
+          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+            style={{ background: stageColor }}>
             {lead.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-display font-bold text-lg tracking-tight leading-tight truncate">
-              {lead.name}
-            </h2>
-            {lead.company && (
-              <p className="text-sm text-secondary truncate">{lead.company}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-display font-bold text-lg tracking-tight leading-tight">{lead.name}</h2>
+              {lead.profileB && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-[10px] font-bold">
+                  <Star size={9} fill="currentColor" /> Perfil distribuidor
+                </span>
+              )}
+              {isClosed && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-600 text-[10px] font-bold">
+                  <CheckCircle2 size={9} /> Cerrado
+                </span>
+              )}
+              {lead.handoffBoundFrom && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 text-[10px] font-bold">
+                  <AlertTriangle size={9} /> Handoff Bound
+                </span>
+              )}
+            </div>
+            {lead.company && <p className="text-sm text-secondary mt-0.5">{lead.company}</p>}
+            {assignedMember && (
+              <p className="text-[11px] text-tertiary mt-0.5">Asignado a {assignedMember.name}</p>
+            )}
+            {lead.handoffBoundFrom && (
+              <p className="text-[10px] text-purple-500 mt-0.5">
+                Reasignado por Handoff Bound · anterior: {members.find(m => m.id === lead.handoffBoundFrom)?.name || lead.handoffBoundFrom}
+              </p>
             )}
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              onClick={() => setEditing(!editing)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
-              title="Editar"
-            >
-              <Edit2 size={13} strokeWidth={2} />
+          <div className="flex gap-1 flex-shrink-0">
+            <button onClick={() => setEditing(e => !e)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors">
+              <Edit2 size={14} />
             </button>
-            <button
-              onClick={handleDelete}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors"
-              title="Eliminar"
-            >
-              <Trash2 size={14} strokeWidth={2} />
+            <button onClick={handleDelete}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors">
+              <Trash2 size={14} />
             </button>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors"
-            >
-              <X size={15} strokeWidth={2} />
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2 hover:text-primary transition-colors">
+              <X size={15} />
             </button>
           </div>
         </div>
@@ -221,7 +700,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* SCORE + META ROW */}
+          {/* SCORE + META */}
           <div className="flex items-center gap-4 px-6 py-4 border-b border-black/[0.06]">
             <ScoreRing score={lead.score} />
             <div className="flex-1 flex flex-col gap-2">
@@ -233,16 +712,26 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Valor</span>
-                <span className="text-[12.5px] font-bold text-primary">{formatValue(lead.value)}</span>
+                <span className="text-[12.5px] font-bold text-primary">
+                  {isClosed
+                    ? `$${Number(lead.closedProduct?.price || 0).toLocaleString()} ${lead.closedProduct?.currency || 'USD'}`
+                    : formatValue(lead.value)}
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Email</span>
-                <span className="text-[12.5px] text-primary truncate">{lead.email || '—'}</span>
+                <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Etapa</span>
+                <span className="text-[12.5px] text-primary">
+                  {lead.systemStage
+                    ? SYSTEM_STAGES[lead.systemStage]?.name
+                    : currentStage?.name || '—'}
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Tel</span>
-                <span className="text-[12.5px] text-primary">{phoneStr || '—'}</span>
-              </div>
+              {lead.email && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Email</span>
+                  <span className="text-[12.5px] text-primary truncate">{lead.email}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -259,131 +748,159 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
                 ].map(f => (
                   <div key={f.key}>
                     <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1">{f.label}</label>
-                    <input
-                      value={editForm[f.key]}
-                      onChange={e => setEditForm(ef => ({ ...ef, [f.key]: e.target.value }))}
-                      placeholder={f.placeholder}
-                      className="input text-[12.5px] py-1.5"
-                    />
+                    <input value={editForm[f.key]} onChange={e => setEditForm(ef => ({ ...ef, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder} className="input text-[12.5px] py-1.5" />
                   </div>
                 ))}
                 <div>
                   <label className="text-[10px] font-semibold text-tertiary uppercase tracking-wide block mb-1">Valor (USD)</label>
-                  <input
-                    type="number"
-                    value={editForm.value}
+                  <input type="number" value={editForm.value}
                     onChange={e => setEditForm(ef => ({ ...ef, value: e.target.value }))}
-                    placeholder="0"
-                    className="input text-[12.5px] py-1.5"
-                  />
+                    placeholder="0" className="input text-[12.5px] py-1.5" />
                 </div>
               </div>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setEditing(false)} className="btn-secondary text-xs py-1.5 flex-1">Cancelar</button>
-                <button onClick={handleSaveEdit} disabled={saving} className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1.5">
+                <button onClick={handleSaveEdit} disabled={saving}
+                  className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1.5">
                   {saving ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : 'Guardar'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* STAGE SELECTOR */}
-          <div className="px-6 py-4 border-b border-black/[0.06]">
-            <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3">Etapa</p>
-            <div className="flex flex-wrap gap-2">
-              {stages.map(stage => (
-                <button
-                  key={stage.id}
-                  onClick={() => handleStageChange(stage.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-150"
-                  style={{
-                    borderColor: lead.stageId === stage.id ? stage.color : 'rgba(0,0,0,0.1)',
-                    background: lead.stageId === stage.id ? `${stage.color}15` : 'transparent',
-                    color: lead.stageId === stage.id ? stage.color : '#6e6e73',
-                  }}
-                >
-                  <div className="w-2 h-2 rounded-full" style={{ background: stage.color }} />
-                  {stage.name}
-                </button>
-              ))}
+          {/* HANDOFF PANEL — shown when in handoff system stage */}
+          {isHandoff && <HandoffPanel lead={lead} />}
+
+          {/* STAGE SELECTOR — only for configurable stages */}
+          {!isSystemStage && !isDiscarded && (
+            <div className="px-6 py-4 border-b border-black/[0.06]">
+              <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3">Etapa</p>
+              <div className="flex flex-wrap gap-2">
+                {stages.map(stage => (
+                  <button key={stage.id} onClick={() => handleStageChange(stage.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all"
+                    style={{
+                      borderColor: lead.stageId === stage.id ? stage.color : 'rgba(0,0,0,0.1)',
+                      background: lead.stageId === stage.id ? `${stage.color}15` : 'transparent',
+                      color: lead.stageId === stage.id ? stage.color : '#6e6e73',
+                    }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: stage.color }} />
+                    {stage.name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* PROFILE B SECTION */}
+          {!lead.profileB && !isClosed && !isDiscarded && (
+            <div className="px-6 py-4 border-b border-black/[0.06]">
+              <button onClick={handleMarkProfileB}
+                className="flex items-center gap-2 px-3 py-2 rounded-[8px] border border-dashed border-blue-200 text-blue-600 text-[12px] font-semibold hover:bg-blue-50 transition-colors w-full justify-center">
+                <Star size={13} /> Marcar como perfil distribuidor
+              </button>
+              <p className="text-[10px] text-tertiary text-center mt-1.5">
+                Genera una alerta para que el vendedor evalúe la oportunidad en el momento correcto
+              </p>
+            </div>
+          )}
+
+          {/* MOVE TO HANDOFF — from configurable stages */}
+          {!isSystemStage && !isDiscarded && !isClosed && (
+            <div className="px-6 py-4 border-b border-black/[0.06]">
+              <button onClick={handleMoveToHandoff}
+                className="flex items-center gap-2 px-3 py-2 rounded-[8px] bg-amber-50 border border-amber-200 text-amber-700 text-[12px] font-semibold hover:bg-amber-100 transition-colors w-full justify-center">
+                <Phone size={13} /> Mover a Handoff — listo para llamada
+              </button>
+            </div>
+          )}
 
           {/* ACTION BUTTONS */}
           <div className="px-6 py-4 border-b border-black/[0.06]">
             <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3">Acciones rápidas</p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {phoneStr && (
-                <a
-                  href={`tel:${phoneStr}`}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-black/[0.2] hover:text-primary transition-all"
-                >
+                <a href={`tel:${phoneStr}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-black/[0.2] hover:text-primary transition-all">
                   <Phone size={13} className="opacity-70" /> Llamar
                 </a>
               )}
               {phoneStr && (
-                <a
-                  href={`https://wa.me/${phoneStr.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all"
-                >
+                <a href={`https://wa.me/${phoneStr.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-green-300 hover:text-green-600 transition-all">
                   <MessageCircle size={13} className="opacity-70" /> WhatsApp
                 </a>
               )}
               {lead.email && (
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-blue-300 hover:text-blue-600 transition-all"
-                >
+                <a href={`mailto:${lead.email}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-blue-300 hover:text-blue-600 transition-all">
                   <Mail size={13} className="opacity-70" /> Email
                 </a>
               )}
             </div>
           </div>
 
+          {/* CLOSE SALE */}
+          {!isDiscarded && (
+            <>
+              {isClosed ? (
+                <ClosePanel lead={lead} onClose={onClose} />
+              ) : (
+                <div className="px-6 py-3 border-b border-black/[0.06]">
+                  <button onClick={() => { setShowClose(s => !s); setShowDiscard(false) }}
+                    className={clsx(
+                      'flex items-center gap-2 px-3 py-2 rounded-[8px] border text-[12px] font-semibold transition-all w-full justify-center',
+                      showClose
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'border-black/[0.1] text-secondary hover:border-green-300 hover:text-green-600'
+                    )}>
+                    <CheckCircle2 size={13} /> Cerrar venta
+                  </button>
+                  {showClose && <div className="mt-3"><ClosePanel lead={lead} onClose={onClose} /></div>}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* DISCARD */}
+          {!isDiscarded && !isClosed && (
+            <div className="px-6 py-3 border-b border-black/[0.06]">
+              <button onClick={() => { setShowDiscard(s => !s); setShowClose(false) }}
+                className={clsx(
+                  'flex items-center gap-2 px-3 py-2 rounded-[8px] border text-[12px] font-semibold transition-all w-full justify-center',
+                  showDiscard
+                    ? 'bg-red-50 border-red-300 text-red-600'
+                    : 'border-black/[0.1] text-secondary hover:border-red-200 hover:text-red-500'
+                )}>
+                <XCircle size={13} /> Descartar lead
+              </button>
+              {showDiscard && <div className="mt-3"><DiscardPanel lead={lead} onClose={onClose} /></div>}
+            </div>
+          )}
+
           {/* ADD INTERACTION */}
           <div className="px-6 py-4 border-b border-black/[0.06]">
             <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-3">Agregar interacción</p>
-
-            {/* Type selector */}
-            <div className="flex gap-1.5 mb-3">
+            <div className="flex gap-1.5 mb-3 flex-wrap">
               {INTERACTION_TYPES.map(t => (
-                <button
-                  key={t.value}
-                  onClick={() => setNoteType(t.value)}
+                <button key={t.value} onClick={() => setNoteType(t.value)}
                   className={clsx(
                     'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all',
-                    noteType === t.value
-                      ? 'bg-primary text-white border-primary'
-                      : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
-                  )}
-                >
+                    noteType === t.value ? 'bg-primary text-white border-primary' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                  )}>
                   {t.icon} {t.label}
                 </button>
               ))}
             </div>
-
-            <textarea
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-              placeholder="Escribe aquí..."
-              rows={3}
-              className="input resize-none text-[13px] leading-relaxed"
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddNote()
-              }}
-            />
+            <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
+              placeholder="Escribe aquí..." rows={3} className="input resize-none text-[13px] leading-relaxed"
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddNote() }} />
             <div className="flex items-center justify-between mt-2">
               <span className="text-[11px] text-tertiary">⌘+Enter para guardar</span>
-              <button
-                onClick={handleAddNote}
-                disabled={addingNote || !noteText.trim()}
-                className="btn-primary text-xs py-1.5 px-4 flex items-center gap-1.5 disabled:opacity-40"
-              >
-                {addingNote
-                  ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
-                  : 'Guardar'}
+              <button onClick={handleAddNote} disabled={addingNote || !noteText.trim()}
+                className="btn-primary text-xs py-1.5 px-4 flex items-center gap-1.5 disabled:opacity-40">
+                {addingNote ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : 'Guardar'}
               </button>
             </div>
           </div>
@@ -393,11 +910,10 @@ export default function LeadDrawer({ lead, onClose, onUpdate }) {
             <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-1">
               Historial ({interactions.length})
             </p>
-            {interactions.length === 0 ? (
-              <p className="text-sm text-tertiary py-4 text-center">Sin interacciones aún</p>
-            ) : (
-              interactions.map(item => <InteractionItem key={item.id} item={item} />)
-            )}
+            {interactions.length === 0
+              ? <p className="text-sm text-tertiary py-4 text-center">Sin interacciones aún</p>
+              : interactions.map(item => <InteractionItem key={item.id} item={item} />)
+            }
           </div>
 
         </div>
