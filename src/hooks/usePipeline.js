@@ -6,7 +6,6 @@ import {
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { useTeam } from '@/hooks/useTeam'
-import { useTeam } from '@/hooks/useTeam'
 
 // ─── SYSTEM STAGES — fixed, not in Firestore ─────────────────────
 export const SYSTEM_STAGES = {
