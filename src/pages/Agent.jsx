@@ -8,27 +8,27 @@ import clsx from 'clsx'
 import {
   Bot, Brain, Package, BarChart2, Zap,
   FileText, Trash2, Plus, X, Clock,
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle2, MessageSquare, User
+  ChevronDown, ChevronUp, AlertTriangle,
+  CheckCircle2, MessageSquare, User
 } from 'lucide-react'
 
 // ─── TABS ────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'identity',  icon: Bot,       label: 'Identidad'     },
-  { id: 'knowledge', icon: Brain,     label: 'Conocimiento'  },
-  { id: 'products',  icon: Package,   label: 'Productos'     },
-  { id: 'scoring',   icon: BarChart2, label: 'Scoring'       },
-  { id: 'test',      icon: Zap,       label: 'Probar'        },
+  { id: 'identity',  icon: Bot,       label: 'Identidad'    },
+  { id: 'knowledge', icon: Brain,     label: 'Conocimiento' },
+  { id: 'products',  icon: Package,   label: 'Productos'    },
+  { id: 'scoring',   icon: BarChart2, label: 'Scoring'      },
+  { id: 'test',      icon: Zap,       label: 'Probar'       },
 ]
 
-// ─── SCORING CATALOG ─────────────────────────────────────────────
-const SCORING_CATALOG = {
+// ─── SCORING CATALOGS BY PURPOSE ─────────────────────────────────
+
+// Pipeline 1 — ADQUISICIÓN (Venta)
+const CATALOG_ADQUISICION = {
   necesidad: {
     label: 'Necesidad',
     desc: '¿Tiene un problema real que resolver?',
     color: '#0066ff',
-    bg: 'rgba(0,102,255,0.08)',
-    border: 'rgba(0,102,255,0.2)',
     subcategories: {
       urgencia: {
         label: 'Urgencia',
@@ -44,14 +44,14 @@ const SCORING_CATALOG = {
         signals: [
           { id: 'n_c_1', text: 'Sabe exactamente qué necesita y lo describe con detalle', type: 'up' },
           { id: 'n_c_2', text: 'Lo que describe encaja directamente con lo que se vende', type: 'up' },
-          { id: 'n_c_3', text: 'Está explorando sin claridad — confunde síntomas con problema', type: 'down' },
+          { id: 'n_c_3', text: 'Confunde síntomas con el problema real', type: 'down' },
         ]
       },
       historial: {
         label: 'Historial',
         signals: [
           { id: 'n_h_1', text: 'Ya intentó resolver esto antes y sabe por qué falló', type: 'up' },
-          { id: 'n_h_2', text: 'El problema le ha costado algo concreto — historial de impacto', type: 'up' },
+          { id: 'n_h_2', text: 'El problema le ha costado algo concreto', type: 'up' },
           { id: 'n_h_3', text: 'Nunca ha intentado resolverlo — problema nuevo sin historial', type: 'down' },
         ]
       }
@@ -61,8 +61,6 @@ const SCORING_CATALOG = {
     label: 'Capacidad',
     desc: '¿Puede comprar? — El filtro más duro.',
     color: '#00875a',
-    bg: 'rgba(0,135,90,0.08)',
-    border: 'rgba(0,135,90,0.2)',
     subcategories: {
       presupuesto: {
         label: 'Presupuesto',
@@ -78,7 +76,7 @@ const SCORING_CATALOG = {
         label: 'Autoridad',
         signals: [
           { id: 'c_a_1', text: 'Confirmó que él decide solo sin consultar a nadie', type: 'up' },
-          { id: 'c_a_2', text: 'Necesita consultar con una persona — proceso más largo pero viable', type: 'down' },
+          { id: 'c_a_2', text: 'Necesita consultar con alguien — proceso más largo', type: 'down' },
           { id: 'c_a_3', text: 'Habla en plural sin aclarar quién decide', type: 'down' },
         ]
       },
@@ -96,13 +94,11 @@ const SCORING_CATALOG = {
     label: 'Intención',
     desc: '¿Quiere comprar ahora? — Define la velocidad del cierre.',
     color: '#b45309',
-    bg: 'rgba(180,83,9,0.08)',
-    border: 'rgba(180,83,9,0.2)',
     subcategories: {
       horizonte: {
         label: 'Horizonte de compra',
         signals: [
-          { id: 'i_h_1', text: 'Quiere resolver esto esta semana o en el mes', type: 'up' },
+          { id: 'i_h_1', text: 'Quiere resolver esto esta semana o este mes', type: 'up' },
           { id: 'i_h_2', text: 'Algo específico detonó que buscara solución ahora', type: 'up' },
           { id: 'i_h_3', text: 'Lleva tiempo pensándolo y finalmente actuó', type: 'up' },
           { id: 'i_h_4', text: 'No tiene ningún horizonte definido — curiosidad sin compromiso', type: 'down' },
@@ -130,15 +126,13 @@ const SCORING_CATALOG = {
   },
   confianza: {
     label: 'Confianza',
-    desc: '¿Confía en ti y en el producto? — Se construye con el tiempo.',
+    desc: '¿Confía en ti y en el producto?',
     color: '#5b21b6',
-    bg: 'rgba(91,33,182,0.08)',
-    border: 'rgba(91,33,182,0.2)',
     subcategories: {
       apertura: {
         label: 'Apertura',
         signals: [
-          { id: 'co_a_1', text: 'Comparte información de su situación sin que le pregunten', type: 'up' },
+          { id: 'co_a_1', text: 'Comparte información personal sin que le pregunten', type: 'up' },
           { id: 'co_a_2', text: 'Admite sus dudas o miedos abiertamente', type: 'up' },
           { id: 'co_a_3', text: 'El tono cambió de frío a cálido durante la conversación', type: 'up' },
           { id: 'co_a_4', text: 'Es reservado y evita dar información concreta', type: 'down' },
@@ -165,26 +159,246 @@ const SCORING_CATALOG = {
   }
 }
 
-const DEFAULT_SCORING = Object.fromEntries(
-  Object.entries(SCORING_CATALOG).map(([catId, cat]) => [
-    catId,
-    {
-      cap: 25,
-      subcategories: Object.fromEntries(
-        Object.entries(cat.subcategories).map(([subId, sub]) => [
-          subId,
-          {
-            cap: 10,
-            signals: Object.fromEntries(
-              sub.signals.map(s => [s.id, { enabled: true, pts: s.type === 'up' ? 10 : 5 }])
-            ),
-            customSignals: []
-          }
-        ])
-      )
+// Pipeline 2 — RETENCIÓN (Recompra)
+const CATALOG_RETENCION = {
+  satisfaccion: {
+    label: 'Satisfacción',
+    desc: '¿Le funcionó el producto? — La base de la recompra.',
+    color: '#0066ff',
+    subcategories: {
+      resultado: {
+        label: 'Resultado percibido',
+        signals: [
+          { id: 'r_s_1', text: 'Mencionó resultados concretos o mejoras que notó', type: 'up' },
+          { id: 'r_s_2', text: 'Comparó positivamente con lo que tenía antes', type: 'up' },
+          { id: 'r_s_3', text: 'Recomendó el producto a alguien más', type: 'up' },
+          { id: 'r_s_4', text: 'No notó diferencia o no está seguro de los resultados', type: 'down' },
+          { id: 'r_s_5', text: 'Tuvo una experiencia negativa o un problema con el producto', type: 'down' },
+        ]
+      },
+      experiencia: {
+        label: 'Experiencia de compra',
+        signals: [
+          { id: 'r_e_1', text: 'Habla bien del proceso de compra anterior', type: 'up' },
+          { id: 'r_e_2', text: 'Tuvo un problema en la compra anterior que fue resuelto', type: 'up' },
+          { id: 'r_e_3', text: 'Tuvo un problema que NO fue resuelto', type: 'down' },
+        ]
+      }
     }
-  ])
-)
+  },
+  engagement: {
+    label: 'Engagement',
+    desc: '¿Sigue activo y conectado? — Predice la lealtad.',
+    color: '#00875a',
+    subcategories: {
+      actividad: {
+        label: 'Actividad reciente',
+        signals: [
+          { id: 'en_a_1', text: 'Respondió rápido al mensaje de recompra', type: 'up' },
+          { id: 'en_a_2', text: 'Ha iniciado conversación por su cuenta recientemente', type: 'up' },
+          { id: 'en_a_3', text: 'Tardó más de 48h en responder o no respondió al primer mensaje', type: 'down' },
+          { id: 'en_a_4', text: 'Lleva semanas sin señales de vida', type: 'down' },
+        ]
+      },
+      relacion: {
+        label: 'Relación con la marca',
+        signals: [
+          { id: 'en_r_1', text: 'Recuerda detalles de conversaciones anteriores', type: 'up' },
+          { id: 'en_r_2', text: 'Usa el nombre del vendedor o hace referencia personal', type: 'up' },
+          { id: 'en_r_3', text: 'Tono frío o distante como si fuera un desconocido', type: 'down' },
+        ]
+      }
+    }
+  },
+  riesgo: {
+    label: 'Riesgo de abandono',
+    desc: 'Señales de que podría no renovar — las negativas pesan más.',
+    color: '#dc2626',
+    subcategories: {
+      senales_negativas: {
+        label: 'Señales de abandono',
+        signals: [
+          { id: 'ri_n_1', text: 'Mencionó que está evaluando otras opciones', type: 'down' },
+          { id: 'ri_n_2', text: 'Preguntó por cancelación o devolución', type: 'down' },
+          { id: 'ri_n_3', text: 'Expresó dudas sobre si el producto sigue siendo necesario', type: 'down' },
+          { id: 'ri_n_4', text: 'Mencionó problemas económicos o recorte de gastos', type: 'down' },
+          { id: 'ri_n_5', text: 'No ha usado el producto o no recuerda cómo usarlo', type: 'down' },
+        ]
+      },
+      estabilidad: {
+        label: 'Estabilidad del cliente',
+        signals: [
+          { id: 'ri_e_1', text: 'Su situación mejoró desde la primera compra', type: 'up' },
+          { id: 'ri_e_2', text: 'Tiene continuidad en su rutina — el producto encaja bien', type: 'up' },
+          { id: 'ri_e_3', text: 'Su situación cambió significativamente para mal', type: 'down' },
+        ]
+      }
+    }
+  },
+  intencion_renovar: {
+    label: 'Intención de renovar',
+    desc: '¿Quiere continuar? — La señal más directa.',
+    color: '#b45309',
+    subcategories: {
+      interes: {
+        label: 'Interés explícito',
+        signals: [
+          { id: 'ir_i_1', text: 'Preguntó cuándo termina su producto actual', type: 'up' },
+          { id: 'ir_i_2', text: 'Preguntó por nuevos productos o complementos', type: 'up' },
+          { id: 'ir_i_3', text: 'Mencionó que quiere continuar o que no puede quedarse sin el producto', type: 'up' },
+          { id: 'ir_i_4', text: 'Dijo que va a pensarlo — señal débil de intención', type: 'down' },
+        ]
+      },
+      friccion: {
+        label: 'Fricción para renovar',
+        signals: [
+          { id: 'ir_f_1', text: 'El proceso de renovación es sencillo para él', type: 'up' },
+          { id: 'ir_f_2', text: 'Tiene el mismo método de pago disponible', type: 'up' },
+          { id: 'ir_f_3', text: 'Mencionó que renovar es complicado o que tiene que hacer algo primero', type: 'down' },
+        ]
+      }
+    }
+  }
+}
+
+// Pipeline 3 — DISTRIBUCIÓN
+const CATALOG_DISTRIBUCION = {
+  perfil_emprendedor: {
+    label: 'Perfil emprendedor',
+    desc: '¿Tiene la mentalidad correcta? — El filtro más importante.',
+    color: '#0066ff',
+    subcategories: {
+      mentalidad: {
+        label: 'Mentalidad',
+        signals: [
+          { id: 'd_m_1', text: 'Habla de ingresos adicionales o independencia económica como meta', type: 'up' },
+          { id: 'd_m_2', text: 'Ha tenido un negocio propio o ha vendido algo antes', type: 'up' },
+          { id: 'd_m_3', text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up' },
+          { id: 'd_m_4', text: 'Busca solo un ingreso fijo — no le interesa el modelo variable', type: 'down' },
+          { id: 'd_m_5', text: 'Tiene miedo al rechazo o le incomoda la idea de vender', type: 'down' },
+        ]
+      },
+      historial: {
+        label: 'Historial comercial',
+        signals: [
+          { id: 'd_h_1', text: 'Ha participado en otro multinivel o negocio de referidos', type: 'up' },
+          { id: 'd_h_2', text: 'Tiene experiencia en ventas — cualquier tipo', type: 'up' },
+          { id: 'd_h_3', text: 'Nunca ha vendido nada ni tiene experiencia comercial', type: 'down' },
+        ]
+      }
+    }
+  },
+  red: {
+    label: 'Red de contactos',
+    desc: '¿Tiene a quién venderle? — Sin red no hay negocio.',
+    color: '#00875a',
+    subcategories: {
+      alcance: {
+        label: 'Alcance',
+        signals: [
+          { id: 'd_r_1', text: 'Mencionó comunidades, grupos o círculos sociales activos', type: 'up' },
+          { id: 'd_r_2', text: 'Tiene presencia en redes sociales con seguidores reales', type: 'up' },
+          { id: 'd_r_3', text: 'Trabaja o trabajó en un entorno con muchos contactos', type: 'up' },
+          { id: 'd_r_4', text: 'Menciona que no conoce a muchas personas o que es introvertido', type: 'down' },
+        ]
+      },
+      calidad: {
+        label: 'Calidad de la red',
+        signals: [
+          { id: 'd_q_1', text: 'Su red tiene personas con el perfil del cliente ideal', type: 'up' },
+          { id: 'd_q_2', text: 'Mencionó personas específicas que podrían interesarse', type: 'up' },
+          { id: 'd_q_3', text: 'Su red es muy diferente al perfil del producto', type: 'down' },
+        ]
+      }
+    }
+  },
+  disponibilidad: {
+    label: 'Disponibilidad',
+    desc: '¿Tiene tiempo y energía para trabajar el negocio?',
+    color: '#b45309',
+    subcategories: {
+      tiempo: {
+        label: 'Tiempo disponible',
+        signals: [
+          { id: 'd_t_1', text: 'Tiene tiempo libre que quiere aprovechar productivamente', type: 'up' },
+          { id: 'd_t_2', text: 'Trabaja medio tiempo o está en transición laboral', type: 'up' },
+          { id: 'd_t_3', text: 'Mencionó que tiene poco tiempo pero quiere intentarlo', type: 'up' },
+          { id: 'd_t_4', text: 'Tiene una agenda completamente saturada sin margen', type: 'down' },
+        ]
+      },
+      compromiso: {
+        label: 'Nivel de compromiso',
+        signals: [
+          { id: 'd_c_1', text: 'Preguntó qué necesita hacer para empezar', type: 'up' },
+          { id: 'd_c_2', text: 'Está dispuesto a invertir en su kit de inicio o membresía', type: 'up' },
+          { id: 'd_c_3', text: 'Quiere probar "sin comprometerse" — señal débil', type: 'down' },
+          { id: 'd_c_4', text: 'Pone condiciones antes de empezar — muchos "peros"', type: 'down' },
+        ]
+      }
+    }
+  },
+  comprension_modelo: {
+    label: 'Comprensión del modelo',
+    desc: '¿Entiende cómo funciona el multinivel?',
+    color: '#5b21b6',
+    subcategories: {
+      claridad: {
+        label: 'Claridad del modelo',
+        signals: [
+          { id: 'd_cm_1', text: 'Entiende que los ingresos dependen de su trabajo y su red', type: 'up' },
+          { id: 'd_cm_2', text: 'Hizo preguntas inteligentes sobre comisiones o estructura', type: 'up' },
+          { id: 'd_cm_3', text: 'Confunde el modelo con una pirámide — tiene resistencia ideológica', type: 'down' },
+          { id: 'd_cm_4', text: 'Cree que es dinero fácil sin esfuerzo — expectativa irreal', type: 'down' },
+        ]
+      },
+      alineacion: {
+        label: 'Alineación con el producto',
+        signals: [
+          { id: 'd_al_1', text: 'Ya usa el producto y le funciona — lo vende con convicción propia', type: 'up' },
+          { id: 'd_al_2', text: 'Cree genuinamente en los beneficios del producto', type: 'up' },
+          { id: 'd_al_3', text: 'No usa el producto ni tiene interés en él — solo quiere el dinero', type: 'down' },
+        ]
+      }
+    }
+  }
+}
+
+// ─── CATALOG MAP BY PURPOSE ───────────────────────────────────────
+const CATALOG_BY_PURPOSE = {
+  adquisicion: CATALOG_ADQUISICION,
+  retencion:   CATALOG_RETENCION,
+  distribucion: CATALOG_DISTRIBUCION,
+}
+
+const PURPOSE_LABELS = {
+  adquisicion:  'Adquisición',
+  retencion:    'Retención',
+  distribucion: 'Distribución',
+}
+
+// Build default scoring config from a catalog
+function buildDefaultScoring(catalog) {
+  return Object.fromEntries(
+    Object.entries(catalog).map(([catId, cat]) => [
+      catId,
+      {
+        cap: 25,
+        subcategories: Object.fromEntries(
+          Object.entries(cat.subcategories).map(([subId, sub]) => [
+            subId,
+            {
+              cap: 10,
+              signals: Object.fromEntries(
+                sub.signals.map(s => [s.id, { enabled: true, pts: s.type === 'up' ? 10 : 5 }])
+              ),
+              customSignals: []
+            }
+          ])
+        )
+      }
+    ])
+  )
+}
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -194,15 +408,12 @@ const ACCEPTED_TYPES = [
 ]
 
 // ─── SECTION ─────────────────────────────────────────────────────
-function Section({ title, desc, children, action }) {
+function Section({ title, desc, children }) {
   return (
     <div className="card p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="font-display font-bold text-sm text-primary">{title}</h3>
-          {desc && <p className="text-xs text-secondary mt-0.5">{desc}</p>}
-        </div>
-        {action}
+      <div>
+        <h3 className="font-display font-bold text-sm text-primary">{title}</h3>
+        {desc && <p className="text-xs text-secondary mt-0.5">{desc}</p>}
       </div>
       {children}
     </div>
@@ -300,17 +511,15 @@ function TestPanel({ orgId, config }) {
         <div ref={bottomRef} />
       </div>
       <div className="px-4 py-3 border-t border-black/[0.06] flex gap-2 flex-shrink-0">
-        <input
-          value={text} onChange={e => setText(e.target.value)}
+        <input value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') sendMessage() }}
           placeholder="Escribe como si fueras el lead..."
-          className="flex-1 input text-sm py-2"
-        />
+          className="flex-1 input text-sm py-2" />
         <button onClick={sendMessage} disabled={!text.trim() || loading}
           className="btn-primary px-4 py-2 text-sm disabled:opacity-40">Enviar</button>
         <button onClick={clearConversation} disabled={clearing}
           className="btn-secondary px-3 py-2 text-sm disabled:opacity-40">
-          {clearing ? '...' : 'Nueva conversación'}
+          {clearing ? '...' : 'Nueva'}
         </button>
       </div>
     </div>
@@ -318,23 +527,38 @@ function TestPanel({ orgId, config }) {
 }
 
 // ─── SCORING TAB ─────────────────────────────────────────────────
-function ScoringTab({ scoring, onChange }) {
-  const [openCats, setOpenCats] = useState({ necesidad: true, capacidad: false, intencion: false, confianza: false })
+function ScoringTab({ pipelines, scoring, onChange }) {
+  const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
+  const [openCats, setOpenCats] = useState({})
   const [openSubs, setOpenSubs] = useState({})
   const [newSignalText, setNewSignalText] = useState({})
   const [newSignalType, setNewSignalType] = useState({})
 
-  const toggleCat = id => setOpenCats(s => ({ ...s, [id]: !s[id] }))
-  const toggleSub = id => setOpenSubs(s => ({ ...s, [id]: !s[id] }))
+  const activePipeline = pipelines.find(p => p.id === activePipelineTab)
+  const purpose = activePipeline?.purpose || 'adquisicion'
+  const catalog = CATALOG_BY_PURPOSE[purpose] || CATALOG_ADQUISICION
+
+  // Scoring for the active pipeline
+  const pipelineScoring = scoring[activePipelineTab] || buildDefaultScoring(catalog)
+
+  const updatePipelineScoring = (newPipelineScoring) => {
+    onChange({ ...scoring, [activePipelineTab]: newPipelineScoring })
+  }
+
+  const toggleCat = (id) => setOpenCats(s => ({ ...s, [id]: !s[id] }))
+  const toggleSub = (id) => setOpenSubs(s => ({ ...s, [id]: !s[id] }))
 
   const updateCatCap = (catId, val) => {
-    onChange({ ...scoring, [catId]: { ...scoring[catId], cap: Number(val) } })
+    updatePipelineScoring({
+      ...pipelineScoring,
+      [catId]: { ...pipelineScoring[catId], cap: Number(val) }
+    })
   }
 
   const updateSubCap = (catId, subId, val) => {
-    const cat = scoring[catId]
-    onChange({
-      ...scoring,
+    const cat = pipelineScoring[catId]
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
         ...cat,
         subcategories: {
@@ -346,14 +570,15 @@ function ScoringTab({ scoring, onChange }) {
   }
 
   const toggleSignal = (catId, subId, sigId) => {
-    const sub = scoring[catId].subcategories[subId]
-    const sig = sub.signals[sigId]
-    onChange({
-      ...scoring,
+    const sub = pipelineScoring[catId]?.subcategories?.[subId]
+    if (!sub) return
+    const sig = sub.signals?.[sigId] || { enabled: true, pts: 10 }
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
-        ...scoring[catId],
+        ...pipelineScoring[catId],
         subcategories: {
-          ...scoring[catId].subcategories,
+          ...pipelineScoring[catId].subcategories,
           [subId]: {
             ...sub,
             signals: { ...sub.signals, [sigId]: { ...sig, enabled: !sig.enabled } }
@@ -364,14 +589,15 @@ function ScoringTab({ scoring, onChange }) {
   }
 
   const updateSignalPts = (catId, subId, sigId, val) => {
-    const sub = scoring[catId].subcategories[subId]
-    const sig = sub.signals[sigId]
-    onChange({
-      ...scoring,
+    const sub = pipelineScoring[catId]?.subcategories?.[subId]
+    if (!sub) return
+    const sig = sub.signals?.[sigId] || { enabled: true, pts: 10 }
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
-        ...scoring[catId],
+        ...pipelineScoring[catId],
         subcategories: {
-          ...scoring[catId].subcategories,
+          ...pipelineScoring[catId].subcategories,
           [subId]: {
             ...sub,
             signals: { ...sub.signals, [sigId]: { ...sig, pts: Number(val) } }
@@ -386,18 +612,15 @@ function ScoringTab({ scoring, onChange }) {
     const text = (newSignalText[key] || '').trim()
     if (!text) return
     const type = newSignalType[key] || 'up'
-    const sub = scoring[catId].subcategories[subId]
+    const sub = pipelineScoring[catId]?.subcategories?.[subId] || { cap: 10, signals: {}, customSignals: [] }
     const newSig = { id: `custom_${Date.now()}`, text, type, pts: 10, enabled: true }
-    onChange({
-      ...scoring,
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
-        ...scoring[catId],
+        ...pipelineScoring[catId],
         subcategories: {
-          ...scoring[catId].subcategories,
-          [subId]: {
-            ...sub,
-            customSignals: [...(sub.customSignals || []), newSig]
-          }
+          ...pipelineScoring[catId]?.subcategories,
+          [subId]: { ...sub, customSignals: [...(sub.customSignals || []), newSig] }
         }
       }
     })
@@ -405,59 +628,95 @@ function ScoringTab({ scoring, onChange }) {
   }
 
   const removeCustomSignal = (catId, subId, sigIdx) => {
-    const sub = scoring[catId].subcategories[subId]
-    onChange({
-      ...scoring,
+    const sub = pipelineScoring[catId]?.subcategories?.[subId]
+    if (!sub) return
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
-        ...scoring[catId],
+        ...pipelineScoring[catId],
         subcategories: {
-          ...scoring[catId].subcategories,
-          [subId]: {
-            ...sub,
-            customSignals: sub.customSignals.filter((_, i) => i !== sigIdx)
-          }
+          ...pipelineScoring[catId].subcategories,
+          [subId]: { ...sub, customSignals: sub.customSignals.filter((_, i) => i !== sigIdx) }
         }
       }
     })
   }
 
   const updateCustomSignalPts = (catId, subId, sigIdx, val) => {
-    const sub = scoring[catId].subcategories[subId]
-    const updated = sub.customSignals.map((s, i) => i === sigIdx ? { ...s, pts: Number(val) } : s)
-    onChange({
-      ...scoring,
+    const sub = pipelineScoring[catId]?.subcategories?.[subId]
+    if (!sub) return
+    updatePipelineScoring({
+      ...pipelineScoring,
       [catId]: {
-        ...scoring[catId],
+        ...pipelineScoring[catId],
         subcategories: {
-          ...scoring[catId].subcategories,
-          [subId]: { ...sub, customSignals: updated }
+          ...pipelineScoring[catId].subcategories,
+          [subId]: {
+            ...sub,
+            customSignals: sub.customSignals.map((s, i) => i === sigIdx ? { ...s, pts: Number(val) } : s)
+          }
         }
       }
     })
   }
 
-  // Total score calculado
-  const totalCap = Object.values(scoring).reduce((sum, cat) => sum + (cat.cap || 0), 0)
+  const totalCap = Object.values(pipelineScoring).reduce((sum, cat) => sum + (cat.cap || 0), 0)
+
+  if (pipelines.length === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <BarChart2 size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
+        <p className="font-semibold text-sm text-primary mb-1">Sin pipelines configurados</p>
+        <p className="text-xs text-secondary">Crea un pipeline primero para configurar su scoring.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header info */}
+      {/* Pipeline tabs */}
+      <div className="card p-1 flex gap-1">
+        {pipelines.map(p => (
+          <button key={p.id} onClick={() => {
+            setActivePipelineTab(p.id)
+            setOpenCats({})
+            setOpenSubs({})
+          }}
+            className={clsx(
+              'flex-1 px-3 py-2 rounded-[8px] text-[12.5px] font-semibold transition-all text-center',
+              activePipelineTab === p.id
+                ? 'bg-primary text-white'
+                : 'text-secondary hover:bg-surface-2 hover:text-primary'
+            )}>
+            <div>{p.name}</div>
+            <div className={clsx('text-[10px] font-normal mt-0.5',
+              activePipelineTab === p.id ? 'text-white/70' : 'text-tertiary')}>
+              {PURPOSE_LABELS[p.purpose] || p.purpose}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Info banner */}
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
-        <BarChart2 size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-[12.5px] text-blue-800 font-semibold mb-0.5">Sistema de scoring jerárquico</p>
+          <p className="text-[12.5px] text-blue-800 font-semibold mb-0.5">
+            Scoring para pipeline de {PURPOSE_LABELS[purpose] || purpose}
+          </p>
           <p className="text-[11.5px] text-blue-700 leading-relaxed">
-            Cada categoría tiene un tope máximo. Las señales suman dentro de su subcategoría,
-            las subcategorías suman dentro de su categoría. El total máximo es la suma de los 4 topes.
+            {purpose === 'adquisicion' && 'Mide la probabilidad de primera compra — Necesidad, Capacidad, Intención y Confianza.'}
+            {purpose === 'retencion' && 'Mide el riesgo de abandono y la probabilidad de recompra — Satisfacción, Engagement, Riesgo e Intención de renovar.'}
+            {purpose === 'distribucion' && 'Mide el potencial como distribuidor — Perfil emprendedor, Red de contactos, Disponibilidad y Comprensión del modelo.'}
           </p>
         </div>
       </div>
 
-      {/* Score total indicator */}
+      {/* Score total */}
       <div className="card p-4 flex items-center justify-between">
         <div>
           <p className="text-[11px] font-bold text-secondary uppercase tracking-wide">Score máximo total</p>
-          <p className="text-[11px] text-tertiary mt-0.5">Suma de los topes de las 4 categorías</p>
+          <p className="text-[11px] text-tertiary mt-0.5">Suma de los topes de las {Object.keys(catalog).length} categorías</p>
         </div>
         <div className="text-right">
           <span className="font-display font-bold text-2xl text-primary">{totalCap}</span>
@@ -466,17 +725,15 @@ function ScoringTab({ scoring, onChange }) {
       </div>
 
       {/* Categories */}
-      {Object.entries(SCORING_CATALOG).map(([catId, catDef]) => {
-        const catConfig = scoring[catId] || { cap: 25, subcategories: {} }
+      {Object.entries(catalog).map(([catId, catDef]) => {
+        const catConfig = pipelineScoring[catId] || { cap: 25, subcategories: {} }
         const isOpen = openCats[catId]
 
         return (
           <div key={catId} className="card overflow-hidden">
             {/* Category header */}
-            <div
-              className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-black/[0.02] transition-colors"
-              onClick={() => toggleCat(catId)}
-            >
+            <div className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-black/[0.02] transition-colors"
+              onClick={() => toggleCat(catId)}>
               <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: catDef.color }} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -484,21 +741,17 @@ function ScoringTab({ scoring, onChange }) {
                   <span className="text-[10px] text-secondary">{catDef.desc}</span>
                 </div>
               </div>
-              {/* Cap input */}
               <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
                 <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Tope</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={catConfig.cap}
+                <input type="number" min={1} max={100} value={catConfig.cap}
                   onChange={e => updateCatCap(catId, e.target.value)}
                   className="w-14 text-center input text-sm py-1 font-bold"
-                  style={{ borderColor: catDef.color + '60' }}
-                />
+                  style={{ borderColor: catDef.color + '60' }} />
                 <span className="text-[10px] text-secondary">pts</span>
               </div>
-              {isOpen ? <ChevronUp size={14} className="text-tertiary flex-shrink-0" /> : <ChevronDown size={14} className="text-tertiary flex-shrink-0" />}
+              {isOpen
+                ? <ChevronUp size={14} className="text-tertiary flex-shrink-0" />
+                : <ChevronDown size={14} className="text-tertiary flex-shrink-0" />}
             </div>
 
             {/* Subcategories */}
@@ -508,27 +761,17 @@ function ScoringTab({ scoring, onChange }) {
                   const subKey = `${catId}_${subId}`
                   const subConfig = catConfig.subcategories?.[subId] || { cap: 10, signals: {}, customSignals: [] }
                   const isSubOpen = openSubs[subKey]
-                  const newKey = `${catId}_${subId}`
 
                   return (
                     <div key={subId} className="border-b border-black/[0.04] last:border-b-0">
-                      {/* Subcategory header */}
-                      <div
-                        className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
-                        style={{ paddingLeft: 28 }}
-                        onClick={() => toggleSub(subKey)}
-                      >
+                      <div className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
+                        style={{ paddingLeft: 28 }} onClick={() => toggleSub(subKey)}>
                         <span className="text-[12.5px] font-semibold text-primary flex-1">{subDef.label}</span>
                         <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           <span className="text-[10px] text-tertiary">Tope</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={50}
-                            value={subConfig.cap}
+                          <input type="number" min={1} max={50} value={subConfig.cap}
                             onChange={e => updateSubCap(catId, subId, e.target.value)}
-                            className="w-12 text-center input text-xs py-0.5"
-                          />
+                            className="w-12 text-center input text-xs py-0.5" />
                           <span className="text-[10px] text-tertiary">pts</span>
                         </div>
                         {isSubOpen
@@ -536,57 +779,33 @@ function ScoringTab({ scoring, onChange }) {
                           : <ChevronDown size={12} className="text-tertiary flex-shrink-0" />}
                       </div>
 
-                      {/* Signals */}
                       {isSubOpen && (
                         <div className="px-5 pb-4" style={{ paddingLeft: 36 }}>
                           {/* Catalog signals */}
                           <div className="flex flex-col gap-1.5 mb-3">
                             {subDef.signals.map(sig => {
-                              const sigConfig = subConfig.signals?.[sig.id] || { enabled: true, pts: 10 }
+                              const sigConfig = subConfig.signals?.[sig.id] || { enabled: true, pts: sig.type === 'up' ? 10 : 5 }
                               return (
                                 <div key={sig.id} className={clsx(
                                   'flex items-center gap-3 px-3 py-2 rounded-[8px] border transition-all',
-                                  sigConfig.enabled
-                                    ? 'bg-surface border-black/[0.08]'
-                                    : 'bg-surface-2 border-black/[0.04] opacity-50'
+                                  sigConfig.enabled ? 'bg-surface border-black/[0.08]' : 'bg-surface-2 border-black/[0.04] opacity-50'
                                 )}>
-                                  {/* Toggle */}
-                                  <div
-                                    onClick={() => toggleSignal(catId, subId, sig.id)}
-                                    className={clsx(
-                                      'w-8 h-4 rounded-full cursor-pointer transition-all relative flex-shrink-0',
-                                      sigConfig.enabled ? 'bg-accent-blue' : 'bg-black/20'
-                                    )}>
-                                    <div className={clsx(
-                                      'absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all',
-                                      sigConfig.enabled ? 'left-4' : 'left-0.5'
-                                    )} />
+                                  <div onClick={() => toggleSignal(catId, subId, sig.id)}
+                                    className={clsx('w-8 h-4 rounded-full cursor-pointer transition-all relative flex-shrink-0',
+                                      sigConfig.enabled ? 'bg-accent-blue' : 'bg-black/20')}>
+                                    <div className={clsx('absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all',
+                                      sigConfig.enabled ? 'left-4' : 'left-0.5')} />
                                   </div>
-
-                                  {/* Type badge */}
-                                  <span className={clsx(
-                                    'text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-                                    sig.type === 'up'
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-red-100 text-red-600'
-                                  )}>
+                                  <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
+                                    sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
                                     {sig.type === 'up' ? '▲' : '▼'}
                                   </span>
-
-                                  {/* Text */}
                                   <span className="text-[12px] text-primary flex-1 leading-snug">{sig.text}</span>
-
-                                  {/* Points */}
                                   <div className="flex items-center gap-1 flex-shrink-0">
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={50}
-                                      value={sigConfig.pts}
+                                    <input type="number" min={1} max={50} value={sigConfig.pts}
                                       onChange={e => updateSignalPts(catId, subId, sig.id, e.target.value)}
                                       disabled={!sigConfig.enabled}
-                                      className="w-10 text-center input text-xs py-0.5 disabled:opacity-40"
-                                    />
+                                      className="w-10 text-center input text-xs py-0.5 disabled:opacity-40" />
                                     <span className="text-[10px] text-tertiary">pts</span>
                                   </div>
                                 </div>
@@ -597,18 +816,14 @@ function ScoringTab({ scoring, onChange }) {
                           {/* Custom signals */}
                           {(subConfig.customSignals || []).map((sig, idx) => (
                             <div key={sig.id} className="flex items-center gap-3 px-3 py-2 rounded-[8px] border border-dashed border-black/[0.12] bg-surface mb-1.5">
-                              <span className={clsx(
-                                'text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-                                sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                              )}>
+                              <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
+                                sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
                                 {sig.type === 'up' ? '▲' : '▼'} Custom
                               </span>
                               <span className="text-[12px] text-primary flex-1">{sig.text}</span>
-                              <input
-                                type="number" min={1} max={50} value={sig.pts}
+                              <input type="number" min={1} max={50} value={sig.pts}
                                 onChange={e => updateCustomSignalPts(catId, subId, idx, e.target.value)}
-                                className="w-10 text-center input text-xs py-0.5"
-                              />
+                                className="w-10 text-center input text-xs py-0.5" />
                               <span className="text-[10px] text-tertiary">pts</span>
                               <button onClick={() => removeCustomSignal(catId, subId, idx)}
                                 className="text-tertiary hover:text-red-500 transition-colors flex-shrink-0">
@@ -619,25 +834,19 @@ function ScoringTab({ scoring, onChange }) {
 
                           {/* Add custom signal */}
                           <div className="flex gap-2 mt-2">
-                            <select
-                              value={newSignalType[newKey] || 'up'}
-                              onChange={e => setNewSignalType(s => ({ ...s, [newKey]: e.target.value }))}
-                              className="input text-xs py-1.5 w-24 flex-shrink-0"
-                            >
+                            <select value={newSignalType[`${catId}_${subId}`] || 'up'}
+                              onChange={e => setNewSignalType(s => ({ ...s, [`${catId}_${subId}`]: e.target.value }))}
+                              className="input text-xs py-1.5 w-24 flex-shrink-0">
                               <option value="up">▲ Sube</option>
                               <option value="down">▼ Baja</option>
                             </select>
-                            <input
-                              value={newSignalText[newKey] || ''}
-                              onChange={e => setNewSignalText(s => ({ ...s, [newKey]: e.target.value }))}
+                            <input value={newSignalText[`${catId}_${subId}`] || ''}
+                              onChange={e => setNewSignalText(s => ({ ...s, [`${catId}_${subId}`]: e.target.value }))}
                               onKeyDown={e => { if (e.key === 'Enter') addCustomSignal(catId, subId) }}
                               placeholder="Agregar señal personalizada..."
-                              className="input text-xs py-1.5 flex-1"
-                            />
-                            <button
-                              onClick={() => addCustomSignal(catId, subId)}
-                              className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0 flex items-center gap-1"
-                            >
+                              className="input text-xs py-1.5 flex-1" />
+                            <button onClick={() => addCustomSignal(catId, subId)}
+                              className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0 flex items-center gap-1">
                               <Plus size={11} /> Agregar
                             </button>
                           </div>
@@ -685,16 +894,14 @@ function ProductsTab({ enabledProductIds, onChange }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3 p-4 bg-purple-50 border border-purple-200 rounded-[12px]">
-        <Package size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
+        <Package size={16} className="text-purple-600 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-[12.5px] text-purple-800 font-semibold mb-0.5">Productos habilitados para este agente</p>
           <p className="text-[11.5px] text-purple-700 leading-relaxed">
-            El agente asociará leads a estos productos durante la conversación,
-            basándose en los problemas que cada producto resuelve.
+            El agente asocia leads a estos productos durante la conversación, basándose en los problemas que cada producto resuelve.
           </p>
         </div>
       </div>
-
       <div className="flex flex-col gap-2">
         {activeProducts.map(product => {
           const isEnabled = enabledProductIds.includes(product.id)
@@ -706,45 +913,28 @@ function ProductsTab({ enabledProductIds, onChange }) {
           }[product.type] || { label: product.type, color: '#8e8e93' }
 
           return (
-            <div
-              key={product.id}
-              onClick={() => toggle(product.id)}
-              className={clsx(
-                'card p-4 cursor-pointer transition-all border-2',
-                isEnabled
-                  ? 'border-accent-blue bg-blue-50/50'
-                  : 'border-transparent hover:border-black/[0.1]'
-              )}
-            >
+            <div key={product.id} onClick={() => toggle(product.id)}
+              className={clsx('card p-4 cursor-pointer transition-all border-2',
+                isEnabled ? 'border-accent-blue bg-blue-50/50' : 'border-transparent hover:border-black/[0.1]')}>
               <div className="flex items-start gap-3">
-                {/* Toggle */}
-                <div className={clsx(
-                  'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
-                  isEnabled ? 'border-accent-blue bg-accent-blue' : 'border-black/20'
-                )}>
+                <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
+                  isEnabled ? 'border-accent-blue bg-accent-blue' : 'border-black/20')}>
                   {isEnabled && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[13px] text-primary">{product.name}</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: badge.color + '18', color: badge.color }}>
-                      {badge.label}
-                    </span>
+                      style={{ background: badge.color + '18', color: badge.color }}>{badge.label}</span>
                     {product.durationDays > 0 && (
                       <span className="text-[10px] text-secondary flex items-center gap-0.5">
                         <Clock size={10} /> {product.durationDays} días
                       </span>
                     )}
                   </div>
-
                   {product.description && (
                     <p className="text-[11.5px] text-secondary mt-0.5 line-clamp-1">{product.description}</p>
                   )}
-
-                  {/* Problem tags */}
                   {product.problemTags?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {product.problemTags.map((tag, i) => (
@@ -755,8 +945,6 @@ function ProductsTab({ enabledProductIds, onChange }) {
                     </div>
                   )}
                 </div>
-
-                {/* Price */}
                 <div className="text-right flex-shrink-0">
                   <span className="font-display font-bold text-sm text-primary">
                     {product.currency} {Number(product.price).toLocaleString()}
@@ -767,7 +955,6 @@ function ProductsTab({ enabledProductIds, onChange }) {
           )
         })}
       </div>
-
       {enabledProductIds.length > 0 && (
         <div className="text-[11px] text-secondary text-center pt-1">
           {enabledProductIds.length} producto{enabledProductIds.length !== 1 ? 's' : ''} habilitado{enabledProductIds.length !== 1 ? 's' : ''}
@@ -777,11 +964,10 @@ function ProductsTab({ enabledProductIds, onChange }) {
   )
 }
 
-// ─── DELETE CONFIRM MODAL ────────────────────────────────────────
+// ─── DELETE FILE MODAL ────────────────────────────────────────────
 function DeleteFileModal({ file, onConfirm, onCancel }) {
   const [input, setInput] = useState('')
   const confirmed = input.trim().toUpperCase() === 'ELIMINAR'
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
@@ -791,25 +977,15 @@ function DeleteFileModal({ file, onConfirm, onCancel }) {
           <h3 className="font-display font-bold text-[15px]">¿Eliminar archivo?</h3>
         </div>
         <p className="text-[12.5px] text-secondary mb-1">
-          Vas a eliminar <strong className="text-primary">"{file.name}"</strong> de la base de conocimiento del agente. Esta acción no se puede deshacer.
+          Vas a eliminar <strong className="text-primary">"{file.name}"</strong> de la base de conocimiento. Esta acción no se puede deshacer.
         </p>
-        <p className="text-[12px] text-red-600 mb-3">
-          Escribe <strong>ELIMINAR</strong> para confirmar.
-        </p>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="ELIMINAR"
-          className="input text-sm mb-4 font-mono tracking-widest"
-          autoFocus
-        />
+        <p className="text-[12px] text-red-600 mb-3">Escribe <strong>ELIMINAR</strong> para confirmar.</p>
+        <input value={input} onChange={e => setInput(e.target.value)} placeholder="ELIMINAR"
+          className="input text-sm mb-4 font-mono tracking-widest" autoFocus />
         <div className="flex gap-2">
           <button onClick={onCancel} className="btn-secondary flex-1">Cancelar</button>
-          <button
-            onClick={onConfirm}
-            disabled={!confirmed}
-            className="flex-1 py-2 px-4 rounded-[10px] bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold transition-colors"
-          >
+          <button onClick={onConfirm} disabled={!confirmed}
+            className="flex-1 py-2 px-4 rounded-[10px] bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold transition-colors">
             Eliminar
           </button>
         </div>
@@ -825,6 +1001,7 @@ export default function Agent() {
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [files, setFiles] = useState([])
+  const [pipelines, setPipelines] = useState([])
   const [uploadingFile, setUploadingFile] = useState(false)
   const [deleteModal, setDeleteModal] = useState(null)
   const fileInputRef = useRef()
@@ -834,12 +1011,22 @@ export default function Agent() {
     responseDelay: 3,
     customInstructions: '',
     enabledProductIds: [],
-    scoring: DEFAULT_SCORING,
+    scoring: {},
   })
 
   const set = (k, v) => setConfig(c => ({ ...c, [k]: v }))
 
-  // Load config from Firestore
+  // Load pipelines from Firestore
+  useEffect(() => {
+    if (!org?.id) return
+    const unsub = onSnapshot(
+      query(collection(db, 'organizations', org.id, 'pipelines'), orderBy('createdAt', 'asc')),
+      snap => setPipelines(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    )
+    return unsub
+  }, [org?.id])
+
+  // Load agent config from Firestore
   useEffect(() => {
     if (!org?.id) return
     const unsub = onSnapshot(doc(db, 'organizations', org.id, 'settings', 'agent'), snap => {
@@ -856,7 +1043,7 @@ export default function Agent() {
         }))
       }
     })
-    return () => unsub()
+    return unsub
   }, [org?.id])
 
   // Load files
@@ -866,8 +1053,25 @@ export default function Agent() {
     const unsub = onSnapshot(q, snap => {
       setFiles(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
-    return () => unsub()
+    return unsub
   }, [org?.id])
+
+  // Initialize scoring for new pipelines that don't have it yet
+  useEffect(() => {
+    if (pipelines.length === 0) return
+    setConfig(c => {
+      const newScoring = { ...c.scoring }
+      let changed = false
+      pipelines.forEach(p => {
+        if (!newScoring[p.id]) {
+          const catalog = CATALOG_BY_PURPOSE[p.purpose] || CATALOG_ADQUISICION
+          newScoring[p.id] = buildDefaultScoring(catalog)
+          changed = true
+        }
+      })
+      return changed ? { ...c, scoring: newScoring } : c
+    })
+  }, [pipelines])
 
   const handleSave = async () => {
     setSaving(true)
@@ -906,7 +1110,7 @@ export default function Agent() {
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
-        toast.success('Archivo subido — el agente lo procesará en segundos')
+        toast.success('Archivo subido ✓')
       } catch (err) { toast.error('Error: ' + err.message) }
       finally { setUploadingFile(false) }
     }
@@ -949,11 +1153,8 @@ export default function Agent() {
               Sincronizando...
             </div>
           )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary text-[12.5px] py-1.5 px-4 flex items-center gap-1.5"
-          >
+          <button onClick={handleSave} disabled={saving}
+            className="btn-primary text-[12.5px] py-1.5 px-4 flex items-center gap-1.5">
             {saving
               ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
               : '💾 Guardar y sincronizar'}
@@ -966,16 +1167,13 @@ export default function Agent() {
         {/* SIDEBAR */}
         <div className="w-[180px] min-w-[180px] border-r border-black/[0.08] flex flex-col py-2 bg-surface flex-shrink-0">
           {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={clsx(
                 'flex items-center gap-2.5 px-4 py-2.5 text-[12.5px] font-semibold transition-all text-left group',
                 activeTab === tab.id
                   ? 'bg-primary/[0.06] text-primary border-r-2 border-primary'
                   : 'text-secondary hover:bg-surface-2 hover:text-primary'
-              )}
-            >
+              )}>
               <tab.icon size={15} className="opacity-70 group-hover:opacity-100 transition-opacity" />
               {tab.label}
             </button>
@@ -989,30 +1187,16 @@ export default function Agent() {
             {/* ── IDENTIDAD ── */}
             {activeTab === 'identity' && (
               <>
-                <Section
-                  title="Nombre del agente"
-                  desc="Cómo se presenta ante los leads"
-                >
-                  <input
-                    value={config.agentName}
-                    onChange={e => set('agentName', e.target.value)}
-                    placeholder="Sofía, Carlos, Alex..."
-                    className="input text-sm"
-                  />
+                <Section title="Nombre del agente" desc="Cómo se presenta ante los leads">
+                  <input value={config.agentName} onChange={e => set('agentName', e.target.value)}
+                    placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
                 </Section>
 
-                <Section
-                  title="Delay de respuesta"
-                  desc={`El agente espera ${config.responseDelay}s antes de responder — simula conversación humana`}
-                >
-                  <input
-                    type="range"
-                    min={0}
-                    max={30}
-                    value={config.responseDelay}
+                <Section title="Delay de respuesta"
+                  desc={`El agente espera ${config.responseDelay}s antes de responder — simula conversación humana`}>
+                  <input type="range" min={0} max={30} value={config.responseDelay}
                     onChange={e => set('responseDelay', Number(e.target.value))}
-                    className="w-full accent-accent-blue"
-                  />
+                    className="w-full accent-accent-blue" />
                   <div className="flex justify-between text-[10px] text-tertiary -mt-1">
                     <span>0s — inmediato</span>
                     <span className="font-bold text-primary">{config.responseDelay}s</span>
@@ -1026,22 +1210,18 @@ export default function Agent() {
             {activeTab === 'knowledge' && (
               <>
                 <div className="flex items-start gap-3 p-4 bg-purple-50 border border-purple-200 rounded-[12px]">
-                  <Brain size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
+                  <Brain size={16} className="text-purple-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-[12.5px] text-purple-800 font-semibold mb-0.5">Base de conocimiento RAG</p>
                     <p className="text-[11.5px] text-purple-700 leading-relaxed">
-                      Los archivos y el texto manual se combinan como fuente de verdad del agente.
-                      Todo lo que subas aquí es lo que el agente sabe.
+                      Los archivos y el texto manual se combinan como fuente de verdad del agente. Todo lo que subas aquí es lo que el agente sabe.
                     </p>
                   </div>
                 </div>
 
-                {/* File upload */}
                 <Section title="Documentos" desc="PDFs, Word o TXT — el agente los procesa como conocimiento">
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-black/[0.14] rounded-[14px] p-8 text-center cursor-pointer hover:border-accent-purple hover:bg-purple-50/50 transition-all"
-                  >
+                  <div onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-black/[0.14] rounded-[14px] p-8 text-center cursor-pointer hover:border-accent-purple hover:bg-purple-50/50 transition-all">
                     {uploadingFile
                       ? <Zap size={28} className="text-accent-purple mx-auto mb-2 animate-bounce" />
                       : <FileText size={28} className="text-tertiary mx-auto mb-2" />}
@@ -1049,13 +1229,8 @@ export default function Agent() {
                       {uploadingFile ? 'Subiendo archivo...' : 'Sube documentos al agente'}
                     </p>
                     <p className="text-xs text-secondary">PDF, Word, TXT · Máximo 10MB por archivo</p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      className="hidden"
-                      onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0])}
-                    />
+                    <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+                      onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0])} />
                   </div>
 
                   {files.length > 0 && (
@@ -1066,17 +1241,16 @@ export default function Agent() {
                       <div className="divide-y divide-black/[0.04]">
                         {files.map(f => (
                           <div key={f.id} className="flex items-center gap-3 px-5 py-3">
-                            <FileText size={18} className={clsx('flex-shrink-0', f.mimeType === 'application/pdf' ? 'text-red-400' : 'text-blue-400')} />
+                            <FileText size={18} className={clsx('flex-shrink-0',
+                              f.mimeType === 'application/pdf' ? 'text-red-400' : 'text-blue-400')} />
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-semibold text-primary truncate">{f.name}</p>
                               <p className="text-[10px] text-tertiary">
                                 {(f.size / 1024).toFixed(0)} KB · {f.status === 'processing' ? '⏳ Procesando...' : '✓ Listo'}
                               </p>
                             </div>
-                            <button
-                              onClick={() => setDeleteModal(f)}
-                              className="text-tertiary hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
-                            >
+                            <button onClick={() => setDeleteModal(f)}
+                              className="text-tertiary hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -1086,24 +1260,10 @@ export default function Agent() {
                   )}
                 </Section>
 
-                {/* Manual knowledge */}
-                <Section
-                  title="Conocimiento manual"
-                  desc="Complementa los documentos con información que no está en archivos"
-                >
-                  <textarea
-                    value={config.customInstructions}
-                    onChange={e => set('customInstructions', e.target.value)}
-                    rows={8}
-                    className="input text-sm resize-none"
-                    placeholder={`Escribe aquí lo que el agente debe saber y no está en los documentos:
-
-• Casos de éxito o testimoniales clave
-• Preguntas frecuentes y sus respuestas
-• Políticas especiales o excepciones
-• Información del equipo o proceso de venta
-• Instrucciones específicas de comportamiento`}
-                  />
+                <Section title="Conocimiento manual" desc="Complementa los documentos con información que no está en archivos">
+                  <textarea value={config.customInstructions} onChange={e => set('customInstructions', e.target.value)}
+                    rows={8} className="input text-sm resize-none"
+                    placeholder={`Escribe aquí lo que el agente debe saber y no está en los documentos:\n\n• Casos de éxito o testimoniales clave\n• Preguntas frecuentes y sus respuestas\n• Políticas especiales o excepciones\n• Instrucciones específicas de comportamiento`} />
                   <p className="text-[10px] text-tertiary">
                     Este texto se combina con los documentos subidos. Juntos forman el 100% del conocimiento del agente.
                   </p>
@@ -1122,6 +1282,7 @@ export default function Agent() {
             {/* ── SCORING ── */}
             {activeTab === 'scoring' && (
               <ScoringTab
+                pipelines={pipelines}
                 scoring={config.scoring}
                 onChange={v => set('scoring', v)}
               />
@@ -1131,7 +1292,7 @@ export default function Agent() {
             {activeTab === 'test' && (
               <>
                 <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px] mb-1">
-                  <Zap size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                  <Zap size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-[12.5px] text-blue-800 leading-relaxed">
                     Guarda los cambios primero, luego simula una conversación real con el agente.
                   </p>
@@ -1144,13 +1305,8 @@ export default function Agent() {
         </div>
       </div>
 
-      {/* DELETE FILE MODAL */}
       {deleteModal && (
-        <DeleteFileModal
-          file={deleteModal}
-          onConfirm={handleDeleteFile}
-          onCancel={() => setDeleteModal(null)}
-        />
+        <DeleteFileModal file={deleteModal} onConfirm={handleDeleteFile} onCancel={() => setDeleteModal(null)} />
       )}
     </div>
   )
