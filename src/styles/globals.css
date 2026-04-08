@@ -51,7 +51,7 @@ body {
   .btn-primary {
     @apply text-white font-semibold text-sm px-4 py-2 rounded-btn
            hover:opacity-90 active:scale-95 transition-all duration-150 cursor-pointer border-none;
-    background: linear-gradient(135deg, #0066ff, #7c3aed);
+    background: linear-gradient(135deg, #1aab99, #3533cd);
   }
 
   .btn-secondary {

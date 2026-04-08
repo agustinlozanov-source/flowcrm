@@ -4,6 +4,18 @@ CRM + Agentes IA para agencias y empresas. Construido con React + Vite + Firebas
 
 ---
 
+## Brand Colors
+
+| Token | Hex | Uso |
+|---|---|---|
+| Brand Start | `#1aab99` | Inicio del degradado institucional |
+| Brand End | `#3533cd` | Fin del degradado institucional |
+
+Degradado: `linear-gradient(135deg, #1aab99, #3533cd)`  
+Aplicado en: `.btn-primary` (globals.css), accents de UI.
+
+---
+
 ## Stack
 
 - **Frontend:** React 18 + Vite 5
