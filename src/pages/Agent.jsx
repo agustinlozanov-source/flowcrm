@@ -8,7 +8,7 @@ import clsx from 'clsx'
 import {
   Bot, Brain, Package, BarChart2, Zap,
   FileText, Trash2, Plus, X, Clock,
-  ChevronDown, ChevronUp,
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle2, MessageSquare, User
 } from 'lucide-react'
 

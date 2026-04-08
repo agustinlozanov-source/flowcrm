@@ -14,106 +14,230 @@ if (!admin.apps.length) {
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ── BUILD SYSTEM PROMPT FROM CONFIG ──
-function buildSystemPrompt(config) {
+// ── BUILD SYSTEM PROMPT ───────────────────────────────────────────
+function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext) {
   const {
     agentName = 'Asistente',
-    personality = 'amigable',
-    productDescription = '',
-    prices = '',
-    mainObjective = 'agendar_llamada',
-    salesTechnique = 'aida',
-    closingTechnique = 'valor_primero',
-    objections = [],
-    qualifyingQuestions = [],
-    limits = [],
     customInstructions = '',
   } = config
 
-  const personalities = {
-    profesional: 'formal, directo, enfocado en resultados y datos concretos. Usas lenguaje corporativo pero accesible.',
-    amigable: 'cálido, cercano, conversacional. Usas el nombre del lead frecuentemente. Generas confianza rápidamente.',
-    consultivo: 'analítico, haces preguntas poderosas, das perspectivas únicas. Posicionas como experto, no como vendedor.',
-    energico: 'entusiasta, motivador, creas urgencia de forma natural. Celebras cada avance del lead.',
-  }
-
-  const objectives = {
-    agendar_llamada: 'Tu objetivo principal es AGENDAR UNA LLAMADA O REUNIÓN. Cada respuesta debe empujar hacia ese objetivo. Cuando el lead muestre interés, propón horarios concretos.',
-    calificar: 'Tu objetivo es CALIFICAR AL LEAD. Determina si tiene presupuesto, autoridad, necesidad y tiempo (BANT). Solo cuando esté calificado, ofrece la siguiente etapa.',
-    cerrar_chat: 'Tu objetivo es CERRAR LA VENTA DIRECTAMENTE POR CHAT. Presenta el valor, maneja objeciones y pide el compromiso.',
-    nutrir: 'Tu objetivo es NUTRIR AL LEAD. Educa, comparte valor, construye confianza. No presiones. El cierre viene después.',
-  }
-
-  const techniques = {
-    spin: `Usa la técnica SPIN Selling:
-- Situación: Entiende la situación actual del lead
-- Problema: Identifica sus problemas y frustraciones
-- Implicación: Explora las consecuencias de no resolver el problema
-- Necesidad-Beneficio: Presenta cómo tu solución resuelve exactamente eso`,
-    aida: `Usa la técnica AIDA:
-- Atención: Capta su atención con algo relevante para ellos
-- Interés: Genera interés mostrando que entiendes su situación
-- Deseo: Crea deseo mostrando beneficios concretos
-- Acción: Pide una acción específica y concreta`,
-    challenger: `Usa la técnica Challenger Sale:
-- Enseña algo que el lead no sabe sobre su problema
-- Adapta el mensaje a su situación específica
-- Toma control de la conversación con confianza
-- Desafía suavemente sus creencias si es necesario`,
-    rapport: `Prioriza construir RAPPORT primero:
-- Usa el nombre del lead frecuentemente
-- Refleja su tono y ritmo de comunicación
-- Encuentra puntos en común
-- Escucha activamente antes de vender`,
-  }
-
-  const closings = {
-    valor_primero: 'Siempre presenta el VALOR antes de mencionar el precio. Cuando llegue el momento de cerrar, resume los beneficios específicos que le has identificado al lead.',
-    urgencia: 'Crea urgencia GENUINA basada en hechos reales (lugares limitados, precio especial por tiempo limitado). Nunca inventes urgencia falsa.',
-    alternativas: 'Usa el cierre de alternativas: en lugar de preguntar "¿quieres comprar?", pregunta "¿prefieres el plan A o el plan B?"',
-    directo: 'Cuando el lead muestre señales de compra, ve directo al cierre. "¿Empezamos esta semana o la siguiente?"',
-  }
-
-  const objectionsText = objections.length > 0
-    ? `\nMANEJO DE OBJECIONES ESPECÍFICAS:\n${objections.filter(o => o.objection && o.response).map(o => `- Cuando digan "${o.objection}": ${o.response}`).join('\n')}`
+  // Products section
+  const productsSection = products.length > 0
+    ? `\nPRODUCTOS QUE MANEJO:\n${products.map(p =>
+        `- ${p.name} · $${Number(p.price).toLocaleString()} ${p.currency || 'USD'}${p.durationDays ? ` · Dura ${p.durationDays} días` : ''}${p.problemTags?.length ? ` · Resuelve: ${p.problemTags.join(', ')}` : ''}`
+      ).join('\n')}`
     : ''
 
-  const questionsText = qualifyingQuestions.filter(Boolean).length > 0
-    ? `\nPREGUNTAS DE CALIFICACIÓN (hazlas de forma natural, no como interrogatorio):\n${qualifyingQuestions.filter(Boolean).map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+  // Scoring instructions
+  const scoringSection = scoringConfig
+    ? `\nSISTEMA DE SCORING ACTIVO:
+Mientras conversas, evalúa silenciosamente al lead en estas categorías.
+Después de CADA respuesta, debes indicar en el JSON interno qué señales se activaron.
+
+${Object.entries(scoringConfig).map(([catId, cat]) => {
+  const catLabel = { necesidad: 'NECESIDAD', capacidad: 'CAPACIDAD', intencion: 'INTENCIÓN', confianza: 'CONFIANZA' }[catId] || catId
+  const allSignals = []
+  if (cat.subcategories) {
+    Object.values(cat.subcategories).forEach(sub => {
+      if (sub.signals) {
+        Object.entries(sub.signals).forEach(([sigId, sigConfig]) => {
+          if (sigConfig.enabled) allSignals.push({ sigId, pts: sigConfig.pts })
+        })
+      }
+      if (sub.customSignals) {
+        sub.customSignals.forEach(cs => allSignals.push({ text: cs.text, pts: cs.pts, type: cs.type }))
+      }
+    })
+  }
+  return `${catLabel} (tope: ${cat.cap} pts)\n${allSignals.slice(0, 5).map(s => `  · ${s.text || s.sigId} → ${s.pts} pts`).join('\n')}`
+}).join('\n\n')}`
     : ''
 
-  const limitsText = limits.filter(Boolean).length > 0
-    ? `\nREGLAS ABSOLUTAS (nunca las violes):\n${limits.filter(Boolean).map(l => `- ${l}`).join('\n')}`
+  // Lead context
+  const leadSection = leadContext
+    ? `\nCONTEXTO DEL LEAD ACTUAL:
+- Score actual: ${leadContext.score || 0}/100
+- Etapa actual: ${leadContext.stageName || 'Sin etapa'}
+- Pipeline: ${leadContext.pipelineName || 'Sin pipeline'}
+- Umbral para avanzar: score ${leadContext.stageScoreMax || 100}
+- Perfil B detectado: ${leadContext.profileB ? 'SÍ' : 'No'}
+${leadContext.productId ? `- Producto de interés: ${leadContext.productName || leadContext.productId}` : ''}`
     : ''
 
-  return `Eres ${agentName}, un agente de ventas especializado con personalidad ${personalities[personality] || personalities.amigable}
+  return `Eres ${agentName}, un agente de ventas especializado.
 
-${objectives[mainObjective] || objectives.agendar_llamada}
-
-SOBRE EL PRODUCTO/SERVICIO QUE VENDES:
-${productDescription || 'Responde preguntas sobre el producto de forma general hasta recibir más información.'}
-
-${prices ? `PRECIOS Y PLANES:\n${prices}` : ''}
-
-TÉCNICA DE PROSPECCIÓN:
-${techniques[salesTechnique] || techniques.aida}
-
-TÉCNICA DE CIERRE:
-${closings[closingTechnique] || closings.valor_primero}
-${objectionsText}
-${questionsText}
-${limitsText}
-
-INSTRUCCIONES GENERALES:
-- Responde siempre en español, de forma breve (máximo 3-4 oraciones por mensaje)
+INSTRUCCIONES PRINCIPALES:
+- Responde siempre en español, de forma breve (máximo 3-4 oraciones)
 - Nunca menciones que eres una IA a menos que te lo pregunten directamente
-- Siempre termina con una pregunta o llamada a acción concreta
-- Adapta tu lenguaje al nivel del lead (formal/informal según cómo escriben)
+- Termina siempre con una pregunta o llamada a acción concreta
+- Adapta tu tono al del lead (formal/informal)
+- Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
 
-${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
+${productsSection}
+${scoringSection}
+${leadSection}
+
+BASE DE CONOCIMIENTO:
+${ragContent || 'No hay documentos cargados aún.'}
+
+${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
+
+FORMATO DE RESPUESTA IMPORTANTE:
+Siempre responde con JSON en este formato exacto:
+{
+  "response": "El mensaje que verá el lead",
+  "scoring": {
+    "necesidad": { "delta": 0, "reason": "" },
+    "capacidad": { "delta": 0, "reason": "" },
+    "intencion": { "delta": 0, "reason": "" },
+    "confianza": { "delta": 0, "reason": "" }
+  },
+  "profileB": false,
+  "profileBReason": "",
+  "suggestHandoff": false,
+  "suggestHandoffReason": "",
+  "detectedProductId": null
 }
 
-// ── SYNC AGENT CONFIG — solo guarda en Firestore ──
+Reglas del JSON:
+- "response": el mensaje visible para el lead
+- "scoring.X.delta": puntos a sumar (positivo) o restar (negativo), 0 si no hay señal
+- "profileB": true si el lead muestra señales de potencial distribuidor
+- "suggestHandoff": true si el lead está listo para una llamada con el vendedor
+- "detectedProductId": ID del producto si el lead mostró interés en uno específico`
+}
+
+// ── PARSE AGENT RESPONSE ──────────────────────────────────────────
+function parseAgentResponse(text) {
+  try {
+    // Try direct JSON parse
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0])
+    }
+  } catch {}
+  // Fallback — treat entire text as response
+  return {
+    response: text,
+    scoring: { necesidad: { delta: 0 }, capacidad: { delta: 0 }, intencion: { delta: 0 }, confianza: { delta: 0 } },
+    profileB: false,
+    suggestHandoff: false,
+    detectedProductId: null,
+  }
+}
+
+// ── CALCULATE NEW SCORE ───────────────────────────────────────────
+function calculateNewScore(currentScore, scoringDeltas, scoringConfig) {
+  if (!scoringConfig) return currentScore
+
+  let total = 0
+  const categoryScores = {}
+
+  Object.entries(scoringConfig).forEach(([catId, cat]) => {
+    const delta = scoringDeltas?.[catId]?.delta || 0
+    // For now, accumulate delta to current score per category
+    // In a real implementation, track per-category scores
+    total += Math.max(0, Math.min(cat.cap || 25, delta))
+    categoryScores[catId] = delta
+  })
+
+  // Simple: add deltas to current score, clamp 0-100
+  const newScore = Math.max(0, Math.min(100, currentScore + Object.values(scoringDeltas || {}).reduce((sum, s) => sum + (s.delta || 0), 0)))
+  return newScore
+}
+
+// ── FIND TARGET STAGE BY SCORE ────────────────────────────────────
+async function findTargetStage(orgId, pipelineId, score) {
+  const stagesSnap = await db.collection('organizations').doc(orgId)
+    .collection('pipeline_stages')
+    .where('pipelineId', '==', pipelineId)
+    .orderBy('order', 'asc')
+    .get()
+
+  const stages = stagesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+  // Find stage where score fits
+  for (const stage of stages) {
+    const min = stage.scoreMin ?? 0
+    const max = stage.scoreMax ?? 100
+    if (score >= min && score <= max) return stage
+  }
+
+  // If score exceeds all stages → suggest handoff
+  const maxStage = stages[stages.length - 1]
+  if (maxStage && score > (maxStage.scoreMax ?? 100)) return { id: '__handoff__', name: 'Handoff' }
+
+  return null
+}
+
+// ── UPDATE LEAD SCORE AND STAGE ───────────────────────────────────
+async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentScore, scoringConfig) {
+  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+  const leadSnap = await leadRef.get()
+  if (!leadSnap.exists) return
+
+  const lead = leadSnap.data()
+  const newScore = calculateNewScore(currentScore, parsedResponse.scoring, scoringConfig)
+
+  const updateData = {
+    score: newScore,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }
+
+  // ProfileB detection
+  if (parsedResponse.profileB && !lead.profileB) {
+    updateData.profileB = true
+    updateData.profileBDetectedAt = admin.firestore.FieldValue.serverTimestamp()
+    // Create alert
+    await db.collection('organizations').doc(orgId).collection('alerts').add({
+      type: 'profile_b',
+      leadId,
+      leadName: lead.name,
+      message: `${lead.name} tiene perfil de distribuidor — ${parsedResponse.profileBReason || ''}`,
+      assignedTo: lead.assignedTo || null,
+      seen: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+  }
+
+  // Detected product interest
+  if (parsedResponse.detectedProductId && !lead.productId) {
+    updateData.productId = parsedResponse.detectedProductId
+  }
+
+  // Stage advancement based on score
+  if (lead.pipelineId && !lead.systemStage) {
+    const targetStage = await findTargetStage(orgId, lead.pipelineId, newScore)
+    if (targetStage && targetStage.id !== lead.stageId) {
+      if (targetStage.id === '__handoff__' || parsedResponse.suggestHandoff) {
+        // Move to handoff
+        updateData.systemStage = 'handoff'
+        updateData.systemStageAt = admin.firestore.FieldValue.serverTimestamp()
+        updateData.stageId = null
+        updateData.handoffAt = admin.firestore.FieldValue.serverTimestamp()
+        // Alert the assigned user
+        if (lead.assignedTo) {
+          await db.collection('organizations').doc(orgId).collection('alerts').add({
+            type: 'handoff_assigned',
+            leadId,
+            leadName: lead.name,
+            assignedTo: lead.assignedTo,
+            message: `${lead.name} está listo para llamada — score ${newScore}`,
+            seen: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+        }
+      } else {
+        updateData.stageId = targetStage.id
+      }
+    }
+  }
+
+  await leadRef.update(updateData)
+  return newScore
+}
+
+// ── SYNC AGENT CONFIG ─────────────────────────────────────────────
 async function syncAssistant(orgId, config) {
   const settingsRef = db.collection('organizations').doc(orgId).collection('settings').doc('agent')
   await settingsRef.set({
@@ -123,22 +247,12 @@ async function syncAssistant(orgId, config) {
   return { success: true }
 }
 
-// ── UPLOAD FILE (guarda metadata + contenido en Firestore) ──
+// ── UPLOAD FILE ───────────────────────────────────────────────────
 async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
-  // Decodificar contenido de texto (txt, pdf-texto, etc.)
   let content = ''
   try {
-    // Para archivos de texto plano decodificar directamente
-    if (mimeType === 'text/plain' || fileName.endsWith('.txt') || fileName.endsWith('.md')) {
-      content = fileBuffer.toString('utf-8')
-    } else {
-      // Para otros tipos (PDF, Word) guardar el texto que venga como fallback
-      content = fileBuffer.toString('utf-8')
-    }
-  } catch (e) {
-    content = ''
-  }
-
+    content = fileBuffer.toString('utf-8')
+  } catch {}
   const fileRef = await db.collection('organizations').doc(orgId).collection('agent_files').add({
     name: fileName,
     size: fileBuffer.length,
@@ -150,31 +264,27 @@ async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
   return { fileId: fileRef.id }
 }
 
-// ── DELETE FILE ──
+// ── DELETE FILE ───────────────────────────────────────────────────
 async function deleteFile(orgId, fileDocId) {
   const fileSnap = await db.collection('organizations').doc(orgId).collection('agent_files').doc(fileDocId).get()
-  if (!fileSnap.exists) return
-  await fileSnap.ref.delete()
+  if (fileSnap.exists) await fileSnap.ref.delete()
 }
 
-// ── CLEAR TEST THREAD ──
+// ── CLEAR TEST THREAD ─────────────────────────────────────────────
 async function clearTestThread(orgId) {
   const ref = db.collection('organizations').doc(orgId)
-    .collection('agent_test_threads').doc('test')
-    .collection('messages')
+    .collection('agent_test_threads').doc('test').collection('messages')
   const snap = await ref.get()
   const batch = db.batch()
   snap.docs.forEach(d => batch.delete(d.ref))
   await batch.commit()
 }
 
-// ── GET CONVERSATION HISTORY ──
+// ── GET CONVERSATION HISTORY ──────────────────────────────────────
 async function getConversationHistory(orgId, leadId) {
-  // test mode — usar colección temporal
   const collPath = leadId === 'test'
     ? db.collection('organizations').doc(orgId).collection('agent_test_threads').doc(leadId).collection('messages')
     : db.collection('organizations').doc(orgId).collection('leads').doc(leadId).collection('conversations')
-
   const snap = await collPath.orderBy('createdAt', 'desc').limit(10).get()
   return snap.docs.reverse().map(d => ({
     role: d.data().role === 'user' ? 'user' : 'assistant',
@@ -182,44 +292,113 @@ async function getConversationHistory(orgId, leadId) {
   }))
 }
 
-// ── SAVE MESSAGE (solo en test mode) ──
+// ── SAVE MESSAGE ──────────────────────────────────────────────────
 async function saveTestMessage(orgId, leadId, role, text) {
   if (leadId !== 'test') return
   await db.collection('organizations').doc(orgId)
     .collection('agent_test_threads').doc(leadId)
     .collection('messages').add({
-      role,
-      text,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      role, text, createdAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 }
 
-// ── CHAT WITH CLAUDE ──
-async function chatWithAssistant(orgId, leadId, message) {
-  const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
-  if (!settingsSnap.exists) throw new Error('Agente no configurado. Guarda primero la configuración.')
+async function saveLeadMessage(orgId, leadId, role, text) {
+  if (leadId === 'test') return
+  await db.collection('organizations').doc(orgId)
+    .collection('leads').doc(leadId)
+    .collection('conversations').add({
+      role, text, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+}
 
+// ── CHAT WITH AGENT ───────────────────────────────────────────────
+async function chatWithAssistant(orgId, leadId, message) {
+  // Load agent config
+  const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
+  if (!settingsSnap.exists) throw new Error('Agente no configurado.')
   const agentConfig = settingsSnap.data() || {}
 
-  // Leer archivos RAG con contenido
+  // Load RAG files
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
     .where('status', '==', 'ready').get()
-  const filesContent = filesSnap.docs
-    .map(d => d.data().content || '')
-    .filter(Boolean)
-    .join('\n\n---\n\n')
+  const ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
 
-  console.log('📄 archivos RAG encontrados:', filesSnap.docs.length, '| chars:', filesContent.length)
-  console.log('📝 primeros 300 chars del contenido:', filesContent.slice(0, 300))
+  // Load enabled products
+  let products = []
+  if (agentConfig.enabledProductIds?.length) {
+    const productSnaps = await Promise.all(
+      agentConfig.enabledProductIds.map(id =>
+        db.collection('organizations').doc(orgId).collection('products').doc(id).get()
+      )
+    )
+    products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
+  }
 
-  // Usar el contenido del archivo directamente como system prompt
-  // Si no hay archivos, usar un prompt mínimo
-  const systemPrompt = filesContent || `Eres ${agentConfig.agentName || 'un asistente'}. No tienes documentos cargados aún.`
+  // Load lead context (if real lead, not test)
+  let leadContext = null
+  let currentScore = 0
+  let scoringConfig = null
+  let pipelineId = null
 
+  if (leadId !== 'test') {
+    const leadSnap = await db.collection('organizations').doc(orgId).collection('leads').doc(leadId).get()
+    if (leadSnap.exists) {
+      const lead = leadSnap.data()
+      currentScore = lead.score || 0
+      pipelineId = lead.pipelineId
+
+      // Load stage info
+      let stageName = 'Sin etapa'
+      let stageScoreMax = 100
+      if (lead.stageId) {
+        const stageSnap = await db.collection('organizations').doc(orgId).collection('pipeline_stages').doc(lead.stageId).get()
+        if (stageSnap.exists) {
+          stageName = stageSnap.data().name
+          stageScoreMax = stageSnap.data().scoreMax ?? 100
+        }
+      }
+
+      // Load pipeline info
+      let pipelineName = ''
+      if (pipelineId) {
+        const pipelineSnap = await db.collection('organizations').doc(orgId).collection('pipelines').doc(pipelineId).get()
+        if (pipelineSnap.exists) pipelineName = pipelineSnap.data().name || ''
+      }
+
+      // Load scoring config for this pipeline
+      if (pipelineId && agentConfig.scoring?.[pipelineId]) {
+        scoringConfig = agentConfig.scoring[pipelineId]
+      } else if (agentConfig.scoring) {
+        // Fallback to first scoring config
+        const keys = Object.keys(agentConfig.scoring)
+        if (keys.length) scoringConfig = agentConfig.scoring[keys[0]]
+      }
+
+      // Load product name if associated
+      let productName = ''
+      if (lead.productId) {
+        const productSnap = await db.collection('organizations').doc(orgId).collection('products').doc(lead.productId).get()
+        if (productSnap.exists) productName = productSnap.data().name || ''
+      }
+
+      leadContext = {
+        score: currentScore,
+        stageName,
+        stageScoreMax,
+        pipelineName,
+        profileB: lead.profileB || false,
+        productId: lead.productId,
+        productName,
+      }
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext)
   const history = await getConversationHistory(orgId, leadId)
-  console.log('💬 historial mensajes:', history.length)
 
+  // Save user message
   await saveTestMessage(orgId, leadId, 'user', message)
+  await saveLeadMessage(orgId, leadId, 'user', message)
 
   try {
     const response = await anthropic.messages.create({
@@ -232,56 +411,65 @@ async function chatWithAssistant(orgId, leadId, message) {
       ],
     })
 
-    const reply = response.content[0]?.text || 'Sin respuesta'
-    console.log('✅ reply primeros 100 chars:', reply.slice(0, 100))
-    await saveTestMessage(orgId, leadId, 'assistant', reply)
-    return { response: reply }
+    const rawReply = response.content[0]?.text || '{}'
+    const parsed = parseAgentResponse(rawReply)
+    const visibleReply = parsed.response || rawReply
+
+    // Save agent response
+    await saveTestMessage(orgId, leadId, 'assistant', visibleReply)
+    await saveLeadMessage(orgId, leadId, 'assistant', visibleReply)
+
+    // Update lead score and stage (only for real leads)
+    let newScore = currentScore
+    if (leadId !== 'test' && scoringConfig) {
+      newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig)
+    }
+
+    return {
+      response: visibleReply,
+      score: newScore,
+      profileB: parsed.profileB,
+      suggestHandoff: parsed.suggestHandoff,
+    }
   } catch (err) {
     console.error('❌ Anthropic error:', err.status, err.message)
     throw err
   }
 }
 
-// ── MAIN HANDLER ──
+// ── MAIN HANDLER ──────────────────────────────────────────────────
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
-
   const headers = { 'Content-Type': 'application/json' }
 
   try {
     const body = JSON.parse(event.body)
     const { action, orgId } = body
-
     if (!orgId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing orgId' }) }
 
     if (action === 'sync') {
       const result = await syncAssistant(orgId, body.config)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
-
     if (action === 'upload') {
       const buffer = Buffer.from(body.fileData, 'base64')
       const result = await uploadFile(orgId, buffer, body.fileName, body.mimeType)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
-
     if (action === 'delete_file') {
       await deleteFile(orgId, body.fileDocId)
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
-
     if (action === 'clear_thread') {
       await clearTestThread(orgId)
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
-
     if (action === 'chat') {
       const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) }
-
   } catch (err) {
     console.error('agent-manager error:', err)
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) }

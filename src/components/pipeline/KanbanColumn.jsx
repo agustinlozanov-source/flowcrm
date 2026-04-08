@@ -5,7 +5,7 @@ import clsx from 'clsx'
 import { Plus } from 'lucide-react'
 import { fmt } from '@/hooks/usePipeline'
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, onAssignProduct }) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   const openLeads = leads.filter(l => !l.systemStage && !l.discarded)
@@ -71,7 +71,6 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, onA
                 lead={lead}
                 stageColor={stage.color}
                 onClick={() => onLeadClick(lead)}
-                onAssignProduct={onAssignProduct}
               />
             </div>
           ))}
