@@ -21,6 +21,7 @@ import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
 import Team from '@/pages/Team'
+import JoinPage from '@/pages/JoinPage'
 
 import WelcomeForm from '@/pages/WelcomeForm'
 import DiagnosticoForm from '@/pages/DiagnosticoForm'
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/setup" element={<Setup />} />
         <Route path="/welcome" element={<WelcomeForm />} />
         <Route path="/diagnostico" element={<DiagnosticoForm />} />
+        <Route path="/join" element={<JoinPage />} />
 
         {/* Protected app */}
         <Route
