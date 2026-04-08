@@ -3,18 +3,19 @@ import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/hooks/useLang'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
-const navSections = [
+const NAV_SECTIONS = [
   {
     labelKey: 'nav.crm',
     items: [
       {
         to: '/pipeline',
         labelKey: 'nav.pipeline',
-        badge: null,
+        permission: null, // always visible
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="1" y="1" width="4" height="16" rx="1.5" fill="currentColor" />
@@ -26,6 +27,7 @@ const navSections = [
       {
         to: '/leads',
         labelKey: 'nav.contacts',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.5" />
@@ -36,6 +38,7 @@ const navSections = [
       {
         to: '/products',
         labelKey: 'nav.catalog',
+        permission: null, // visible to all, readonly for sellers without permission
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="2" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
@@ -48,6 +51,7 @@ const navSections = [
       {
         to: '/agent',
         labelKey: 'nav.agent',
+        permission: 'can_configure_agent',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M9 1.5L11.47 6.5H16.5L12.5 9.97L14 15L9 12L4 15L5.5 9.97L1.5 6.5H6.53L9 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -57,6 +61,7 @@ const navSections = [
       {
         to: '/inbox',
         labelKey: 'nav.inbox',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M2 9a7 7 0 1114 0 7 7 0 01-14 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -67,10 +72,24 @@ const navSections = [
       {
         to: '/meetings',
         labelKey: 'nav.meetings',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="1" y="3" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
             <path d="M5 7h8M5 11h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+      {
+        to: '/team',
+        labelKey: 'nav.team',
+        permission: null, // visible to all — sellers see their own genealogy
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M1 15c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M13 11c1.657 0 3 .895 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         ),
       },
@@ -82,6 +101,7 @@ const navSections = [
       {
         to: '/import',
         labelKey: 'nav.import',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M9 1v10M5 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -92,6 +112,7 @@ const navSections = [
       {
         to: '/analytics',
         labelKey: 'nav.analytics',
+        permission: 'can_see_team_reports',
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M3 12L6 9 9 11 13 6 16 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -102,6 +123,7 @@ const navSections = [
       {
         to: '/content',
         labelKey: 'nav.content',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="3" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -112,6 +134,7 @@ const navSections = [
       {
         to: '/landing',
         labelKey: 'nav.landing',
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -122,18 +145,21 @@ const navSections = [
       {
         to: '/referrals',
         labelKey: 'nav.referrals',
-        badge: '3',
+        badge: null,
+        permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
             <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
           </svg>
         ),
-      },    ],
+      },
+    ],
   },
 ]
 
 export default function AppLayout() {
   const { org, user } = useAuthStore()
+  const { can, isAdmin } = usePermissions()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const { lang, toggleLang, t } = useLang()
@@ -150,6 +176,15 @@ export default function AppLayout() {
     }
   }
 
+  // Filter nav items based on permissions
+  const visibleSections = NAV_SECTIONS.map(section => ({
+    ...section,
+    items: section.items.filter(item => {
+      if (!item.permission) return true
+      return can(item.permission)
+    })
+  })).filter(section => section.items.length > 0)
+
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
 
@@ -163,7 +198,7 @@ export default function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.labelKey} className="px-3 mb-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-tertiary px-2 py-1 mb-1">
                 {t(section.labelKey)}
@@ -205,17 +240,27 @@ export default function AppLayout() {
 
         {/* User footer */}
         <div className="border-t border-black/[0.08] p-3">
+          {/* Role badge */}
+          {isAdmin && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 mb-1 rounded-lg bg-purple-50">
+              <svg className="w-3 h-3 text-purple-600" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M6 1l1.5 3h3l-2.5 2 1 3L6 7.5 3 9l1-3L1.5 4h3z" />
+              </svg>
+              <span className="text-[11px] font-bold text-purple-700">Administrador</span>
+            </div>
+          )}
+
           {/* Lang switcher */}
-          <button
-            onClick={toggleLang}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 mb-1 rounded-lg text-[12px] font-semibold text-tertiary hover:bg-surface-2 hover:text-secondary transition-colors"
-          >
+          <button onClick={toggleLang}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 mb-1 rounded-lg text-[12px] font-semibold text-tertiary hover:bg-surface-2 hover:text-secondary transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
             {lang === 'es' ? 'English' : 'Español'}
           </button>
+
+          {/* User info */}
           <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer group">
             <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
               <span className="text-[11px] font-bold text-white">
@@ -224,16 +269,13 @@ export default function AppLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-semibold text-primary truncate leading-tight">
-                {user?.email || 'Usuario'}
+                {user?.displayName || user?.email || 'Usuario'}
               </div>
-              <div className="text-[11px] text-tertiary">Admin</div>
+              <div className="text-[11px] text-tertiary">{org?.name || 'Mi organización'}</div>
             </div>
-            <button
-              onClick={handleSignOut}
-              disabled={signingOut}
+            <button onClick={handleSignOut} disabled={signingOut}
               className="opacity-0 group-hover:opacity-100 transition-opacity text-tertiary hover:text-red-500"
-              title="Cerrar sesión"
-            >
+              title="Cerrar sesión">
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                 <path d="M6 2H3a1 1 0 00-1 1v9a1 1 0 001 1h3M10 10l3-3-3-3M13 7H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
