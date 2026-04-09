@@ -376,12 +376,10 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       console.log(`[Zernio][${orgId}] Respuesta guardada en conversations`)
 
       // 8. Enviar respuesta vía API de Zernio
-      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — accountId: ${accountId}, conversationId: ${senderId}`)
+      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${senderId}`)
       const zernioResponse = await axios.post(
-        'https://zernio.com/api/v1/messages',
+        `https://zernio.com/api/v1/inbox/conversations/${senderId}/messages`,
         {
-          accountId,
-          conversationId: senderId,
           text: reply,
         },
         {
