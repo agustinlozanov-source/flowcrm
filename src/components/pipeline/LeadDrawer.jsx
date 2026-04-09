@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { normalizePhone } from '@/lib/utils'
 import { usePipeline, SYSTEM_STAGES, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
 import { useProducts } from '@/hooks/useProducts'
+import { useAppointments, APPOINTMENT_TYPES, VIDEO_PLATFORMS } from '@/hooks/useAppointments'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -12,7 +13,7 @@ import clsx from 'clsx'
 import {
   Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar,
   Package, ChevronDown, Search, Plus, Star, AlertTriangle, Clock,
-  CheckCircle2, XCircle, ArrowRight
+  CheckCircle2, XCircle, ArrowRight, Video
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -542,6 +543,133 @@ function HandoffPanel({ lead }) {
   )
 }
 
+// ── ScheduleModal ────────────────────────────────────────────────
+function ScheduleModal({ lead, onClose }) {
+  const { createAppointment } = useAppointments()
+  const [form, setForm] = useState({
+    type: 'call',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    time: '10:00',
+    duration: 15,
+    platform: 'meet',
+    link: '',
+    notes: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.date || !form.time) { toast.error('Selecciona fecha y hora'); return }
+    setLoading(true)
+    try {
+      const scheduledAt = new Date(`${form.date}T${form.time}:00`)
+      await createAppointment({ ...form, leadId: lead.id, leadName: lead.name, scheduledAt })
+      toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+      onClose()
+    } catch { toast.error('Error al agendar') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-sm border border-black/[0.08] max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
+          <div>
+            <h2 className="font-display font-bold text-base tracking-tight">Nueva cita</h2>
+            <p className="text-[11px] text-secondary mt-0.5">con {lead.name}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
+            <X size={15} strokeWidth={2.5} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-3">
+          {/* Type */}
+          <div>
+            <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Tipo *</label>
+            <div className="flex gap-2">
+              {Object.entries(APPOINTMENT_TYPES).map(([key, val]) => (
+                <button key={key} type="button"
+                  onClick={() => setForm(f => ({ ...f, type: key }))}
+                  className={clsx(
+                    'flex-1 flex items-center justify-center gap-2 py-2 rounded-[10px] border text-[12px] font-semibold transition-all',
+                    form.type === key ? 'border-primary bg-primary text-white' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                  )}>
+                  {key === 'call' ? <Phone size={13} /> : <Video size={13} />}
+                  {val.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Date + Time */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Fecha *</label>
+              <input type="date" value={form.date} onChange={set('date')} className="input text-sm" required />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Hora *</label>
+              <input type="time" value={form.time} onChange={set('time')} className="input text-sm" required />
+            </div>
+          </div>
+          {/* Duration */}
+          <div>
+            <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Duración</label>
+            <div className="flex gap-1.5">
+              {[10, 15, 20, 30, 45, 60].map(d => (
+                <button key={d} type="button"
+                  onClick={() => setForm(f => ({ ...f, duration: d }))}
+                  className={clsx('flex-1 py-1.5 rounded-lg border text-[11px] font-semibold transition-all',
+                    form.duration === d ? 'bg-primary text-white border-primary' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                  )}>{d}m</button>
+              ))}
+            </div>
+          </div>
+          {/* Platform (video only) */}
+          {form.type === 'video' && (
+            <>
+              <div>
+                <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Plataforma</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {VIDEO_PLATFORMS.map(p => (
+                    <button key={p.value} type="button"
+                      onClick={() => setForm(f => ({ ...f, platform: p.value }))}
+                      className={clsx('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all',
+                        form.platform === p.value ? 'bg-primary text-white border-primary' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                      )}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Enlace</label>
+                <input value={form.link} onChange={set('link')} placeholder="https://…" className="input text-sm" />
+              </div>
+            </>
+          )}
+          {/* Notes */}
+          <div>
+            <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Notas</label>
+            <textarea value={form.notes} onChange={set('notes')} rows={2}
+              className="input resize-none text-sm" placeholder="¿Qué preparar para esta llamada?" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button type="submit" disabled={loading}
+              className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5">
+              {loading
+                ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <>{form.type === 'call' ? <Phone size={13} /> : <Video size={13} />} Agendar</>}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN DRAWER ──────────────────────────────────────────────────
 export default function LeadDrawer({ lead, onClose }) {
   const { org } = useAuthStore()
@@ -555,6 +683,7 @@ export default function LeadDrawer({ lead, onClose }) {
   const [editing, setEditing] = useState(false)
   const [showClose, setShowClose] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     name: lead.name || '',
@@ -838,6 +967,11 @@ export default function LeadDrawer({ lead, onClose }) {
                   <Mail size={13} className="opacity-70" /> Email
                 </a>
               )}
+              <button
+                onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/[0.1] text-xs font-semibold text-secondary hover:border-purple-300 hover:text-purple-600 transition-all">
+                <Calendar size={13} className="opacity-70" /> Agendar
+              </button>
             </div>
           </div>
 
@@ -918,6 +1052,7 @@ export default function LeadDrawer({ lead, onClose }) {
 
         </div>
       </div>
+      {showSchedule && <ScheduleModal lead={lead} onClose={() => setShowSchedule(false)} />}
     </>
   )
 }

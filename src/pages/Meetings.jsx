@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useAppointments, APPOINTMENT_TYPES, APPOINTMENT_STATUS, VIDEO_PLATFORMS } from '@/hooks/useAppointments'
 import { usePipeline } from '@/hooks/usePipeline'
 import { format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns'
@@ -14,10 +14,12 @@ import {
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
 function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLeadId }) {
+  const { createLead, stages } = usePipeline()
+  const initLead = leads.find(l => l.id === defaultLeadId)
   const [form, setForm] = useState({
     type: 'call',
     leadId: defaultLeadId || '',
-    leadName: '',
+    leadName: initLead?.name || '',
     date: defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
     time: '10:00',
     duration: 15,
@@ -25,14 +27,57 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
     link: '',
     notes: '',
   })
+  const [leadSearch, setLeadSearch] = useState(initLead?.name || '')
+  const [showLeadDrop, setShowLeadDrop] = useState(false)
+  const [showCreateLead, setShowCreateLead] = useState(false)
+  const [newLead, setNewLead] = useState({ name: '', company: '', phone: '', source: 'manual' })
+  const [creatingLead, setCreatingLead] = useState(false)
   const [loading, setLoading] = useState(false)
+  const leadInputRef = useRef(null)
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const selectedLead = leads.find(l => l.id === form.leadId)
 
-  const handleLeadSelect = (e) => {
-    const lead = leads.find(l => l.id === e.target.value)
-    setForm(f => ({ ...f, leadId: e.target.value, leadName: lead?.name || '' }))
+  const filteredLeads = useMemo(() =>
+    leads.filter(l =>
+      !leadSearch ||
+      l.name.toLowerCase().includes(leadSearch.toLowerCase()) ||
+      (l.company || '').toLowerCase().includes(leadSearch.toLowerCase())
+    ).slice(0, 8),
+    [leads, leadSearch]
+  )
+
+  const handleLeadPick = (lead) => {
+    setForm(f => ({ ...f, leadId: lead.id, leadName: lead.name }))
+    setLeadSearch(lead.name)
+    setShowLeadDrop(false)
+    setShowCreateLead(false)
+  }
+
+  const handleLeadClear = () => {
+    setForm(f => ({ ...f, leadId: '', leadName: '' }))
+    setLeadSearch('')
+    setShowCreateLead(false)
+  }
+
+  const handleCreateLead = async () => {
+    if (!newLead.name.trim()) { toast.error('El nombre es requerido'); return }
+    setCreatingLead(true)
+    try {
+      const id = await createLead({
+        name: newLead.name.trim(),
+        company: newLead.company.trim(),
+        phone: newLead.phone.trim(),
+        source: newLead.source,
+        stageId: stages[0]?.id || null,
+      })
+      if (id) {
+        handleLeadPick({ id, name: newLead.name.trim(), company: newLead.company.trim() })
+        setNewLead({ name: '', company: '', phone: '', source: 'manual' })
+        toast.success('Lead creado ✓')
+      }
+    } catch { toast.error('Error al crear el lead') }
+    finally { setCreatingLead(false) }
   }
 
   const handleSubmit = async (e) => {
@@ -90,20 +135,101 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
           </div>
 
           {/* Lead */}
-          <div>
+          <div className="relative">
             <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Lead asociado</label>
-            <select value={form.leadId} onChange={handleLeadSelect} className="input">
-              <option value="">Sin asociar</option>
-              {leads.map(l => (
-                <option key={l.id} value={l.id}>
-                  {l.name}{l.company ? ` — ${l.company}` : ''} (score: {l.score || 0})
-                </option>
-              ))}
-            </select>
-            {selectedLead && (
-              <p className="text-[10px] text-blue-600 mt-1">
-                Score: {selectedLead.score || 0} · {selectedLead.systemStage === 'handoff' ? '⚡ En Handoff' : selectedLead.source}
-              </p>
+            {form.leadId ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-[10px] border border-black/[0.1] bg-surface-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-primary truncate">{selectedLead?.name || form.leadName}</p>
+                  {selectedLead?.company && <p className="text-[11px] text-secondary truncate">{selectedLead.company}</p>}
+                  {selectedLead && (
+                    <p className="text-[10px] text-blue-600 mt-0.5">
+                      Score {selectedLead.score || 0} · {selectedLead.systemStage === 'handoff' ? '⚡ Handoff' : selectedLead.source}
+                    </p>
+                  )}
+                </div>
+                <button type="button" onClick={handleLeadClear} className="text-tertiary hover:text-primary p-1 flex-shrink-0">
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none" />
+                  <input
+                    ref={leadInputRef}
+                    value={leadSearch}
+                    onChange={e => { setLeadSearch(e.target.value); setShowLeadDrop(true); setShowCreateLead(false) }}
+                    onFocus={() => setShowLeadDrop(true)}
+                    onBlur={() => setTimeout(() => setShowLeadDrop(false), 150)}
+                    placeholder="Buscar lead por nombre o empresa…"
+                    className="input pl-8 text-sm"
+                  />
+                </div>
+                {showLeadDrop && (
+                  <div className="absolute left-0 right-0 mt-1 bg-surface border border-black/[0.1] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-10 overflow-hidden">
+                    {filteredLeads.length > 0 ? (
+                      filteredLeads.map(l => (
+                        <button key={l.id} type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => handleLeadPick(l)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition-colors text-left">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-primary truncate">{l.name}</p>
+                            {l.company && <p className="text-[11px] text-secondary truncate">{l.company}</p>}
+                          </div>
+                          <span className="text-[10px] text-tertiary flex-shrink-0">score {l.score || 0}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-[12px] text-secondary">Sin resultados para "{leadSearch}"</div>
+                    )}
+                    <div className="border-t border-black/[0.06] px-3 py-2">
+                      <button type="button"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          setShowLeadDrop(false)
+                          setShowCreateLead(true)
+                          setNewLead(nl => ({ ...nl, name: leadSearch }))
+                        }}
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[12px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors w-full">
+                        <Plus size={13} /> Crear "{leadSearch || 'nuevo lead'}"
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            {showCreateLead && !form.leadId && (
+              <div className="mt-2 p-3 rounded-[10px] border border-blue-200 bg-blue-50/50 flex flex-col gap-2">
+                <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Nuevo lead</p>
+                <input value={newLead.name} onChange={e => setNewLead(nl => ({ ...nl, name: e.target.value }))}
+                  placeholder="Nombre completo *" className="input text-sm" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={newLead.company} onChange={e => setNewLead(nl => ({ ...nl, company: e.target.value }))}
+                    placeholder="Empresa" className="input text-sm" />
+                  <input value={newLead.phone} onChange={e => setNewLead(nl => ({ ...nl, phone: e.target.value }))}
+                    placeholder="Teléfono" className="input text-sm" />
+                </div>
+                <select value={newLead.source} onChange={e => setNewLead(nl => ({ ...nl, source: e.target.value }))} className="input text-sm">
+                  <option value="manual">Manual</option>
+                  <option value="meta_ads">Meta Ads</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="web">Web</option>
+                  <option value="referral">Referido</option>
+                </select>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowCreateLead(false)} className="btn-secondary text-xs py-1.5 flex-1">Cancelar</button>
+                  <button type="button" onClick={handleCreateLead} disabled={creatingLead || !newLead.name.trim()}
+                    className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1.5 disabled:opacity-40">
+                    {creatingLead
+                      ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                      : <><Plus size={12} /> Crear</>}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
