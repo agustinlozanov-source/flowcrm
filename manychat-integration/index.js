@@ -273,6 +273,8 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       const orgRef = db.collection('organizations').doc(orgId)
       const leadRef = orgRef.collection('leads').doc(senderId)
 
+      console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${senderId}`)
+
       // 1. Guardar / actualizar lead
       const existingSnap = await leadRef.get()
       if (!existingSnap.exists) {
