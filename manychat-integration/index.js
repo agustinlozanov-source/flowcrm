@@ -17,6 +17,12 @@ admin.initializeApp({
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+console.log('=== Firebase Admin init ===')
+console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID)
+console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL)
+console.log('FIREBASE_PRIVATE_KEY present:', !!process.env.FIREBASE_PRIVATE_KEY)
+console.log('=========================')
+
 // ── BUILD SYSTEM PROMPT (igual que agent.js) ──
 function buildSystemPrompt(config) {
   const {
@@ -87,7 +93,18 @@ INSTRUCCIONES GENERALES:
 ${customInstructions ? `\nINSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
 }
 
-app.get('/health', (req, res) => res.sendStatus(200))
+app.get('/health', async (req, res) => {
+  try {
+    const testRef = db.collection('_healthcheck').doc('ping')
+    await testRef.set({ ts: admin.firestore.FieldValue.serverTimestamp() })
+    const snap = await testRef.get()
+    console.log('[Health] Firestore write/read OK — project:', process.env.FIREBASE_PROJECT_ID)
+    res.json({ ok: true, project: process.env.FIREBASE_PROJECT_ID, ts: snap.data()?.ts?.toDate?.() || null })
+  } catch (err) {
+    console.error('[Health] Firestore FAILED:', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
 
 // Webhook por tenant
 app.post('/webhook/manychat/:orgId', (req, res) => {
@@ -268,14 +285,14 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const { text, platform } = message
 
   setImmediate(async () => {
+    const orgRef = db.collection('organizations').doc(orgId)
+    const leadRef = orgRef.collection('leads').doc(senderId)
+
+    console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${senderId}`)
+    console.log(`[Zernio] Firebase project: ${process.env.FIREBASE_PROJECT_ID}`)
+
+    // 1. Guardar / actualizar lead
     try {
-
-      const orgRef = db.collection('organizations').doc(orgId)
-      const leadRef = orgRef.collection('leads').doc(senderId)
-
-      console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${senderId}`)
-
-      // 1. Guardar / actualizar lead
       const existingSnap = await leadRef.get()
       if (!existingSnap.exists) {
         const stagesSnap = await orgRef.collection('pipeline_stages')
@@ -312,8 +329,13 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         })
         console.log(`[Zernio][${orgId}] Lead actualizado: ${senderId} (${senderName})`)
       }
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 1 (upsert lead):`, err.message)
+      console.error(`[Zernio][${orgId}] Stack:`, err.stack)
+    }
 
-      // 2. Guardar mensaje entrante
+    // 2. Guardar mensaje entrante
+    try {
       await leadRef.collection('conversations').add({
         role: 'user',
         content: text,
@@ -321,42 +343,62 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
       console.log(`[Zernio][${orgId}] Mensaje entrante guardado en conversations`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 2 (guardar mensaje):`, err.message)
+    }
 
-      // 3. Leer historial (últimos 10)
+    // 3. Leer historial (últimos 10)
+    let messages = []
+    try {
       const historySnap = await leadRef.collection('conversations')
         .orderBy('createdAt', 'asc')
         .limitToLast(10)
         .get()
       console.log(`[Zernio][${orgId}] Historial leído: ${historySnap.docs.length} mensajes`)
-
-      const messages = historySnap.docs.map(d => ({
+      messages = historySnap.docs.map(d => ({
         role: d.data().role === 'bot' ? 'assistant' : d.data().role,
         content: d.data().content || d.data().text || '',
       }))
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 3 (leer historial):`, err.message)
+      messages = [{ role: 'user', content: text }]
+    }
 
-      // 4. Config del agente
+    // 4. Config del agente
+    let agentConfig = {}
+    try {
       const agentSnap = await orgRef.collection('settings').doc('agent').get()
-      const agentConfig = agentSnap.exists ? agentSnap.data() : {}
+      agentConfig = agentSnap.exists ? agentSnap.data() : {}
       console.log(`[Zernio][${orgId}] Config agente leída — autoRespond: ${agentConfig.autoRespond}`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 4 (config agente):`, err.message)
+    }
 
-      if (agentConfig.autoRespond === false) {
-        console.log(`[Zernio][${orgId}] autoRespond desactivado — sin respuesta`)
-        return
-      }
+    if (agentConfig.autoRespond === false) {
+      console.log(`[Zernio][${orgId}] autoRespond desactivado — sin respuesta`)
+      return
+    }
 
-      // 5. RAG files
+    // 5. RAG files
+    let filesContent = ''
+    try {
       const filesSnap = await orgRef.collection('agent_files')
         .where('status', '==', 'ready').get()
-      const filesContent = filesSnap.docs
+      filesContent = filesSnap.docs
         .map(d => d.data().content || '')
         .filter(Boolean)
         .join('\n\n---\n\n')
       console.log(`[Zernio][${orgId}] RAG archivos: ${filesSnap.docs.length} | chars: ${filesContent.length}`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 5 (RAG files):`, err.message)
+    }
 
-      const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
-        + `\n\nContexto: nombre del lead=${senderName || 'Sin nombre'}, canal=${platform || 'whatsapp'}`
+    const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
+      + `\n\nContexto: nombre del lead=${senderName || 'Sin nombre'}, canal=${platform || 'whatsapp'}`
 
-      // 6. Claude responde
+    // 6. Claude responde
+    let reply = null
+    try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -364,11 +406,15 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         system: systemPrompt,
         messages,
       })
-
-      const reply = response.content[0].text
+      reply = response.content[0].text
       console.log(`[Zernio][${orgId}] Respuesta de Claude: "${reply}"`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 6 (Claude):`, err.message)
+      return
+    }
 
-      // 7. Guardar respuesta
+    // 7. Guardar respuesta
+    try {
       await leadRef.collection('conversations').add({
         role: 'assistant',
         content: reply,
@@ -376,8 +422,12 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
       console.log(`[Zernio][${orgId}] Respuesta guardada en conversations`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 7 (guardar respuesta):`, err.message)
+    }
 
-      // 8. Enviar respuesta vía API de Zernio
+    // 8. Enviar respuesta vía API de Zernio
+    try {
       console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversation?.id}, accountId: ${account?.id}`)
       const zernioResponse = await axios.post(
         `https://zernio.com/api/v1/inbox/conversations/${conversation?.id}/messages`,
@@ -393,12 +443,11 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         }
       )
       console.log(`[Zernio][${orgId}] Zernio API response:`, JSON.stringify(zernioResponse.data))
-
-      console.log(`[Zernio][${orgId}] ✓ Mensaje procesado para ${senderName} (${senderId})`)
     } catch (err) {
-      console.error(`[Zernio][${orgId}] Error en setImmediate:`, err.response?.data || err.message)
-      console.error(`[Zernio][${orgId}] Stack:`, err.stack)
+      console.error(`[Zernio][${orgId}] ERROR paso 8 (Zernio API):`, err.response?.data || err.message)
     }
+
+    console.log(`[Zernio][${orgId}] ✓ Flujo completo para ${senderName} (${senderId})`)
   })
 })
 
