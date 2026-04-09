@@ -249,7 +249,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 })
 
 // ── ZERNIO WEBHOOK ───────────────────────────────────────────────
-app.post('/webhook/zernio', (req, res) => {
+app.post('/webhook/zernio/:orgId', (req, res) => {
   // Responder 200 inmediatamente para que Zernio no reintente
   res.sendStatus(200)
 
@@ -257,14 +257,12 @@ app.post('/webhook/zernio', (req, res) => {
 
   if (event !== 'message.received' || !message?.text) return
 
+  const { orgId } = req.params
   const { id: senderId, phoneNumber, name: senderName } = message.sender
   const { text, platform, accountId } = message
 
   setImmediate(async () => {
     try {
-      // Usar el primer orgId disponible o uno configurable por env
-      const orgId = process.env.ZERNIO_ORG_ID
-      if (!orgId) { console.error('[Zernio] ZERNIO_ORG_ID no configurado'); return }
 
       const orgRef = db.collection('organizations').doc(orgId)
       const leadRef = orgRef.collection('leads').doc(senderId)
