@@ -253,7 +253,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   // Responder 200 inmediatamente para que Zernio no reintente
   res.sendStatus(200)
 
-  const { event, message } = req.body
+  const { event, message, conversation, account } = req.body
   const { orgId } = req.params
 
   console.log(`[Zernio] Webhook recibido — orgId: ${orgId}`)
@@ -265,7 +265,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   }
 
   const { id: senderId, phoneNumber, name: senderName } = message.sender
-  const { text, platform, accountId } = message
+  const { text, platform } = message
 
   setImmediate(async () => {
     try {
@@ -376,10 +376,11 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       console.log(`[Zernio][${orgId}] Respuesta guardada en conversations`)
 
       // 8. Enviar respuesta vía API de Zernio
-      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${senderId}`)
+      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversation?.id}, accountId: ${account?.id}`)
       const zernioResponse = await axios.post(
-        `https://zernio.com/api/v1/inbox/conversations/${senderId}/messages`,
+        `https://zernio.com/api/v1/inbox/conversations/${conversation?.id}/messages`,
         {
+          accountId: account?.id,
           text: reply,
         },
         {
