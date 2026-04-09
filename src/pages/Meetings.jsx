@@ -13,8 +13,7 @@ import {
 } from 'lucide-react'
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
-function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLeadId }) {
-  const { createLead, stages } = usePipeline()
+function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLeadId, createLead, stages }) {
   const initLead = leads.find(l => l.id === defaultLeadId)
   const [form, setForm] = useState({
     type: 'call',
@@ -469,7 +468,7 @@ export default function Meetings() {
     createAppointment, cancelAppointment, deleteAppointment
   } = useAppointments()
 
-  const { leads: allLeads, systemLeads } = usePipeline()
+  const { leads: allLeads, systemLeads, createLead, stages } = usePipeline()
   const leads = [...allLeads, ...systemLeads]
 
   const [view, setView] = useState('list')
@@ -712,7 +711,8 @@ export default function Meetings() {
       {/* MODALS */}
       {showNew && (
         <NewAppointmentModal leads={leads} defaultDate={selectedDay}
-          onClose={() => setShowNew(false)} onCreate={handleCreate} />
+          onClose={() => setShowNew(false)} onCreate={handleCreate}
+          createLead={createLead} stages={stages} />
       )}
 
       {cockpit && (
