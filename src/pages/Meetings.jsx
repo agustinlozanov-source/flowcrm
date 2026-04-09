@@ -406,14 +406,23 @@ export default function Meetings() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
-        <h1 className="font-display font-bold text-[15px] tracking-tight">Agenda</h1>
-        <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary ml-1">
-          {appointments.filter(a => a.status === 'pending').length} pendientes
-        </span>
+      <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex flex-col gap-2.5 flex-shrink-0">
+        {/* Row 1 — título + badge + acción */}
+        <div className="flex items-center gap-3">
+          <h1 className="font-display font-bold text-[15px] tracking-tight">Agenda</h1>
+          <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary ml-1">
+            {appointments.filter(a => a.status === 'pending').length} pendientes
+          </span>
+          <div className="ml-auto">
+            <button onClick={() => setShowNew(true)}
+              className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
+              <Plus size={14} strokeWidth={3} color="white" /> Nueva cita
+            </button>
+          </div>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* Type filter */}
+        {/* Row 2 — filtros + vista */}
+        <div className="flex items-center gap-2">
           <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
             {[
               { value: 'all', label: 'Todas' },
@@ -427,7 +436,6 @@ export default function Meetings() {
             ))}
           </div>
 
-          {/* Status filter */}
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
             <option value="all">Todos los estados</option>
@@ -436,8 +444,7 @@ export default function Meetings() {
             ))}
           </select>
 
-          {/* View toggle */}
-          <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
+          <div className="flex bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5 ml-auto">
             {[
               ['list', <><List size={13} className="inline mr-1" />Lista</>],
               ['calendar', <><CalendarIcon size={13} className="inline mr-1" />Calendario</>]
@@ -448,11 +455,6 @@ export default function Meetings() {
                 )}>{l}</button>
             ))}
           </div>
-
-          <button onClick={() => setShowNew(true)}
-            className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-            <Plus size={14} strokeWidth={3} color="white" /> Nueva cita
-          </button>
         </div>
       </div>
 

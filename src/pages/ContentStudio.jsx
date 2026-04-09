@@ -491,7 +491,8 @@ export default function ContentStudio() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex flex-col gap-2.5 flex-shrink-0">
+        {/* Row 1 — título + badge */}
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.15)' }}>
             <Clapperboard size={14} className="text-amber-500" />
@@ -503,7 +504,8 @@ export default function ContentStudio() {
           </div>
         </div>
 
-        <div className="ml-auto flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
+        {/* Row 2 — tabs */}
+        <div className="flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5 w-fit">
           {[
             ['radar', <><Radio size={13} className="inline-block mr-1" />Radar</>],
             ['pipeline', <><Clapperboard size={13} className="inline-block mr-1" />Pipeline</>],

@@ -813,11 +813,10 @@ export default function Team() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
-        <h1 className="font-display font-bold text-[15px] tracking-tight">Equipo</h1>
-
-        {/* Stats */}
-        <div className="flex items-center gap-2 ml-1">
+      <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex flex-col gap-2.5 flex-shrink-0">
+        {/* Row 1 — título + stats + acciones */}
+        <div className="flex items-center gap-3">
+          <h1 className="font-display font-bold text-[15px] tracking-tight">Equipo</h1>
           <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary">
             {teamStats.active} activos
           </span>
@@ -826,29 +825,32 @@ export default function Team() {
               {teamStats.totalClosedThisMonth} cierres este mes
             </span>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            {(canInviteMembers || members.length === 0) && (
+              <button onClick={() => { setInviteForMember(null); setShowInviteModal(true) }}
+                className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
+                <Link2 size={13} /> Invitar
+              </button>
+            )}
+            {(canManageTeam || members.length === 0) && (
+              <button onClick={() => { setEditMember(null); setShowMemberModal(true) }}
+                className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
+                <Plus size={14} strokeWidth={3} color="white" /> Nuevo miembro
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {activeTab === 'members' && (
-            <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 w-44">
+        {/* Row 2 — búsqueda (solo en tab miembros) */}
+        {activeTab === 'members' && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 w-52">
               <Search size={13} className="text-tertiary flex-shrink-0" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar miembro..."
                 className="bg-transparent text-[12.5px] text-primary placeholder-tertiary flex-1 outline-none" />
             </div>
-          )}
-          {(canInviteMembers || members.length === 0) && (
-            <button onClick={() => { setInviteForMember(null); setShowInviteModal(true) }}
-              className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
-              <Link2 size={13} /> Invitar
-            </button>
-          )}
-          {(canManageTeam || members.length === 0) && (
-            <button onClick={() => { setEditMember(null); setShowMemberModal(true) }}
-              className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-              <Plus size={14} strokeWidth={3} color="white" /> Nuevo miembro
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* TABS */}

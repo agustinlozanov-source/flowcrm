@@ -226,9 +226,13 @@ export default function Analytics() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* TOPBAR */}
-      <div className="bg-surface border-b border-black/[0.08] px-5 h-[68px] flex items-center gap-3 flex-shrink-0">
-        <h1 className="font-display font-bold text-[15px] tracking-tight">Analytics</h1>
-        <div className="ml-auto flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5">
+      <div className="bg-surface border-b border-black/[0.08] px-5 py-3 flex flex-col gap-2.5 flex-shrink-0">
+        {/* Row 1 — título */}
+        <div className="flex items-center">
+          <h1 className="font-display font-bold text-[15px] tracking-tight">Analytics</h1>
+        </div>
+        {/* Row 2 — selector de período */}
+        <div className="flex gap-1 bg-surface-2 border border-black/[0.08] rounded-[8px] p-0.5 w-fit">
           {PERIODS.map(p => (
             <button key={p.value} onClick={() => setPeriod(p.value)}
               className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
