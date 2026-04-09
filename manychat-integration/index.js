@@ -248,4 +248,141 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
   })
 })
 
+// ── ZERNIO WEBHOOK ───────────────────────────────────────────────
+app.post('/webhook/zernio', (req, res) => {
+  // Responder 200 inmediatamente para que Zernio no reintente
+  res.sendStatus(200)
+
+  const { event, message } = req.body
+
+  if (event !== 'message.received' || !message?.text) return
+
+  const { id: senderId, phoneNumber, name: senderName } = message.sender
+  const { text, platform, accountId } = message
+
+  setImmediate(async () => {
+    try {
+      // Usar el primer orgId disponible o uno configurable por env
+      const orgId = process.env.ZERNIO_ORG_ID
+      if (!orgId) { console.error('[Zernio] ZERNIO_ORG_ID no configurado'); return }
+
+      const orgRef = db.collection('organizations').doc(orgId)
+      const leadRef = orgRef.collection('leads').doc(senderId)
+
+      // 1. Guardar / actualizar lead
+      const existingSnap = await leadRef.get()
+      if (!existingSnap.exists) {
+        const stagesSnap = await orgRef.collection('pipeline_stages')
+          .orderBy('order', 'asc').limit(1).get()
+        const stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+
+        await leadRef.set({
+          subscriber_id: senderId,
+          orgId,
+          name: senderName || 'Sin nombre',
+          phone: phoneNumber || '',
+          company: '',
+          source: platform || 'whatsapp',
+          channel: platform || 'whatsapp',
+          stageId,
+          score: 0,
+          assignedTo: null,
+          lastMessage: text,
+          hasUnread: true,
+          lastMessageChannel: platform || 'whatsapp',
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      } else {
+        await leadRef.update({
+          name: senderName || existingSnap.data().name,
+          lastMessage: text,
+          hasUnread: true,
+          lastMessageChannel: platform || 'whatsapp',
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
+
+      // 2. Guardar mensaje entrante
+      await leadRef.collection('conversations').add({
+        role: 'user',
+        content: text,
+        channel: platform || 'whatsapp',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // 3. Leer historial (últimos 10)
+      const historySnap = await leadRef.collection('conversations')
+        .orderBy('createdAt', 'asc')
+        .limitToLast(10)
+        .get()
+
+      const messages = historySnap.docs.map(d => ({
+        role: d.data().role === 'bot' ? 'assistant' : d.data().role,
+        content: d.data().content || d.data().text || '',
+      }))
+
+      // 4. Config del agente
+      const agentSnap = await orgRef.collection('settings').doc('agent').get()
+      const agentConfig = agentSnap.exists ? agentSnap.data() : {}
+
+      if (agentConfig.autoRespond === false) {
+        console.log('[Zernio] autoRespond desactivado')
+        return
+      }
+
+      // 5. RAG files
+      const filesSnap = await orgRef.collection('agent_files')
+        .where('status', '==', 'ready').get()
+      const filesContent = filesSnap.docs
+        .map(d => d.data().content || '')
+        .filter(Boolean)
+        .join('\n\n---\n\n')
+
+      const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
+        + `\n\nContexto: nombre del lead=${senderName || 'Sin nombre'}, canal=${platform || 'whatsapp'}`
+
+      // 6. Claude responde
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: systemPrompt,
+        messages,
+      })
+
+      const reply = response.content[0].text
+
+      // 7. Guardar respuesta
+      await leadRef.collection('conversations').add({
+        role: 'assistant',
+        content: reply,
+        channel: platform || 'whatsapp',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // 8. Enviar respuesta vía API de Zernio
+      await axios.post(
+        'https://zernio.com/api/v1/messages',
+        {
+          accountId,
+          conversationId: senderId,
+          text: reply,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      console.log(`[Zernio] Mensaje procesado para ${senderName} (${senderId})`)
+    } catch (err) {
+      console.error('[Zernio] Error:', err.response?.data || err.message)
+    }
+  })
+})
+
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
