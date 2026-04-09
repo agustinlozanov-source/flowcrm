@@ -254,10 +254,16 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   res.sendStatus(200)
 
   const { event, message } = req.body
-
-  if (event !== 'message.received' || !message?.text) return
-
   const { orgId } = req.params
+
+  console.log(`[Zernio] Webhook recibido — orgId: ${orgId}`)
+  console.log(`[Zernio] Payload completo:`, JSON.stringify(req.body, null, 2))
+
+  if (event !== 'message.received' || !message?.text) {
+    console.log(`[Zernio] Ignorado — event: ${event}, text: ${message?.text}`)
+    return
+  }
+
   const { id: senderId, phoneNumber, name: senderName } = message.sender
   const { text, platform, accountId } = message
 
@@ -292,6 +298,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
+        console.log(`[Zernio][${orgId}] Lead creado: ${senderId} (${senderName})`)
       } else {
         await leadRef.update({
           name: senderName || existingSnap.data().name,
@@ -301,6 +308,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
+        console.log(`[Zernio][${orgId}] Lead actualizado: ${senderId} (${senderName})`)
       }
 
       // 2. Guardar mensaje entrante
@@ -310,12 +318,14 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         channel: platform || 'whatsapp',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
+      console.log(`[Zernio][${orgId}] Mensaje entrante guardado en conversations`)
 
       // 3. Leer historial (últimos 10)
       const historySnap = await leadRef.collection('conversations')
         .orderBy('createdAt', 'asc')
         .limitToLast(10)
         .get()
+      console.log(`[Zernio][${orgId}] Historial leído: ${historySnap.docs.length} mensajes`)
 
       const messages = historySnap.docs.map(d => ({
         role: d.data().role === 'bot' ? 'assistant' : d.data().role,
@@ -325,9 +335,10 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       // 4. Config del agente
       const agentSnap = await orgRef.collection('settings').doc('agent').get()
       const agentConfig = agentSnap.exists ? agentSnap.data() : {}
+      console.log(`[Zernio][${orgId}] Config agente leída — autoRespond: ${agentConfig.autoRespond}`)
 
       if (agentConfig.autoRespond === false) {
-        console.log('[Zernio] autoRespond desactivado')
+        console.log(`[Zernio][${orgId}] autoRespond desactivado — sin respuesta`)
         return
       }
 
@@ -338,11 +349,13 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         .map(d => d.data().content || '')
         .filter(Boolean)
         .join('\n\n---\n\n')
+      console.log(`[Zernio][${orgId}] RAG archivos: ${filesSnap.docs.length} | chars: ${filesContent.length}`)
 
       const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
         + `\n\nContexto: nombre del lead=${senderName || 'Sin nombre'}, canal=${platform || 'whatsapp'}`
 
       // 6. Claude responde
+      console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
@@ -351,6 +364,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       })
 
       const reply = response.content[0].text
+      console.log(`[Zernio][${orgId}] Respuesta de Claude: "${reply}"`)
 
       // 7. Guardar respuesta
       await leadRef.collection('conversations').add({
@@ -359,9 +373,11 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         channel: platform || 'whatsapp',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
+      console.log(`[Zernio][${orgId}] Respuesta guardada en conversations`)
 
       // 8. Enviar respuesta vía API de Zernio
-      await axios.post(
+      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — accountId: ${accountId}, conversationId: ${senderId}`)
+      const zernioResponse = await axios.post(
         'https://zernio.com/api/v1/messages',
         {
           accountId,
@@ -375,10 +391,12 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           },
         }
       )
+      console.log(`[Zernio][${orgId}] Zernio API response:`, JSON.stringify(zernioResponse.data))
 
-      console.log(`[Zernio] Mensaje procesado para ${senderName} (${senderId})`)
+      console.log(`[Zernio][${orgId}] ✓ Mensaje procesado para ${senderName} (${senderId})`)
     } catch (err) {
-      console.error('[Zernio] Error:', err.response?.data || err.message)
+      console.error(`[Zernio][${orgId}] Error en setImmediate:`, err.response?.data || err.message)
+      console.error(`[Zernio][${orgId}] Stack:`, err.stack)
     }
   })
 })
