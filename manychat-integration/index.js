@@ -354,6 +354,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     try {
       await leadRef.collection('conversations').add({
         role: 'user',
+        text: text,
         content: text,
         channel: platform || 'whatsapp',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -372,8 +373,8 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         .get()
       console.log(`[Zernio][${orgId}] Historial leído: ${historySnap.docs.length} mensajes`)
       messages = historySnap.docs.map(d => ({
-        role: d.data().role === 'bot' ? 'assistant' : d.data().role,
-        content: d.data().content || d.data().text || '',
+        role: (d.data().role === 'bot' || d.data().role === 'assistant') ? 'assistant' : 'user',
+        content: d.data().text || d.data().content || '',
       }))
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 3 (leer historial):`, err.message)
@@ -432,7 +433,8 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     // 7. Guardar respuesta
     try {
       await leadRef.collection('conversations').add({
-        role: 'assistant',
+        role: 'bot',
+        text: reply,
         content: reply,
         channel: platform || 'whatsapp',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
