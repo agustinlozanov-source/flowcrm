@@ -9,7 +9,7 @@ import clsx from 'clsx'
 import {
   X, Plus, Clock, Calendar as CalendarIcon, Video, Phone,
   List, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  RotateCcw, Star, AlertTriangle
+  RotateCcw, Star, AlertTriangle, Search
 } from 'lucide-react'
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
