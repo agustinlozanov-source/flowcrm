@@ -381,7 +381,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         `https://zernio.com/api/v1/inbox/conversations/${conversation?.id}/messages`,
         {
           accountId: account?.id,
-          text: reply,
+          message: reply,
         },
         {
           headers: {
