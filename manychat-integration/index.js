@@ -2,6 +2,7 @@ const express = require('express')
 const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
+const { FieldValue } = require('firebase-admin/firestore')
 
 const app = express()
 app.use(express.json())
@@ -300,11 +301,16 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const { id: senderId, phoneNumber, name: senderName } = message.sender
   const { text, platform } = message
 
+  // Usar phoneNumber como ID estable del lead (identificador real del contacto en WhatsApp)
+  // Fallback a sender.id si no hay teléfono
+  const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId
+
   setImmediate(async () => {
     const orgRef = db.collection('organizations').doc(orgId)
-    const leadRef = orgRef.collection('leads').doc(senderId)
+    const leadRef = orgRef.collection('leads').doc(leadDocId)
 
-    console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${senderId}`)
+    console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId}`)
+    console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${leadDocId}`)
     console.log(`[Zernio] Firebase project: ${process.env.FIREBASE_PROJECT_ID}`)
 
     // 1. Guardar / actualizar lead
@@ -333,7 +339,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
-        console.log(`[Zernio][${orgId}] Lead creado: ${senderId} (${senderName})`)
+        console.log(`[Zernio][${orgId}] Lead creado: ${leadDocId} (${senderName})`)
       } else {
         await leadRef.update({
           name: senderName || existingSnap.data().name,
@@ -343,7 +349,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
-        console.log(`[Zernio][${orgId}] Lead actualizado: ${senderId} (${senderName})`)
+        console.log(`[Zernio][${orgId}] Lead actualizado: ${leadDocId} (${senderName})`)
       }
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 1 (upsert lead):`, err.message)
@@ -465,8 +471,64 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       console.error(`[Zernio][${orgId}] ERROR paso 8 (Zernio API):`, err.response?.data || err.message)
     }
 
-    console.log(`[Zernio][${orgId}] ✓ Flujo completo para ${senderName} (${senderId})`)
+    console.log(`[Zernio][${orgId}] ✓ Flujo completo para ${senderName} (${leadDocId})`)
   })
+})
+
+// ── CONTENT: GENERATE IMAGE ──────────────────────────────────────
+app.post('/content/generate-image', async (req, res) => {
+  const { script, brandKit, format } = req.body
+  // format: '1:1' o '9:16'
+
+  try {
+    // 1. Claude genera el prompt para FLUX
+    const promptResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Genera un prompt en inglés para FLUX (generador de imágenes IA) 
+      basado en este contenido de redes sociales.
+      
+      Tema del guión: ${script?.title || ''}
+      Estilo visual del brand kit: ${brandKit?.visualStyle || ''}
+      Color primario: ${brandKit?.primaryColor || ''}
+      
+      El prompt debe describir SOLO el fondo visual — sin texto, sin logos, sin personas leyendo.
+      Debe ser fotorrealista, profesional, apropiado para post de redes sociales de negocios.
+      Máximo 100 palabras. Solo el prompt, sin explicaciones.`
+      }]
+    })
+
+    const imagePrompt = promptResponse.content[0].text.trim()
+    console.log('[generate-image] Prompt generado:', imagePrompt)
+
+    // 2. FAL.AI genera la imagen
+    const falResponse = await axios.post(
+      'https://fal.run/fal-ai/flux-pro/v1.1',
+      {
+        prompt: imagePrompt,
+        image_size: format === '9:16' ? 'portrait_16_9' : 'square_hd',
+        num_images: 1,
+        output_format: 'jpeg',
+        num_inference_steps: 28,
+      },
+      {
+        headers: {
+          'Authorization': `Key ${process.env.FAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        }
+      }
+    )
+
+    const imageUrl = falResponse.data.images[0].url
+    console.log('[generate-image] Imagen generada:', imageUrl)
+
+    res.json({ imageUrl, prompt: imagePrompt })
+  } catch (err) {
+    console.error('[generate-image] ERROR:', err.response?.data || err.message)
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
 })
 
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
