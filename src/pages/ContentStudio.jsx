@@ -9,7 +9,8 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap, Settings } from 'lucide-react'
+import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap, Settings, Palette } from 'lucide-react'
+import BrandKitsTab from '@/pages/BrandKitEditor'
 
 const NETWORKS = [
   { value: 'tiktok', label: 'TikTok', icon: <Smartphone size={14} /> },
@@ -510,6 +511,7 @@ export default function ContentStudio() {
             ['radar', <><Radio size={13} className="inline-block mr-1" />Radar</>],
             ['pipeline', <><Clapperboard size={13} className="inline-block mr-1" />Pipeline</>],
             ['temas', <><Settings size={13} className="inline-block mr-1" />Temas{topics.length === 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />}</>],
+            ['brandkits', <><Palette size={13} className="inline-block mr-1" />Brand Kits</>],
           ].map(([v, l]) => (
             <button key={v} onClick={() => setActiveTab(v)}
               className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
@@ -712,6 +714,11 @@ export default function ContentStudio() {
         {/* ── TEMAS TAB ── */}
         {activeTab === 'temas' && (
           <TopicsConfig orgId={org?.id} topics={topics} setTopics={setTopics} />
+        )}
+
+        {/* ── BRAND KITS TAB ── */}
+        {activeTab === 'brandkits' && (
+          <BrandKitsTab />
         )}
 
       </div>
