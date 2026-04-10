@@ -503,21 +503,22 @@ app.post('/content/generate-image', async (req, res) => {
     const imagePrompt = promptResponse.content[0].text.trim()
     console.log('[generate-image] Prompt generado:', imagePrompt)
 
-    // 2. FAL.AI genera la imagen
+    // 2. FAL.AI genera la imagen (flux/schnell: ~5s, evita timeout de 30s)
     const falResponse = await axios.post(
-      'https://fal.run/fal-ai/flux-pro/v1.1',
+      'https://fal.run/fal-ai/flux/schnell',
       {
         prompt: imagePrompt,
         image_size: format === '9:16' ? 'portrait_16_9' : 'square_hd',
         num_images: 1,
         output_format: 'jpeg',
-        num_inference_steps: 28,
+        num_inference_steps: 4,
       },
       {
         headers: {
           'Authorization': `Key ${process.env.FAL_API_KEY}`,
           'Content-Type': 'application/json',
-        }
+        },
+        timeout: 25000, // 25s max para no superar Railway
       }
     )
 
