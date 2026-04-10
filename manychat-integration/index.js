@@ -5,6 +5,25 @@ const admin = require('firebase-admin')
 const { FieldValue } = require('firebase-admin/firestore')
 
 const app = express()
+
+// CORS — permite flowhubcrm.app y localhost en dev
+app.use((req, res, next) => {
+  const allowed = [
+    'https://flowhubcrm.app',
+    'https://www.flowhubcrm.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ]
+  const origin = req.headers.origin
+  if (allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
 app.use(express.json())
 
 // Parseo robusto de la private key para Railway
