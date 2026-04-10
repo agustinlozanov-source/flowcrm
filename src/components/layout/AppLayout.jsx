@@ -153,6 +153,18 @@ const NAV_SECTIONS = [
           </svg>
         ),
       },
+      {
+        to: '/goals',
+        labelKey: 'nav.goals',
+        permission: null,
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="9" cy="9" r="4" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+          </svg>
+        ),
+      },
     ],
   },
 ]

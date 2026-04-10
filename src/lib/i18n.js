@@ -28,6 +28,7 @@ export const translations = {
     'nav.analytics': 'Analíticas',
     'nav.content': 'Contenido',
     'nav.referrals': 'Referidos',
+    'nav.goals': 'Objetivos',
     'nav.landing': 'Páginas',
 
     // User
@@ -64,6 +65,7 @@ export const translations = {
     'nav.analytics': 'Analytics',
     'nav.content': 'Content',
     'nav.referrals': 'Referrals',
+    'nav.goals': 'Goals',
     'nav.landing': 'Pages',
 
     // User
