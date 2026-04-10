@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, cloneElement } from 'react'
 import { loadGoogleFont } from '@/hooks/useBrandKits'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
@@ -75,11 +75,11 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
   const dragOrigin = useRef(null)
   const resizing   = useRef(false)
   const resizeOrig = useRef(null)
+  const [editMode, setEditMode] = useState(false)
 
   const onMouseDown = (e) => {
     if (layer.locked) return
-    // No iniciar drag si el texto está en modo edición
-    if (e.currentTarget.querySelector('[data-editing="true"]')) return
+    if (editMode) return  // en modo edición no iniciar drag
     e.preventDefault()
     e.stopPropagation()
     onSelect()
@@ -88,6 +88,13 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
       mx: e.clientX, my: e.clientY,
       lx: layer.x,   ly: layer.y,
     }
+  }
+
+  const onDoubleClick = (e) => {
+    if (layer.locked || layer.type !== 'text') return
+    e.stopPropagation()
+    onSelect()
+    setEditMode(true)
   }
 
   const onResizeDown = (e) => {
@@ -131,16 +138,17 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
   return (
     <div
       onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
       style={{
         position: 'absolute',
         left:    `${layer.x}%`,
         top:     `${layer.y}%`,
         width:   `${layer.width}%`,
         height:  layer.height ? `${layer.height}%` : undefined,
-        cursor:  layer.locked ? 'default' : 'grab',
+        cursor:  layer.locked ? 'default' : editMode ? 'text' : 'grab',
         zIndex:  selected ? 20 : 10,
         display: layer.visible ? 'block' : 'none',
-        userSelect: 'none',
+        userSelect: editMode ? 'text' : 'none',
       }}>
 
       {selected && (
@@ -162,29 +170,37 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
         </>
       )}
 
-      {children}
+      {cloneElement(children, { editMode, onExitEdit: () => setEditMode(false) })}
     </div>
   )
 }
 
 // ─── TEXT LAYER ───────────────────────────────────────────────────
-function TextLayer({ layer, onChange }) {
-  const [editMode, setEditMode] = useState(false)
+function TextLayer({ layer, onChange, editMode = false, onExitEdit }) {
+  const divRef = useRef(null)
   useEffect(() => { if (layer.fontFamily) loadGoogleFont(layer.fontFamily) }, [layer.fontFamily])
+
+  // Auto-focus cuando entra en modo edición
+  useEffect(() => {
+    if (editMode && divRef.current) {
+      divRef.current.focus()
+      // Colocar el cursor al final
+      const range = document.createRange()
+      const sel = window.getSelection()
+      range.selectNodeContents(divRef.current)
+      range.collapse(false)
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+  }, [editMode])
 
   return (
     <div
-      data-editing={editMode ? 'true' : 'false'}
+      ref={divRef}
       contentEditable={!layer.locked && editMode}
       suppressContentEditableWarning
-      onDoubleClick={(e) => {
-        if (layer.locked) return
-        e.stopPropagation()
-        setEditMode(true)
-      }}
-      onBlur={() => setEditMode(false)}
+      onBlur={() => onExitEdit?.()}
       onInput={e => onChange({ text: e.currentTarget.textContent })}
-      onClick={e => { if (editMode) e.stopPropagation() }}
       style={{
         fontFamily:  layer.fontFamily,
         fontSize:    layer.fontSize,
@@ -195,8 +211,8 @@ function TextLayer({ layer, onChange }) {
         textShadow:  layer.shadow ? '0 2px 12px rgba(0,0,0,0.8)' : 'none',
         outline: 'none',
         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        cursor: layer.locked ? 'default' : editMode ? 'text' : 'inherit',
         pointerEvents: editMode ? 'auto' : 'none',
+        cursor: editMode ? 'text' : 'inherit',
         padding: '2px 4px', minHeight: '1em',
       }}>
       {layer.text}
