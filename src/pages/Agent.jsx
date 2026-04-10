@@ -1076,9 +1076,14 @@ export default function Agent() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      // Firestore rechaza undefined — filtrar antes de guardar
+      const cleanConfig = Object.fromEntries(
+        Object.entries({ ...config, updatedAt: serverTimestamp() })
+          .filter(([, v]) => v !== undefined)
+      )
       await setDoc(
         doc(db, 'organizations', org.id, 'settings', 'agent'),
-        { ...config, updatedAt: serverTimestamp() },
+        cleanConfig,
         { merge: true }
       )
       setSyncing(true)
