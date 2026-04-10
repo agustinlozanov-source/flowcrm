@@ -78,7 +78,8 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
 
   const onMouseDown = (e) => {
     if (layer.locked) return
-    if (e.target.getAttribute('contenteditable') === 'true') return
+    // No iniciar drag si el texto está en modo edición
+    if (e.currentTarget.querySelector('[data-editing="true"]')) return
     e.preventDefault()
     e.stopPropagation()
     onSelect()
@@ -168,14 +169,22 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
 
 // ─── TEXT LAYER ───────────────────────────────────────────────────
 function TextLayer({ layer, onChange }) {
+  const [editMode, setEditMode] = useState(false)
   useEffect(() => { if (layer.fontFamily) loadGoogleFont(layer.fontFamily) }, [layer.fontFamily])
 
   return (
     <div
-      contentEditable={!layer.locked}
+      data-editing={editMode ? 'true' : 'false'}
+      contentEditable={!layer.locked && editMode}
       suppressContentEditableWarning
+      onDoubleClick={(e) => {
+        if (layer.locked) return
+        e.stopPropagation()
+        setEditMode(true)
+      }}
+      onBlur={() => setEditMode(false)}
       onInput={e => onChange({ text: e.currentTarget.textContent })}
-      onClick={e => e.stopPropagation()}
+      onClick={e => { if (editMode) e.stopPropagation() }}
       style={{
         fontFamily:  layer.fontFamily,
         fontSize:    layer.fontSize,
@@ -186,7 +195,8 @@ function TextLayer({ layer, onChange }) {
         textShadow:  layer.shadow ? '0 2px 12px rgba(0,0,0,0.8)' : 'none',
         outline: 'none',
         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        cursor: layer.locked ? 'default' : 'text',
+        cursor: layer.locked ? 'default' : editMode ? 'text' : 'inherit',
+        pointerEvents: editMode ? 'auto' : 'none',
         padding: '2px 4px', minHeight: '1em',
       }}>
       {layer.text}
