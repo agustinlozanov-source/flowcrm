@@ -240,10 +240,12 @@ async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentSco
 // ── SYNC AGENT CONFIG ─────────────────────────────────────────────
 async function syncAssistant(orgId, config) {
   const settingsRef = db.collection('organizations').doc(orgId).collection('settings').doc('agent')
-  await settingsRef.set({
-    ...config,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true })
+  // Firestore rechaza undefined — filtrar antes de guardar
+  const cleanConfig = Object.fromEntries(
+    Object.entries({ ...config, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+      .filter(([, v]) => v !== undefined)
+  )
+  await settingsRef.set(cleanConfig, { merge: true })
   return { success: true }
 }
 
