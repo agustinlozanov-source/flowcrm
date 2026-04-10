@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, cloneElement } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { loadGoogleFont } from '@/hooks/useBrandKits'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
@@ -70,7 +70,7 @@ function buildInitialLayers(content, kit) {
 }
 
 // ─── DRAGGABLE LAYER WRAPPER ──────────────────────────────────────
-function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, children }) {
+function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, render }) {
   const dragging   = useRef(false)
   const dragOrigin = useRef(null)
   const resizing   = useRef(false)
@@ -170,7 +170,7 @@ function DraggableLayer({ layer, selected, canvasRef, onSelect, onChange, childr
         </>
       )}
 
-      {cloneElement(children, { editMode, onExitEdit: () => setEditMode(false) })}
+      {render(editMode, () => setEditMode(false))}
     </div>
   )
 }
@@ -701,10 +701,13 @@ export default function ImageEditor({ content, brandKit, onClose, onPublish }) {
                 selected={selectedId === layer.id}
                 canvasRef={canvasRef}
                 onSelect={() => setSelectedId(layer.id)}
-                onChange={updates => updateLayer(layer.id, updates)}>
-                {layer.type === 'text'  && <TextLayer  layer={layer} onChange={u => updateLayer(layer.id, u)} />}
-                {layer.type === 'image' && <ImageLayer layer={layer} />}
-              </DraggableLayer>
+                onChange={updates => updateLayer(layer.id, updates)}
+                render={(editMode, onExitEdit) =>
+                  layer.type === 'text'
+                    ? <TextLayer  layer={layer} onChange={u => updateLayer(layer.id, u)} editMode={editMode} onExitEdit={onExitEdit} />
+                    : <ImageLayer layer={layer} />
+                }
+              />
             ))}
           </div>
         </div>
