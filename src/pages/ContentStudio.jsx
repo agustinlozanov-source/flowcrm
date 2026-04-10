@@ -11,6 +11,8 @@ import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { Smartphone, Camera, Youtube, Facebook, Tv, RotateCcw, Play, MapPin, Search, Rocket, PenTool, Fish, Clapperboard, Radio, Lightbulb, Flame, BarChart2, Zap, Settings, Palette } from 'lucide-react'
 import BrandKitsTab from '@/pages/BrandKitEditor'
+import ImageEditor from '@/pages/ImageEditor'
+import { useBrandKits } from '@/hooks/useBrandKits'
 
 const NETWORKS = [
   { value: 'tiktok', label: 'TikTok', icon: <Smartphone size={14} /> },
@@ -133,7 +135,7 @@ function Teleprompter({ script, onClose }) {
 }
 
 // ── SCRIPT VIEW ──
-function ScriptView({ content, onOpenTeleprompter, onBack }) {
+function ScriptView({ content, onOpenTeleprompter, onBack, onCreateImage }) {
   const { script } = content
   const [selectedHook, setSelectedHook] = useState(0)
   const [copyTab, setCopyTab] = useState('tiktok')
@@ -174,6 +176,10 @@ function ScriptView({ content, onOpenTeleprompter, onBack }) {
         <div className="w-px h-4 bg-black/[0.1]" />
         <span className="font-display font-bold text-sm truncate flex-1">{content.title}</span>
         <div className="flex gap-2">
+          <button onClick={onCreateImage}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold hover:opacity-90 transition-opacity">
+            ✨ Crear imagen
+          </button>
           <button onClick={onOpenTeleprompter}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 transition-opacity">
             <Tv size={14} /> Teleprompter
@@ -373,6 +379,10 @@ export default function ContentStudio() {
   const [agentConfig, setAgentConfig] = useState({ personality: 'amigable' })
   const [topics, setTopics] = useState([])
   const [activeTab, setActiveTab] = useState('radar')
+  const [showImageEditor, setShowImageEditor] = useState(false)
+  const [imageEditorContent, setImageEditorContent] = useState(null)
+  const { kits, defaultKit } = useBrandKits()
+  const [selectedKit, setSelectedKit] = useState(null)
 
   // Load agent config
   useEffect(() => {
@@ -477,11 +487,27 @@ export default function ContentStudio() {
           content={selectedContent}
           onBack={() => setView('dashboard')}
           onOpenTeleprompter={() => setShowTeleprompter(true)}
+          onCreateImage={() => {
+            setImageEditorContent(selectedContent)
+            setSelectedKit(defaultKit)
+            setShowImageEditor(true)
+          }}
         />
         {showTeleprompter && (
           <Teleprompter
             script={selectedContent.script}
             onClose={() => setShowTeleprompter(false)}
+          />
+        )}
+        {showImageEditor && imageEditorContent && (
+          <ImageEditor
+            content={imageEditorContent}
+            brandKit={selectedKit || defaultKit}
+            onClose={() => setShowImageEditor(false)}
+            onPublish={(imageUrl) => {
+              toast.success('Imagen lista para publicar')
+              setShowImageEditor(false)
+            }}
           />
         )}
       </>
