@@ -327,7 +327,7 @@ export default function Pipeline() {
 
       {/* MODALS */}
       {showNewLead && (
-        <NewLeadModal stages={stages} defaultStageId={defaultStageId} products={products}
+        <NewLeadModal pipelines={pipelines} allStages={allStages} stages={stages} defaultStageId={defaultStageId} products={products}
           onClose={() => { setShowNewLead(false); setDefaultStageId(null) }}
           onCreate={async (data) => { await createLead({ ...data, stageId: data.stageId || defaultStageId }) }} />
       )}

@@ -30,24 +30,38 @@ const LADAS = [
 
 const CURRENCIES = ['USD', 'MXN', 'COP', 'ARS', 'EUR']
 
-export default function NewLeadModal({ stages, onClose, onCreate }) {
+export default function NewLeadModal({ pipelines = [], allStages = [], stages = [], onClose, onCreate }) {
   const { products, createProduct } = useProducts()
-  const { activePipelineId } = usePipeline()
 
-  const [form, setForm] = useState({
-    name: '',
-    lastName: '',
-    company: '',
-    email: '',
-    phoneLada: '+52',
-    phoneNumber: '',
-    productId: '',
-    value: '',
-    currency: 'USD',
-    source: 'manual',
-    stageId: stages[0]?.id || '',
+  // Usar pipelines si vienen, si no caer al stages legacy
+  const hasPipelines = pipelines.length > 0
+
+  const [form, setForm] = useState(() => {
+    const firstPipeline = pipelines[0]
+    const firstStage = firstPipeline
+      ? allStages.filter(s => s.pipelineId === firstPipeline.id)[0]
+      : stages[0]
+    return {
+      name: '',
+      lastName: '',
+      company: '',
+      email: '',
+      phoneLada: '+52',
+      phoneNumber: '',
+      productId: '',
+      value: '',
+      currency: 'USD',
+      source: 'manual',
+      pipelineId: firstPipeline?.id || '',
+      stageId: firstStage?.id || '',
+    }
   })
   const [loading, setLoading] = useState(false)
+
+  // Etapas filtradas por pipeline seleccionado
+  const filteredStages = hasPipelines
+    ? allStages.filter(s => s.pipelineId === form.pipelineId)
+    : stages
 
   // Product picker state
   const [productQuery, setProductQuery] = useState('')
@@ -58,6 +72,12 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
   const productRef = useRef(null)
 
   const selectedProduct = products.find(p => p.id === form.productId)
+
+  // Al cambiar pipeline, auto-seleccionar primera etapa
+  const handlePipelineChange = (pipelineId) => {
+    const firstStage = allStages.filter(s => s.pipelineId === pipelineId)[0]
+    setForm(f => ({ ...f, pipelineId, stageId: firstStage?.id || '' }))
+  }
 
   const filteredProducts = productQuery.trim()
     ? products.filter(p =>
@@ -338,13 +358,34 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
             </select>
           </div>
 
-          {/* Etapa */}
+          {/* Pipeline */}
+          {hasPipelines && (
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">Pipeline *</label>
+              <div className="flex flex-wrap gap-2">
+                {pipelines.map(p => (
+                  <button key={p.id} type="button"
+                    onClick={() => handlePipelineChange(p.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all"
+                    style={{
+                      borderColor: form.pipelineId === p.id ? '#0066ff' : 'rgba(0,0,0,0.1)',
+                      background: form.pipelineId === p.id ? 'rgba(0,102,255,0.08)' : 'transparent',
+                      color: form.pipelineId === p.id ? '#0066ff' : '#6e6e73',
+                    }}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Etapa */}}
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
               Etapa inicial *
             </label>
             <div className="flex flex-wrap gap-2">
-              {stages.map(stage => (
+              {filteredStages.map(stage => (
                 <button key={stage.id} type="button"
                   onClick={() => setForm(f => ({ ...f, stageId: stage.id }))}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all"
