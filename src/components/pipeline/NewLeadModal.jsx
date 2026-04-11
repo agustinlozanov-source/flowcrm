@@ -157,7 +157,7 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-md border border-black/[0.08] animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-md border border-black/[0.08] animate-in fade-in zoom-in-95 duration-150 flex flex-col overflow-hidden" style={{ maxHeight: 'min(90vh, 700px)' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06] flex-shrink-0">
