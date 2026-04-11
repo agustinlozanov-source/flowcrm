@@ -26,6 +26,9 @@ import JoinPage from '@/pages/JoinPage'
 
 import WelcomeForm from '@/pages/WelcomeForm'
 import DiagnosticoForm from '@/pages/DiagnosticoForm'
+import DistribuidoresPage from '@/pages/DistribuidoresPage'
+import RegistroDistribuidorPage from '@/pages/RegistroDistribuidorPage'
+import PortalDistribuidorPage from '@/pages/PortalDistribuidorPage'
 
 export default function App() {
   return (
@@ -51,6 +54,13 @@ export default function App() {
         <Route path="/welcome" element={<WelcomeForm />} />
         <Route path="/diagnostico" element={<DiagnosticoForm />} />
         <Route path="/join" element={<JoinPage />} />
+        <Route path="/distribuidores" element={<DistribuidoresPage />} />
+        <Route path="/unirse" element={<RegistroDistribuidorPage />} />
+        <Route path="/portal-distribuidor" element={
+          <ProtectedRoute>
+            <PortalDistribuidorPage />
+          </ProtectedRoute>
+        } />
 
         {/* Protected app */}
         <Route
