@@ -379,7 +379,7 @@ export default function NewLeadModal({ pipelines = [], allStages = [], stages = 
             </div>
           )}
 
-          {/* Etapa */}}
+          {/* Etapa */}
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">
               Etapa inicial *
