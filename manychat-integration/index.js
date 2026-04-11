@@ -551,4 +551,109 @@ app.post('/content/generate-image', async (req, res) => {
   }
 })
 
+// ── CALLS: OUTBOUND VIA VAPI ─────────────────────────────────────
+app.post('/calls/outbound', async (req, res) => {
+  const { leadId, orgId, phoneNumber, leadName, leadInterest } = req.body
+
+  try {
+    // 1. Leer config del agente desde Firestore
+    const agentSnap = await db
+      .collection('organizations').doc(orgId)
+      .collection('settings').doc('agent').get()
+    const agentConfig = agentSnap.exists ? agentSnap.data() : {}
+
+    const systemPrompt = agentConfig.systemPrompt ||
+      `Eres un agente de ventas profesional. 
+     Estás llamando a ${leadName}. 
+     Su interés principal es: ${leadInterest || 'conocer el sistema'}.
+     Tu objetivo es presentarte, entender su negocio y agendar una demo.
+     Sé conversacional y amigable.`
+
+    // 2. Lanzar llamada via VAPI
+    const response = await axios.post(
+      'https://api.vapi.ai/call/phone',
+      {
+        assistantId: process.env.VAPI_ASSISTANT_ID,
+        assistantOverrides: {
+          model: {
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-20250514',
+            messages: [{ role: 'system', content: systemPrompt }],
+          },
+          firstMessage: `Hola ${leadName}, ¿cómo estás? Te llamo de Flow Hub.`,
+        },
+        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+        customer: { number: phoneNumber, name: leadName },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    console.log(`[VAPI] Llamada iniciada — callId: ${response.data.id}, lead: ${leadName} (${phoneNumber})`)
+
+    // 3. Guardar registro de llamada en Firestore
+    await db.collection('organizations').doc(orgId)
+      .collection('leads').doc(leadId)
+      .collection('calls').add({
+        callId: response.data.id,
+        status: 'initiated',
+        phoneNumber,
+        leadName,
+        createdAt: FieldValue.serverTimestamp(),
+      })
+
+    res.json({ success: true, callId: response.data.id })
+  } catch (err) {
+    console.error('[VAPI] ERROR /calls/outbound:', err.response?.data || err.message)
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
+})
+
+// ── WEBHOOK: VAPI END-OF-CALL ─────────────────────────────────────
+app.post('/webhook/vapi', async (req, res) => {
+  const { message } = req.body
+
+  if (message?.type !== 'end-of-call-report') {
+    return res.json({ ok: true })
+  }
+
+  const { call, transcript, summary, analysis } = message
+
+  console.log('[VAPI] Llamada terminada — callId:', call?.id)
+  console.log('[VAPI] Transcripción:', transcript?.slice(0, 200))
+  console.log('[VAPI] Resumen:', summary?.slice(0, 200))
+
+  try {
+    // Buscar el registro de llamada en Firestore por callId
+    // El documento está en leads/{leadId}/calls/{callDocId} con callId == call.id
+    // Se hace group query sobre la subcolección 'calls'
+    const callsSnap = await db.collectionGroup('calls')
+      .where('callId', '==', call?.id)
+      .limit(1)
+      .get()
+
+    if (!callsSnap.empty) {
+      const callDoc = callsSnap.docs[0]
+      await callDoc.ref.update({
+        status: 'completed',
+        transcript: transcript || '',
+        summary: summary || '',
+        analysis: analysis || null,
+        endedAt: FieldValue.serverTimestamp(),
+      })
+      console.log(`[VAPI] Registro actualizado para callId: ${call?.id}`)
+    } else {
+      console.warn(`[VAPI] No se encontró registro para callId: ${call?.id}`)
+    }
+  } catch (err) {
+    console.error('[VAPI] ERROR /webhook/vapi:', err.message)
+  }
+
+  res.json({ ok: true })
+})
+
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
