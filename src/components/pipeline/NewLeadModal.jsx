@@ -172,8 +172,8 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
         </div>
 
         {/* Form — scrollable fields only */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="p-6 flex flex-col gap-4 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-6 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
 
           {/* Nombre + Apellido */}
           <div className="grid grid-cols-2 gap-3">
