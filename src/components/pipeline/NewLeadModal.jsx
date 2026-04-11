@@ -157,10 +157,10 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-md border border-black/[0.08] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative bg-surface rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] w-full max-w-md border border-black/[0.08] animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06] flex-shrink-0">
           <div>
             <h2 className="font-display font-bold text-lg tracking-tight">Nuevo lead</h2>
             <p className="text-xs text-secondary mt-0.5">Añadir contacto al pipeline</p>
@@ -171,8 +171,9 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+        {/* Form — scrollable fields only */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 flex flex-col gap-4 overflow-y-auto flex-1">
 
           {/* Nombre + Apellido */}
           <div className="grid grid-cols-2 gap-3">
@@ -359,8 +360,10 @@ export default function NewLeadModal({ stages, onClose, onCreate }) {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          </div>
+
+          {/* Actions — fuera del scroll, siempre visible */}
+          <div className="flex gap-2 px-6 py-4 border-t border-black/[0.06] flex-shrink-0">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={loading}
               className="btn-primary flex-1 flex items-center justify-center gap-2">
