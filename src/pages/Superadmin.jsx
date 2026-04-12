@@ -7,7 +7,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
@@ -418,8 +418,23 @@ const css = `
     width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
   }
 
-  .sa-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin-bottom: 20px; }
+  .sa-modal-light {
+    background: #ffffff; border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 18px; padding: 28px;
+    width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+    color: #070708;
+  }
 
+  .sa-modal-light .sa-modal-title { color: #070708; }
+  .sa-modal-light .sa-form-label { color: var(--gray-4); }
+  .sa-modal-light .sa-form-input { background: #f5f5f7; border-color: rgba(0,0,0,0.12); color: #070708; }
+  .sa-modal-light .sa-form-input:focus { border-color: #0066ff; background: white; }
+  .sa-modal-light .sa-form-input::placeholder { color: #c7c7cc; }
+  .sa-modal-light .sa-divider { background: rgba(0,0,0,0.08); }
+  .sa-modal-light .sa-btn-ghost { color: #3a3a3c; border-color: rgba(0,0,0,0.15); }
+  .sa-modal-light .sa-btn-ghost:hover { background: rgba(0,0,0,0.05); color: #070708; }
+
+  .sa-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin-bottom: 20px; color: white; }
   .sa-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
   /* MODULE TOGGLES */
@@ -501,10 +516,10 @@ const css = `
 `
 
 // ─── HELPER COMPONENTS ───
-function Modal({ title, onClose, children, actions }) {
+function Modal({ title, onClose, children, actions, light = false }) {
   return (
     <div className="sa-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="sa-modal">
+      <div className={light ? 'sa-modal-light' : 'sa-modal'}>
         <div className="sa-modal-title">{title}</div>
         {children}
         {actions && <div className="sa-modal-actions">{actions}</div>}
@@ -1004,7 +1019,7 @@ function Plans() {
       setPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })))
       setLoading(false)
     })
-    const unsub2 = onSnapshot(collection(db, 'implementations'), snap => {
+    const unsub2 = onSnapshot(collection(db, 'flowhub_implementations'), snap => {
       setImplementations(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
     return () => { unsub1(); unsub2() }
@@ -1041,10 +1056,10 @@ function Plans() {
     setSaving(true)
     try {
       if (editImpl) {
-        await updateDoc(doc(db, 'implementations', editImpl.id), { ...implForm, updatedAt: serverTimestamp() })
+        await updateDoc(doc(db, 'flowhub_implementations', editImpl.id), { ...implForm, updatedAt: serverTimestamp() })
         toast.success('Implementación actualizada')
       } else {
-        await addDoc(collection(db, 'implementations'), { ...implForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        await addDoc(collection(db, 'flowhub_implementations'), { ...implForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
         toast.success('Implementación creada')
       }
       setShowImplModal(false)
@@ -1053,7 +1068,7 @@ function Plans() {
 
   const deleteImpl = async (implId) => {
     if (!window.confirm('¿Eliminar esta implementación?')) return
-    await deleteDoc(doc(db, 'implementations', implId))
+    await deleteDoc(doc(db, 'flowhub_implementations', implId))
     toast.success('Implementación eliminada')
   }
 
@@ -1184,6 +1199,7 @@ function Plans() {
       {/* MODAL PLAN */}
       {showPlanModal && (
         <Modal
+          light
           title={editPlan ? `Editar: ${editPlan.name}` : 'Nuevo plan'}
           onClose={() => setShowPlanModal(false)}
           actions={<>
@@ -1282,6 +1298,7 @@ function Plans() {
       {/* MODAL IMPLEMENTACIÓN */}
       {showImplModal && (
         <Modal
+          light
           title={editImpl ? `Editar: ${editImpl.name}` : 'Nueva implementación'}
           onClose={() => setShowImplModal(false)}
           actions={<>
@@ -2250,7 +2267,7 @@ function DistribuidoresPanel() {
       // 8. Crear productos en el catálogo del distribuidor
       // Leer planes e implementaciones activos
       const plansSnap = await getDocs(collection(db, 'plans'))
-      const implsSnap = await getDocs(collection(db, 'implementations'))
+      const implsSnap = await getDocs(collection(db, 'flowhub_implementations'))
 
       const activePlans = plansSnap.docs.filter(d => d.data().status === 'active').map(d => ({ id: d.id, ...d.data() }))
       const activeImpls = implsSnap.docs.filter(d => d.data().status === 'active').map(d => ({ id: d.id, ...d.data() }))
@@ -2869,72 +2886,82 @@ function DistribuidorConfig() {
           </div>
 
           <div className="sa-card" style={{ padding: 24 }}>
-            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Señales de Scoring del Agente IA</div>
-            <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Estas señales determinan cómo el agente califica prospectos del Pipeline de Flow Hub.</div>
-            {[
-              {
-                label: 'Perfil como distribuidor', color: '#0066ff',
-                desc: '¿Tiene la mentalidad y el perfil para vender Flow Hub?',
-                signals: [
-                  { text: 'Ya vende en multinivel o tiene experiencia en ventas directas', type: 'up' },
-                  { text: 'Tiene una red activa de contactos — genealogía propia', type: 'up' },
-                  { text: 'Habla de ingresos adicionales o independencia económica como meta', type: 'up' },
-                  { text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up' },
-                  { text: 'Nunca ha vendido ni tiene experiencia comercial', type: 'down' },
-                  { text: 'Busca solo un ingreso fijo — no le interesa el modelo variable', type: 'down' },
-                ]
-              },
-              {
-                label: 'Capacidad económica', color: '#00875a',
-                desc: '¿Puede pagar la implementación y el plan mensual?',
-                signals: [
-                  { text: 'Tiene ingresos activos por su negocio actual', type: 'up' },
-                  { text: 'Está dispuesto a invertir para mejorar su negocio', type: 'up' },
-                  { text: 'Puede decidir solo sin consultar a nadie', type: 'up' },
-                  { text: 'Evadió preguntas sobre presupuesto', type: 'down' },
-                  { text: 'Depende de que otra persona apruebe el gasto', type: 'down' },
-                ]
-              },
-              {
-                label: 'Dolores del negocio actual', color: '#7c3aed',
-                desc: '¿Tiene los problemas que Flow Hub resuelve?',
-                signals: [
-                  { text: 'No tiene sistema de seguimiento de prospectos', type: 'up' },
-                  { text: 'Pierde leads por falta de respuesta oportuna', type: 'up' },
-                  { text: 'No tiene visibilidad de su equipo o genealogía', type: 'up' },
-                  { text: 'Gasta tiempo creando contenido manualmente', type: 'up' },
-                  { text: 'Ya usa un CRM y está satisfecho con él', type: 'down' },
-                  { text: 'Tiene menos de 5 prospectos al mes — negocio muy pequeño', type: 'down' },
-                ]
-              },
-              {
-                label: 'Intención de avanzar', color: '#b45309',
-                desc: '¿Quiere ver la demostración y tomar una decisión?',
-                signals: [
-                  { text: 'Preguntó cuándo puede ver el sistema en vivo', type: 'up' },
-                  { text: 'Preguntó por el programa de comisiones con detalle', type: 'up' },
-                  { text: 'Volvió a escribir por iniciativa propia', type: 'up' },
-                  { text: 'Solo pide info escrita sin comprometerse a reunión', type: 'down' },
-                  { text: 'Responde con monosílabos o sin profundidad', type: 'down' },
-                ]
-              },
-            ].map((cat, ci) => (
-              <div key={ci} style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Señales de Scoring del Agente IA</div>
+            <div style={{ fontSize: 13, color: 'var(--gray-4)', marginBottom: 20 }}>Cada señal tiene un peso (puntos) que el agente suma o resta al score del prospecto. Las señales ↑ suman, las ↓ restan.</div>
+
+            {(config.scoringSignals || [
+              { id: 'cat_perfil', label: 'Perfil como distribuidor', color: '#0066ff', desc: '¿Tiene la mentalidad y el perfil para vender Flow Hub?', signals: [
+                { id: 's1', text: 'Ya vende en multinivel o tiene experiencia en ventas directas', type: 'up', weight: 12 },
+                { id: 's2', text: 'Tiene una red activa de contactos — genealogía propia', type: 'up', weight: 10 },
+                { id: 's3', text: 'Habla de ingresos adicionales o independencia económica', type: 'up', weight: 8 },
+                { id: 's4', text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up', weight: 6 },
+                { id: 's5', text: 'Nunca ha vendido ni tiene experiencia comercial', type: 'down', weight: -10 },
+                { id: 's6', text: 'Busca solo un ingreso fijo — no le interesa el modelo variable', type: 'down', weight: -12 },
+              ]},
+              { id: 'cat_capacidad', label: 'Capacidad económica', color: '#00875a', desc: '¿Puede pagar la implementación y el plan mensual?', signals: [
+                { id: 's7', text: 'Tiene ingresos activos por su negocio actual', type: 'up', weight: 10 },
+                { id: 's8', text: 'Está dispuesto a invertir para mejorar su negocio', type: 'up', weight: 8 },
+                { id: 's9', text: 'Puede decidir solo sin consultar a nadie', type: 'up', weight: 8 },
+                { id: 's10', text: 'Evadió preguntas sobre presupuesto', type: 'down', weight: -8 },
+                { id: 's11', text: 'Depende de que otra persona apruebe el gasto', type: 'down', weight: -6 },
+              ]},
+              { id: 'cat_dolores', label: 'Dolores del negocio actual', color: '#7c3aed', desc: '¿Tiene los problemas que Flow Hub resuelve?', signals: [
+                { id: 's12', text: 'No tiene sistema de seguimiento de prospectos', type: 'up', weight: 10 },
+                { id: 's13', text: 'Pierde leads por falta de respuesta oportuna', type: 'up', weight: 8 },
+                { id: 's14', text: 'No tiene visibilidad de su equipo o genealogía', type: 'up', weight: 8 },
+                { id: 's15', text: 'Gasta tiempo creando contenido manualmente', type: 'up', weight: 6 },
+                { id: 's16', text: 'Ya usa un CRM y está satisfecho con él', type: 'down', weight: -10 },
+                { id: 's17', text: 'Tiene menos de 5 prospectos al mes — negocio muy pequeño', type: 'down', weight: -8 },
+              ]},
+              { id: 'cat_intencion', label: 'Intención de avanzar', color: '#b45309', desc: '¿Quiere ver la demostración y tomar una decisión?', signals: [
+                { id: 's18', text: 'Preguntó cuándo puede ver el sistema en vivo', type: 'up', weight: 12 },
+                { id: 's19', text: 'Preguntó por el programa de comisiones con detalle', type: 'up', weight: 10 },
+                { id: 's20', text: 'Volvió a escribir por iniciativa propia tras silencio', type: 'up', weight: 8 },
+                { id: 's21', text: 'Solo pide info escrita sin comprometerse a reunión', type: 'down', weight: -6 },
+                { id: 's22', text: 'Responde con monosílabos o sin profundidad', type: 'down', weight: -8 },
+              ]},
+            ]).map((cat, ci) => (
+              <div key={cat.id || ci} style={{ marginBottom: 20, background: 'rgba(0,0,0,0.02)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.06)' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10, background: 'white' }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800 }}>{cat.label}</div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>— {cat.desc}</div>
+                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, flex: 1 }}>{cat.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>{cat.desc}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {cat.signals.map((sig, si) => (
-                    <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 12px', borderRadius: 8, background: sig.type === 'up' ? 'rgba(0,200,83,0.05)' : 'rgba(255,59,48,0.05)', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.15)' : 'rgba(255,59,48,0.12)'}` }}>
-                      <span style={{ fontSize: 13, color: sig.type === 'up' ? '#00c853' : '#ff3b30', fontWeight: 800, flexShrink: 0 }}>{sig.type === 'up' ? '↑' : '↓'}</span>
-                      <span style={{ fontSize: 13, color: '#3a3a3c' }}>{sig.text}</span>
+                    <div key={sig.id || si} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, background: sig.type === 'up' ? 'rgba(0,200,83,0.05)' : 'rgba(255,59,48,0.05)', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.15)' : 'rgba(255,59,48,0.12)'}` }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, background: sig.type === 'up' ? 'rgba(0,200,83,0.12)' : 'rgba(255,59,48,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {sig.type === 'up'
+                          ? <TrendingUp size={12} color="#00c853" />
+                          : <TrendingDown size={12} color="#ff3b30" />
+                        }
+                      </div>
+                      <span style={{ fontSize: 13, color: '#3a3a3c', flex: 1 }}>{sig.text}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 600 }}>Peso:</span>
+                        <input
+                          type="number"
+                          defaultValue={sig.weight}
+                          onBlur={e => {
+                            const newVal = parseInt(e.target.value) || 0
+                            const cats = JSON.parse(JSON.stringify(config.scoringSignals || []))
+                            if (cats[ci]?.signals?.[si]) {
+                              cats[ci].signals[si].weight = sig.type === 'up' ? Math.abs(newVal) : -Math.abs(newVal)
+                              setConfig(c => ({ ...c, scoringSignals: cats }))
+                            }
+                          }}
+                          style={{ width: 54, padding: '3px 7px', borderRadius: 6, border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.3)' : 'rgba(255,59,48,0.3)'}`, background: 'white', fontSize: 13, fontWeight: 700, color: sig.type === 'up' ? '#00a04a' : '#ff3b30', textAlign: 'center', outline: 'none', fontFamily: "'Plus Jakarta Sans',sans-serif" }}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             ))}
+
+            <div style={{ padding: '12px 16px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff', marginTop: 8 }}>
+              ℹ️ Los pesos se incluyen en el system prompt del agente automáticamente al guardar. El agente suma los puntos de cada señal detectada para calcular el score del prospecto (0–100).
+            </div>
           </div>
         </div>
       )}
