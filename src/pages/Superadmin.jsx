@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc, setDoc,
-  updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, getDocs
+  updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, getDocs, where
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
@@ -1847,6 +1847,548 @@ const diagRespCss = `
   .dr-avatar{width:38px;height:38px;border-radius:10px;flex-shrink:0;background:linear-gradient(135deg,#0066ff,#7c3aed);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:white}
 `
 
+// ─── DISTRIBUIDORES PANEL ───
+function DistribuidoresPanel() {
+  const [applications, setApplications] = useState([])
+  const [approving, setApproving] = useState(null)
+  const [rejecting, setRejecting] = useState(null)
+  const [filterStatus, setFilterStatus] = useState('pending')
+  const [detail, setDetail] = useState(null)
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, 'distributorApplications'), orderBy('createdAt', 'desc')),
+      snap => setApplications(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    )
+    return unsub
+  }, [])
+
+  const filtered = applications.filter(a => filterStatus === 'all' ? true : a.status === filterStatus)
+
+  const pending = applications.filter(a => a.status === 'pending').length
+  const verified = applications.filter(a => a.status === 'verified').length
+  const rejected = applications.filter(a => a.status === 'rejected').length
+
+  const approveDistributor = async (application) => {
+    setApproving(application.id)
+    try {
+      // 1. Buscar usuario por email
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', application.email)))
+      if (usersSnap.empty) {
+        toast.error('Este email no tiene cuenta activa de Flow Hub CRM. El distribuidor debe contratar un plan primero.')
+        return
+      }
+      const userDoc = usersSnap.docs[0]
+      const userData = userDoc.data()
+      const orgId = userData.orgId
+      if (!orgId) {
+        toast.error('El usuario no tiene organización activa en Flow Hub')
+        return
+      }
+
+      // 2. Cargar config global de niveles
+      const configSnap = await getDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'))
+      const config = configSnap.exists() ? configSnap.data() : {}
+      const nivelInicial = config.niveles?.[0] || {
+        nombre: 'Asociado', bonoRaiz: 8000, bonoDist: 3000,
+        metaSemanal: 1, puntosTrimestrales: 8, bonoTrimestral: 15000,
+      }
+
+      // 3. Actualizar status de la solicitud
+      await updateDoc(doc(db, 'distributorApplications', application.id), {
+        status: 'verified', verifiedAt: serverTimestamp(),
+      })
+
+      // 4. Marcar usuario como distribuidor
+      await updateDoc(doc(db, 'users', userDoc.id), {
+        isDistributor: true, distributorLevel: 'Asociado',
+        distributorVerifiedAt: serverTimestamp(),
+        distributorApplicationId: application.id,
+      })
+
+      // 5. Crear Pipeline de Flow Hub en su org
+      const pipelineRef = await addDoc(collection(db, 'organizations', orgId, 'pipelines'), {
+        name: 'Clientes Flow Hub CRM',
+        isFlowHubPipeline: true, locked: true,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      })
+
+      // 6. Crear etapas editables
+      const editableStages = [
+        { name: 'Prospecto identificado', color: '#8e8e93', order: 1, scoreMin: 0, scoreMax: 30, locked: false },
+        { name: 'Primer contacto', color: '#0066ff', order: 2, scoreMin: 31, scoreMax: 50, locked: false },
+        { name: 'Reunión agendada', color: '#7c3aed', order: 3, scoreMin: 51, scoreMax: 65, locked: false },
+        { name: 'Presentación hecha', color: '#ff9500', order: 4, scoreMin: 66, scoreMax: 75, locked: false },
+      ]
+      // 7. Etapas fijas
+      const fixedStages = [
+        { name: 'Enlace enviado', color: '#00b8d9', order: 5, scoreMin: 76, scoreMax: 85, locked: true },
+        { name: 'Formulario completado', color: '#6366f1', order: 6, scoreMin: 86, scoreMax: 92, locked: true },
+        { name: 'En verificación', color: '#ff9500', order: 7, scoreMin: 93, scoreMax: 97, locked: true },
+        { name: 'Verificado — Activo', color: '#00c853', order: 8, scoreMin: 98, scoreMax: 100, locked: true },
+      ]
+      for (const stage of [...editableStages, ...fixedStages]) {
+        await addDoc(collection(db, 'organizations', orgId, 'pipeline_stages'), {
+          ...stage, pipelineId: pipelineRef.id, isFlowHubStage: true,
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        })
+      }
+
+      // 8. Crear objetivos de Flow Hub para trimestre actual
+      const now = new Date()
+      const month = now.getMonth()
+      const year = now.getFullYear()
+      const quarter = month <= 2 ? 'Q1' : month <= 5 ? 'Q2' : month <= 8 ? 'Q3' : 'Q4'
+      await setDoc(doc(db, 'organizations', orgId, 'flowhub_goals', `${year}-${quarter}`), {
+        quarter, year, nivel: 'Asociado',
+        metaPuntosTrimestrales: nivelInicial.puntosTrimestrales,
+        bonoTrimestral: nivelInicial.bonoTrimestral,
+        bonoRaiz: nivelInicial.bonoRaiz,
+        bonoDist: nivelInicial.bonoDist,
+        metaSemanal: nivelInicial.metaSemanal,
+        puntosAcumulados: 0, implementacionesAcumuladas: 0,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      })
+
+      toast.success(`✓ ${application.nombre} ${application.apellido_paterno} aprobado como distribuidor`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Error al aprobar: ' + err.message)
+    } finally {
+      setApproving(null)
+    }
+  }
+
+  const rejectDistributor = async (applicationId) => {
+    setRejecting(applicationId)
+    try {
+      await updateDoc(doc(db, 'distributorApplications', applicationId), {
+        status: 'rejected', rejectedAt: serverTimestamp(),
+      })
+      toast.success('Solicitud rechazada')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setRejecting(null)
+    }
+  }
+
+  const statusColor = (s) => s === 'verified' ? 'green' : s === 'rejected' ? 'red' : s === 'pending' ? 'amber' : 'gray'
+  const statusLabel = (s) => s === 'verified' ? 'Verificado' : s === 'rejected' ? 'Rechazado' : 'Pendiente'
+
+  const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) || '—'
+
+  return (
+    <div className="sa-content">
+      {/* Stats */}
+      <div className="sa-stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 20 }}>
+        <div className="sa-stat">
+          <div className="sa-stat-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><AlertCircle size={13} /> Pendientes</div>
+          <div className="sa-stat-value" style={{ color: '#ff9500' }}>{pending}</div>
+          <div className="sa-stat-sub">Esperando verificación</div>
+        </div>
+        <div className="sa-stat">
+          <div className="sa-stat-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={13} /> Verificados</div>
+          <div className="sa-stat-value" style={{ color: '#00c853' }}>{verified}</div>
+          <div className="sa-stat-sub">Distribuidores activos</div>
+        </div>
+        <div className="sa-stat">
+          <div className="sa-stat-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><X size={13} /> Rechazados</div>
+          <div className="sa-stat-value" style={{ color: '#ff3b30' }}>{rejected}</div>
+          <div className="sa-stat-sub">Solicitudes rechazadas</div>
+        </div>
+      </div>
+
+      <div className="sa-card">
+        <div className="sa-card-header">
+          <div className="sa-card-title">Solicitudes de distribuidores</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['pending','verified','rejected','all'].map(s => (
+              <button key={s} onClick={() => setFilterStatus(s)}
+                className={clsx('sa-btn sa-btn-sm', filterStatus === s ? 'sa-btn-white' : 'sa-btn-ghost')}
+                style={{ fontSize: 12 }}>
+                {s === 'pending' ? 'Pendientes' : s === 'verified' ? 'Verificados' : s === 'rejected' ? 'Rechazados' : 'Todos'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Solicitante</th>
+              <th>RFC</th>
+              <th>Teléfono</th>
+              <th>Referido por</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+              <th>Cuenta Flow Hub</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(app => {
+              const isApproving = approving === app.id
+              const isRejecting = rejecting === app.id
+              return (
+                <tr key={app.id}>
+                  <td>
+                    <div style={{ fontWeight: 700 }}>{app.nombre} {app.apellido_paterno} {app.apellido_materno || ''}</div>
+                    <div style={{ fontSize: 13, color: 'var(--gray-4)' }}>{app.email}</div>
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{app.rfc || '—'}</td>
+                  <td style={{ fontSize: 13 }}>{app.telefono || '—'}</td>
+                  <td>
+                    {app.refCode
+                      ? <Badge color="blue">{app.refCode}</Badge>
+                      : <span style={{ color: 'var(--gray-5)', fontSize: 13 }}>Directo</span>
+                    }
+                  </td>
+                  <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{fmt(app.createdAt)}</td>
+                  <td><Badge color={statusColor(app.status)}>{statusLabel(app.status)}</Badge></td>
+                  <td>
+                    {app.status === 'pending'
+                      ? <AccountCheck email={app.email} />
+                      : app.status === 'verified'
+                        ? <Badge color="green"><ShieldCheck size={11} /> Verificado</Badge>
+                        : <span style={{ color: 'var(--gray-5)', fontSize: 13 }}>—</span>
+                    }
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <Btn sm variant="ghost" onClick={() => setDetail(app)}>Ver</Btn>
+                      {app.status === 'pending' && (
+                        <>
+                          <Btn sm variant="white" onClick={() => approveDistributor(app)} disabled={isApproving}>
+                            {isApproving ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <><ShieldCheck size={12} /> Aprobar</>}
+                          </Btn>
+                          <Btn sm variant="danger" onClick={() => rejectDistributor(app.id)} disabled={isRejecting}>
+                            {isRejecting ? '...' : 'Rechazar'}
+                          </Btn>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={8}>
+                <div className="sa-empty">
+                  <div className="sa-empty-icon" style={{ display: 'flex', justifyContent: 'center' }}><Users size={32} strokeWidth={1.5} /></div>
+                  <div className="sa-empty-text">Sin solicitudes {filterStatus !== 'all' ? statusLabel(filterStatus).toLowerCase() + 's' : ''}</div>
+                </div>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Detail modal */}
+      {detail && (
+        <Modal title={`Solicitud — ${detail.nombre} ${detail.apellido_paterno}`} onClose={() => setDetail(null)}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[
+              ['Nombre completo', `${detail.nombre} ${detail.apellido_paterno} ${detail.apellido_materno || ''}`],
+              ['Email', detail.email],
+              ['Teléfono', detail.telefono],
+              ['WhatsApp', detail.whatsapp || detail.telefono],
+              ['RFC', detail.rfc || '—'],
+              ['Régimen fiscal', detail.regimen_fiscal || '—'],
+              ['CLABE', detail.clabe || '—'],
+              ['Banco', detail.banco || '—'],
+              ['Titular cuenta', detail.titular_cuenta || '—'],
+              ['Ciudad', `${detail.ciudad || ''}, ${detail.estado || ''}`],
+              ['Nacionalidad', detail.nacionalidad || '—'],
+              ['Referido por', detail.refCode || 'Directo'],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-4)', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          {(detail.instagram || detail.facebook || detail.tiktok || detail.linkedin) && (
+            <>
+              <div className="sa-divider" />
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-4)', letterSpacing: '0.5px', marginBottom: 8 }}>Redes sociales</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {detail.instagram && <Badge color="purple">IG: @{detail.instagram}</Badge>}
+                {detail.facebook && <Badge color="blue">FB: {detail.facebook}</Badge>}
+                {detail.tiktok && <Badge color="gray">TT: @{detail.tiktok}</Badge>}
+                {detail.linkedin && <Badge color="blue">LI: {detail.linkedin}</Badge>}
+              </div>
+            </>
+          )}
+          <div className="sa-divider" />
+          <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>
+            Firma digital: <strong style={{ color: 'var(--gray-3)' }}>{detail.firma_nombre || '—'}</strong> · {detail.firmaFecha || '—'}
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// Account checker component
+function AccountCheck({ email }) {
+  const [status, setStatus] = useState('checking')
+  useEffect(() => {
+    getDocs(query(collection(db, 'users'), where('email', '==', email)))
+      .then(snap => setStatus(snap.empty ? 'no_account' : 'has_account'))
+      .catch(() => setStatus('error'))
+  }, [email])
+  if (status === 'checking') return <span style={{ fontSize: 12, color: 'var(--gray-4)' }}>Verificando...</span>
+  if (status === 'has_account') return <Badge color="green"><Check size={11} /> Tiene cuenta</Badge>
+  return <Badge color="red"><AlertCircle size={11} /> Sin cuenta Flow Hub</Badge>
+}
+
+// ─── DISTRIBUIDOR CONFIG ───
+function DistribuidorConfig() {
+  const DEFAULT_CONFIG = {
+    puntosRaiz: 3,
+    puntosDist: 1,
+    pctViernes: 100,
+    pctDia10: 75,
+    precioRaizUSD: 1400,
+    precioDistUSD: 550,
+    agentPrompt: 'Eres un agente de ventas de Flow Hub CRM especializado en el sector multinivel. Tu objetivo es calificar prospectos, entender su negocio actual, identificar sus problemas de seguimiento y organización, y guiarlos hacia una demostración del sistema. Siempre habla desde la experiencia del distribuidor que ya usa Flow Hub. Scoring: 0-30 prospecto nuevo, 31-50 primer contacto hecho, 51-65 reunión agendada, 66-75 presentación hecha, 76-85 enlace enviado, 86-92 formulario completado, 93-97 en verificación, 98-100 verificado activo.',
+    niveles: [
+      { nombre: 'Asociado', implementacionesMin: 0, implementacionesMax: 4, bonoRaiz: 8000, bonoDist: 3000, metaSemanal: 1, puntosTrimestrales: 8, bonoTrimestral: 15000 },
+      { nombre: 'Senior', implementacionesMin: 5, implementacionesMax: 14, bonoRaiz: 10000, bonoDist: 4000, metaSemanal: 2, puntosTrimestrales: 18, bonoTrimestral: 35000 },
+      { nombre: 'Elite', implementacionesMin: 15, implementacionesMax: 999, bonoRaiz: 12000, bonoDist: 5000, metaSemanal: 3, puntosTrimestrales: 30, bonoTrimestral: 70000 },
+    ]
+  }
+
+  const [config, setConfig] = useState(DEFAULT_CONFIG)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('niveles')
+
+  useEffect(() => {
+    getDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'))
+      .then(snap => { if (snap.exists()) setConfig({ ...DEFAULT_CONFIG, ...snap.data() }) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await setDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'), {
+        ...config, updatedAt: serverTimestamp()
+      })
+      toast.success('Configuración guardada — se aplica a todos los distribuidores')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateNivel = (idx, key, val) => {
+    setConfig(c => {
+      const niveles = [...c.niveles]
+      niveles[idx] = { ...niveles[idx], [key]: val }
+      return { ...c, niveles }
+    })
+  }
+
+  const addNivel = () => {
+    setConfig(c => ({
+      ...c,
+      niveles: [...c.niveles, { nombre: 'Nuevo nivel', implementacionesMin: 0, implementacionesMax: 99, bonoRaiz: 0, bonoDist: 0, metaSemanal: 1, puntosTrimestrales: 10, bonoTrimestral: 0 }]
+    }))
+  }
+
+  const removeNivel = (idx) => {
+    setConfig(c => ({ ...c, niveles: c.niveles.filter((_, i) => i !== idx) }))
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-4)' }}>Cargando configuración...</div>
+
+  const levelColors = ['#8e8e93', '#0066ff', '#ff9500']
+
+  return (
+    <div className="sa-content">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800 }}>Configuración global de distribuidores</div>
+          <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 3 }}>Cualquier cambio se aplica automáticamente a todos los distribuidores</div>
+        </div>
+        <Btn variant="white" onClick={save} disabled={saving}>
+          {saving ? 'Guardando...' : <><Save size={14} style={{ marginRight: 4 }} /> Guardar todo</>}
+        </Btn>
+      </div>
+
+      <div className="sa-tabs">
+        {['niveles', 'puntos', 'pagos', 'precios', 'agente'].map(t => (
+          <button key={t} className={clsx('sa-tab', activeTab === t && 'active')} onClick={() => setActiveTab(t)}>
+            {t === 'niveles' ? 'Niveles y bonos' : t === 'puntos' ? 'Sistema de puntos' : t === 'pagos' ? 'Velocidad de pago' : t === 'precios' ? 'Implementación' : 'Agente IA'}
+          </button>
+        ))}
+      </div>
+
+      {/* NIVELES */}
+      {activeTab === 'niveles' && (
+        <div>
+          {config.niveles.map((nivel, idx) => (
+            <div key={idx} className="sa-card" style={{ marginBottom: 16 }}>
+              <div className="sa-card-header">
+                <div className="sa-dot" style={{ background: levelColors[idx] || '#8e8e93', width: 10, height: 10 }} />
+                <div className="sa-card-title">
+                  <input
+                    value={nivel.nombre}
+                    onChange={e => updateNivel(idx, 'nombre', e.target.value)}
+                    style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', width: 180 }}
+                  />
+                </div>
+                {config.niveles.length > 1 && (
+                  <Btn sm variant="danger" onClick={() => removeNivel(idx)}>
+                    <Trash2 size={12} />
+                  </Btn>
+                )}
+              </div>
+              <div style={{ padding: '16px 20px' }}>
+                <div className="sa-form-row" style={{ marginBottom: 12 }}>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Implementaciones mínimas</label>
+                    <input className="sa-form-input" type="number" min="0" value={nivel.implementacionesMin} onChange={e => updateNivel(idx, 'implementacionesMin', parseInt(e.target.value))} />
+                  </div>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Implementaciones máximas</label>
+                    <input className="sa-form-input" type="number" min="0" value={nivel.implementacionesMax} onChange={e => updateNivel(idx, 'implementacionesMax', parseInt(e.target.value))} />
+                  </div>
+                </div>
+                <div className="sa-form-row" style={{ marginBottom: 12 }}>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Bono venta raíz (MXN)</label>
+                    <input className="sa-form-input" type="number" min="0" value={nivel.bonoRaiz} onChange={e => updateNivel(idx, 'bonoRaiz', parseInt(e.target.value))} />
+                  </div>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Bono venta distribuidor (MXN)</label>
+                    <input className="sa-form-input" type="number" min="0" value={nivel.bonoDist} onChange={e => updateNivel(idx, 'bonoDist', parseInt(e.target.value))} />
+                  </div>
+                </div>
+                <div className="sa-form-row">
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Meta semanal (ventas)</label>
+                    <input className="sa-form-input" type="number" min="1" value={nivel.metaSemanal} onChange={e => updateNivel(idx, 'metaSemanal', parseInt(e.target.value))} />
+                  </div>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Puntos para bono trimestral</label>
+                    <input className="sa-form-input" type="number" min="1" value={nivel.puntosTrimestrales} onChange={e => updateNivel(idx, 'puntosTrimestrales', parseInt(e.target.value))} />
+                  </div>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Bono trimestral (MXN)</label>
+                    <input className="sa-form-input" type="number" min="0" value={nivel.bonoTrimestral} onChange={e => updateNivel(idx, 'bonoTrimestral', parseInt(e.target.value))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <button onClick={addNivel} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', width: '100%', border: '2px dashed rgba(0,0,0,.1)', borderRadius: 14, background: 'transparent', color: 'var(--gray-4)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter',sans-serif", transition: 'all .15s' }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = '#0066ff'; e.currentTarget.style.color = '#0066ff' }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,.1)'; e.currentTarget.style.color = 'var(--gray-4)' }}>
+            <Plus size={16} /> Agregar nivel
+          </button>
+        </div>
+      )}
+
+      {/* PUNTOS */}
+      {activeTab === 'puntos' && (
+        <div className="sa-card" style={{ padding: 24 }}>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Sistema de puntos — Bono trimestral</div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Cada tipo de venta vale puntos que se acumulan hacia el bono trimestral del nivel correspondiente.</div>
+          <div className="sa-form-row">
+            <div className="sa-form-group">
+              <label className="sa-form-label">Puntos por venta a cliente raíz</label>
+              <input className="sa-form-input" type="number" min="1" value={config.puntosRaiz} onChange={e => setConfig(c => ({ ...c, puntosRaiz: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Implementación de ${config.precioRaizUSD || 1400} USD</div>
+            </div>
+            <div className="sa-form-group">
+              <label className="sa-form-label">Puntos por venta a distribuidor</label>
+              <input className="sa-form-input" type="number" min="1" value={config.puntosDist} onChange={e => setConfig(c => ({ ...c, puntosDist: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Implementación de ${config.precioDistUSD || 550} USD</div>
+            </div>
+          </div>
+          <div style={{ background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, padding: '14px 16px', marginTop: 8 }}>
+            <div style={{ fontSize: 13, color: '#4d9fff', fontWeight: 600 }}>
+              Ejemplo: Un vendedor que cierra 2 raíces + 3 distribuidores acumula {(2 * (config.puntosRaiz || 3)) + (3 * (config.puntosDist || 1))} puntos en el trimestre.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAGOS */}
+      {activeTab === 'pagos' && (
+        <div className="sa-card" style={{ padding: 24 }}>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Velocidad de pago</div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Define qué porcentaje de la meta semanal se necesita alcanzar para cada fecha de pago.</div>
+          <div className="sa-form-row">
+            <div className="sa-form-group">
+              <label className="sa-form-label">% meta para cobrar el viernes</label>
+              <input className="sa-form-input" type="number" min="1" max="100" value={config.pctViernes} onChange={e => setConfig(c => ({ ...c, pctViernes: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Actualmente: {config.pctViernes}% de la meta semanal</div>
+            </div>
+            <div className="sa-form-group">
+              <label className="sa-form-label">% meta para cobrar el día 10</label>
+              <input className="sa-form-input" type="number" min="1" max="100" value={config.pctDia10} onChange={e => setConfig(c => ({ ...c, pctDia10: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Actualmente: {config.pctDia10}% de la meta semanal</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 8, padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, fontSize: 13, color: 'var(--gray-4)', lineHeight: 1.6 }}>
+            <strong style={{ color: '#070708' }}>Regla actual:</strong><br />
+            ≥ {config.pctViernes}% de la meta semanal → cobras el viernes<br />
+            ≥ {config.pctDia10}% de la meta semanal → cobras el día 10<br />
+            &lt; {config.pctDia10}% → cobras el día 30
+          </div>
+        </div>
+      )}
+
+      {/* PRECIOS */}
+      {activeTab === 'precios' && (
+        <div className="sa-card" style={{ padding: 24 }}>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Precios de implementación</div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Estos precios se usan como referencia en el portal del distribuidor y para calcular puntos.</div>
+          <div className="sa-form-row">
+            <div className="sa-form-group">
+              <label className="sa-form-label">Implementación cliente raíz (USD)</label>
+              <input className="sa-form-input" type="number" min="0" value={config.precioRaizUSD} onChange={e => setConfig(c => ({ ...c, precioRaizUSD: parseFloat(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>~${Math.round((config.precioRaizUSD || 1400) * 17).toLocaleString()} MXN aproximado</div>
+            </div>
+            <div className="sa-form-group">
+              <label className="sa-form-label">Implementación distribuidor (USD)</label>
+              <input className="sa-form-input" type="number" min="0" value={config.precioDistUSD} onChange={e => setConfig(c => ({ ...c, precioDistUSD: parseFloat(e.target.value) }))} />
+              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>~${Math.round((config.precioDistUSD || 550) * 17).toLocaleString()} MXN aproximado</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AGENTE */}
+      {activeTab === 'agente' && (
+        <div className="sa-card" style={{ padding: 24 }}>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Prompt del agente IA — Pipeline Flow Hub</div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>Este prompt se aplica al agente de todos los distribuidores en su pipeline de Flow Hub. Incluye las instrucciones de scoring.</div>
+          <div className="sa-form-group">
+            <label className="sa-form-label">System prompt del agente</label>
+            <textarea
+              className="sa-form-input"
+              rows={12}
+              style={{ resize: 'vertical', fontFamily: "'Inter',sans-serif", fontSize: 13, lineHeight: 1.6 }}
+              value={config.agentPrompt}
+              onChange={e => setConfig(c => ({ ...c, agentPrompt: e.target.value }))}
+            />
+          </div>
+          <div style={{ background: 'rgba(255,149,0,0.05)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#ff9500' }}>
+            ⚠️ Este prompt reemplaza el prompt de todos los distribuidores en su pipeline de Flow Hub. Los cambios aplican inmediatamente a nuevas conversaciones.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── MAIN SUPERADMIN ───
 export default function Superadmin() {
   const [authed, setAuthed] = useState(false)
@@ -1902,9 +2444,11 @@ export default function Superadmin() {
     { id: 'diag_config', icon: <ClipboardList size={16} />, label: 'Diagnóstico' },
     { id: 'diag_resp', icon: <BarChart size={16} />, label: 'Respuestas Diag.' },
     { id: 'pipelines', icon: <Target size={16} />, label: 'Pipeline Builder' },
+    { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
+    { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores' }
 
   if (!authed) {
     return (
@@ -1969,6 +2513,8 @@ export default function Superadmin() {
           {activeTab === 'diag_config' && <DiagnosticoConfig orgs={orgs} />}
           {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
           {activeTab === 'pipelines' && <PipelineBuilder orgs={orgs} />}
+          {activeTab === 'distribuidores' && <DistribuidoresPanel />}
+          {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
         </div>
       </div>
     </div>
