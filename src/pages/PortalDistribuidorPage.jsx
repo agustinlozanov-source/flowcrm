@@ -411,7 +411,7 @@ export default function PortalDistribuidorPage() {
   const handleLogout = async () => {
     try {
       await signOut(auth)
-      navigate('/login')
+      navigate('/distribuidor-login')
     } catch (err) {
       console.error('Error logging out:', err)
     }

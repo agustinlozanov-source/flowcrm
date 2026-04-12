@@ -6,6 +6,7 @@ import AppLayout from '@/components/layout/AppLayout'
 
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
+import DistribuidorLoginPage from '@/pages/DistribuidorLoginPage'
 import Pipeline from '@/pages/Pipeline'
 import Superadmin from '@/pages/Superadmin'
 import Setup from '@/pages/Setup'
@@ -50,6 +51,7 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/distribuidor-login" element={<DistribuidorLoginPage />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/welcome" element={<WelcomeForm />} />
         <Route path="/diagnostico" element={<DiagnosticoForm />} />
