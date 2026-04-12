@@ -943,85 +943,382 @@ function Resellers({ resellers, orgs, onRefresh }) {
   )
 }
 
+// ALL FEATURES CATALOG
+const ALL_FEATURES = [
+  // CRM
+  { id: 'pipeline', category: 'CRM', label: 'Pipeline de ventas', desc: 'Kanban visual con etapas configurables' },
+  { id: 'leads', category: 'CRM', label: 'Gestión de contactos', desc: 'Base de datos de prospectos y clientes' },
+  { id: 'pipeline_multi', category: 'CRM', label: 'Múltiples pipelines', desc: 'Varios pipelines simultáneos' },
+  { id: 'scoring', category: 'CRM', label: 'Scoring automático', desc: 'Calificación de leads por el agente' },
+  { id: 'custom_fields', category: 'CRM', label: 'Campos personalizados', desc: 'Atributos adicionales por lead' },
+  { id: 'products', category: 'CRM', label: 'Catálogo de productos', desc: 'Asociar productos a oportunidades' },
+  // Canales
+  { id: 'inbox', category: 'Canales', label: 'Inbox unificado', desc: 'WhatsApp, Instagram y Facebook en uno' },
+  { id: 'whatsapp', category: 'Canales', label: 'WhatsApp Business', desc: 'Integración oficial de WhatsApp' },
+  { id: 'instagram', category: 'Canales', label: 'Instagram DM', desc: 'Mensajes directos de Instagram' },
+  { id: 'facebook', category: 'Canales', label: 'Facebook Messenger', desc: 'Mensajes de Facebook' },
+  { id: 'landing', category: 'Canales', label: 'Landing Pages', desc: 'Páginas de captura de prospectos' },
+  // IA
+  { id: 'agent', category: 'IA', label: 'Agente IA 24/7', desc: 'Respuesta automática por IA' },
+  { id: 'agent_voice', category: 'IA', label: 'Llamadas IA (VAPI)', desc: 'Llamadas outbound automatizadas' },
+  { id: 'agent_custom', category: 'IA', label: 'Personalidad del agente', desc: 'Entrenamiento con datos propios' },
+  // Contenido
+  { id: 'content', category: 'Contenido', label: 'Content Studio', desc: 'Generador de contenido con IA' },
+  { id: 'image_gen', category: 'Contenido', label: 'Imágenes con IA', desc: 'Generación de imágenes FLUX Pro' },
+  { id: 'brand_kit', category: 'Contenido', label: 'Brand Kits', desc: 'Kits de marca y tipografías' },
+  // Equipo
+  { id: 'team', category: 'Equipo', label: 'Gestión de equipo', desc: 'Miembros, roles y permisos' },
+  { id: 'genealogy', category: 'Equipo', label: 'Genealogía MLM', desc: 'Árbol de distribución visual' },
+  { id: 'analytics', category: 'Equipo', label: 'Analytics y reportes', desc: 'Métricas y KPIs del equipo' },
+  { id: 'round_robin', category: 'Equipo', label: 'Round Robin', desc: 'Asignación automática de leads' },
+  // Crecimiento
+  { id: 'goals', category: 'Crecimiento', label: 'Metas y objetivos', desc: 'Sistema de rocas trimestrales' },
+  { id: 'referrals', category: 'Crecimiento', label: 'Programa de referidos', desc: 'Referidos y comisiones' },
+  { id: 'import', category: 'Crecimiento', label: 'Importación de leads', desc: 'CSV y Excel' },
+]
+
+const FEATURE_CATEGORIES = ['CRM', 'Canales', 'IA', 'Contenido', 'Equipo', 'Crecimiento']
+const COLOR_OPTIONS = ['#8e8e93','#0066ff','#7c3aed','#00c853','#ff9500','#ff3b30','#00b8d9','#f97316']
+
+const EMPTY_PLAN = {
+  name: '', color: '#0066ff', monthlyUSD: 49, annualUSD: 41,
+  maxUsers: 1, maxLeads: 500, features: [], status: 'active',
+}
+
 // PLANS
 function Plans() {
-  const [plans, setPlans] = useState([
-    { id: 'starter', name: 'Starter', color: '#8e8e93', implPrice: 10000, implCurrency: 'MXN', monthlyUSD: 29, modules: ['pipeline', 'analytics'] },
-    { id: 'pro', name: 'Pro', color: '#0066ff', implPrice: 20000, implCurrency: 'MXN', monthlyUSD: 50, modules: ['pipeline', 'inbox', 'agent', 'analytics', 'landing'] },
-    { id: 'enterprise', name: 'Enterprise', color: '#7c3aed', implPrice: 40000, implCurrency: 'MXN', monthlyUSD: 99, modules: ['pipeline', 'inbox', 'agent', 'content', 'analytics', 'landing', 'referrals'] },
-  ])
+  const [plans, setPlans] = useState([])
+  const [implementations, setImplementations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [showImplModal, setShowImplModal] = useState(false)
+  const [editPlan, setEditPlan] = useState(null)
+  const [editImpl, setEditImpl] = useState(null)
+  const [planForm, setPlanForm] = useState(EMPTY_PLAN)
+  const [implForm, setImplForm] = useState({ name: '', description: '', priceUSD: 1400, type: 'raiz', status: 'active' })
   const [saving, setSaving] = useState(false)
+  const [activeFeatureTab, setActiveFeatureTab] = useState('CRM')
 
-  const toggleModule = (planId, modId) => {
-    setPlans(ps => ps.map(p => p.id === planId ? {
-      ...p,
-      modules: p.modules.includes(modId) ? p.modules.filter(m => m !== modId) : [...p.modules, modId]
-    } : p))
-  }
+  useEffect(() => {
+    const unsub1 = onSnapshot(collection(db, 'plans'), snap => {
+      setPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setLoading(false)
+    })
+    const unsub2 = onSnapshot(collection(db, 'implementations'), snap => {
+      setImplementations(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => { unsub1(); unsub2() }
+  }, [])
 
-  const updatePlan = (planId, key, val) => {
-    setPlans(ps => ps.map(p => p.id === planId ? { ...p, [key]: val } : p))
-  }
+  const openNewPlan = () => { setEditPlan(null); setPlanForm(EMPTY_PLAN); setActiveFeatureTab('CRM'); setShowPlanModal(true) }
+  const openEditPlan = (plan) => { setEditPlan(plan); setPlanForm({ ...EMPTY_PLAN, ...plan }); setActiveFeatureTab('CRM'); setShowPlanModal(true) }
+  const openNewImpl = () => { setEditImpl(null); setImplForm({ name: '', description: '', priceUSD: 1400, type: 'raiz', status: 'active' }); setShowImplModal(true) }
+  const openEditImpl = (impl) => { setEditImpl(impl); setImplForm({ ...impl }); setShowImplModal(true) }
 
-  const save = async () => {
+  const savePlan = async () => {
+    if (!planForm.name) { toast.error('El nombre del plan es requerido'); return }
     setSaving(true)
     try {
-      for (const plan of plans) {
-        await setDoc(doc(db, 'plans', plan.id), { ...plan, updatedAt: serverTimestamp() })
+      if (editPlan) {
+        await updateDoc(doc(db, 'plans', editPlan.id), { ...planForm, updatedAt: serverTimestamp() })
+        toast.success('Plan actualizado')
+      } else {
+        await addDoc(collection(db, 'plans'), { ...planForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        toast.success('Plan creado')
       }
-      toast.success('Planes guardados')
+      setShowPlanModal(false)
     } catch (e) { toast.error(e.message) } finally { setSaving(false) }
   }
 
+  const deletePlan = async (planId) => {
+    if (!window.confirm('¿Eliminar este plan?')) return
+    await deleteDoc(doc(db, 'plans', planId))
+    toast.success('Plan eliminado')
+  }
+
+  const saveImpl = async () => {
+    if (!implForm.name) { toast.error('El nombre es requerido'); return }
+    setSaving(true)
+    try {
+      if (editImpl) {
+        await updateDoc(doc(db, 'implementations', editImpl.id), { ...implForm, updatedAt: serverTimestamp() })
+        toast.success('Implementación actualizada')
+      } else {
+        await addDoc(collection(db, 'implementations'), { ...implForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        toast.success('Implementación creada')
+      }
+      setShowImplModal(false)
+    } catch (e) { toast.error(e.message) } finally { setSaving(false) }
+  }
+
+  const deleteImpl = async (implId) => {
+    if (!window.confirm('¿Eliminar esta implementación?')) return
+    await deleteDoc(doc(db, 'implementations', implId))
+    toast.success('Implementación eliminada')
+  }
+
+  const toggleFeature = (featId) => {
+    setPlanForm(f => ({
+      ...f,
+      features: f.features?.includes(featId)
+        ? f.features.filter(id => id !== featId)
+        : [...(f.features || []), featId]
+    }))
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-4)' }}>Cargando planes...</div>
+
   return (
     <div className="sa-content">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Btn variant="white" onClick={save} disabled={saving}>{saving ? 'Guardando...' : <><Save size={14} style={{ marginRight: 4 }} /> Guardar planes</>}</Btn>
+      {/* PLANES */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 16, fontWeight: 800 }}>Planes de suscripción</div>
+          <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 2 }}>Cada plan es un producto en el catálogo del distribuidor</div>
+        </div>
+        <Btn variant="white" onClick={openNewPlan}><Plus size={14} /> Nuevo plan</Btn>
       </div>
-      {plans.map(plan => (
-        <div key={plan.id} className="sa-plan-card">
-          <div className="sa-plan-header">
-            <div className="sa-dot" style={{ background: plan.color, width: 10, height: 10 }} />
-            <div className="sa-plan-name">{plan.name}</div>
-            <Badge color={plan.id === 'enterprise' ? 'purple' : plan.id === 'pro' ? 'blue' : 'gray'}>{plan.id}</Badge>
+
+      <div className="sa-card" style={{ marginBottom: 32 }}>
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Plan</th>
+              <th>Mensual</th>
+              <th>Anual/mes</th>
+              <th>Usuarios</th>
+              <th>Leads</th>
+              <th>Funciones</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map(plan => (
+              <tr key={plan.id}>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: plan.color || '#8e8e93', flexShrink: 0 }} />
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{plan.name}</div>
+                  </div>
+                </td>
+                <td style={{ fontWeight: 700, color: '#0066ff' }}>${plan.monthlyUSD} USD</td>
+                <td style={{ color: 'var(--gray-4)' }}>${plan.annualUSD || '—'} USD</td>
+                <td style={{ fontWeight: 600 }}>{plan.maxUsers === 999 || plan.maxUsers === 0 ? '∞' : plan.maxUsers}</td>
+                <td style={{ fontWeight: 600 }}>{plan.maxLeads === 999999 || plan.maxLeads === 0 ? '∞' : (plan.maxLeads || '—')?.toLocaleString?.()}</td>
+                <td><Badge color="blue">{plan.features?.length || 0} funciones</Badge></td>
+                <td><Badge color={plan.status === 'active' ? 'green' : 'red'}>{plan.status === 'active' ? 'Activo' : 'Inactivo'}</Badge></td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Btn sm variant="ghost" onClick={() => openEditPlan(plan)}>Editar</Btn>
+                    <Btn sm variant="danger" onClick={() => deletePlan(plan.id)}><Trash2 size={12} /></Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {plans.length === 0 && (
+              <tr><td colSpan={8}>
+                <div className="sa-empty">
+                  <div className="sa-empty-icon" style={{ display: 'flex', justifyContent: 'center' }}><Package size={32} strokeWidth={1.5} /></div>
+                  <div className="sa-empty-text">Sin planes — crea el primero</div>
+                </div>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* IMPLEMENTACIONES */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 16, fontWeight: 800 }}>Implementaciones</div>
+          <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 2 }}>Productos independientes que se crean en el catálogo del distribuidor al activarse</div>
+        </div>
+        <Btn variant="white" onClick={openNewImpl}><Plus size={14} /> Nueva implementación</Btn>
+      </div>
+
+      <div className="sa-card" style={{ marginBottom: 16 }}>
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Precio</th>
+              <th>Descripción</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {implementations.map(impl => (
+              <tr key={impl.id}>
+                <td style={{ fontWeight: 700 }}>{impl.name}</td>
+                <td><Badge color={impl.type === 'raiz' ? 'purple' : 'blue'}>{impl.type === 'raiz' ? 'Cliente raíz' : 'Distribuidor'}</Badge></td>
+                <td style={{ fontWeight: 700, color: '#0066ff' }}>${impl.priceUSD?.toLocaleString()} USD</td>
+                <td style={{ fontSize: 13, color: 'var(--gray-4)', maxWidth: 240 }}>{impl.description || '—'}</td>
+                <td><Badge color={impl.status === 'active' ? 'green' : 'red'}>{impl.status === 'active' ? 'Activo' : 'Inactivo'}</Badge></td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Btn sm variant="ghost" onClick={() => openEditImpl(impl)}>Editar</Btn>
+                    <Btn sm variant="danger" onClick={() => deleteImpl(impl.id)}><Trash2 size={12} /></Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {implementations.length === 0 && (
+              <tr><td colSpan={6}>
+                <div className="sa-empty">
+                  <div className="sa-empty-icon" style={{ display: 'flex', justifyContent: 'center' }}><Package size={32} strokeWidth={1.5} /></div>
+                  <div className="sa-empty-text">Sin implementaciones — crea la primera</div>
+                </div>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ padding: '12px 16px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff' }}>
+        ℹ️ Al aprobar un distribuidor, los planes e implementaciones activos se crean automáticamente en su catálogo de productos con los precios configurados aquí.
+      </div>
+
+      {/* MODAL PLAN */}
+      {showPlanModal && (
+        <Modal
+          title={editPlan ? `Editar: ${editPlan.name}` : 'Nuevo plan'}
+          onClose={() => setShowPlanModal(false)}
+          actions={<>
+            <Btn variant="ghost" onClick={() => setShowPlanModal(false)}>Cancelar</Btn>
+            <Btn variant="white" onClick={savePlan} disabled={saving}>{saving ? 'Guardando...' : 'Guardar plan'}</Btn>
+          </>}
+        >
+          {/* Color + nombre */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+            <div>
+              <div className="sa-form-label" style={{ marginBottom: 5 }}>Color</div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', width: 120 }}>
+                {COLOR_OPTIONS.map(c => (
+                  <div key={c} onClick={() => setPlanForm(f => ({ ...f, color: c }))}
+                    style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: planForm.color === c ? '3px solid #070708' : '2px solid transparent', transition: 'all 0.1s' }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="sa-form-group" style={{ margin: 0 }}>
+                <label className="sa-form-label">Nombre del plan</label>
+                <input className="sa-form-input" value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} placeholder="Plan Básico" />
+              </div>
+            </div>
           </div>
+
+          {/* Precios */}
           <div className="sa-form-row" style={{ marginBottom: 14 }}>
             <div className="sa-form-group" style={{ margin: 0 }}>
-              <label className="sa-form-label">Precio implementación</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select className="sa-form-input sa-form-select" style={{ width: 80 }} value={plan.implCurrency} onChange={e => updatePlan(plan.id, 'implCurrency', e.target.value)}>
-                  <option>MXN</option><option>USD</option>
-                </select>
-                <input className="sa-form-input" type="number" value={plan.implPrice} onChange={e => updatePlan(plan.id, 'implPrice', parseFloat(e.target.value))} />
-              </div>
+              <label className="sa-form-label">Precio mensual (USD)</label>
+              <input className="sa-form-input" type="number" min="0" value={planForm.monthlyUSD} onChange={e => setPlanForm(f => ({ ...f, monthlyUSD: parseFloat(e.target.value) }))} />
             </div>
             <div className="sa-form-group" style={{ margin: 0 }}>
-              <label className="sa-form-label">Mensualidad por usuario (USD)</label>
-              <input className="sa-form-input" type="number" value={plan.monthlyUSD} onChange={e => updatePlan(plan.id, 'monthlyUSD', parseFloat(e.target.value))} />
+              <label className="sa-form-label">Precio anual / mes (USD)</label>
+              <input className="sa-form-input" type="number" min="0" value={planForm.annualUSD} onChange={e => setPlanForm(f => ({ ...f, annualUSD: parseFloat(e.target.value) }))} />
             </div>
           </div>
-          <div className="sa-form-label" style={{ marginBottom: 8 }}>Módulos incluidos</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {MODULES_CATALOG.map(m => (
-              <div
-                key={m.id}
-                onClick={() => toggleModule(plan.id, m.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
-                  border: `1.5px solid ${plan.modules.includes(m.id) ? 'rgba(0,102,255,0.4)' : 'rgba(0,0,0,0.08)'}`,
-                  background: plan.modules.includes(m.id) ? 'rgba(0,102,255,0.08)' : 'rgba(0,0,0,0.02)',
-                  fontSize: 14, fontWeight: 600,
-                  color: plan.modules.includes(m.id) ? '#4d9fff' : 'var(--gray-4)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {m.icon} {m.name}
-              </div>
+
+          {/* Límites */}
+          <div className="sa-form-row" style={{ marginBottom: 14 }}>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Usuarios máximos</label>
+              <input className="sa-form-input" type="number" min="1" value={planForm.maxUsers} onChange={e => setPlanForm(f => ({ ...f, maxUsers: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Usa 999 para ilimitado</div>
+            </div>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Leads activos máximos</label>
+              <input className="sa-form-input" type="number" min="0" value={planForm.maxLeads} onChange={e => setPlanForm(f => ({ ...f, maxLeads: parseInt(e.target.value) }))} />
+              <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Usa 999999 para ilimitado</div>
+            </div>
+          </div>
+
+          {/* Estado */}
+          <div className="sa-form-group" style={{ marginBottom: 16 }}>
+            <label className="sa-form-label">Estado</label>
+            <select className="sa-form-input sa-form-select" value={planForm.status} onChange={e => setPlanForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+          </div>
+
+          <div className="sa-divider" />
+
+          {/* Features */}
+          <div className="sa-form-label" style={{ marginBottom: 10 }}>
+            Funciones incluidas — {planForm.features?.length || 0} seleccionadas
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+            {FEATURE_CATEGORIES.map(cat => (
+              <button key={cat} onClick={() => setActiveFeatureTab(cat)}
+                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: activeFeatureTab === cat ? '#070708' : 'rgba(0,0,0,0.06)', color: activeFeatureTab === cat ? 'white' : 'var(--gray-4)', fontFamily: "'Inter',sans-serif" }}>
+                {cat}
+              </button>
             ))}
           </div>
-        </div>
-      ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
+            {ALL_FEATURES.filter(f => f.category === activeFeatureTab).map(feat => {
+              const on = planForm.features?.includes(feat.id)
+              return (
+                <div key={feat.id} onClick={() => toggleFeature(feat.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${on ? 'rgba(0,102,255,0.3)' : 'rgba(0,0,0,0.08)'}`, background: on ? 'rgba(0,102,255,0.06)' : 'transparent', transition: 'all 0.1s' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? '#0066ff' : 'rgba(0,0,0,0.15)'}`, background: on ? '#0066ff' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {on && <Check size={10} color="white" />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#4d9fff' : '#070708' }}>{feat.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray-4)' }}>{feat.desc}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL IMPLEMENTACIÓN */}
+      {showImplModal && (
+        <Modal
+          title={editImpl ? `Editar: ${editImpl.name}` : 'Nueva implementación'}
+          onClose={() => setShowImplModal(false)}
+          actions={<>
+            <Btn variant="ghost" onClick={() => setShowImplModal(false)}>Cancelar</Btn>
+            <Btn variant="white" onClick={saveImpl} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</Btn>
+          </>}
+        >
+          <div className="sa-form-group">
+            <label className="sa-form-label">Nombre</label>
+            <input className="sa-form-input" value={implForm.name} onChange={e => setImplForm(f => ({ ...f, name: e.target.value }))} placeholder="Implementación Raíz" />
+          </div>
+          <div className="sa-form-row">
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Tipo</label>
+              <select className="sa-form-input sa-form-select" value={implForm.type} onChange={e => setImplForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="raiz">Cliente raíz</option>
+                <option value="distribuidor">Distribuidor</option>
+              </select>
+            </div>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Precio (USD)</label>
+              <input className="sa-form-input" type="number" min="0" value={implForm.priceUSD} onChange={e => setImplForm(f => ({ ...f, priceUSD: parseFloat(e.target.value) }))} />
+            </div>
+          </div>
+          <div className="sa-form-group">
+            <label className="sa-form-label">Descripción</label>
+            <textarea className="sa-form-input" rows={3} style={{ resize: 'vertical' }} value={implForm.description} onChange={e => setImplForm(f => ({ ...f, description: e.target.value }))} placeholder="Qué incluye esta implementación..." />
+          </div>
+          <div className="sa-form-group">
+            <label className="sa-form-label">Estado</label>
+            <select className="sa-form-input sa-form-select" value={implForm.status} onChange={e => setImplForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -1950,6 +2247,46 @@ function DistribuidoresPanel() {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       })
 
+      // 8. Crear productos en el catálogo del distribuidor
+      // Leer planes e implementaciones activos
+      const plansSnap = await getDocs(collection(db, 'plans'))
+      const implsSnap = await getDocs(collection(db, 'implementations'))
+
+      const activePlans = plansSnap.docs.filter(d => d.data().status === 'active').map(d => ({ id: d.id, ...d.data() }))
+      const activeImpls = implsSnap.docs.filter(d => d.data().status === 'active').map(d => ({ id: d.id, ...d.data() }))
+
+      for (const plan of activePlans) {
+        await addDoc(collection(db, 'organizations', orgId, 'products'), {
+          name: `Flow Hub CRM — ${plan.name}`,
+          description: `Plan ${plan.name} · ${plan.maxUsers === 999 ? '∞' : plan.maxUsers} usuarios · ${plan.maxLeads === 999999 ? '∞' : plan.maxLeads?.toLocaleString()} leads`,
+          price: plan.monthlyUSD,
+          currency: 'USD',
+          type: 'subscription_monthly',
+          category: 'Flow Hub CRM',
+          sku: `FH-PLAN-${plan.id?.toUpperCase()}`,
+          status: 'active',
+          isFlowHubProduct: true,
+          planId: plan.id,
+          createdAt: serverTimestamp(),
+        })
+      }
+
+      for (const impl of activeImpls) {
+        await addDoc(collection(db, 'organizations', orgId, 'products'), {
+          name: impl.name,
+          description: impl.description || `Implementación Flow Hub CRM — ${impl.type === 'raiz' ? 'Cliente raíz' : 'Distribuidor'}`,
+          price: impl.priceUSD,
+          currency: 'USD',
+          type: 'service',
+          category: 'Flow Hub CRM',
+          sku: `FH-IMPL-${impl.type?.toUpperCase()}`,
+          status: 'active',
+          isFlowHubProduct: true,
+          implId: impl.id,
+          createdAt: serverTimestamp(),
+        })
+      }
+
       toast.success(`✓ ${application.nombre} ${application.apellido_paterno} aprobado como distribuidor`)
     } catch (err) {
       console.error(err)
@@ -2221,9 +2558,14 @@ function DistribuidorConfig() {
       </div>
 
       <div className="sa-tabs">
-        {['niveles', 'puntos', 'pagos', 'precios', 'agente'].map(t => (
+        {['niveles', 'puntos', 'pagos', 'precios', 'pipeline_scoring', 'agente'].map(t => (
           <button key={t} className={clsx('sa-tab', activeTab === t && 'active')} onClick={() => setActiveTab(t)}>
-            {t === 'niveles' ? 'Niveles y bonos' : t === 'puntos' ? 'Sistema de puntos' : t === 'pagos' ? 'Velocidad de pago' : t === 'precios' ? 'Implementación' : 'Agente IA'}
+            {t === 'niveles' ? 'Niveles y bonos'
+              : t === 'puntos' ? 'Sistema de puntos'
+              : t === 'pagos' ? 'Velocidad de pago'
+              : t === 'precios' ? 'Implementación'
+              : t === 'pipeline_scoring' ? 'Scoring — Pipeline'
+              : 'Agente IA'}
           </button>
         ))}
       </div>
@@ -2321,27 +2663,85 @@ function DistribuidorConfig() {
 
       {/* PAGOS */}
       {activeTab === 'pagos' && (
-        <div className="sa-card" style={{ padding: 24 }}>
-          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Velocidad de pago</div>
-          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Define qué porcentaje de la meta semanal se necesita alcanzar para cada fecha de pago.</div>
-          <div className="sa-form-row">
-            <div className="sa-form-group">
-              <label className="sa-form-label">% meta para cobrar el viernes</label>
-              <input className="sa-form-input" type="number" min="1" max="100" value={config.pctViernes} onChange={e => setConfig(c => ({ ...c, pctViernes: parseInt(e.target.value) }))} />
-              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Actualmente: {config.pctViernes}% de la meta semanal</div>
-            </div>
-            <div className="sa-form-group">
-              <label className="sa-form-label">% meta para cobrar el día 10</label>
-              <input className="sa-form-input" type="number" min="1" max="100" value={config.pctDia10} onChange={e => setConfig(c => ({ ...c, pctDia10: parseInt(e.target.value) }))} />
-              <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>Actualmente: {config.pctDia10}% de la meta semanal</div>
-            </div>
+        <div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>
+            Define los tiers de velocidad de pago. Cada tier especifica qué porcentaje de meta semanal se necesita y cuántos días después de la venta se procesa el pago. Se evalúan en orden de arriba hacia abajo.
           </div>
-          <div style={{ marginTop: 8, padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, fontSize: 13, color: 'var(--gray-4)', lineHeight: 1.6 }}>
-            <strong style={{ color: '#070708' }}>Regla actual:</strong><br />
-            ≥ {config.pctViernes}% de la meta semanal → cobras el viernes<br />
-            ≥ {config.pctDia10}% de la meta semanal → cobras el día 10<br />
-            &lt; {config.pctDia10}% → cobras el día 30
-          </div>
+          {(config.paymentTiers || [
+            { pct: 100, dias: 2, label: 'Pago inmediato' },
+            { pct: 75, dias: 10, label: 'Pago estándar' },
+            { pct: 0, dias: 30, label: 'Pago diferido' },
+          ]).map((tier, idx) => (
+            <div key={idx} className="sa-card" style={{ marginBottom: 12 }}>
+              <div className="sa-card-header">
+                <div className="sa-dot" style={{ background: idx === 0 ? '#00c853' : idx === 1 ? '#ff9500' : '#8e8e93', width: 10, height: 10 }} />
+                <div className="sa-card-title">
+                  <input
+                    value={tier.label || `Tier ${idx + 1}`}
+                    onChange={e => {
+                      const tiers = [...(config.paymentTiers || [])]
+                      tiers[idx] = { ...tiers[idx], label: e.target.value }
+                      setConfig(c => ({ ...c, paymentTiers: tiers }))
+                    }}
+                    style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', width: 200 }}
+                  />
+                </div>
+                {(config.paymentTiers || []).length > 1 && (
+                  <Btn sm variant="danger" onClick={() => {
+                    const tiers = (config.paymentTiers || []).filter((_, i) => i !== idx)
+                    setConfig(c => ({ ...c, paymentTiers: tiers }))
+                  }}>
+                    <Trash2 size={12} />
+                  </Btn>
+                )}
+              </div>
+              <div style={{ padding: '16px 20px' }}>
+                <div className="sa-form-row">
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">% mínimo de meta semanal</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input className="sa-form-input" type="number" min="0" max="100" value={tier.pct}
+                        onChange={e => {
+                          const tiers = [...(config.paymentTiers || [])]
+                          tiers[idx] = { ...tiers[idx], pct: parseInt(e.target.value) }
+                          setConfig(c => ({ ...c, paymentTiers: tiers }))
+                        }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-4)', flexShrink: 0 }}>%</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>
+                      {idx === 0 ? 'Necesita alcanzar este % o más' : `Entre ${(config.paymentTiers || [])[idx - 1]?.pct - 1 || 99}% y ${tier.pct}%`}
+                    </div>
+                  </div>
+                  <div className="sa-form-group" style={{ margin: 0 }}>
+                    <label className="sa-form-label">Días después de la venta para cobrar</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input className="sa-form-input" type="number" min="0" value={tier.dias}
+                        onChange={e => {
+                          const tiers = [...(config.paymentTiers || [])]
+                          tiers[idx] = { ...tiers[idx], dias: parseInt(e.target.value) }
+                          setConfig(c => ({ ...c, paymentTiers: tiers }))
+                        }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-4)', flexShrink: 0 }}>días</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 4 }}>
+                      {tier.dias === 0 ? 'Mismo día de la venta' : tier.dias === 1 ? 'Al día siguiente' : `A los ${tier.dias} días de cerrar la venta`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <button onClick={() => {
+            const tiers = [...(config.paymentTiers || [{ pct: 100, dias: 2, label: 'Pago inmediato' }, { pct: 75, dias: 10, label: 'Pago estándar' }, { pct: 0, dias: 30, label: 'Pago diferido' }])]
+            tiers.push({ pct: 50, dias: 15, label: 'Nuevo tier' })
+            setConfig(c => ({ ...c, paymentTiers: tiers }))
+          }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', width: '100%', border: '2px dashed rgba(0,0,0,.1)', borderRadius: 14, background: 'transparent', color: 'var(--gray-4)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = '#0066ff'; e.currentTarget.style.color = '#0066ff' }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,.1)'; e.currentTarget.style.color = 'var(--gray-4)' }}>
+            <Plus size={16} /> Agregar tier de pago
+          </button>
         </div>
       )}
 
@@ -2365,23 +2765,176 @@ function DistribuidorConfig() {
         </div>
       )}
 
-      {/* AGENTE */}
+      {/* PIPELINE SCORING */}
+      {activeTab === 'pipeline_scoring' && (
+        <div>
+          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>
+            Define el rango de score para cada etapa del Pipeline de Flow Hub. El agente mueve automáticamente a los prospectos según estos rangos. Las etapas fijas no se pueden renombrar.
+          </div>
+          {[
+            { name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0, scoreMax: 30, locked: false, key: 'stage_1' },
+            { name: 'Primer contacto', color: '#0066ff', scoreMin: 31, scoreMax: 50, locked: false, key: 'stage_2' },
+            { name: 'Reunión agendada', color: '#7c3aed', scoreMin: 51, scoreMax: 65, locked: false, key: 'stage_3' },
+            { name: 'Presentación hecha', color: '#ff9500', scoreMin: 66, scoreMax: 75, locked: false, key: 'stage_4' },
+            { name: 'Enlace enviado', color: '#00b8d9', scoreMin: 76, scoreMax: 85, locked: true, key: 'stage_5' },
+            { name: 'Formulario completado', color: '#6366f1', scoreMin: 86, scoreMax: 92, locked: true, key: 'stage_6' },
+            { name: 'En verificación', color: '#ff9500', scoreMin: 93, scoreMax: 97, locked: true, key: 'stage_7' },
+            { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true, key: 'stage_8' },
+          ].map((stage, idx) => {
+            const stageConfig = config.pipelineStages?.[stage.key] || stage
+            return (
+              <div key={stage.key} className="sa-card" style={{ marginBottom: 10 }}>
+                <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    {stage.locked ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800 }}>{stage.name}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,0.06)', color: 'var(--gray-4)', padding: '2px 7px', borderRadius: 5 }}>
+                          <Lock size={10} /> Fija
+                        </span>
+                      </div>
+                    ) : (
+                      <input
+                        defaultValue={stageConfig.name || stage.name}
+                        onBlur={e => {
+                          const stages = { ...(config.pipelineStages || {}) }
+                          stages[stage.key] = { ...(stages[stage.key] || stage), name: e.target.value }
+                          setConfig(c => ({ ...c, pipelineStages: stages }))
+                        }}
+                        style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', width: '100%' }}
+                      />
+                    )}
+                    <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 2 }}>Etapa {idx + 1} de 8</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Score mín.</div>
+                      <input type="number" min="0" max="100"
+                        defaultValue={stageConfig.scoreMin ?? stage.scoreMin}
+                        disabled={stage.locked}
+                        onBlur={e => {
+                          const stages = { ...(config.pipelineStages || {}) }
+                          stages[stage.key] = { ...(stages[stage.key] || stage), scoreMin: parseInt(e.target.value) }
+                          setConfig(c => ({ ...c, pipelineStages: stages }))
+                        }}
+                        style={{ width: 72, background: stage.locked ? 'rgba(0,0,0,0.04)' : 'white', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 14, fontWeight: 700, color: stage.locked ? 'var(--gray-4)' : '#070708', outline: 'none', fontFamily: "'Inter',sans-serif" }}
+                      />
+                    </div>
+                    <div style={{ color: 'var(--gray-4)', fontSize: 16, fontWeight: 700, marginTop: 16 }}>—</div>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Score máx.</div>
+                      <input type="number" min="0" max="100"
+                        defaultValue={stageConfig.scoreMax ?? stage.scoreMax}
+                        disabled={stage.locked}
+                        onBlur={e => {
+                          const stages = { ...(config.pipelineStages || {}) }
+                          stages[stage.key] = { ...(stages[stage.key] || stage), scoreMax: parseInt(e.target.value) }
+                          setConfig(c => ({ ...c, pipelineStages: stages }))
+                        }}
+                        style={{ width: 72, background: stage.locked ? 'rgba(0,0,0,0.04)' : 'white', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 14, fontWeight: 700, color: stage.locked ? 'var(--gray-4)' : '#070708', outline: 'none', fontFamily: "'Inter',sans-serif" }}
+                      />
+                    </div>
+                    <div style={{ width: 120, marginTop: 16 }}>
+                      <div style={{ height: 6, background: '#f0f0f2', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: `${stageConfig.scoreMax ?? stage.scoreMax}%`, height: '100%', background: stage.color, borderRadius: 3 }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>{stageConfig.scoreMin ?? stage.scoreMin} – {stageConfig.scoreMax ?? stage.scoreMax}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ marginTop: 8, padding: '12px 16px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff' }}>
+            ℹ️ Los rangos de las etapas fijas (Enlace enviado → Verificado Activo) no son editables. Solo las 4 etapas iniciales pueden ajustarse.
+          </div>
+        </div>
+      )}
       {activeTab === 'agente' && (
-        <div className="sa-card" style={{ padding: 24 }}>
-          <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Prompt del agente IA — Pipeline Flow Hub</div>
-          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>Este prompt se aplica al agente de todos los distribuidores en su pipeline de Flow Hub. Incluye las instrucciones de scoring.</div>
-          <div className="sa-form-group">
-            <label className="sa-form-label">System prompt del agente</label>
+        <div>
+          <div className="sa-card" style={{ padding: 24, marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>System prompt — Agente Pipeline Flow Hub</div>
+            <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>Se aplica a todos los distribuidores. Los cambios aplican a nuevas conversaciones.</div>
             <textarea
               className="sa-form-input"
-              rows={12}
+              rows={10}
               style={{ resize: 'vertical', fontFamily: "'Inter',sans-serif", fontSize: 13, lineHeight: 1.6 }}
               value={config.agentPrompt}
               onChange={e => setConfig(c => ({ ...c, agentPrompt: e.target.value }))}
             />
+            <div style={{ background: 'rgba(255,149,0,0.05)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#ff9500', marginTop: 12 }}>
+              ⚠️ Este prompt reemplaza el prompt de todos los distribuidores en su pipeline de Flow Hub.
+            </div>
           </div>
-          <div style={{ background: 'rgba(255,149,0,0.05)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#ff9500' }}>
-            ⚠️ Este prompt reemplaza el prompt de todos los distribuidores en su pipeline de Flow Hub. Los cambios aplican inmediatamente a nuevas conversaciones.
+
+          <div className="sa-card" style={{ padding: 24 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Señales de Scoring del Agente IA</div>
+            <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 20 }}>Estas señales determinan cómo el agente califica prospectos del Pipeline de Flow Hub.</div>
+            {[
+              {
+                label: 'Perfil como distribuidor', color: '#0066ff',
+                desc: '¿Tiene la mentalidad y el perfil para vender Flow Hub?',
+                signals: [
+                  { text: 'Ya vende en multinivel o tiene experiencia en ventas directas', type: 'up' },
+                  { text: 'Tiene una red activa de contactos — genealogía propia', type: 'up' },
+                  { text: 'Habla de ingresos adicionales o independencia económica como meta', type: 'up' },
+                  { text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up' },
+                  { text: 'Nunca ha vendido ni tiene experiencia comercial', type: 'down' },
+                  { text: 'Busca solo un ingreso fijo — no le interesa el modelo variable', type: 'down' },
+                ]
+              },
+              {
+                label: 'Capacidad económica', color: '#00875a',
+                desc: '¿Puede pagar la implementación y el plan mensual?',
+                signals: [
+                  { text: 'Tiene ingresos activos por su negocio actual', type: 'up' },
+                  { text: 'Está dispuesto a invertir para mejorar su negocio', type: 'up' },
+                  { text: 'Puede decidir solo sin consultar a nadie', type: 'up' },
+                  { text: 'Evadió preguntas sobre presupuesto', type: 'down' },
+                  { text: 'Depende de que otra persona apruebe el gasto', type: 'down' },
+                ]
+              },
+              {
+                label: 'Dolores del negocio actual', color: '#7c3aed',
+                desc: '¿Tiene los problemas que Flow Hub resuelve?',
+                signals: [
+                  { text: 'No tiene sistema de seguimiento de prospectos', type: 'up' },
+                  { text: 'Pierde leads por falta de respuesta oportuna', type: 'up' },
+                  { text: 'No tiene visibilidad de su equipo o genealogía', type: 'up' },
+                  { text: 'Gasta tiempo creando contenido manualmente', type: 'up' },
+                  { text: 'Ya usa un CRM y está satisfecho con él', type: 'down' },
+                  { text: 'Tiene menos de 5 prospectos al mes — negocio muy pequeño', type: 'down' },
+                ]
+              },
+              {
+                label: 'Intención de avanzar', color: '#b45309',
+                desc: '¿Quiere ver la demostración y tomar una decisión?',
+                signals: [
+                  { text: 'Preguntó cuándo puede ver el sistema en vivo', type: 'up' },
+                  { text: 'Preguntó por el programa de comisiones con detalle', type: 'up' },
+                  { text: 'Volvió a escribir por iniciativa propia', type: 'up' },
+                  { text: 'Solo pide info escrita sin comprometerse a reunión', type: 'down' },
+                  { text: 'Responde con monosílabos o sin profundidad', type: 'down' },
+                ]
+              },
+            ].map((cat, ci) => (
+              <div key={ci} style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800 }}>{cat.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>— {cat.desc}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {cat.signals.map((sig, si) => (
+                    <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 12px', borderRadius: 8, background: sig.type === 'up' ? 'rgba(0,200,83,0.05)' : 'rgba(255,59,48,0.05)', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.15)' : 'rgba(255,59,48,0.12)'}` }}>
+                      <span style={{ fontSize: 13, color: sig.type === 'up' ? '#00c853' : '#ff3b30', fontWeight: 800, flexShrink: 0 }}>{sig.type === 'up' ? '↑' : '↓'}</span>
+                      <span style={{ fontSize: 13, color: '#3a3a3c' }}>{sig.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
