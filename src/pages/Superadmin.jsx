@@ -2367,6 +2367,16 @@ function DistribuidoresPanel() {
     }
   }
 
+  const deleteApplication = async (application) => {
+    if (!window.confirm(`¿Eliminar permanentemente la solicitud de ${application.nombre} ${application.apellido_paterno}? Esta acción no se puede deshacer.`)) return
+    try {
+      await deleteDoc(doc(db, 'distributorApplications', application.id))
+      toast.success('Solicitud eliminada')
+    } catch (err) {
+      toast.error('Error al eliminar: ' + err.message)
+    }
+  }
+
   const statusColor = (s) => s === 'verified' ? 'green' : s === 'rejected' ? 'red' : s === 'pending' ? 'amber' : 'gray'
   const statusLabel = (s) => s === 'verified' ? 'Verificado' : s === 'rejected' ? 'Rechazado' : 'Pendiente'
 
@@ -2464,6 +2474,11 @@ function DistribuidoresPanel() {
                       {app.status === 'verified' && (
                         <Btn sm variant="danger" onClick={() => revokeDistributor(app)} disabled={revoking === app.id}>
                           {revoking === app.id ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> : 'Revocar'}
+                        </Btn>
+                      )}
+                      {app.status === 'rejected' && (
+                        <Btn sm variant="danger" onClick={() => deleteApplication(app)} title="Eliminar solicitud">
+                          <Trash2 size={12} />
                         </Btn>
                       )}
                     </div>
