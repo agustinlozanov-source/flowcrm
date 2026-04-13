@@ -625,65 +625,60 @@ function Dashboard({ orgs, resellers }) {
 function Organizations({ orgs, resellers, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
   const [editOrg, setEditOrg] = useState(null)
-  const [form, setForm] = useState({ name: '', ownerEmail: '', ownerPassword: '', plan: 'starter', users: 1, mrr: 50, status: 'active', resellerId: '', modules: ['pipeline', 'leads', 'products', 'inbox', 'agent', 'analytics'] })
+  const [plans, setPlans] = useState([])
+  const [form, setForm] = useState({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: '', status: 'active' })
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(null)
 
-  const openNew = () => {
-    setEditOrg(null)
-    setForm({ name: '', ownerEmail: '', ownerPassword: '', plan: 'starter', users: 1, mrr: 50, status: 'active', resellerId: '', modules: ['pipeline', 'inbox', 'agent', 'analytics'] })
-    setShowModal(true)
-  }
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'plans'), snap => {
+      setPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.status === 'active'))
+    })
+    return unsub
+  }, [])
 
-  const openEdit = (org) => {
-    setEditOrg(org)
-    setForm({ ...org, ownerPassword: '' })
-    setShowModal(true)
-  }
+  const emptyForm = () => ({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: plans[0]?.id || '', status: 'active' })
 
-  const toggleModule = (id) => {
-    setForm(f => ({
-      ...f,
-      modules: f.modules.includes(id) ? f.modules.filter(m => m !== id) : [...f.modules, id]
-    }))
-  }
+  const openNew = () => { setEditOrg(null); setForm(emptyForm()); setShowModal(true) }
+  const openEdit = (org) => { setEditOrg(org); setForm({ ownerNombre: org.ownerNombre || '', ownerApellido: org.ownerApellido || '', name: org.name || '', ownerEmail: org.ownerEmail || '', ownerPassword: '', planId: org.planId || '', status: org.status || 'active' }); setShowModal(true) }
 
   const save = async () => {
-    if (!form.name || !form.ownerEmail) { toast.error('Nombre y email requeridos'); return }
+    if (!form.name || !form.ownerEmail) { toast.error('Empresa y email son requeridos'); return }
+    if (!editOrg && !form.ownerPassword) { toast.error('El password inicial es requerido'); return }
     setSaving(true)
     try {
+      const selectedPlan = plans.find(p => p.id === form.planId)
+      const orgData = {
+        ownerNombre: form.ownerNombre,
+        ownerApellido: form.ownerApellido,
+        name: form.name,
+        ownerEmail: form.ownerEmail,
+        planId: form.planId,
+        planName: selectedPlan?.name || '',
+        modules: selectedPlan?.features || [],
+        mrr: selectedPlan?.monthlyUSD || 0,
+        status: form.status,
+        updatedAt: serverTimestamp(),
+      }
+
       if (editOrg) {
-        await updateDoc(doc(db, 'organizations', editOrg.id), {
-          ...form,
-          updatedAt: serverTimestamp(),
-        })
+        await updateDoc(doc(db, 'organizations', editOrg.id), orgData)
         toast.success('Organización actualizada')
       } else {
-        // Create Firebase Auth user
         let uid = null
         try {
-          const cred = await createUserWithEmailAndPassword(auth, form.ownerEmail, form.ownerPassword || 'FlowCRM2025!')
+          const cred = await createUserWithEmailAndPassword(auth, form.ownerEmail, form.ownerPassword)
           uid = cred.user.uid
         } catch (e) {
           if (e.code !== 'auth/email-already-in-use') throw e
           toast('Email ya existe en Auth — vinculando org', { icon: 'ℹ️' })
         }
-
-        const orgRef = await addDoc(collection(db, 'organizations'), {
-          name: form.name,
-          ownerEmail: form.ownerEmail,
-          plan: form.plan,
-          users: form.users,
-          mrr: form.mrr,
-          status: form.status,
-          resellerId: form.resellerId || null,
-          modules: form.modules,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-
+        const orgRef = await addDoc(collection(db, 'organizations'), { ...orgData, createdAt: serverTimestamp() })
         if (uid) {
           await setDoc(doc(db, 'users', uid), {
             email: form.ownerEmail,
+            nombre: form.ownerNombre,
+            apellido: form.ownerApellido,
             orgId: orgRef.id,
             role: 'admin',
             createdAt: serverTimestamp(),
@@ -698,6 +693,20 @@ function Organizations({ orgs, resellers, onRefresh }) {
       toast.error(e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const deleteOrg = async (org) => {
+    if (!window.confirm(`¿Eliminar permanentemente la organización "${org.name}"? Esta acción no se puede deshacer.`)) return
+    setDeleting(org.id)
+    try {
+      await deleteDoc(doc(db, 'organizations', org.id))
+      toast.success('Organización eliminada')
+      onRefresh()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -718,12 +727,10 @@ function Organizations({ orgs, resellers, onRefresh }) {
         <table className="sa-table">
           <thead>
             <tr>
-              <th>Cliente</th>
+              <th>Administrador</th>
+              <th>Organización</th>
+              <th>Correo</th>
               <th>Plan</th>
-              <th>Módulos</th>
-              <th>Usuarios</th>
-              <th>MRR</th>
-              <th>Reseller</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -731,15 +738,19 @@ function Organizations({ orgs, resellers, onRefresh }) {
           <tbody>
             {orgs.map(org => (
               <tr key={org.id}>
+                <td style={{ fontWeight: 700 }}>
+                  {[org.ownerNombre, org.ownerApellido].filter(Boolean).join(' ') || '—'}
+                </td>
                 <td>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{org.name}</div>
-                  <div style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.ownerEmail}</div>
                 </td>
-                <td><Badge color={org.plan === 'enterprise' ? 'purple' : org.plan === 'pro' ? 'blue' : 'gray'}>{org.plan || 'starter'}</Badge></td>
-                <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{(org.modules || []).length} módulos</td>
-                <td style={{ color: 'var(--gray-3)', fontWeight: 600 }}>{org.users || 1}</td>
-                <td style={{ fontWeight: 700 }}>${org.mrr || 0}</td>
-                <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.resellerId ? resellers.find(r => r.id === org.resellerId)?.name || org.resellerId : '—'}</td>
+                <td style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.ownerEmail}</td>
+                <td>
+                  {org.planName
+                    ? <Badge color="blue">{org.planName}</Badge>
+                    : <span style={{ fontSize: 13, color: 'var(--gray-5)' }}>{org.plan || '—'}</span>
+                  }
+                </td>
                 <td>
                   <span className="sa-dot" style={{ background: org.status === 'active' ? 'var(--green)' : 'var(--red)', marginRight: 5 }} />
                   <span style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.status || 'active'}</span>
@@ -750,12 +761,15 @@ function Organizations({ orgs, resellers, onRefresh }) {
                     <Btn sm variant={org.status === 'active' ? 'danger' : 'ghost'} onClick={() => toggleStatus(org)}>
                       {org.status === 'active' ? 'Suspender' : 'Activar'}
                     </Btn>
+                    <Btn sm variant="danger" onClick={() => deleteOrg(org)} disabled={deleting === org.id}>
+                      {deleting === org.id ? '...' : <Trash2 size={12} />}
+                    </Btn>
                   </div>
                 </td>
               </tr>
             ))}
             {orgs.length === 0 && (
-              <tr><td colSpan={8}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
+              <tr><td colSpan={6}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
             )}
           </tbody>
         </table>
@@ -772,64 +786,56 @@ function Organizations({ orgs, resellers, onRefresh }) {
         >
           <div className="sa-form-row">
             <div className="sa-form-group">
-              <label className="sa-form-label">Nombre de la organización</label>
-              <input className="sa-form-input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Aktivz" />
+              <label className="sa-form-label">Nombre del administrador</label>
+              <input className="sa-form-input" value={form.ownerNombre} onChange={e => setForm(f => ({ ...f, ownerNombre: e.target.value }))} placeholder="Carlos" />
             </div>
             <div className="sa-form-group">
-              <label className="sa-form-label">Email del administrador</label>
-              <input className="sa-form-input" type="email" value={form.ownerEmail} onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))} placeholder="omar@aktivz.com" />
-            </div>
-          </div>
-          {!editOrg && (
-            <div className="sa-form-group">
-              <label className="sa-form-label">Password inicial (mín. 6 caracteres)</label>
-              <input className="sa-form-input" type="password" value={form.ownerPassword} onChange={e => setForm(f => ({ ...f, ownerPassword: e.target.value }))} placeholder="FlowCRM2025!" />
-            </div>
-          )}
-          <div className="sa-form-row">
-            <div className="sa-form-group">
-              <label className="sa-form-label">Plan</label>
-              <select className="sa-form-input sa-form-select" value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}>
-                {PLANS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="sa-form-group">
-              <label className="sa-form-label">Usuarios</label>
-              <input className="sa-form-input" type="number" min="1" value={form.users} onChange={e => setForm(f => ({ ...f, users: parseInt(e.target.value) }))} />
-            </div>
-          </div>
-          <div className="sa-form-row">
-            <div className="sa-form-group">
-              <label className="sa-form-label">MRR (USD/mes)</label>
-              <input className="sa-form-input" type="number" value={form.mrr} onChange={e => setForm(f => ({ ...f, mrr: parseFloat(e.target.value) }))} placeholder="50" />
-            </div>
-            <div className="sa-form-group">
-              <label className="sa-form-label">Reseller (opcional)</label>
-              <select className="sa-form-input sa-form-select" value={form.resellerId || ''} onChange={e => setForm(f => ({ ...f, resellerId: e.target.value }))}>
-                <option value="">— Directo —</option>
-                {resellers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              <label className="sa-form-label">Apellido</label>
+              <input className="sa-form-input" value={form.ownerApellido} onChange={e => setForm(f => ({ ...f, ownerApellido: e.target.value }))} placeholder="Medina" />
             </div>
           </div>
           <div className="sa-form-group">
-            <label className="sa-form-label">Estado</label>
-            <select className="sa-form-input sa-form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              <option value="active">Activo</option>
-              <option value="suspended">Suspendido</option>
-              <option value="trial">Trial</option>
-            </select>
+            <label className="sa-form-label">Empresa / Organización</label>
+            <input className="sa-form-input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Aktivz" />
           </div>
-          <div className="sa-divider" />
-          <div className="sa-form-label" style={{ marginBottom: 10 }}>Módulos habilitados</div>
-          <div className="sa-module-grid">
-            {MODULES_CATALOG.map(m => (
-              <div key={m.id} className={clsx('sa-module-toggle', form.modules?.includes(m.id) && 'on')} onClick={() => toggleModule(m.id)}>
-                <div className="sa-module-check">{form.modules?.includes(m.id) && <Check size={12} />}</div>
-                <span style={{ fontSize: 15 }}>{m.icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{m.name}</span>
-                <span style={{ fontSize: 12, color: 'var(--gray-5)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{m.tag}</span>
+          <div className="sa-form-row">
+            <div className="sa-form-group">
+              <label className="sa-form-label">Email del administrador</label>
+              <input className="sa-form-input" type="email" value={form.ownerEmail} onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))} placeholder="carlos@aktivz.com" disabled={!!editOrg} />
+            </div>
+            {!editOrg && (
+              <div className="sa-form-group">
+                <label className="sa-form-label">Password inicial</label>
+                <input className="sa-form-input" type="password" value={form.ownerPassword} onChange={e => setForm(f => ({ ...f, ownerPassword: e.target.value }))} placeholder="Mínimo 6 caracteres" />
               </div>
-            ))}
+            )}
+          </div>
+          <div className="sa-form-row">
+            <div className="sa-form-group">
+              <label className="sa-form-label">Plan contratado</label>
+              <select className="sa-form-input sa-form-select" value={form.planId} onChange={e => setForm(f => ({ ...f, planId: e.target.value }))}>
+                <option value="">— Sin plan —</option>
+                {plans.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} · ${p.monthlyUSD} USD/mes</option>
+                ))}
+              </select>
+              {form.planId && (() => {
+                const pl = plans.find(p => p.id === form.planId)
+                return pl ? (
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--gray-4)' }}>
+                    {pl.features?.length || 0} módulos · {pl.maxUsers === 999 ? '∞' : pl.maxUsers} usuarios · {pl.maxLeads === 999999 ? '∞' : pl.maxLeads?.toLocaleString()} leads
+                  </div>
+                ) : null
+              })()}
+            </div>
+            <div className="sa-form-group">
+              <label className="sa-form-label">Estado</label>
+              <select className="sa-form-input sa-form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="active">Activo</option>
+                <option value="suspended">Suspendido</option>
+                <option value="trial">Trial</option>
+              </select>
+            </div>
           </div>
         </Modal>
       )}
