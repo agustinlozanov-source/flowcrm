@@ -163,7 +163,7 @@ export default function NewLeadModal({ pipelines = [], allStages = [], stages = 
         currency: form.currency,
         source: form.source,
         stageId: form.stageId,
-        pipelineId: activePipelineId || null,
+        pipelineId: form.pipelineId || null,
       })
       toast.success('Lead creado')
       onClose()
