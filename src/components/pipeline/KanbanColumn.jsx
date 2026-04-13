@@ -54,7 +54,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }) {
       <div
         ref={setNodeRef}
         className={clsx(
-          'flex-1 flex flex-col gap-2 rounded-[12px] p-2 min-h-[120px] transition-colors duration-150',
+          'flex flex-col gap-2 rounded-[12px] p-2 min-h-[120px] transition-colors duration-150',
           isOver ? 'bg-black/[0.04]' : 'bg-black/[0.02]'
         )}
         style={{
