@@ -2166,6 +2166,7 @@ function DistribuidoresPanel() {
   const [applications, setApplications] = useState([])
   const [approving, setApproving] = useState(null)
   const [rejecting, setRejecting] = useState(null)
+  const [revoking, setRevoking] = useState(null)
   const [filterStatus, setFilterStatus] = useState('pending')
   const [detail, setDetail] = useState(null)
 
@@ -2333,6 +2334,39 @@ function DistribuidoresPanel() {
     }
   }
 
+  const revokeDistributor = async (application) => {
+    if (!window.confirm(`¿Revocar distribuidor a ${application.nombre} ${application.apellido_paterno}? Se eliminarán los permisos del portal.`)) return
+    setRevoking(application.id)
+    try {
+      // 1. Revertir status de la solicitud
+      await updateDoc(doc(db, 'distributorApplications', application.id), {
+        status: 'rejected', revokedAt: serverTimestamp(),
+      })
+
+      // 2. Quitar flags del usuario y de la org
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', application.email)))
+      if (!usersSnap.empty) {
+        const userDoc = usersSnap.docs[0]
+        const orgId = userDoc.data().orgId
+        await updateDoc(doc(db, 'users', userDoc.id), {
+          isDistributor: false, distributorLevel: null,
+        })
+        if (orgId) {
+          await updateDoc(doc(db, 'organizations', orgId), {
+            isDistribuidor: false,
+          })
+        }
+      }
+
+      toast.success('Distribuidor revocado correctamente')
+    } catch (err) {
+      console.error(err)
+      toast.error('Error al revocar: ' + err.message)
+    } finally {
+      setRevoking(null)
+    }
+  }
+
   const statusColor = (s) => s === 'verified' ? 'green' : s === 'rejected' ? 'red' : s === 'pending' ? 'amber' : 'gray'
   const statusLabel = (s) => s === 'verified' ? 'Verificado' : s === 'rejected' ? 'Rechazado' : 'Pendiente'
 
@@ -2426,6 +2460,11 @@ function DistribuidoresPanel() {
                             {isRejecting ? '...' : 'Rechazar'}
                           </Btn>
                         </>
+                      )}
+                      {app.status === 'verified' && (
+                        <Btn sm variant="danger" onClick={() => revokeDistributor(app)} disabled={revoking === app.id}>
+                          {revoking === app.id ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> : 'Revocar'}
+                        </Btn>
                       )}
                     </div>
                   </td>
