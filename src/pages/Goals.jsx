@@ -447,7 +447,6 @@ export default function Goals() {
   const [showWeeklyModal, setShowWeeklyModal] = useState(false)
 
   const goalKey = `${selectedYear}-${selectedQuarter}`
-  const goalKey = `${selectedYear}-${selectedQuarter}`
   const goal = goals[goalKey] || null
   const metrics = computedMetrics(goal)
   const goalActuals = actuals[goalKey] || { monthly: {}, weekly: {} }
