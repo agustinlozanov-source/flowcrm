@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc, setDoc,
   updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, getDocs, where
@@ -2498,6 +2498,286 @@ function AccountCheck({ email }) {
 }
 
 // ─── DISTRIBUIDOR CONFIG ───
+// ─── DISTRIBUIDOR SCORING EDITOR ─────────────────────────────────
+function DistribuidorScoringEditor({ signals, onChange }) {
+  const DEFAULT_SCORING = [
+    { id: 'cat_perfil', label: 'Perfil emprendedor', color: '#0066ff', desc: '¿Tiene la mentalidad correcta?', tope: 30, subcategories: [
+      { id: 'sub_mentalidad', label: 'Mentalidad', tope: 15, signals: [
+        { id: 's1', text: 'Ya vende en multinivel o tiene experiencia en ventas directas', type: 'up', weight: 8 },
+        { id: 's2', text: 'Habla de ingresos adicionales o independencia económica', type: 'up', weight: 6 },
+        { id: 's3', text: 'Busca solo ingreso fijo — no le interesa el modelo variable', type: 'down', weight: -10 },
+      ]},
+      { id: 'sub_red', label: 'Red de contactos', tope: 15, signals: [
+        { id: 's4', text: 'Tiene una red activa de contactos — genealogía propia', type: 'up', weight: 10 },
+        { id: 's5', text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up', weight: 6 },
+        { id: 's6', text: 'Nunca ha vendido ni tiene experiencia comercial', type: 'down', weight: -8 },
+      ]},
+    ]},
+    { id: 'cat_capacidad', label: 'Capacidad económica', color: '#00875a', desc: '¿Puede pagar la implementación?', tope: 25, subcategories: [
+      { id: 'sub_presupuesto', label: 'Presupuesto', tope: 15, signals: [
+        { id: 's7', text: 'Tiene ingresos activos por su negocio actual', type: 'up', weight: 10 },
+        { id: 's8', text: 'Está dispuesto a invertir para mejorar su negocio', type: 'up', weight: 8 },
+        { id: 's9', text: 'Evadió preguntas sobre presupuesto', type: 'down', weight: -8 },
+      ]},
+      { id: 'sub_decision', label: 'Autoridad de decisión', tope: 10, signals: [
+        { id: 's10', text: 'Puede decidir solo sin consultar a nadie', type: 'up', weight: 8 },
+        { id: 's11', text: 'Depende de que otra persona apruebe el gasto', type: 'down', weight: -6 },
+      ]},
+    ]},
+    { id: 'cat_dolores', label: 'Dolores del negocio', color: '#7c3aed', desc: '¿Tiene los problemas que Flow Hub resuelve?', tope: 25, subcategories: [
+      { id: 'sub_seguimiento', label: 'Seguimiento', tope: 15, signals: [
+        { id: 's12', text: 'No tiene sistema de seguimiento de prospectos', type: 'up', weight: 10 },
+        { id: 's13', text: 'Pierde leads por falta de respuesta oportuna', type: 'up', weight: 8 },
+        { id: 's14', text: 'Ya usa un CRM y está satisfecho con él', type: 'down', weight: -10 },
+      ]},
+      { id: 'sub_visibilidad', label: 'Visibilidad', tope: 10, signals: [
+        { id: 's15', text: 'No tiene visibilidad de su equipo o genealogía', type: 'up', weight: 8 },
+        { id: 's16', text: 'Tiene menos de 5 prospectos al mes — negocio muy pequeño', type: 'down', weight: -6 },
+      ]},
+    ]},
+    { id: 'cat_intencion', label: 'Intención de avanzar', color: '#b45309', desc: '¿Quiere ver la demo y decidir?', tope: 20, subcategories: [
+      { id: 'sub_compromiso', label: 'Compromiso', tope: 20, signals: [
+        { id: 's17', text: 'Preguntó cuándo puede ver el sistema en vivo', type: 'up', weight: 12 },
+        { id: 's18', text: 'Volvió a escribir por iniciativa propia tras silencio', type: 'up', weight: 8 },
+        { id: 's19', text: 'Solo pide info escrita sin comprometerse a reunión', type: 'down', weight: -6 },
+        { id: 's20', text: 'Responde con monosílabos o sin profundidad', type: 'down', weight: -8 },
+      ]},
+    ]},
+  ]
+
+  const data = signals && signals.length > 0 ? signals : DEFAULT_SCORING
+  const [openCats, setOpenCats] = useState({})
+  const [openSubs, setOpenSubs] = useState({})
+  const [newSigText, setNewSigText] = useState({})
+  const [newSigType, setNewSigType] = useState({})
+  const [newSubName, setNewSubName] = useState({})
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatForm, setNewCatForm] = useState({ label: '', color: '#0066ff', desc: '', tope: 20 })
+
+  const totalTope = data.reduce((s, c) => s + (c.tope || 0), 0)
+
+  const updateCat = (ci, field, val) =>
+    onChange(data.map((c, i) => i === ci ? { ...c, [field]: field === 'tope' ? Number(val) : val } : c))
+  const removeCat = (ci) => onChange(data.filter((_, i) => i !== ci))
+  const addCat = () => {
+    if (!newCatForm.label.trim()) return
+    onChange([...data, { id: `cat_${Date.now()}`, ...newCatForm, tope: Number(newCatForm.tope) || 20, subcategories: [] }])
+    setNewCatForm({ label: '', color: '#0066ff', desc: '', tope: 20 })
+    setAddingCat(false)
+  }
+
+  const updateSub = (ci, si, field, val) =>
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.map((s, j) => j !== si ? s : { ...s, [field]: field === 'tope' ? Number(val) : val }) }))
+  const removeSub = (ci, si) =>
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.filter((_, j) => j !== si) }))
+  const addSub = (ci) => {
+    const name = (newSubName[ci] || '').trim()
+    if (!name) return
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: [...(c.subcategories || []), { id: `sub_${Date.now()}`, label: name, tope: 10, signals: [] }] }))
+    setNewSubName(s => ({ ...s, [ci]: '' }))
+  }
+
+  const updateSignalField = (ci, si, sgi, field, val) =>
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.map((s, j) => j !== si ? s : { ...s, signals: s.signals.map((sg, k) => k !== sgi ? sg : { ...sg, [field]: field === 'weight' ? Number(val) : val }) }) }))
+  const removeSignal = (ci, si, sgi) =>
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.map((s, j) => j !== si ? s : { ...s, signals: s.signals.filter((_, k) => k !== sgi) }) }))
+  const addSignal = (ci, si) => {
+    const key = `${ci}_${si}`
+    const text = (newSigText[key] || '').trim()
+    if (!text) return
+    const type = newSigType[key] || 'up'
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.map((s, j) => j !== si ? s : { ...s, signals: [...(s.signals || []), { id: `sig_${Date.now()}`, text, type, weight: type === 'up' ? 5 : -5 }] }) }))
+    setNewSigText(s => ({ ...s, [key]: '' }))
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800 }}>Señales de Scoring del Agente IA</div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 8, background: totalTope === 100 ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)', color: totalTope === 100 ? '#00875a' : '#ff3b30', border: `1px solid ${totalTope === 100 ? 'rgba(0,200,83,0.3)' : 'rgba(255,59,48,0.3)'}` }}>
+          {totalTope} / 100 pts {totalTope === 100 ? '✓' : '⚠'}
+        </span>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--gray-4)', marginBottom: 20 }}>
+        Organiza categorías y subcategorías. La suma de topes debe ser exactamente 100.
+      </div>
+
+      {data.map((cat, ci) => {
+        const subTopeSum = (cat.subcategories || []).reduce((s, sub) => s + (sub.tope || 0), 0)
+        const subExceed = subTopeSum > cat.tope
+        return (
+          <div key={cat.id || ci} style={{ marginBottom: 14, border: '1px solid rgba(0,0,0,0.07)', borderRadius: 12, overflow: 'hidden', background: 'white' }}>
+            {/* Category header */}
+            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(0,0,0,0.015)', cursor: 'pointer', borderBottom: openCats[ci] ? '1px solid rgba(0,0,0,0.06)' : 'none' }}
+              onClick={() => setOpenCats(s => ({ ...s, [ci]: !s[ci] }))}>
+              <input type="color" value={cat.color}
+                onClick={e => e.stopPropagation()}
+                onChange={e => updateCat(ci, 'color', e.target.value)}
+                style={{ width: 22, height: 22, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}
+              />
+              <input value={cat.label} placeholder="Nombre categoría"
+                onClick={e => e.stopPropagation()}
+                onChange={e => updateCat(ci, 'label', e.target.value)}
+                style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', flex: 1, minWidth: 0 }}
+              />
+              <input value={cat.desc || ''} placeholder="Descripción corta"
+                onClick={e => e.stopPropagation()}
+                onChange={e => updateCat(ci, 'desc', e.target.value)}
+                style={{ fontSize: 12, background: 'transparent', border: 'none', outline: 'none', color: 'var(--gray-4)', width: 160 }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                <span style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 700 }}>Tope</span>
+                <input type="number" min="1" max="100" value={cat.tope}
+                  onChange={e => updateCat(ci, 'tope', e.target.value)}
+                  style={{ width: 52, padding: '3px 6px', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: "'Inter',sans-serif" }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--gray-4)' }}>pts</span>
+              </div>
+              <button onClick={e => { e.stopPropagation(); removeCat(ci) }}
+                style={{ background: 'rgba(255,59,48,0.08)', border: 'none', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff3b30', flexShrink: 0 }}>
+                <Trash2 size={11} />
+              </button>
+              {openCats[ci] ? <ChevronDown size={14} style={{ transform: 'rotate(180deg)', flexShrink: 0 }} /> : <ChevronDown size={14} style={{ flexShrink: 0 }} />}
+            </div>
+
+            {/* Subcategories */}
+            {openCats[ci] && (
+              <div style={{ padding: '10px 14px 14px' }}>
+                {subExceed && (
+                  <div style={{ padding: '8px 12px', background: 'rgba(255,149,0,0.08)', border: '1px solid rgba(255,149,0,0.25)', borderRadius: 8, fontSize: 12, color: '#ff9500', marginBottom: 10 }}>
+                    ⚠️ Suma de topes de subcategorías ({subTopeSum}) supera el tope de categoría ({cat.tope})
+                  </div>
+                )}
+                {(cat.subcategories || []).map((sub, si) => (
+                  <div key={sub.id || si} style={{ marginBottom: 10, border: '1px solid rgba(0,0,0,0.05)', borderRadius: 9, overflow: 'hidden' }}>
+                    {/* Sub header */}
+                    <div style={{ padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.02)', cursor: 'pointer' }}
+                      onClick={() => setOpenSubs(s => ({ ...s, [`${ci}_${si}`]: !s[`${ci}_${si}`] }))}>
+                      <input value={sub.label} placeholder="Nombre subcategoría"
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => updateSub(ci, si, 'label', e.target.value)}
+                        style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, fontWeight: 700, flex: 1, background: 'transparent', border: 'none', outline: 'none' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                        <span style={{ fontSize: 10, color: 'var(--gray-4)' }}>Tope</span>
+                        <input type="number" min="1" value={sub.tope}
+                          onChange={e => updateSub(ci, si, 'tope', e.target.value)}
+                          style={{ width: 44, padding: '2px 5px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 5, fontSize: 12, fontWeight: 700, textAlign: 'center', outline: 'none' }}
+                        />
+                        <span style={{ fontSize: 10, color: 'var(--gray-4)' }}>pts</span>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); removeSub(ci, si) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff3b30', padding: 3, display: 'flex', alignItems: 'center' }}>
+                        <X size={12} />
+                      </button>
+                      {openSubs[`${ci}_${si}`] ? <ChevronDown size={12} style={{ transform: 'rotate(180deg)', flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
+                    </div>
+
+                    {/* Signals */}
+                    {openSubs[`${ci}_${si}`] && (
+                      <div style={{ padding: '8px 12px 12px', paddingLeft: 20 }}>
+                        {(sub.signals || []).map((sig, sgi) => (
+                          <div key={sig.id || sgi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, marginBottom: 5, background: sig.type === 'up' ? 'rgba(0,200,83,0.04)' : 'rgba(255,59,48,0.04)', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.15)' : 'rgba(255,59,48,0.12)'}` }}>
+                            <div style={{ width: 20, height: 20, borderRadius: 5, background: sig.type === 'up' ? 'rgba(0,200,83,0.12)' : 'rgba(255,59,48,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {sig.type === 'up' ? <TrendingUp size={11} color="#00c853" /> : <TrendingDown size={11} color="#ff3b30" />}
+                            </div>
+                            <select value={sig.type}
+                              onChange={e => updateSignalField(ci, si, sgi, 'type', e.target.value)}
+                              style={{ fontSize: 11, border: '1px solid rgba(0,0,0,0.12)', borderRadius: 5, padding: '2px 4px', background: 'white', flexShrink: 0 }}>
+                              <option value="up">▲ Sube</option>
+                              <option value="down">▼ Baja</option>
+                            </select>
+                            <input value={sig.text}
+                              onChange={e => updateSignalField(ci, si, sgi, 'text', e.target.value)}
+                              style={{ flex: 1, fontSize: 12, background: 'transparent', border: 'none', outline: 'none', color: '#3a3a3c', minWidth: 0 }}
+                            />
+                            <input type="number" value={sig.weight}
+                              onChange={e => updateSignalField(ci, si, sgi, 'weight', e.target.value)}
+                              style={{ width: 50, padding: '2px 5px', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.3)' : 'rgba(255,59,48,0.3)'}`, borderRadius: 5, fontSize: 12, fontWeight: 700, textAlign: 'center', outline: 'none', color: sig.type === 'up' ? '#00875a' : '#ff3b30', flexShrink: 0 }}
+                            />
+                            <button onClick={() => removeSignal(ci, si, sgi)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 2, flexShrink: 0 }}>
+                              <X size={11} />
+                            </button>
+                          </div>
+                        ))}
+                        {/* Add signal row */}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <select value={newSigType[`${ci}_${si}`] || 'up'}
+                            onChange={e => setNewSigType(s => ({ ...s, [`${ci}_${si}`]: e.target.value }))}
+                            style={{ fontSize: 11, border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, padding: '4px 5px', background: 'white', flexShrink: 0 }}>
+                            <option value="up">▲ Sube</option>
+                            <option value="down">▼ Baja</option>
+                          </select>
+                          <input value={newSigText[`${ci}_${si}`] || ''} placeholder="Nueva señal..."
+                            onChange={e => setNewSigText(s => ({ ...s, [`${ci}_${si}`]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') addSignal(ci, si) }}
+                            style={{ flex: 1, fontSize: 12, border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, padding: '5px 9px', outline: 'none' }}
+                          />
+                          <button onClick={() => addSignal(ci, si)}
+                            style={{ background: '#0066ff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <Plus size={11} /> Add
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* Add subcategory row */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <input value={newSubName[ci] || ''} placeholder="Nueva subcategoría..."
+                    onChange={e => setNewSubName(s => ({ ...s, [ci]: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') addSub(ci) }}
+                    style={{ flex: 1, fontSize: 12, border: '1px dashed rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', outline: 'none' }}
+                  />
+                  <button onClick={() => addSub(ci)}
+                    style={{ background: 'white', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 7, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={12} /> Subcategoría
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Add category */}
+      {addingCat ? (
+        <div style={{ border: '1px solid rgba(0,102,255,0.25)', borderRadius: 12, padding: 16, background: 'rgba(0,102,255,0.03)', marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Nueva categoría</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            <input type="color" value={newCatForm.color} onChange={e => setNewCatForm(f => ({ ...f, color: e.target.value }))}
+              style={{ width: 34, height: 34, borderRadius: 8, border: 'none', padding: 0, cursor: 'pointer' }} />
+            <input value={newCatForm.label} placeholder="Nombre *" onChange={e => setNewCatForm(f => ({ ...f, label: e.target.value }))}
+              style={{ flex: 1, minWidth: 140, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+            <input value={newCatForm.desc} placeholder="Descripción" onChange={e => setNewCatForm(f => ({ ...f, desc: e.target.value }))}
+              style={{ flex: 1, minWidth: 140, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <input type="number" value={newCatForm.tope} min="1" max="100" onChange={e => setNewCatForm(f => ({ ...f, tope: e.target.value }))}
+                style={{ width: 54, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 8px', fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+              <span style={{ fontSize: 12, color: 'var(--gray-4)' }}>pts tope</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setAddingCat(false)} style={{ flex: 1, padding: '7px 0', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 8, background: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={addCat} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 8, background: '#0066ff', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Agregar categoría</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAddingCat(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px', width: '100%', border: '2px dashed rgba(0,0,0,.1)', borderRadius: 12, background: 'transparent', color: 'var(--gray-4)', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = '#0066ff'; e.currentTarget.style.color = '#0066ff' }}
+          onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,.1)'; e.currentTarget.style.color = 'var(--gray-4)' }}>
+          <Plus size={15} /> Agregar categoría
+        </button>
+      )}
+
+      <div style={{ padding: '11px 14px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff', marginTop: 4 }}>
+        ℹ️ Los pesos se incluyen en el system prompt automáticamente al guardar. El agente suma los puntos de cada señal detectada (0–100).
+      </div>
+    </>
+  )
+}
+
 function DistribuidorConfig() {
   const DEFAULT_CONFIG = {
     puntosRaiz: 3,
@@ -2518,6 +2798,8 @@ function DistribuidorConfig() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('niveles')
+  const [uploadedKnowledgeFile, setUploadedKnowledgeFile] = useState(null)
+  const knowledgeFileRef = useRef()
 
   useEffect(() => {
     getDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'))
@@ -2783,91 +3065,118 @@ function DistribuidorConfig() {
       )}
 
       {/* PIPELINE SCORING */}
-      {activeTab === 'pipeline_scoring' && (
-        <div>
-          <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 16 }}>
-            Define el rango de score para cada etapa del Pipeline de Flow Hub. El agente mueve automáticamente a los prospectos según estos rangos. Las etapas fijas no se pueden renombrar.
-          </div>
-          {[
-            { name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0, scoreMax: 30, locked: false, key: 'stage_1' },
-            { name: 'Primer contacto', color: '#0066ff', scoreMin: 31, scoreMax: 50, locked: false, key: 'stage_2' },
-            { name: 'Reunión agendada', color: '#7c3aed', scoreMin: 51, scoreMax: 65, locked: false, key: 'stage_3' },
-            { name: 'Presentación hecha', color: '#ff9500', scoreMin: 66, scoreMax: 75, locked: false, key: 'stage_4' },
-            { name: 'Enlace enviado', color: '#00b8d9', scoreMin: 76, scoreMax: 85, locked: true, key: 'stage_5' },
-            { name: 'Formulario completado', color: '#6366f1', scoreMin: 86, scoreMax: 92, locked: true, key: 'stage_6' },
-            { name: 'En verificación', color: '#ff9500', scoreMin: 93, scoreMax: 97, locked: true, key: 'stage_7' },
-            { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true, key: 'stage_8' },
-          ].map((stage, idx) => {
-            const stageConfig = config.pipelineStages?.[stage.key] || stage
-            return (
-              <div key={stage.key} className="sa-card" style={{ marginBottom: 10 }}>
-                <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    {stage.locked ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800 }}>{stage.name}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,0.06)', color: 'var(--gray-4)', padding: '2px 7px', borderRadius: 5 }}>
-                          <Lock size={10} /> Fija
-                        </span>
-                      </div>
-                    ) : (
-                      <input
-                        defaultValue={stageConfig.name || stage.name}
-                        onBlur={e => {
-                          const stages = { ...(config.pipelineStages || {}) }
-                          stages[stage.key] = { ...(stages[stage.key] || stage), name: e.target.value }
-                          setConfig(c => ({ ...c, pipelineStages: stages }))
-                        }}
-                        style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', width: '100%' }}
-                      />
-                    )}
-                    <div style={{ fontSize: 12, color: 'var(--gray-4)', marginTop: 2 }}>Etapa {idx + 1} de 8</div>
+      {activeTab === 'pipeline_scoring' && (() => {
+        const FIXED_STAGE = { id: '_fixed_verified', name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100 }
+        const stages = config.pipelineStages || [
+          { id: 'ps_1', name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0, scoreMax: 30 },
+          { id: 'ps_2', name: 'Primer contacto', color: '#0066ff', scoreMin: 31, scoreMax: 50 },
+          { id: 'ps_3', name: 'Reunión agendada', color: '#7c3aed', scoreMin: 51, scoreMax: 65 },
+          { id: 'ps_4', name: 'Presentación hecha', color: '#ff9500', scoreMin: 66, scoreMax: 75 },
+          { id: 'ps_5', name: 'Enlace enviado', color: '#00b8d9', scoreMin: 76, scoreMax: 85 },
+          { id: 'ps_6', name: 'Formulario completado', color: '#6366f1', scoreMin: 86, scoreMax: 92 },
+          { id: 'ps_7', name: 'En verificación', color: '#ff9500', scoreMin: 93, scoreMax: 97 },
+        ]
+        const updateStage = (idx, field, val) => {
+          const next = stages.map((s, i) => i === idx ? { ...s, [field]: val } : s)
+          setConfig(c => ({ ...c, pipelineStages: next }))
+        }
+        const moveStage = (idx, dir) => {
+          const next = [...stages]
+          const target = idx + dir
+          if (target < 0 || target >= next.length) return
+          ;[next[idx], next[target]] = [next[target], next[idx]]
+          setConfig(c => ({ ...c, pipelineStages: next }))
+        }
+        const addStage = () => {
+          const next = [...stages, { id: `ps_${Date.now()}`, name: 'Nueva etapa', color: '#8e8e93', scoreMin: 0, scoreMax: 30 }]
+          setConfig(c => ({ ...c, pipelineStages: next }))
+        }
+        const removeStage = (idx) => {
+          if (stages.length <= 1) return
+          const next = stages.filter((_, i) => i !== idx)
+          setConfig(c => ({ ...c, pipelineStages: next }))
+        }
+        const handoffMin = stages.length > 0 ? stages[stages.length - 1].scoreMin : 93
+        return (
+          <div>
+            <div style={{ fontSize: 14, color: 'var(--gray-4)', marginBottom: 12 }}>
+              Define las etapas del Pipeline de distribuidores. El agente mueve prospectos según su score. La etapa <strong>Verificado — Activo</strong> es fija (score 98–100).
+            </div>
+            <div style={{ padding: '10px 14px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 10, fontSize: 13, color: '#7c3aed', marginBottom: 16 }}>
+              🤝 <strong>Handoff:</strong> Se activa cuando el prospecto alcanza score ≥ {handoffMin} (inicio de la última etapa editable).
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {stages.map((stage, idx) => (
+                <div key={stage.id} className="sa-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {/* Color picker */}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <input type="color" value={stage.color}
+                      onChange={e => updateStage(idx, 'color', e.target.value)}
+                      style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: 'none' }} />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* Name */}
+                  <input
+                    value={stage.name}
+                    onChange={e => updateStage(idx, 'name', e.target.value)}
+                    style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, background: 'transparent', border: 'none', outline: 'none', color: '#070708', flex: 1, minWidth: 0 }}
+                  />
+                  {/* Score range */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Score mín.</div>
-                      <input type="number" min="0" max="100"
-                        defaultValue={stageConfig.scoreMin ?? stage.scoreMin}
-                        disabled={stage.locked}
-                        onBlur={e => {
-                          const stages = { ...(config.pipelineStages || {}) }
-                          stages[stage.key] = { ...(stages[stage.key] || stage), scoreMin: parseInt(e.target.value) }
-                          setConfig(c => ({ ...c, pipelineStages: stages }))
-                        }}
-                        style={{ width: 72, background: stage.locked ? 'rgba(0,0,0,0.04)' : 'white', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 14, fontWeight: 700, color: stage.locked ? 'var(--gray-4)' : '#070708', outline: 'none', fontFamily: "'Inter',sans-serif" }}
+                      <div style={{ fontSize: 10, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Mín</div>
+                      <input type="number" min="0" max="100" value={stage.scoreMin}
+                        onChange={e => updateStage(idx, 'scoreMin', parseInt(e.target.value) || 0)}
+                        style={{ width: 60, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '5px 8px', fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: "'Inter',sans-serif" }}
                       />
                     </div>
-                    <div style={{ color: 'var(--gray-4)', fontSize: 16, fontWeight: 700, marginTop: 16 }}>—</div>
+                    <span style={{ color: 'var(--gray-4)', marginTop: 14 }}>–</span>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Score máx.</div>
-                      <input type="number" min="0" max="100"
-                        defaultValue={stageConfig.scoreMax ?? stage.scoreMax}
-                        disabled={stage.locked}
-                        onBlur={e => {
-                          const stages = { ...(config.pipelineStages || {}) }
-                          stages[stage.key] = { ...(stages[stage.key] || stage), scoreMax: parseInt(e.target.value) }
-                          setConfig(c => ({ ...c, pipelineStages: stages }))
-                        }}
-                        style={{ width: 72, background: stage.locked ? 'rgba(0,0,0,0.04)' : 'white', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '6px 10px', fontSize: 14, fontWeight: 700, color: stage.locked ? 'var(--gray-4)' : '#070708', outline: 'none', fontFamily: "'Inter',sans-serif" }}
+                      <div style={{ fontSize: 10, color: 'var(--gray-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Máx</div>
+                      <input type="number" min="0" max="100" value={stage.scoreMax}
+                        onChange={e => updateStage(idx, 'scoreMax', parseInt(e.target.value) || 0)}
+                        style={{ width: 60, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 7, padding: '5px 8px', fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: "'Inter',sans-serif" }}
                       />
-                    </div>
-                    <div style={{ width: 120, marginTop: 16 }}>
-                      <div style={{ height: 6, background: '#f0f0f2', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${stageConfig.scoreMax ?? stage.scoreMax}%`, height: '100%', background: stage.color, borderRadius: 3 }} />
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>{stageConfig.scoreMin ?? stage.scoreMin} – {stageConfig.scoreMax ?? stage.scoreMax}</div>
                     </div>
                   </div>
+                  {/* Reorder buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                    <button onClick={() => moveStage(idx, -1)} disabled={idx === 0}
+                      style={{ background: 'none', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 5, width: 24, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === 0 ? 0.3 : 1 }}>
+                      <ChevronDown size={12} style={{ transform: 'rotate(180deg)' }} />
+                    </button>
+                    <button onClick={() => moveStage(idx, 1)} disabled={idx === stages.length - 1}
+                      style={{ background: 'none', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 5, width: 24, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === stages.length - 1 ? 0.3 : 1 }}>
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
+                  {/* Delete */}
+                  {stages.length > 1 && (
+                    <button onClick={() => removeStage(idx)}
+                      style={{ background: 'rgba(255,59,48,0.07)', border: 'none', borderRadius: 7, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff3b30', flexShrink: 0 }}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
+              ))}
+              {/* Fixed stage */}
+              <div className="sa-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(0,200,83,0.04)', border: '1.5px solid rgba(0,200,83,0.25)' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#00c853', flexShrink: 0 }} />
+                <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, flex: 1 }}>
+                  {FIXED_STAGE.name}
+                </div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, background: 'rgba(0,200,83,0.12)', color: '#00875a', padding: '3px 9px', borderRadius: 6 }}>
+                  <Lock size={10} /> Fija · 98–100
+                </span>
               </div>
-            )
-          })}
-          <div style={{ marginTop: 8, padding: '12px 16px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff' }}>
-            ℹ️ Los rangos de las etapas fijas (Enlace enviado → Verificado Activo) no son editables. Solo las 4 etapas iniciales pueden ajustarse.
+            </div>
+            <button onClick={addStage} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', width: '100%', border: '2px dashed rgba(0,0,0,.1)', borderRadius: 14, background: 'transparent', color: 'var(--gray-4)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter',sans-serif", marginTop: 10 }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = '#0066ff'; e.currentTarget.style.color = '#0066ff' }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,.1)'; e.currentTarget.style.color = 'var(--gray-4)' }}>
+              <Plus size={16} /> Agregar etapa
+            </button>
           </div>
-        </div>
-      )}
+        )
+      })()}
       {activeTab === 'agente' && (
         <div>
           <div className="sa-card" style={{ padding: 24, marginBottom: 16 }}>
@@ -2880,88 +3189,71 @@ function DistribuidorConfig() {
               value={config.agentPrompt}
               onChange={e => setConfig(c => ({ ...c, agentPrompt: e.target.value }))}
             />
+
+            {/* Dropzone de conocimiento */}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Material de conocimiento adicional</div>
+              {uploadedKnowledgeFile ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.2)', borderRadius: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,102,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    📄
+                  </div>
+                  <span style={{ fontSize: 13, color: '#3a3a3c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{uploadedKnowledgeFile}</span>
+                  <button onClick={() => setUploadedKnowledgeFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff3b30', padding: 4 }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => knowledgeFileRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#0066ff' }}
+                  onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)' }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'
+                    const file = e.dataTransfer.files[0]
+                    if (!file) return
+                    const reader = new FileReader()
+                    reader.onload = ev => {
+                      const text = ev.target.result
+                      setConfig(c => ({ ...c, agentPrompt: c.agentPrompt + '\n\n--- MATERIAL DE CONOCIMIENTO ---\n\n' + text }))
+                      setUploadedKnowledgeFile(file.name)
+                    }
+                    reader.readAsText(file)
+                  }}
+                  style={{ border: '2px dashed rgba(0,0,0,0.12)', borderRadius: 10, padding: '20px 16px', textAlign: 'center', cursor: 'pointer', transition: 'border-color .15s' }}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>📎</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#3a3a3c', marginBottom: 2 }}>Arrastra un archivo o haz clic para seleccionar</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>.txt · .pdf · .md · .docx — Su contenido se append al prompt</div>
+                </div>
+              )}
+              <input ref={knowledgeFileRef} type="file" accept=".txt,.pdf,.md,.docx" className="hidden" style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = ev => {
+                    const text = ev.target.result
+                    setConfig(c => ({ ...c, agentPrompt: c.agentPrompt + '\n\n--- MATERIAL DE CONOCIMIENTO ---\n\n' + text }))
+                    setUploadedKnowledgeFile(file.name)
+                  }
+                  reader.readAsText(file)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+
             <div style={{ background: 'rgba(255,149,0,0.05)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#ff9500', marginTop: 12 }}>
               ⚠️ Este prompt reemplaza el prompt de todos los distribuidores en su pipeline de Flow Hub.
             </div>
           </div>
 
           <div className="sa-card" style={{ padding: 24 }}>
-            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Señales de Scoring del Agente IA</div>
-            <div style={{ fontSize: 13, color: 'var(--gray-4)', marginBottom: 20 }}>Cada señal tiene un peso (puntos) que el agente suma o resta al score del prospecto. Las señales ↑ suman, las ↓ restan.</div>
-
-            {(config.scoringSignals || [
-              { id: 'cat_perfil', label: 'Perfil como distribuidor', color: '#0066ff', desc: '¿Tiene la mentalidad y el perfil para vender Flow Hub?', signals: [
-                { id: 's1', text: 'Ya vende en multinivel o tiene experiencia en ventas directas', type: 'up', weight: 12 },
-                { id: 's2', text: 'Tiene una red activa de contactos — genealogía propia', type: 'up', weight: 10 },
-                { id: 's3', text: 'Habla de ingresos adicionales o independencia económica', type: 'up', weight: 8 },
-                { id: 's4', text: 'Mostró iniciativa — preguntó sin que le preguntaran', type: 'up', weight: 6 },
-                { id: 's5', text: 'Nunca ha vendido ni tiene experiencia comercial', type: 'down', weight: -10 },
-                { id: 's6', text: 'Busca solo un ingreso fijo — no le interesa el modelo variable', type: 'down', weight: -12 },
-              ]},
-              { id: 'cat_capacidad', label: 'Capacidad económica', color: '#00875a', desc: '¿Puede pagar la implementación y el plan mensual?', signals: [
-                { id: 's7', text: 'Tiene ingresos activos por su negocio actual', type: 'up', weight: 10 },
-                { id: 's8', text: 'Está dispuesto a invertir para mejorar su negocio', type: 'up', weight: 8 },
-                { id: 's9', text: 'Puede decidir solo sin consultar a nadie', type: 'up', weight: 8 },
-                { id: 's10', text: 'Evadió preguntas sobre presupuesto', type: 'down', weight: -8 },
-                { id: 's11', text: 'Depende de que otra persona apruebe el gasto', type: 'down', weight: -6 },
-              ]},
-              { id: 'cat_dolores', label: 'Dolores del negocio actual', color: '#7c3aed', desc: '¿Tiene los problemas que Flow Hub resuelve?', signals: [
-                { id: 's12', text: 'No tiene sistema de seguimiento de prospectos', type: 'up', weight: 10 },
-                { id: 's13', text: 'Pierde leads por falta de respuesta oportuna', type: 'up', weight: 8 },
-                { id: 's14', text: 'No tiene visibilidad de su equipo o genealogía', type: 'up', weight: 8 },
-                { id: 's15', text: 'Gasta tiempo creando contenido manualmente', type: 'up', weight: 6 },
-                { id: 's16', text: 'Ya usa un CRM y está satisfecho con él', type: 'down', weight: -10 },
-                { id: 's17', text: 'Tiene menos de 5 prospectos al mes — negocio muy pequeño', type: 'down', weight: -8 },
-              ]},
-              { id: 'cat_intencion', label: 'Intención de avanzar', color: '#b45309', desc: '¿Quiere ver la demostración y tomar una decisión?', signals: [
-                { id: 's18', text: 'Preguntó cuándo puede ver el sistema en vivo', type: 'up', weight: 12 },
-                { id: 's19', text: 'Preguntó por el programa de comisiones con detalle', type: 'up', weight: 10 },
-                { id: 's20', text: 'Volvió a escribir por iniciativa propia tras silencio', type: 'up', weight: 8 },
-                { id: 's21', text: 'Solo pide info escrita sin comprometerse a reunión', type: 'down', weight: -6 },
-                { id: 's22', text: 'Responde con monosílabos o sin profundidad', type: 'down', weight: -8 },
-              ]},
-            ]).map((cat, ci) => (
-              <div key={cat.id || ci} style={{ marginBottom: 20, background: 'rgba(0,0,0,0.02)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.06)' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10, background: 'white' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, flex: 1 }}>{cat.label}</div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-4)' }}>{cat.desc}</div>
-                </div>
-                <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {cat.signals.map((sig, si) => (
-                    <div key={sig.id || si} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, background: sig.type === 'up' ? 'rgba(0,200,83,0.05)' : 'rgba(255,59,48,0.05)', border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.15)' : 'rgba(255,59,48,0.12)'}` }}>
-                      <div style={{ width: 22, height: 22, borderRadius: 6, background: sig.type === 'up' ? 'rgba(0,200,83,0.12)' : 'rgba(255,59,48,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {sig.type === 'up'
-                          ? <TrendingUp size={12} color="#00c853" />
-                          : <TrendingDown size={12} color="#ff3b30" />
-                        }
-                      </div>
-                      <span style={{ fontSize: 13, color: '#3a3a3c', flex: 1 }}>{sig.text}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <span style={{ fontSize: 11, color: 'var(--gray-4)', fontWeight: 600 }}>Peso:</span>
-                        <input
-                          type="number"
-                          defaultValue={sig.weight}
-                          onBlur={e => {
-                            const newVal = parseInt(e.target.value) || 0
-                            const cats = JSON.parse(JSON.stringify(config.scoringSignals || []))
-                            if (cats[ci]?.signals?.[si]) {
-                              cats[ci].signals[si].weight = sig.type === 'up' ? Math.abs(newVal) : -Math.abs(newVal)
-                              setConfig(c => ({ ...c, scoringSignals: cats }))
-                            }
-                          }}
-                          style={{ width: 54, padding: '3px 7px', borderRadius: 6, border: `1px solid ${sig.type === 'up' ? 'rgba(0,200,83,0.3)' : 'rgba(255,59,48,0.3)'}`, background: 'white', fontSize: 13, fontWeight: 700, color: sig.type === 'up' ? '#00a04a' : '#ff3b30', textAlign: 'center', outline: 'none', fontFamily: "'Plus Jakarta Sans',sans-serif" }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            <div style={{ padding: '12px 16px', background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.15)', borderRadius: 10, fontSize: 13, color: '#4d9fff', marginTop: 8 }}>
-              ℹ️ Los pesos se incluyen en el system prompt del agente automáticamente al guardar. El agente suma los puntos de cada señal detectada para calcular el score del prospecto (0–100).
-            </div>
+            <DistribuidorScoringEditor
+              signals={config.scoringSignals}
+              onChange={next => setConfig(c => ({ ...c, scoringSignals: next }))}
+            />
           </div>
         </div>
       )}
