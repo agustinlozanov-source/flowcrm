@@ -3,7 +3,7 @@ import {
   collection, onSnapshot, query, orderBy, doc, setDoc,
   updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, getDocs, where
 } from 'firebase/firestore'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -666,25 +666,21 @@ function Organizations({ orgs, resellers, onRefresh }) {
         await updateDoc(doc(db, 'organizations', editOrg.id), orgData)
         toast.success('Organización actualizada')
       } else {
-        let uid = null
-        try {
-          const cred = await createUserWithEmailAndPassword(auth, form.ownerEmail, form.ownerPassword)
-          uid = cred.user.uid
-        } catch (e) {
-          if (e.code !== 'auth/email-already-in-use') throw e
-          toast('Email ya existe en Auth — vinculando org', { icon: 'ℹ️' })
-        }
-        const orgRef = await addDoc(collection(db, 'organizations'), { ...orgData, createdAt: serverTimestamp() })
-        if (uid) {
-          await setDoc(doc(db, 'users', uid), {
+        // Use backend function — Admin SDK creates the user without affecting the
+        // superadmin's current auth session (client SDK would sign in as the new user)
+        const res = await fetch('/.netlify/functions/create-org-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             email: form.ownerEmail,
+            password: form.ownerPassword,
             nombre: form.ownerNombre,
             apellido: form.ownerApellido,
-            orgId: orgRef.id,
-            role: 'admin',
-            createdAt: serverTimestamp(),
-          })
-        }
+            orgData,
+          }),
+        })
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.error || 'Error al crear organización')
         toast.success('Organización creada')
       }
       setShowModal(false)
