@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
 import {
   LayoutDashboard, UserCircle, Target, BarChart2, Users, Banknote,
   FileText, BookOpen, ShoppingBag, HelpCircle, LogOut, Crown, Bell,
@@ -406,7 +408,16 @@ const PAGE_TITLES = {
 export default function PortalDistribuidorPage() {
   const [theme, setTheme] = useState('dark')
   const [activePage, setActivePage] = useState('dashboard')
+  const [distribConfig, setDistribConfig] = useState(null)
   const navigate = useNavigate()
+
+  // ── Load distribuidor global config (pipeline stages, scoring, agent prompt) ──
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'flowhub_config', 'distribuidor_niveles'), snap => {
+      if (snap.exists()) setDistribConfig(snap.data())
+    })
+    return unsub
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -803,6 +814,32 @@ export default function PortalDistribuidorPage() {
                   </div>
                 ))}
               </div>
+
+              {/* ── Etapas del pipeline (desde Superadmin) ── */}
+              {(distribConfig?.pipelineStages?.length > 0) && (
+                <div className="p-card p-card-p p-mb-16">
+                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 800, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Target size={15} color="var(--blue)" />Etapas del pipeline
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {distribConfig.pipelineStages.map((stage, i) => (
+                      <div key={stage.id || i} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', borderRadius: 8,
+                        background: stage.color ? stage.color + '22' : 'var(--surface)',
+                        border: `1px solid ${stage.color || 'var(--border)'}44`,
+                      }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color || 'var(--text-3)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)' }}>{stage.name}</span>
+                        {(stage.scoreMin != null && stage.scoreMax != null) && (
+                          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{stage.scoreMin}–{stage.scoreMax} pts</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="p-card p-table-wrap">
                 <table>
                   <thead><tr><th>Prospecto</th><th>Tipo</th><th>Plan interés</th><th>Etapa</th><th>Último contacto</th><th>Comisión potencial</th></tr></thead>

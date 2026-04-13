@@ -313,12 +313,54 @@ async function saveLeadMessage(orgId, leadId, role, text) {
     })
 }
 
+// ── LOAD DISTRIBUIDOR GLOBAL CONFIG ──────────────────────────────
+async function loadDistribuidorConfig(orgId) {
+  try {
+    const orgSnap = await db.collection('organizations').doc(orgId).get()
+    if (!orgSnap.exists || !orgSnap.data()?.isDistribuidor) return null
+    const configSnap = await db.collection('flowhub_config').doc('distribuidor_niveles').get()
+    return configSnap.exists ? configSnap.data() : null
+  } catch {
+    return null
+  }
+}
+
+// ── BUILD DISTRIBUIDOR SCORING TEXT ──────────────────────────────
+function buildDistribuidorScoringText(scoringSignals) {
+  if (!scoringSignals?.length) return ''
+  return '\n\nSEÑALES DE CALIFICACIÓN PARA DISTRIBUIDORES:\n' +
+    scoringSignals.map(cat =>
+      `${cat.name} (máx ${cat.tope} pts):\n` +
+      (cat.subcategories || []).map(sub =>
+        `  ${sub.name}:\n` +
+        (sub.signals || []).map(sig => `    - ${sig.name}: ${sig.weight >= 0 ? '+' : ''}${sig.weight} pts`).join('\n')
+      ).join('\n')
+    ).join('\n\n')
+}
+
 // ── CHAT WITH AGENT ───────────────────────────────────────────────
 async function chatWithAssistant(orgId, leadId, message) {
   // Load agent config
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
   if (!settingsSnap.exists) throw new Error('Agente no configurado.')
-  const agentConfig = settingsSnap.data() || {}
+  let agentConfig = settingsSnap.data() || {}
+
+  // ── Distribuidor override: merge global agentPrompt + scoringSignals ──
+  const distribConfig = await loadDistribuidorConfig(orgId)
+  if (distribConfig) {
+    const extraScoringText = buildDistribuidorScoringText(distribConfig.scoringSignals)
+    if (distribConfig.agentPrompt) {
+      agentConfig = {
+        ...agentConfig,
+        customInstructions: distribConfig.agentPrompt + extraScoringText,
+      }
+    } else if (extraScoringText) {
+      agentConfig = {
+        ...agentConfig,
+        customInstructions: (agentConfig.customInstructions || '') + extraScoringText,
+      }
+    }
+  }
 
   // Load RAG files
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')

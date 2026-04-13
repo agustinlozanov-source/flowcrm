@@ -2220,6 +2220,12 @@ function DistribuidoresPanel() {
         distributorApplicationId: application.id,
       })
 
+      // 4b. Marcar la organización como distribuidora
+      await updateDoc(doc(db, 'organizations', orgId), {
+        isDistribuidor: true,
+        distribuidorSince: serverTimestamp(),
+      })
+
       // 5. Crear Pipeline de Flow Hub en su org
       const pipelineRef = await addDoc(collection(db, 'organizations', orgId, 'pipelines'), {
         name: 'Clientes Flow Hub CRM',
