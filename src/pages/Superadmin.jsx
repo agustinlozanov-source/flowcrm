@@ -630,7 +630,6 @@ function Organizations({ orgs, resellers, onRefresh }) {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [repairing, setRepairing] = useState(null)
-  const [repairing, setRepairing] = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'plans'), snap => {
