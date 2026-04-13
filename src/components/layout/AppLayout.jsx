@@ -14,6 +14,7 @@ const NAV_SECTIONS = [
     items: [
       {
         to: '/pipeline',
+        moduleId: 'pipeline',
         labelKey: 'nav.pipeline',
         permission: null, // always visible
         icon: (
@@ -26,6 +27,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/leads',
+        moduleId: 'leads',
         labelKey: 'nav.contacts',
         permission: null,
         icon: (
@@ -37,6 +39,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/products',
+        moduleId: 'products',
         labelKey: 'nav.catalog',
         permission: null, // visible to all, readonly for sellers without permission
         icon: (
@@ -50,6 +53,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/agent',
+        moduleId: 'agent',
         labelKey: 'nav.agent',
         permission: 'can_configure_agent',
         icon: (
@@ -60,6 +64,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/inbox',
+        moduleId: 'inbox',
         labelKey: 'nav.inbox',
         permission: null,
         icon: (
@@ -71,6 +76,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/meetings',
+        moduleId: 'meetings',
         labelKey: 'nav.meetings',
         permission: null,
         icon: (
@@ -82,6 +88,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/team',
+        moduleId: 'team',
         labelKey: 'nav.team',
         permission: null, // visible to all — sellers see their own genealogy
         icon: (
@@ -100,6 +107,7 @@ const NAV_SECTIONS = [
     items: [
       {
         to: '/import',
+        moduleId: 'import',
         labelKey: 'nav.import',
         permission: null,
         icon: (
@@ -111,6 +119,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/analytics',
+        moduleId: 'analytics',
         labelKey: 'nav.analytics',
         permission: 'can_see_team_reports',
         icon: (
@@ -122,6 +131,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/content',
+        moduleId: 'content',
         labelKey: 'nav.content',
         permission: null,
         icon: (
@@ -133,6 +143,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/landing',
+        moduleId: 'landing',
         labelKey: 'nav.landing',
         permission: null,
         icon: (
@@ -144,6 +155,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/referrals',
+        moduleId: 'referrals',
         labelKey: 'nav.referrals',
         badge: null,
         permission: null,
@@ -155,6 +167,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/goals',
+        moduleId: 'goals',
         labelKey: 'nav.goals',
         permission: null,
         icon: (
@@ -188,12 +201,16 @@ export default function AppLayout() {
     }
   }
 
-  // Filter nav items based on permissions
+  // Filter nav items based on permissions + plan modules
+  const orgModules = org?.modules // string[] | undefined
   const visibleSections = NAV_SECTIONS.map(section => ({
     ...section,
     items: section.items.filter(item => {
-      if (!item.permission) return true
-      return can(item.permission)
+      // Module gate: if org has a modules list, only show items in that list
+      if (orgModules?.length > 0 && item.moduleId && !orgModules.includes(item.moduleId)) return false
+      // Permission gate
+      if (item.permission && !can(item.permission)) return false
+      return true
     })
   })).filter(section => section.items.length > 0)
 

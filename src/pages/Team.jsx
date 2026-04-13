@@ -627,7 +627,7 @@ function NodeDetailPanel({ node, onClose, onEdit, onInvite }) {
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────
 export default function Team() {
-  const { user } = useAuthStore()
+  const { user, org } = useAuthStore()
   const { can, isAdmin, canManageTeam, canSeeFullGenealogy, canInviteMembers } = usePermissions()
   const {
     members, loading, teamStats,
@@ -636,6 +636,11 @@ export default function Team() {
     toggleMemberActive, deleteMember,
     createInvite,
   } = useTeam()
+
+  // ── Plan user-limit gate ───────────────────────────────────────
+  const maxUsers = org?.maxUsers ?? null
+  const atUserLimit = maxUsers !== null && maxUsers !== 999 && members.length >= maxUsers
+  const usersRemaining = maxUsers !== null && maxUsers !== 999 ? maxUsers - members.length : null
 
   const [activeTab, setActiveTab] = useState('members')
   const [search, setSearch] = useState('')
@@ -662,6 +667,10 @@ export default function Team() {
       await updateMemberPermissions(editMember.id, form.permissions)
       toast.success('Vendedor actualizado')
     } else {
+      if (atUserLimit) {
+        toast.error(`Límite del plan alcanzado (${maxUsers} usuarios)`)
+        return
+      }
       await createMember(form)
       toast.success('Vendedor agregado')
     }
@@ -707,6 +716,14 @@ export default function Team() {
           <span className="text-[11px] font-semibold bg-surface-2 border border-black/[0.08] px-2.5 py-1 rounded-full text-secondary">
             {teamStats.active} vendedores activos
           </span>
+          {maxUsers !== null && maxUsers !== 999 && (
+            <span className={clsx(
+              'text-[11px] font-semibold px-2.5 py-1 rounded-full',
+              atUserLimit ? 'bg-red-50 text-red-600' : 'bg-surface-2 border border-black/[0.08] text-secondary'
+            )}>
+              {members.length}/{maxUsers} usuarios del plan
+            </span>
+          )}
           {teamStats.totalClosedThisMonth > 0 && (
             <span className="text-[11px] font-semibold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">
               {teamStats.totalClosedThisMonth} cierres este mes
@@ -771,10 +788,17 @@ export default function Team() {
                 </p>
               </div>
               {(canManageTeam || members.length === 0) && (
-                <button onClick={() => { setEditMember(null); setShowVendorModal(true) }}
-                  className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
-                  <Plus size={14} strokeWidth={3} color="white" /> Agregar vendedor
-                </button>
+                atUserLimit ? (
+                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-[10px] bg-red-50 border border-red-200">
+                    <span className="text-[12px] font-semibold text-red-600">Límite del plan alcanzado ({maxUsers}/{maxUsers})</span>
+                  </div>
+                ) : (
+                  <button onClick={() => { setEditMember(null); setShowVendorModal(true) }}
+                    className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
+                    <Plus size={14} strokeWidth={3} color="white" /> Agregar vendedor
+                    {usersRemaining !== null && <span className="opacity-70 text-[11px]">({usersRemaining} restante{usersRemaining !== 1 ? 's' : ''})</span>}
+                  </button>
+                )
               )}
             </div>
 
@@ -788,7 +812,7 @@ export default function Team() {
                   <p className="text-sm text-secondary text-center max-w-xs">
                     Agrega vendedores a tu equipo. Ellos solo verán sus propios leads dentro de tu CRM.
                   </p>
-                  {(canManageTeam || members.length === 0) && (
+                  {(canManageTeam || members.length === 0) && !atUserLimit && (
                     <button onClick={() => setShowVendorModal(true)} className="btn-primary text-sm py-2 px-4 mt-1 flex items-center gap-1.5">
                       <Plus size={14} strokeWidth={3} color="white" /> Agregar primer vendedor
                     </button>

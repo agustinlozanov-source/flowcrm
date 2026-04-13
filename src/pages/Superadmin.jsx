@@ -656,6 +656,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
         planId: form.planId,
         planName: selectedPlan?.name || '',
         modules: selectedPlan?.features || [],
+        maxUsers: selectedPlan?.maxUsers ?? 1,
         mrr: selectedPlan?.monthlyUSD || 0,
         status: form.status,
         updatedAt: serverTimestamp(),
