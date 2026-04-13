@@ -121,13 +121,21 @@ function diagScoreLevel(score, min, max) {
 
 // ─── MODULES CATALOG ───
 const MODULES_CATALOG = [
-  { id: 'pipeline', icon: <Target size={16} strokeWidth={2} />, name: 'Pipeline de Ventas', tag: 'CRM' },
-  { id: 'inbox', icon: <MessageSquare size={16} strokeWidth={2} />, name: 'Inbox Unificado', tag: 'Meta' },
-  { id: 'agent', icon: <Bot size={16} strokeWidth={2} />, name: 'Agente IA de Ventas', tag: 'IA' },
-  { id: 'content', icon: <Clapperboard size={16} strokeWidth={2} />, name: 'Content Studio', tag: 'Exclusivo' },
-  { id: 'landing', icon: <Globe size={16} strokeWidth={2} />, name: 'Landing Pages', tag: 'Conversión' },
-  { id: 'analytics', icon: <BarChart size={16} strokeWidth={2} />, name: 'Analytics & Reportes', tag: 'Data' },
-  { id: 'referrals', icon: <Gift size={16} strokeWidth={2} />, name: 'Programa de Referidos', tag: 'Growth' },
+  // CRM
+  { id: 'pipeline',  icon: <Target size={16} strokeWidth={2} />,       name: 'Pipeline',          tag: 'CRM' },
+  { id: 'leads',     icon: <Users size={16} strokeWidth={2} />,         name: 'Contactos',         tag: 'CRM' },
+  { id: 'products',  icon: <Package size={16} strokeWidth={2} />,       name: 'Catálogo',          tag: 'CRM' },
+  { id: 'agent',     icon: <Bot size={16} strokeWidth={2} />,           name: 'Agente IA',         tag: 'CRM' },
+  { id: 'inbox',     icon: <MessageSquare size={16} strokeWidth={2} />, name: 'Inbox',             tag: 'CRM' },
+  { id: 'meetings',  icon: <Calendar size={16} strokeWidth={2} />,      name: 'Meetings',          tag: 'CRM' },
+  { id: 'team',      icon: <Building2 size={16} strokeWidth={2} />,     name: 'Equipo',            tag: 'CRM' },
+  // Tools
+  { id: 'import',    icon: <Download size={16} strokeWidth={2} />,      name: 'Import',            tag: 'Tools' },
+  { id: 'analytics', icon: <BarChart size={16} strokeWidth={2} />,      name: 'Analytics',         tag: 'Tools' },
+  { id: 'content',   icon: <Clapperboard size={16} strokeWidth={2} />,  name: 'Content Studio',    tag: 'Tools' },
+  { id: 'landing',   icon: <Globe size={16} strokeWidth={2} />,         name: 'Pages',             tag: 'Tools' },
+  { id: 'referrals', icon: <Gift size={16} strokeWidth={2} />,          name: 'Referidos',         tag: 'Tools' },
+  { id: 'goals',     icon: <Zap size={16} strokeWidth={2} />,           name: 'Goals',             tag: 'Tools' },
 ]
 
 const PLANS = [
@@ -617,7 +625,7 @@ function Dashboard({ orgs, resellers }) {
 function Organizations({ orgs, resellers, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
   const [editOrg, setEditOrg] = useState(null)
-  const [form, setForm] = useState({ name: '', ownerEmail: '', ownerPassword: '', plan: 'starter', users: 1, mrr: 50, status: 'active', resellerId: '', modules: ['pipeline', 'inbox', 'agent', 'analytics'] })
+  const [form, setForm] = useState({ name: '', ownerEmail: '', ownerPassword: '', plan: 'starter', users: 1, mrr: 50, status: 'active', resellerId: '', modules: ['pipeline', 'leads', 'products', 'inbox', 'agent', 'analytics'] })
   const [saving, setSaving] = useState(false)
 
   const openNew = () => {
