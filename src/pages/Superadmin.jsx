@@ -967,41 +967,8 @@ function Resellers({ resellers, orgs, onRefresh }) {
 }
 
 // ALL FEATURES CATALOG
-const ALL_FEATURES = [
-  // CRM
-  { id: 'pipeline', category: 'CRM', label: 'Pipeline de ventas', desc: 'Kanban visual con etapas configurables' },
-  { id: 'leads', category: 'CRM', label: 'Gestión de contactos', desc: 'Base de datos de prospectos y clientes' },
-  { id: 'pipeline_multi', category: 'CRM', label: 'Múltiples pipelines', desc: 'Varios pipelines simultáneos' },
-  { id: 'scoring', category: 'CRM', label: 'Scoring automático', desc: 'Calificación de leads por el agente' },
-  { id: 'custom_fields', category: 'CRM', label: 'Campos personalizados', desc: 'Atributos adicionales por lead' },
-  { id: 'products', category: 'CRM', label: 'Catálogo de productos', desc: 'Asociar productos a oportunidades' },
-  // Canales
-  { id: 'inbox', category: 'Canales', label: 'Inbox unificado', desc: 'WhatsApp, Instagram y Facebook en uno' },
-  { id: 'whatsapp', category: 'Canales', label: 'WhatsApp Business', desc: 'Integración oficial de WhatsApp' },
-  { id: 'instagram', category: 'Canales', label: 'Instagram DM', desc: 'Mensajes directos de Instagram' },
-  { id: 'facebook', category: 'Canales', label: 'Facebook Messenger', desc: 'Mensajes de Facebook' },
-  { id: 'landing', category: 'Canales', label: 'Landing Pages', desc: 'Páginas de captura de prospectos' },
-  // IA
-  { id: 'agent', category: 'IA', label: 'Agente IA 24/7', desc: 'Respuesta automática por IA' },
-  { id: 'agent_voice', category: 'IA', label: 'Llamadas IA (VAPI)', desc: 'Llamadas outbound automatizadas' },
-  { id: 'agent_custom', category: 'IA', label: 'Personalidad del agente', desc: 'Entrenamiento con datos propios' },
-  // Contenido
-  { id: 'content', category: 'Contenido', label: 'Content Studio', desc: 'Generador de contenido con IA' },
-  { id: 'image_gen', category: 'Contenido', label: 'Imágenes con IA', desc: 'Generación de imágenes FLUX Pro' },
-  { id: 'brand_kit', category: 'Contenido', label: 'Brand Kits', desc: 'Kits de marca y tipografías' },
-  // Equipo
-  { id: 'team', category: 'Equipo', label: 'Gestión de equipo', desc: 'Miembros, roles y permisos' },
-  { id: 'genealogy', category: 'Equipo', label: 'Genealogía MLM', desc: 'Árbol de distribución visual' },
-  { id: 'analytics', category: 'Equipo', label: 'Analytics y reportes', desc: 'Métricas y KPIs del equipo' },
-  { id: 'round_robin', category: 'Equipo', label: 'Round Robin', desc: 'Asignación automática de leads' },
-  // Crecimiento
-  { id: 'goals', category: 'Crecimiento', label: 'Metas y objetivos', desc: 'Sistema de rocas trimestrales' },
-  { id: 'referrals', category: 'Crecimiento', label: 'Programa de referidos', desc: 'Referidos y comisiones' },
-  { id: 'import', category: 'Crecimiento', label: 'Importación de leads', desc: 'CSV y Excel' },
-]
-
-const FEATURE_CATEGORIES = ['CRM', 'Canales', 'IA', 'Contenido', 'Equipo', 'Crecimiento']
 const COLOR_OPTIONS = ['#8e8e93','#0066ff','#7c3aed','#00c853','#ff9500','#ff3b30','#00b8d9','#f97316']
+const MODULE_TAGS = ['CRM', 'Tools']
 
 const EMPTY_PLAN = {
   name: '', color: '#0066ff', monthlyUSD: 49, annualUSD: 41,
@@ -1020,7 +987,7 @@ function Plans() {
   const [planForm, setPlanForm] = useState(EMPTY_PLAN)
   const [implForm, setImplForm] = useState({ name: '', description: '', priceUSD: 1400, type: 'raiz', status: 'active' })
   const [saving, setSaving] = useState(false)
-  const [activeFeatureTab, setActiveFeatureTab] = useState('CRM')
+  const [activeModuleTab, setActiveModuleTab] = useState('CRM')
 
   useEffect(() => {
     const unsub1 = onSnapshot(collection(db, 'plans'), snap => {
@@ -1033,8 +1000,8 @@ function Plans() {
     return () => { unsub1(); unsub2() }
   }, [])
 
-  const openNewPlan = () => { setEditPlan(null); setPlanForm(EMPTY_PLAN); setActiveFeatureTab('CRM'); setShowPlanModal(true) }
-  const openEditPlan = (plan) => { setEditPlan(plan); setPlanForm({ ...EMPTY_PLAN, ...plan }); setActiveFeatureTab('CRM'); setShowPlanModal(true) }
+  const openNewPlan = () => { setEditPlan(null); setPlanForm(EMPTY_PLAN); setActiveModuleTab('CRM'); setShowPlanModal(true) }
+  const openEditPlan = (plan) => { setEditPlan(plan); setPlanForm({ ...EMPTY_PLAN, ...plan }); setActiveModuleTab('CRM'); setShowPlanModal(true) }
   const openNewImpl = () => { setEditImpl(null); setImplForm({ name: '', description: '', priceUSD: 1400, type: 'raiz', status: 'active' }); setShowImplModal(true) }
   const openEditImpl = (impl) => { setEditImpl(impl); setImplForm({ ...impl }); setShowImplModal(true) }
 
@@ -1271,31 +1238,29 @@ function Plans() {
 
           <div className="sa-divider" />
 
-          {/* Features */}
+          {/* Módulos */}
           <div className="sa-form-label" style={{ marginBottom: 10 }}>
-            Funciones incluidas — {planForm.features?.length || 0} seleccionadas
+            Módulos incluidos — {planForm.features?.length || 0} seleccionados
           </div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-            {FEATURE_CATEGORIES.map(cat => (
-              <button key={cat} onClick={() => setActiveFeatureTab(cat)}
-                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: activeFeatureTab === cat ? '#070708' : 'rgba(0,0,0,0.06)', color: activeFeatureTab === cat ? 'white' : 'var(--gray-4)', fontFamily: "'Inter',sans-serif" }}>
-                {cat}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+            {MODULE_TAGS.map(tag => (
+              <button key={tag} onClick={() => setActiveModuleTab(tag)}
+                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: activeModuleTab === tag ? '#070708' : 'rgba(0,0,0,0.06)', color: activeModuleTab === tag ? 'white' : 'var(--gray-4)', fontFamily: "'Inter',sans-serif" }}>
+                {tag}
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
-            {ALL_FEATURES.filter(f => f.category === activeFeatureTab).map(feat => {
-              const on = planForm.features?.includes(feat.id)
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {MODULES_CATALOG.filter(m => m.tag === activeModuleTab).map(mod => {
+              const on = planForm.features?.includes(mod.id)
               return (
-                <div key={feat.id} onClick={() => toggleFeature(feat.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${on ? 'rgba(0,102,255,0.3)' : 'rgba(0,0,0,0.08)'}`, background: on ? 'rgba(0,102,255,0.06)' : 'transparent', transition: 'all 0.1s' }}>
+                <div key={mod.id} onClick={() => toggleFeature(mod.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${on ? 'rgba(0,102,255,0.3)' : 'rgba(0,0,0,0.08)'}`, background: on ? 'rgba(0,102,255,0.06)' : 'transparent', transition: 'all 0.1s' }}>
                   <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? '#0066ff' : 'rgba(0,0,0,0.15)'}`, background: on ? '#0066ff' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {on && <Check size={10} color="white" />}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#4d9fff' : '#070708' }}>{feat.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-4)' }}>{feat.desc}</div>
-                  </div>
+                  <span style={{ fontSize: 15, color: on ? '#0066ff' : 'var(--gray-3)', flexShrink: 0 }}>{mod.icon}</span>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#4d9fff' : '#070708' }}>{mod.name}</div>
                 </div>
               )
             })}
