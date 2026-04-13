@@ -18,13 +18,16 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { email, password, nombre, apellido, orgData } = JSON.parse(event.body)
+    const { email, password, nombre, apellido, orgData, existingOrgId } = JSON.parse(event.body)
 
-    if (!email || !password || !orgData) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'email, password y orgData son requeridos' }) }
+    if (!email || !password) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'email y password son requeridos' }) }
+    }
+    if (!existingOrgId && !orgData) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'orgData o existingOrgId son requeridos' }) }
     }
 
-    // 1. Create user in Firebase Auth using Admin SDK (does NOT sign in)
+    // 1. Create (or fetch) user in Firebase Auth using Admin SDK (does NOT sign in)
     let uid
     try {
       const userRecord = await admin.auth().createUser({
@@ -35,61 +38,105 @@ exports.handler = async (event) => {
       uid = userRecord.uid
     } catch (e) {
       if (e.code === 'auth/email-already-exists') {
-        // User already exists — fetch their UID
+        // User already exists in Auth — fetch their UID and update password
         const existing = await admin.auth().getUserByEmail(email)
         uid = existing.uid
+        await admin.auth().updateUser(uid, { password })
       } else {
         throw e
       }
     }
 
-    // 2. Create the org document
-    const orgRef = db.collection('organizations').doc()
-    await orgRef.set({
-      ...orgData,
-      ownerId: uid,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
+    let orgId
 
-    const orgId = orgRef.id
+    if (existingOrgId) {
+      // ── REPAIR MODE: org already exists, just wire up the Auth user ──
+      orgId = existingOrgId
 
-    // 3. Create the global user document
-    await db.collection('users').doc(uid).set({
-      email,
-      nombre: nombre || '',
-      apellido: apellido || '',
-      orgId,
-      role: 'admin',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
+      // Read the org to get latest data
+      const orgSnap = await db.collection('organizations').doc(orgId).get()
+      if (!orgSnap.exists) {
+        return { statusCode: 404, body: JSON.stringify({ error: 'Organización no encontrada' }) }
+      }
+      const orgDoc = orgSnap.data()
 
-    // 4. Create the member document inside the org
-    await db.collection('organizations').doc(orgId).collection('members').doc(uid).set({
-      name: [nombre, apellido].filter(Boolean).join(' ') || email.split('@')[0],
-      email,
-      role: 'admin',
-      type: 'ambos',
-      parentId: null,
-      level: 0,
-      active: true,
-      inRoundRobin: false,
-      inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-      permissions: Object.fromEntries([
-        'can_see_all_leads', 'can_reassign_leads', 'can_edit_pipeline', 'can_discard_any_lead',
-        'can_manage_products', 'can_see_team_reports', 'can_invite_members', 'can_configure_agent',
-        'can_see_full_genealogy', 'can_manage_team', 'can_see_team_agenda', 'can_edit_any_lead',
-      ].map(k => [k, true])),
-      stats: {
-        activeLeads: 0,
-        closedThisMonth: 0,
-        closedTotal: 0,
-        conversionRate: 0,
-        lastUpdated: null,
-      },
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
+      // Update org with ownerId
+      await db.collection('organizations').doc(orgId).update({
+        ownerId: uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // Create/overwrite global user document
+      await db.collection('users').doc(uid).set({
+        email,
+        nombre: orgDoc.ownerNombre || nombre || '',
+        apellido: orgDoc.ownerApellido || apellido || '',
+        orgId,
+        role: 'admin',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // Create/overwrite member document
+      await db.collection('organizations').doc(orgId).collection('members').doc(uid).set({
+        name: [orgDoc.ownerNombre, orgDoc.ownerApellido].filter(Boolean).join(' ') || email.split('@')[0],
+        email,
+        role: 'admin',
+        type: 'ambos',
+        parentId: null,
+        level: 0,
+        active: true,
+        inRoundRobin: false,
+        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        permissions: Object.fromEntries([
+          'can_see_all_leads', 'can_reassign_leads', 'can_edit_pipeline', 'can_discard_any_lead',
+          'can_manage_products', 'can_see_team_reports', 'can_invite_members', 'can_configure_agent',
+          'can_see_full_genealogy', 'can_manage_team', 'can_see_team_agenda', 'can_edit_any_lead',
+        ].map(k => [k, true])),
+        stats: { activeLeads: 0, closedThisMonth: 0, closedTotal: 0, conversionRate: 0, lastUpdated: null },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+    } else {
+      // ── CREATE MODE: new org ──
+      const orgRef = db.collection('organizations').doc()
+      await orgRef.set({
+        ...orgData,
+        ownerId: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      orgId = orgRef.id
+
+      await db.collection('users').doc(uid).set({
+        email,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        orgId,
+        role: 'admin',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      await db.collection('organizations').doc(orgId).collection('members').doc(uid).set({
+        name: [nombre, apellido].filter(Boolean).join(' ') || email.split('@')[0],
+        email,
+        role: 'admin',
+        type: 'ambos',
+        parentId: null,
+        level: 0,
+        active: true,
+        inRoundRobin: false,
+        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        permissions: Object.fromEntries([
+          'can_see_all_leads', 'can_reassign_leads', 'can_edit_pipeline', 'can_discard_any_lead',
+          'can_manage_products', 'can_see_team_reports', 'can_invite_members', 'can_configure_agent',
+          'can_see_full_genealogy', 'can_manage_team', 'can_see_team_agenda', 'can_edit_any_lead',
+        ].map(k => [k, true])),
+        stats: { activeLeads: 0, closedThisMonth: 0, closedTotal: 0, conversionRate: 0, lastUpdated: null },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
 
     return {
       statusCode: 200,

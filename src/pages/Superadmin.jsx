@@ -629,6 +629,8 @@ function Organizations({ orgs, resellers, onRefresh }) {
   const [form, setForm] = useState({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: '', status: 'active' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [repairing, setRepairing] = useState(null)
+  const [repairing, setRepairing] = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'plans'), snap => {
@@ -707,6 +709,30 @@ function Organizations({ orgs, resellers, onRefresh }) {
     }
   }
 
+  const repairAuth = async (org) => {
+    const password = window.prompt(
+      `Asignar contraseña para ${org.ownerEmail}\n(Se creará el usuario en Auth y se vinculará a esta org)`
+    )
+    if (!password) return
+    if (password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    setRepairing(org.id)
+    try {
+      const res = await fetch('/.netlify/functions/create-org-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: org.ownerEmail, password, existingOrgId: org.id }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Error al reparar')
+      toast.success(`Usuario Auth creado para ${org.ownerEmail}`)
+      onRefresh()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setRepairing(null)
+    }
+  }
+
   const toggleStatus = async (org) => {
     const newStatus = org.status === 'active' ? 'suspended' : 'active'
     await updateDoc(doc(db, 'organizations', org.id), { status: newStatus, updatedAt: serverTimestamp() })
@@ -755,6 +781,12 @@ function Organizations({ orgs, resellers, onRefresh }) {
                 <td>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Btn sm variant="ghost" onClick={() => openEdit(org)}>Editar</Btn>
+                    {!org.ownerId && (
+                      <Btn sm variant="ghost" onClick={() => repairAuth(org)} disabled={repairing === org.id}
+                        title="La org no tiene usuario en Firebase Auth. Haz clic para crearlo.">
+                        {repairing === org.id ? '...' : '🔑 Crear Auth'}
+                      </Btn>
+                    )}
                     <Btn sm variant={org.status === 'active' ? 'danger' : 'ghost'} onClick={() => toggleStatus(org)}>
                       {org.status === 'active' ? 'Suspender' : 'Activar'}
                     </Btn>
