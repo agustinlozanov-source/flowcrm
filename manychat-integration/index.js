@@ -53,6 +53,23 @@ if (!admin.apps.length) {
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+async function callClaudeWithRetry(params, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await anthropic.messages.create(params)
+      return response
+    } catch (err) {
+      const is529 = err?.status === 529 || err?.message?.includes('overloaded')
+      if (is529 && attempt < maxRetries) {
+        console.log(`[Claude] Overloaded — reintento ${attempt}/${maxRetries} en 10s...`)
+        await new Promise(resolve => setTimeout(resolve, 10000))
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 console.log('=== Firebase Admin init ===')
 console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID)
 console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL)
@@ -442,7 +459,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     let reply = null
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
-      const response = await anthropic.messages.create({
+      const response = await callClaudeWithRetry({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
         system: systemPrompt,
