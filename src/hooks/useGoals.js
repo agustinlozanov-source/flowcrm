@@ -15,6 +15,47 @@ export const QUARTERS = {
   Q4: { label: 'Q4', months: [9, 10, 11], name: 'Octubre – Diciembre' },
 }
 
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+// Generate week objects for a given quarter
+export function getQuarterWeeks(quarter, year) {
+  const q = QUARTERS[quarter]
+  const start = new Date(year, q.months[0], 1)
+  const end = new Date(year, q.months[2] + 1, 0)
+  end.setHours(23, 59, 59, 999)
+  const weeks = []
+  let cur = new Date(start)
+  let weekNum = 1
+  while (cur <= end) {
+    const wStart = new Date(cur)
+    const wEnd = new Date(cur)
+    wEnd.setDate(wEnd.getDate() + 6)
+    if (wEnd > end) wEnd.setTime(end.getTime())
+    weeks.push({
+      weekNum,
+      startDate: new Date(wStart),
+      endDate: new Date(wEnd),
+      label: `Sem ${weekNum}`,
+      range: `${wStart.getDate()} ${MONTH_SHORT[wStart.getMonth()]} – ${wEnd.getDate()} ${MONTH_SHORT[wEnd.getMonth()]}`,
+    })
+    cur.setDate(cur.getDate() + 7)
+    weekNum++
+  }
+  return weeks
+}
+
+// Generate month objects for a given quarter
+export function getQuarterMonths(quarter) {
+  const q = QUARTERS[quarter]
+  return q.months.map((m, i) => ({
+    monthIndex: m,
+    name: MONTH_NAMES[m],
+    shortName: MONTH_SHORT[m],
+    position: i,
+  }))
+}
+
 export function getCurrentQuarter() {
   const month = new Date().getMonth()
   if (month <= 2)  return 'Q1'
@@ -50,6 +91,7 @@ export function useGoals() {
   const [goals, setGoals] = useState({}) // { "2026-Q1": {...}, "2026-Q2": {...} }
   const [loading, setLoading] = useState(true)
   const [closedRevenue, setClosedRevenue] = useState(0) // real revenue from leads
+  const [actuals, setActuals] = useState({}) // { "2026-Q1": { monthly: {monthIdx: {revenue,deals}}, weekly: {weekNum: {deals}} } }
 
   const currentQuarter = getCurrentQuarter()
   const currentYear = getCurrentYear()
@@ -98,6 +140,47 @@ export function useGoals() {
       setClosedRevenue(total)
     } catch (err) {
       console.error('Error loading revenue:', err)
+    }
+  }
+
+  // Load monthly revenue + weekly closed deals for any quarter
+  const loadActuals = async (quarter, year) => {
+    if (!orgId) return
+    const key = `${year}-${quarter}`
+    const q = QUARTERS[quarter]
+    const startDate = new Date(year, q.months[0], 1)
+    const endDate = new Date(year, q.months[2] + 1, 0)
+    endDate.setHours(23, 59, 59, 999)
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, 'organizations', orgId, 'leads'),
+          where('systemStage', '==', 'closed'),
+          where('closedAt', '>=', startDate),
+          where('closedAt', '<=', endDate)
+        )
+      )
+      const weeks = getQuarterWeeks(quarter, year)
+      const monthly = {}
+      const weekly = {}
+      snap.docs.forEach(d => {
+        const data = d.data()
+        const closedAt = data.closedAt?.toDate?.()
+        if (!closedAt) return
+        const revenue = data.productValue || 0
+        const monthIdx = closedAt.getMonth()
+        if (!monthly[monthIdx]) monthly[monthIdx] = { revenue: 0, deals: 0 }
+        monthly[monthIdx].revenue += revenue
+        monthly[monthIdx].deals += 1
+        const week = weeks.find(w => closedAt >= w.startDate && closedAt <= w.endDate)
+        if (week) {
+          if (!weekly[week.weekNum]) weekly[week.weekNum] = { deals: 0 }
+          weekly[week.weekNum].deals += 1
+        }
+      })
+      setActuals(prev => ({ ...prev, [key]: { monthly, weekly } }))
+    } catch (err) {
+      console.error('Error loading actuals:', err)
     }
   }
 
@@ -180,6 +263,24 @@ export function useGoals() {
     )
   }
 
+  const saveMonthlyTargets = async (quarter, year, months) => {
+    if (!orgId) return
+    const key = `${year}-${quarter}`
+    await updateDoc(doc(db, 'organizations', orgId, 'goals', key), {
+      months,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  const saveWeeklyTargets = async (quarter, year, weeks) => {
+    if (!orgId) return
+    const key = `${year}-${quarter}`
+    await updateDoc(doc(db, 'organizations', orgId, 'goals', key), {
+      weeklyTargets: weeks,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   return {
     goals,
     loading,
@@ -192,6 +293,10 @@ export function useGoals() {
     saveGoal,
     updateRock,
     toggleRock,
+    actuals,
+    loadActuals,
+    saveMonthlyTargets,
+    saveWeeklyTargets,
     QUARTERS,
   }
 }
