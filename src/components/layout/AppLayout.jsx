@@ -183,7 +183,7 @@ const NAV_SECTIONS = [
 ]
 
 export default function AppLayout() {
-  const { org, user } = useAuthStore()
+  const { org, user, memberData } = useAuthStore()
   const { can, isAdmin } = usePermissions()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
@@ -298,7 +298,7 @@ export default function AppLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-semibold text-primary truncate leading-tight">
-                {user?.displayName || user?.email || 'Usuario'}
+                {memberData?.name || user?.displayName || user?.email || 'Usuario'}
               </div>
               <div className="text-[11px] text-tertiary">{org?.name || 'Mi organización'}</div>
             </div>
