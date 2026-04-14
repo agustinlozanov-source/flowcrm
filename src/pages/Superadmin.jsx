@@ -2907,14 +2907,18 @@ function DistribuidorConfig() {
       if (!res.ok) throw new Error(result.error || 'Error en sync')
 
       if (result.errors?.length > 0) {
-        console.error('[save config] errores por org:', result.errors)
-        toast.error(`Errores en ${result.errors.length} org(s): ${result.errors[0].error}`)
+        toast.error(`Error: ${result.errors[0].error}`)
       }
 
       if (result.total === 0) {
-        toast.success('Configuración guardada — sin orgs distribuidoras (isDistribuidor: true) en Firestore')
+        toast.error('No se encontraron orgs con isDistribuidor: true en Firestore')
       } else {
-        toast.success(`Configuración guardada — pipeline actualizado en ${result.updated}/${result.total} distribuidor${result.total !== 1 ? 'es' : ''}`)
+        // Mostrar detalle por org en consola
+        result.log?.forEach(entry => {
+          console.log(`Org ${entry.orgId}: pipelines=${entry.pipelinesFound}, deleted=${entry.stagesDeleted}, created=${entry.stagesCreated}, ok=${entry.ok}, error=${entry.error}`)
+        })
+        const detail = result.log?.map(e => `${e.orgId.slice(-6)}: ${e.ok ? `✓ ${e.stagesCreated} etapas` : `✗ ${e.error}`}`).join(' | ')
+        toast.success(`Guardado — ${result.updated}/${result.total} org(s) — ${detail}`, { duration: 8000 })
       }
     } catch (err) {
       console.error('[save config]', err)

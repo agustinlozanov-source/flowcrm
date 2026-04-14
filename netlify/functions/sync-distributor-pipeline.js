@@ -38,7 +38,7 @@ exports.handler = async (event) => {
       const oId = orgDoc.id
       const entry = { orgId: oId, pipeline: null, stagesDeleted: 0, stagesCreated: 0, ok: false, error: null }
       try {
-        // Buscar pipeline FlowHub
+        // Buscar TODOS los pipelines FlowHub del org
         const pipesSnap = await db.collection('organizations').doc(oId)
           .collection('pipelines').where('isFlowHubPipeline', '==', true).get()
 
@@ -49,40 +49,45 @@ exports.handler = async (event) => {
           console.warn(`[sync-pipeline] org ${oId} sin pipeline FlowHub`)
           continue
         }
-        const pipelineId = pipesSnap.docs[0].id
-        entry.pipeline = pipelineId
 
-        // Borrar etapas actuales del pipeline
-        const stagesSnap = await db.collection('organizations').doc(oId)
-          .collection('pipeline_stages').where('pipelineId', '==', pipelineId).get()
+        // Actualizar cada pipeline FlowHub encontrado
+        for (const pipeDoc of pipesSnap.docs) {
+          const pipelineId = pipeDoc.id
+          entry.pipeline = pipelineId
 
-        entry.stagesDeleted = stagesSnap.size
-        console.log(`[sync-pipeline] org ${oId} pipeline=${pipelineId} etapas a borrar=${stagesSnap.size}`)
+          // Borrar etapas actuales del pipeline
+          const stagesSnap = await db.collection('organizations').doc(oId)
+            .collection('pipeline_stages').where('pipelineId', '==', pipelineId).get()
 
-        const batch = db.batch()
-        for (const s of stagesSnap.docs) batch.delete(s.ref)
+          entry.stagesDeleted = (entry.stagesDeleted || 0) + stagesSnap.size
+          console.log(`[sync-pipeline] org ${oId} pipeline=${pipelineId} etapas a borrar=${stagesSnap.size}`)
 
-        // Recrear etapas desde config
-        for (const [idx, stage] of allStages.entries()) {
-          const ref = db.collection('organizations').doc(oId).collection('pipeline_stages').doc()
-          batch.set(ref, {
-            name: stage.name,
-            color: stage.color,
-            scoreMin: Number(stage.scoreMin),
-            scoreMax: Number(stage.scoreMax),
-            order: idx + 1,
-            locked: stage.locked ?? false,
-            pipelineId,
-            isFlowHubStage: true,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          })
+          const batch = db.batch()
+          for (const s of stagesSnap.docs) batch.delete(s.ref)
+
+          // Recrear etapas desde config
+          for (const [idx, stage] of allStages.entries()) {
+            const ref = db.collection('organizations').doc(oId).collection('pipeline_stages').doc()
+            batch.set(ref, {
+              name: stage.name,
+              color: stage.color,
+              scoreMin: Number(stage.scoreMin),
+              scoreMax: Number(stage.scoreMax),
+              order: idx + 1,
+              locked: stage.locked ?? false,
+              pipelineId,
+              isFlowHubStage: true,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+          }
+          entry.stagesCreated = (entry.stagesCreated || 0) + allStages.length
+
+          await batch.commit()
+          console.log(`[sync-pipeline] org ${oId} pipeline=${pipelineId} ✓ batch committed — ${allStages.length} etapas`)
         }
-        entry.stagesCreated = allStages.length
 
-        await batch.commit()
         entry.ok = true
-        console.log(`[sync-pipeline] org ${oId} ✓ batch committed — ${allStages.length} etapas`)
         updated++
       } catch (err) {
         entry.error = err.message
