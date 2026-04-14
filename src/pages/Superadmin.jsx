@@ -2885,40 +2885,46 @@ function DistribuidorConfig() {
       })
 
       // Propagar etapas del Scoring-Pipeline a todos los orgs distribuidores existentes
-      if (config.pipelineStages) {
-        const FIXED_STAGE = { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true }
-        const allStages = [...config.pipelineStages, FIXED_STAGE]
+      const stagesToSync = config.pipelineStages || [
+        { name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0,  scoreMax: 30 },
+        { name: 'Primer contacto',        color: '#0066ff', scoreMin: 31, scoreMax: 50 },
+        { name: 'Reunión agendada',        color: '#7c3aed', scoreMin: 51, scoreMax: 65 },
+        { name: 'Presentación hecha',      color: '#ff9500', scoreMin: 66, scoreMax: 75 },
+        { name: 'Enlace enviado',          color: '#00b8d9', scoreMin: 76, scoreMax: 85 },
+        { name: 'Formulario completado',   color: '#6366f1', scoreMin: 86, scoreMax: 92 },
+        { name: 'En verificación',         color: '#ff9500', scoreMin: 93, scoreMax: 97 },
+      ]
+      const FIXED_STAGE = { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true }
+      const allStages = [...stagesToSync, FIXED_STAGE]
 
-        const orgsSnap = await getDocs(query(collection(db, 'organizations'), where('isDistribuidor', '==', true)))
-        for (const orgDoc of orgsSnap.docs) {
-          const oId = orgDoc.id
-          // Encontrar el pipeline FlowHub de este org
-          const pipesSnap = await getDocs(query(
-            collection(db, 'organizations', oId, 'pipelines'),
-            where('isFlowHubPipeline', '==', true)
-          ))
-          if (pipesSnap.empty) continue
-          const pipelineId = pipesSnap.docs[0].id
+      const orgsSnap = await getDocs(query(collection(db, 'organizations'), where('isDistribuidor', '==', true)))
+      for (const orgDoc of orgsSnap.docs) {
+        const oId = orgDoc.id
+        // Encontrar el pipeline FlowHub de este org
+        const pipesSnap = await getDocs(query(
+          collection(db, 'organizations', oId, 'pipelines'),
+          where('isFlowHubPipeline', '==', true)
+        ))
+        if (pipesSnap.empty) continue
+        const pipelineId = pipesSnap.docs[0].id
 
-          // Borrar etapas FlowHub existentes
-          const stagesSnap = await getDocs(query(
-            collection(db, 'organizations', oId, 'pipeline_stages'),
-            where('pipelineId', '==', pipelineId),
-            where('isFlowHubStage', '==', true)
-          ))
-          for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
+        // Borrar TODAS las etapas del pipeline (query simple, sin índice compuesto)
+        const stagesSnap = await getDocs(query(
+          collection(db, 'organizations', oId, 'pipeline_stages'),
+          where('pipelineId', '==', pipelineId)
+        ))
+        for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
 
-          // Recrear desde config actual
-          for (const [idx, stage] of allStages.entries()) {
-            await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
-              name: stage.name, color: stage.color,
-              scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
-              order: idx + 1,
-              locked: stage.locked ?? false,
-              pipelineId, isFlowHubStage: true,
-              createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-            })
-          }
+        // Recrear desde config actual
+        for (const [idx, stage] of allStages.entries()) {
+          await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
+            name: stage.name, color: stage.color,
+            scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
+            order: idx + 1,
+            locked: stage.locked ?? false,
+            pipelineId, isFlowHubStage: true,
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
         }
       }
 
