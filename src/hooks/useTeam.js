@@ -14,11 +14,12 @@ function generateInviteCode() {
 }
 
 function buildTree(members, rootId = null) {
+  const genealogyMembers = members.filter(m => !m.isInternal)
   const map = {}
-  members.forEach(m => { map[m.id] = { ...m, children: [] } })
+  genealogyMembers.forEach(m => { map[m.id] = { ...m, children: [] } })
 
   const roots = []
-  members.forEach(m => {
+  genealogyMembers.forEach(m => {
     if (m.parentId && map[m.parentId]) {
       map[m.parentId].children.push(map[m.id])
     } else if (!m.parentId || m.id === rootId) {
@@ -30,13 +31,14 @@ function buildTree(members, rootId = null) {
 
 // Build subtree for a specific user (only their branch down)
 function buildSubTree(members, userId) {
+  const genealogyMembers = members.filter(m => !m.isInternal)
   const map = {}
-  members.forEach(m => { map[m.id] = { ...m, children: [] } })
+  genealogyMembers.forEach(m => { map[m.id] = { ...m, children: [] } })
 
   // Find all descendants of userId
   const descendants = new Set()
   const findDescendants = (id) => {
-    members.forEach(m => {
+    genealogyMembers.forEach(m => {
       if (m.parentId === id) {
         descendants.add(m.id)
         findDescendants(m.id)
@@ -46,7 +48,7 @@ function buildSubTree(members, userId) {
   findDescendants(userId)
   descendants.add(userId)
 
-  const filteredMembers = members.filter(m => descendants.has(m.id))
+  const filteredMembers = genealogyMembers.filter(m => descendants.has(m.id))
   filteredMembers.forEach(m => { map[m.id] = { ...m, children: [] } })
 
   const roots = []
@@ -119,33 +121,32 @@ export function useTeam() {
   // ── MEMBER OPERATIONS ──────────────────────────────────────────
 
   const createMember = async ({
-    name, email, role: memberRole, type,
+    name, email, password, role: memberRole, type,
     parentId, inRoundRobin, customPermissions
   }) => {
     if (!orgId) return
-    const inviteCode = generateInviteCode()
-    const ref = await addDoc(collection(db, 'organizations', orgId, 'members'), {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      role: memberRole || 'seller',
-      type: type || 'ambos',
-      parentId: parentId || userId, // default parent = current user
-      level: (members.find(m => m.id === (parentId || userId))?.level || 0) + 1,
-      active: true,
-      inRoundRobin: inRoundRobin ?? true,
-      inviteCode,
-      permissions: customPermissions || DEFAULT_PERMISSIONS[memberRole || 'seller'],
-      stats: {
-        activeLeads: 0,
-        closedThisMonth: 0,
-        closedTotal: 0,
-        conversionRate: 0,
-        lastUpdated: null,
-      },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+    const res = await fetch('/.netlify/functions/create-org-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+        memberMode: true,
+        memberData: {
+          orgId,
+          name: name.trim(),
+          role: memberRole || 'seller',
+          type: type || 'ambos',
+          parentId: parentId || null,
+          level: (members.find(m => m.id === (parentId || userId))?.level || 0) + 1,
+          inRoundRobin: inRoundRobin ?? true,
+          permissions: customPermissions || DEFAULT_PERMISSIONS[memberRole || 'seller'],
+        },
+      }),
     })
-    return ref.id
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Error al crear vendedor')
+    return result.uid
   }
 
   const updateMember = async (memberId, data) => {

@@ -29,12 +29,14 @@ const TYPE_CONFIG = {
 function VendorModal({ member, members, onClose, onSave }) {
   const isEdit = !!member
   const [form, setForm] = useState({
-    name:         member?.name         || '',
-    email:        member?.email        || '',
-    role:         member?.role         || 'seller',
-    type:         member?.type         || 'ambos',
-    inRoundRobin: member?.inRoundRobin ?? true,
-    permissions:  member?.permissions  || DEFAULT_PERMISSIONS.seller,
+    name:            member?.name         || '',
+    email:           member?.email        || '',
+    password:        '',
+    confirmPassword: '',
+    role:            member?.role         || 'seller',
+    type:            member?.type         || 'ambos',
+    inRoundRobin:    member?.inRoundRobin ?? true,
+    permissions:     member?.permissions  || DEFAULT_PERMISSIONS.seller,
   })
   const [activeSection, setActiveSection] = useState('info')
   const [saving, setSaving] = useState(false)
@@ -52,6 +54,8 @@ function VendorModal({ member, members, onClose, onSave }) {
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('El nombre es requerido'); return }
     if (!isEdit && !form.email.trim()) { toast.error('El email es requerido'); return }
+    if (!isEdit && form.password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    if (!isEdit && form.password !== form.confirmPassword) { toast.error('Las contraseñas no coinciden'); return }
     setSaving(true)
     try { await onSave(form); onClose() }
     catch { toast.error('Error al guardar') }
@@ -113,6 +117,22 @@ function VendorModal({ member, members, onClose, onSave }) {
                     placeholder="carlos@empresa.com" className="input" disabled={isEdit} />
                 </div>
               </div>
+
+              {/* Password — only when creating */}
+              {!isEdit && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Contraseña *</label>
+                    <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
+                      placeholder="mín. 6 caracteres" className="input" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Confirmar contraseña *</label>
+                    <input type="password" value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)}
+                      placeholder="repetir contraseña" className="input" />
+                  </div>
+                </div>
+              )}
 
               {/* Role */}
               <div>

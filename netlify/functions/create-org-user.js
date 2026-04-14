@@ -18,12 +18,12 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { email, password, nombre, apellido, orgData, existingOrgId } = JSON.parse(event.body)
+    const { email, password, nombre, apellido, orgData, existingOrgId, memberMode, memberData } = JSON.parse(event.body)
 
     if (!email || !password) {
       return { statusCode: 400, body: JSON.stringify({ error: 'email y password son requeridos' }) }
     }
-    if (!existingOrgId && !orgData) {
+    if (!memberMode && !existingOrgId && !orgData) {
       return { statusCode: 400, body: JSON.stringify({ error: 'orgData o existingOrgId son requeridos' }) }
     }
 
@@ -49,7 +49,40 @@ exports.handler = async (event) => {
 
     let orgId
 
-    if (existingOrgId) {
+    if (memberMode) {
+      // ── MEMBER MODE: add an internal team member to an existing org ──
+      orgId = memberData.orgId
+      if (!orgId) return { statusCode: 400, body: JSON.stringify({ error: 'orgId requerido en memberData' }) }
+
+      // Create global users doc
+      await db.collection('users').doc(uid).set({
+        email,
+        nombre: memberData.nombre || nombre || '',
+        apellido: memberData.apellido || apellido || '',
+        orgId,
+        role: memberData.role || 'seller',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // Create member doc with the Auth UID as the document ID
+      await db.collection('organizations').doc(orgId).collection('members').doc(uid).set({
+        name: memberData.name || [nombre, apellido].filter(Boolean).join(' ') || email.split('@')[0],
+        email,
+        role: memberData.role || 'seller',
+        type: memberData.type || 'ambos',
+        parentId: memberData.parentId || null,
+        level: memberData.level ?? 1,
+        active: true,
+        inRoundRobin: memberData.inRoundRobin ?? true,
+        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        permissions: memberData.permissions || {},
+        isInternal: true, // marks as direct-added team member, NOT a distributor
+        stats: { activeLeads: 0, closedThisMonth: 0, closedTotal: 0, conversionRate: 0, lastUpdated: null },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+    } else if (existingOrgId) {
       // ── REPAIR MODE: org already exists, just wire up the Auth user ──
       orgId = existingOrgId
 
