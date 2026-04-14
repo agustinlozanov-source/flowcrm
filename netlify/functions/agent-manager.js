@@ -15,7 +15,7 @@ const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── BUILD SYSTEM PROMPT ───────────────────────────────────────────
-function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext, resources) {
+function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext, resources, allPipelines = [], resolvedPipelineId = null) {
   const {
     agentName = 'Asistente',
     customInstructions = '',
@@ -80,6 +80,11 @@ ${leadContext.productId ? `- Producto de interés: ${leadContext.productName || 
       ).join('\n')}`
     : ''
 
+  // Routing section — when no pipeline identified yet
+  const routingSection = (!resolvedPipelineId && allPipelines.length > 0)
+    ? `\nROUTING — IDENTIFICACIÓN DEL FLUJO:\nEste lead aún no tiene un flujo de ventas asignado. Tu primera tarea es identificarlo con 1-2 preguntas naturales sobre su situación o interés. NO menciones los nombres técnicos de los flujos al lead.\n\nFlujos disponibles (solo para tu referencia interna):\n${allPipelines.map(p => `  • ${p.name}${p.purpose ? ` — ${p.purpose}` : ''} [ID: ${p.id}]`).join('\n')}\n\nCuando identifiques el flujo, incluye en el JSON: "detectedPipelineId": "id_aqui". Si no tienes información suficiente aún, deja "detectedPipelineId": null.`
+    : ''
+
   return `Eres ${agentName}, un agente de ventas especializado.
 
 INSTRUCCIONES PRINCIPALES:
@@ -92,6 +97,7 @@ INSTRUCCIONES PRINCIPALES:
 ${productsSection}
 ${scoringSection}
 ${leadSection}
+${routingSection}
 ${resourcesSection}
 
 BASE DE CONOCIMIENTO:
@@ -114,7 +120,8 @@ ${isArrayScoring && scoringConfig.length > 0
   "profileBReason": "",
   "suggestHandoff": false,
   "suggestHandoffReason": "",
-  "detectedProductId": null
+  "detectedProductId": null,
+  "detectedPipelineId": null
 }
 
 Reglas del JSON:
@@ -122,7 +129,8 @@ Reglas del JSON:
 - "scoring.X.delta": puntos a sumar (positivo) o restar (negativo), 0 si no hay señal
 - "profileB": true si el lead muestra señales de potencial distribuidor
 - "suggestHandoff": true si el lead está listo para una llamada con el vendedor
-- "detectedProductId": ID del producto si el lead mostró interés en uno específico`
+- "detectedProductId": ID del producto si el lead mostró interés en uno específico
+- "detectedPipelineId": ID del flujo de ventas si lograste identificar a cuál pertenece el lead (solo en modo routing)`
 }
 
 // ── PARSE AGENT RESPONSE ──────────────────────────────────────────
@@ -346,7 +354,7 @@ function buildDistribuidorScoringText(scoringSignals) {
 }
 
 // ── CHAT WITH AGENT ───────────────────────────────────────────────
-async function chatWithAssistant(orgId, leadId, message) {
+async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) {
   // Load agent config
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
   if (!settingsSnap.exists) throw new Error('Agente no configurado.')
@@ -451,6 +459,21 @@ async function chatWithAssistant(orgId, leadId, message) {
     }
   }
 
+  // Test mode with a specific pipeline selected — load scoring config for that pipeline
+  if (leadId === 'test' && testPipelineId) {
+    pipelineId = testPipelineId
+    if (agentConfig.scoring?.[pipelineId]) {
+      scoringConfig = agentConfig.scoring[pipelineId]
+    } else if (agentConfig.scoring) {
+      const keys = Object.keys(agentConfig.scoring)
+      if (keys.length) scoringConfig = agentConfig.scoring[keys[0]]
+    }
+  }
+
+  // Load all pipelines (used for routing section in system prompt)
+  const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').orderBy('createdAt', 'asc').get()
+  const allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+
   // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
   const rawInstructions = agentConfig.customInstructions
   if (typeof rawInstructions === 'object' && rawInstructions !== null && !Array.isArray(rawInstructions)) {
@@ -462,7 +485,7 @@ async function chatWithAssistant(orgId, leadId, message) {
   }
   // (if already a string — legacy or distribuidor override — leave as-is)
 
-  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources)
+  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId)
 
 
   // Save user message
@@ -534,7 +557,7 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
     if (action === 'chat') {
-      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message)
+      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 

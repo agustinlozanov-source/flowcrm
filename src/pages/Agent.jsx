@@ -424,12 +424,31 @@ function Section({ title, desc, children }) {
 }
 
 // ─── TEST PANEL ──────────────────────────────────────────────────
-function TestPanel({ orgId, config }) {
+function TestPanel({ orgId, config, pipelines = [] }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [selectedPipelineId, setSelectedPipelineId] = useState(null)
   const bottomRef = useRef()
+
+  // Initialize to first pipeline once loaded
+  useEffect(() => {
+    setSelectedPipelineId(prev => (prev === null && pipelines.length > 0) ? pipelines[0].id : prev)
+  }, [pipelines.length])
+
+  const switchPipeline = async (pipelineId) => {
+    if (pipelineId === selectedPipelineId) return
+    setSelectedPipelineId(pipelineId)
+    setMessages([])
+    try {
+      await fetch('/.netlify/functions/agent-manager', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_thread', orgId, leadId: 'test' }),
+      })
+    } catch {}
+  }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -443,7 +462,7 @@ function TestPanel({ orgId, config }) {
       const res = await fetch('/.netlify/functions/agent-manager', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', orgId, leadId: 'test', message: userMsg }),
+        body: JSON.stringify({ action: 'chat', orgId, leadId: 'test', message: userMsg, pipelineId: selectedPipelineId }),
       })
       const data = await res.json()
       setMessages(m => [...m, { role: 'agent', text: data.response || 'Sin respuesta' }])
@@ -465,13 +484,44 @@ function TestPanel({ orgId, config }) {
     finally { setClearing(false) }
   }
 
+  const selectedPipeline = pipelines.find(p => p.id === selectedPipelineId)
+
   return (
-    <div className="card overflow-hidden flex flex-col" style={{ height: 480 }}>
+    <div className="card overflow-hidden flex flex-col" style={{ height: 540 }}>
       <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-2 flex-shrink-0">
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         <span className="font-display font-bold text-sm">Simulador de conversación</span>
-        <span className="text-xs text-tertiary ml-auto">Simula cómo responde el agente</span>
+        <span className="text-xs text-tertiary ml-auto">
+          {selectedPipeline ? selectedPipeline.name : 'Routing — lead sin flujo'}
+        </span>
       </div>
+      {/* Pipeline selector */}
+      {pipelines.length > 0 && (
+        <div className="px-3 py-2 border-b border-black/[0.06] flex gap-1 overflow-x-auto flex-shrink-0">
+          <button
+            onClick={() => switchPipeline(null)}
+            className={clsx(
+              'px-3 py-1.5 text-[11.5px] font-semibold rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5',
+              selectedPipelineId === null
+                ? 'bg-primary text-white'
+                : 'text-secondary hover:bg-surface-2 hover:text-primary'
+            )}>
+            🔀 Lead nuevo
+          </button>
+          {pipelines.map(p => (
+            <button key={p.id}
+              onClick={() => switchPipeline(p.id)}
+              className={clsx(
+                'px-3 py-1.5 text-[11.5px] font-semibold rounded-lg whitespace-nowrap transition-colors',
+                selectedPipelineId === p.id
+                  ? 'bg-primary text-white'
+                  : 'text-secondary hover:bg-surface-2 hover:text-primary'
+              )}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-center">
@@ -1686,7 +1736,7 @@ export default function Agent() {
                     Guarda los cambios primero, luego simula una conversación real con el agente.
                   </p>
                 </div>
-                <TestPanel orgId={org?.id} config={config} />
+                <TestPanel orgId={org?.id} config={config} pipelines={pipelines} />
               </>
             )}
 
