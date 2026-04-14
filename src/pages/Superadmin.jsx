@@ -2880,69 +2880,34 @@ function DistribuidorConfig() {
   const save = async () => {
     setSaving(true)
     try {
+      // 1. Guardar config en Firestore
       await setDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'), {
         ...config, updatedAt: serverTimestamp()
       })
 
-      // Propagar etapas del Scoring-Pipeline a todos los orgs distribuidores existentes
+      // 2. Propagar etapas a todos los orgs distribuidores vía backend (Admin SDK bypasea security rules)
       const stagesToSync = config.pipelineStages || [
         { name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0,  scoreMax: 30 },
         { name: 'Primer contacto',        color: '#0066ff', scoreMin: 31, scoreMax: 50 },
-        { name: 'Reunión agendada',        color: '#7c3aed', scoreMin: 51, scoreMax: 65 },
-        { name: 'Presentación hecha',      color: '#ff9500', scoreMin: 66, scoreMax: 75 },
-        { name: 'Enlace enviado',          color: '#00b8d9', scoreMin: 76, scoreMax: 85 },
-        { name: 'Formulario completado',   color: '#6366f1', scoreMin: 86, scoreMax: 92 },
-        { name: 'En verificación',         color: '#ff9500', scoreMin: 93, scoreMax: 97 },
+        { name: 'Reunión agendada',       color: '#7c3aed', scoreMin: 51, scoreMax: 65 },
+        { name: 'Presentación hecha',     color: '#ff9500', scoreMin: 66, scoreMax: 75 },
+        { name: 'Enlace enviado',         color: '#00b8d9', scoreMin: 76, scoreMax: 85 },
+        { name: 'Formulario completado',  color: '#6366f1', scoreMin: 86, scoreMax: 92 },
+        { name: 'En verificación',        color: '#ff9500', scoreMin: 93, scoreMax: 97 },
       ]
-      const FIXED_STAGE = { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true }
-      const allStages = [...stagesToSync, FIXED_STAGE]
 
-      const orgsSnap = await getDocs(query(collection(db, 'organizations'), where('isDistribuidor', '==', true)))
-      console.log('[sync] orgs distribuidoras encontradas:', orgsSnap.size, orgsSnap.docs.map(d => d.id))
+      const res = await fetch('/.netlify/functions/sync-distributor-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stages: stagesToSync }),
+      })
+      const result = await res.json()
 
-      for (const orgDoc of orgsSnap.docs) {
-        const oId = orgDoc.id
-        try {
-          // Buscar el pipeline FlowHub de este org
-          const pipesSnap = await getDocs(query(
-            collection(db, 'organizations', oId, 'pipelines'),
-            where('isFlowHubPipeline', '==', true)
-          ))
-          console.log(`[sync] org ${oId} — pipelines FlowHub encontrados:`, pipesSnap.size)
-          if (pipesSnap.empty) {
-            console.warn(`[sync] org ${oId} no tiene pipeline isFlowHubPipeline — saltando`)
-            continue
-          }
-          const pipelineId = pipesSnap.docs[0].id
-          console.log(`[sync] org ${oId} — pipelineId:`, pipelineId)
+      if (!res.ok) throw new Error(result.error || 'Error en sync')
 
-          // Borrar TODAS las etapas del pipeline
-          const stagesSnap = await getDocs(query(
-            collection(db, 'organizations', oId, 'pipeline_stages'),
-            where('pipelineId', '==', pipelineId)
-          ))
-          console.log(`[sync] org ${oId} — etapas a borrar:`, stagesSnap.size)
-          for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
-
-          // Recrear desde config actual
-          for (const [idx, stage] of allStages.entries()) {
-            await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
-              name: stage.name, color: stage.color,
-              scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
-              order: idx + 1,
-              locked: stage.locked ?? false,
-              pipelineId, isFlowHubStage: true,
-              createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-            })
-          }
-          console.log(`[sync] org ${oId} — ✓ ${allStages.length} etapas recreadas`)
-        } catch (orgErr) {
-          console.error(`[sync] ERROR en org ${oId}:`, orgErr)
-        }
-      }
-
-      toast.success(`Configuración guardada — pipeline actualizado en ${orgsSnap.size} distribuidor${orgsSnap.size !== 1 ? 'es' : ''}`)
+      toast.success(`Configuración guardada — pipeline actualizado en ${result.updated} distribuidor${result.updated !== 1 ? 'es' : ''}`)
     } catch (err) {
+      console.error('[save config]', err)
       toast.error(err.message)
     } finally {
       setSaving(false)
