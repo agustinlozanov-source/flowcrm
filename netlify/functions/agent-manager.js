@@ -15,7 +15,7 @@ const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── BUILD SYSTEM PROMPT ───────────────────────────────────────────
-function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext) {
+function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext, resources) {
   const {
     agentName = 'Asistente',
     customInstructions = '',
@@ -73,6 +73,13 @@ ${isArrayScoring
 ${leadContext.productId ? `- Producto de interés: ${leadContext.productName || leadContext.productId}` : ''}`
     : ''
 
+  // Resources available for sharing
+  const resourcesSection = resources?.length > 0
+    ? `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nPuedes compartir estos recursos con el lead cuando sea relevante. Incluye la URL directamente en tu respuesta.\n${resources.map(r =>
+        `- [${r.type.toUpperCase()}] "${r.name}": ${r.url}`
+      ).join('\n')}`
+    : ''
+
   return `Eres ${agentName}, un agente de ventas especializado.
 
 INSTRUCCIONES PRINCIPALES:
@@ -85,6 +92,7 @@ INSTRUCCIONES PRINCIPALES:
 ${productsSection}
 ${scoringSection}
 ${leadSection}
+${resourcesSection}
 
 BASE DE CONOCIMIENTO:
 ${ragContent || 'No hay documentos cargados aún.'}
@@ -377,6 +385,11 @@ async function chatWithAssistant(orgId, leadId, message) {
     products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
   }
 
+  // Load resources available for sharing
+  const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources')
+    .orderBy('createdAt', 'desc').get()
+  const resources = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
   // Load lead context (if real lead, not test)
   let leadContext = null
   let currentScore = 0
@@ -436,7 +449,7 @@ async function chatWithAssistant(orgId, leadId, message) {
     }
   }
 
-  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext)
+  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources)
   const history = await getConversationHistory(orgId, leadId)
 
   // Save user message

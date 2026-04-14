@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { doc, onSnapshot, collection, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { doc, onSnapshot, collection, query, orderBy, addDoc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
+import { db, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { useProducts } from '@/hooks/useProducts'
 import toast from 'react-hot-toast'
@@ -9,7 +10,8 @@ import {
   Bot, Brain, Package, BarChart2, Zap,
   FileText, Trash2, Plus, X, Clock,
   ChevronDown, ChevronUp, AlertTriangle,
-  CheckCircle2, MessageSquare, User, Save
+  CheckCircle2, MessageSquare, User, Save,
+  Folder, Link, Video, Image, File, Upload, ExternalLink
 } from 'lucide-react'
 
 // ─── TABS ────────────────────────────────────────────────────────
@@ -18,6 +20,7 @@ const TABS = [
   { id: 'knowledge', icon: Brain,     label: 'Conocimiento' },
   { id: 'products',  icon: Package,   label: 'Productos'    },
   { id: 'scoring',   icon: BarChart2, label: 'Scoring'      },
+  { id: 'recursos',  icon: Folder,    label: 'Recursos'     },
   { id: 'test',      icon: Zap,       label: 'Probar'       },
 ]
 
@@ -1007,6 +1010,265 @@ function ProductsTab({ enabledProductIds, onChange }) {
   )
 }
 
+// ─── RESOURCE TYPE CONFIG ─────────────────────────────────────────
+const RESOURCE_TYPES = [
+  { value: 'video',   label: 'Video',   icon: Video,  color: '#ef4444', accept: 'video/*' },
+  { value: 'imagen',  label: 'Imagen',  icon: Image,  color: '#0066ff', accept: 'image/*' },
+  { value: 'enlace',  label: 'Enlace',  icon: Link,   color: '#00875a', accept: null      },
+  { value: 'archivo', label: 'Archivo', icon: File,   color: '#7c3aed', accept: '*/*'     },
+]
+
+// ─── RESOURCES TAB ────────────────────────────────────────────────
+function ResourcesTab({ orgId }) {
+  const [resources, setResources] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name: '', type: 'video', url: '' })
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [deletingId, setDeletingId] = useState(null)
+  const fileInputRef = useRef()
+
+  useEffect(() => {
+    if (!orgId) return
+    const unsub = onSnapshot(
+      query(collection(db, 'organizations', orgId, 'agent_resources'), orderBy('createdAt', 'desc')),
+      snap => { setResources(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false) },
+      () => setLoading(false)
+    )
+    return unsub
+  }, [orgId])
+
+  const resetForm = () => { setForm({ name: '', type: 'video', url: '' }); setFile(null); setShowForm(false); setProgress(0) }
+
+  const activeType = RESOURCE_TYPES.find(t => t.value === form.type)
+  const isLink = form.type === 'enlace'
+
+  const handleAdd = async () => {
+    if (!form.name.trim()) return toast.error('El nombre es obligatorio')
+    if (isLink && !form.url.trim()) return toast.error('El enlace es obligatorio')
+    if (!isLink && !file) return toast.error('Selecciona un archivo')
+    setUploading(true)
+    try {
+      let url = form.url.trim()
+      let fileName = ''
+      let fileSize = 0
+      if (!isLink && file) {
+        const ext = file.name.split('.').pop()
+        const storePath = `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}`
+        const storageRef = ref(storage, storePath)
+        await new Promise((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, file, { contentType: file.type })
+          task.on('state_changed',
+            snap => setProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+            reject,
+            async () => { url = await getDownloadURL(task.snapshot.ref); resolve() }
+          )
+        })
+        fileName = file.name
+        fileSize = file.size
+      }
+      await addDoc(collection(db, 'organizations', orgId, 'agent_resources'), {
+        name: form.name.trim(),
+        type: form.type,
+        url,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
+        storagePath: (!isLink && file) ? `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}` : null,
+        createdAt: serverTimestamp(),
+      })
+      toast.success('Recurso agregado ✓')
+      resetForm()
+    } catch (err) {
+      toast.error('Error al subir: ' + err.message)
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
+  }
+
+  const handleDelete = async (resource) => {
+    setDeletingId(resource.id)
+    try {
+      // Delete from Storage if it was uploaded
+      if (resource.storagePath) {
+        try { await deleteObject(ref(storage, resource.storagePath)) } catch {}
+      }
+      await deleteDoc(doc(db, 'organizations', orgId, 'agent_resources', resource.id))
+      toast.success('Recurso eliminado')
+    } catch (err) {
+      toast.error('Error al eliminar')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const fmt = (bytes) => {
+    if (!bytes) return ''
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    return `${Math.round(bytes / 1024)} KB`
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Info banner */}
+      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px]">
+        <Folder size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[12.5px] text-amber-800 font-semibold mb-0.5">Recursos para el Agente</p>
+          <p className="text-[11.5px] text-amber-700 leading-relaxed">
+            Agrega videos, imágenes, enlaces y archivos. El agente conoce todos estos recursos y puede compartirlos con el lead cuando el prompt de entrenamiento lo indique.
+          </p>
+        </div>
+      </div>
+
+      {/* Add button / form */}
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)}
+          className="w-full border-2 border-dashed border-black/[0.12] rounded-[12px] py-3.5 text-[12.5px] text-secondary hover:border-accent-blue hover:text-accent-blue transition-all flex items-center justify-center gap-2">
+          <Plus size={14} /> Agregar recurso
+        </button>
+      ) : (
+        <div className="card p-4 flex flex-col gap-3 border-2 border-accent-blue/30">
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] font-bold text-primary">Nuevo recurso</span>
+            <button onClick={resetForm} className="text-tertiary hover:text-primary p-1"><X size={14} /></button>
+          </div>
+
+          {/* Type selector */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">Tipo</label>
+            <div className="flex gap-2">
+              {RESOURCE_TYPES.map(t => (
+                <button key={t.value} onClick={() => { setForm(f => ({ ...f, type: t.value, url: '' })); setFile(null) }}
+                  className={clsx(
+                    'flex-1 flex flex-col items-center gap-1 py-2.5 rounded-[10px] border-2 text-[11px] font-semibold transition-all',
+                    form.type === t.value ? 'border-current' : 'border-transparent bg-surface-2 text-secondary hover:border-black/10'
+                  )}
+                  style={form.type === t.value ? { borderColor: t.color, color: t.color, background: t.color + '12' } : {}}>
+                  <t.icon size={16} />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">Nombre del recurso</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder={`Ej: Video de presentación del producto, Catálogo ${new Date().getFullYear()}...`}
+              className="input text-[13px] py-2" />
+            <p className="text-[10.5px] text-tertiary mt-1">Usa un nombre descriptivo — el agente lo usará para decidir cuándo compartirlo</p>
+          </div>
+
+          {/* URL input (for links) or file upload */}
+          {isLink ? (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">URL del enlace</label>
+              <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                placeholder="https://..." className="input text-[13px] py-2" />
+            </div>
+          ) : (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">Archivo</label>
+              <input ref={fileInputRef} type="file" accept={activeType?.accept} className="hidden"
+                onChange={e => setFile(e.target.files[0] || null)} />
+              {file ? (
+                <div className="flex items-center gap-2 p-3 bg-surface-2 rounded-[8px] border border-black/[0.08]">
+                  <activeType.icon size={14} style={{ color: activeType.color }} className="flex-shrink-0" />
+                  <span className="text-[12px] text-primary flex-1 min-w-0 truncate">{file.name}</span>
+                  <span className="text-[10px] text-secondary flex-shrink-0">{fmt(file.size)}</span>
+                  <button onClick={() => { setFile(null); fileInputRef.current.value = '' }} className="text-tertiary hover:text-red-500 p-0.5">
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-2 p-3 bg-surface-2 border-2 border-dashed border-black/[0.12] rounded-[8px] text-[12px] text-secondary hover:border-black/25 transition-all">
+                  <Upload size={14} /> Seleccionar archivo
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Progress bar */}
+          {uploading && !isLink && (
+            <div className="flex flex-col gap-1">
+              <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                <div className="h-full bg-accent-blue rounded-full transition-all" style={{ width: `${progress}%` }} />
+              </div>
+              <span className="text-[10.5px] text-secondary text-right">{progress}%</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <button onClick={resetForm} className="btn-secondary text-[12.5px] py-2 px-4">Cancelar</button>
+            <button onClick={handleAdd} disabled={uploading || !form.name.trim() || (isLink ? !form.url.trim() : !file)}
+              className="btn-primary text-[12.5px] py-2 px-4 flex-1 flex items-center justify-center gap-1.5 disabled:opacity-40">
+              {uploading
+                ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />{isLink ? 'Guardando...' : `Subiendo ${progress}%`}</>
+                : <><Plus size={13} /> Agregar recurso</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Resources list */}
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-5 h-5 border-2 border-black/10 border-t-accent-purple rounded-full animate-spin" />
+        </div>
+      ) : resources.length === 0 ? (
+        <div className="card p-8 text-center">
+          <Folder size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
+          <p className="font-semibold text-sm text-primary mb-1">Sin recursos todavía</p>
+          <p className="text-xs text-secondary">Agrega videos, imágenes, enlaces o archivos para que el agente pueda compartirlos.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {resources.map(r => {
+            const typeConf = RESOURCE_TYPES.find(t => t.value === r.type) || RESOURCE_TYPES[3]
+            const Icon = typeConf.icon
+            return (
+              <div key={r.id} className="card px-4 py-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0"
+                  style={{ background: typeConf.color + '15' }}>
+                  <Icon size={16} style={{ color: typeConf.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-primary truncate">{r.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: typeConf.color + '18', color: typeConf.color }}>{typeConf.label}</span>
+                    {r.fileName && <span className="text-[10.5px] text-tertiary truncate">{r.fileName}</span>}
+                    {r.fileSize && <span className="text-[10px] text-tertiary flex-shrink-0">{fmt(r.fileSize)}</span>}
+                  </div>
+                </div>
+                <a href={r.url} target="_blank" rel="noopener noreferrer"
+                  className="p-1.5 rounded-[6px] text-tertiary hover:text-accent-blue hover:bg-blue-50 transition-colors flex-shrink-0">
+                  <ExternalLink size={13} />
+                </a>
+                <button onClick={() => handleDelete(r)} disabled={deletingId === r.id}
+                  className="p-1.5 rounded-[6px] text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 disabled:opacity-40">
+                  {deletingId === r.id
+                    ? <div className="w-3.5 h-3.5 border border-red-300 border-t-red-500 rounded-full animate-spin" />
+                    : <Trash2 size={13} />}
+                </button>
+              </div>
+            )
+          })}
+          <p className="text-[10.5px] text-tertiary text-center pt-1">
+            {resources.length} recurso{resources.length !== 1 ? 's' : ''} disponible{resources.length !== 1 ? 's' : ''} para el agente
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── DELETE FILE MODAL ────────────────────────────────────────────
 function DeleteFileModal({ file, onConfirm, onCancel }) {
   const [input, setInput] = useState('')
@@ -1407,6 +1669,11 @@ export default function Agent() {
                 onChange={v => set('scoring', v)}
                 distribuidorConfig={distribuidorConfig}
               />
+            )}
+
+            {/* ── RECURSOS ── */}
+            {activeTab === 'recursos' && (
+              <ResourcesTab orgId={org?.id} />
             )}
 
             {/* ── PROBAR ── */}
