@@ -712,7 +712,7 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
 
       {/* Regular pipelines → editable scoring */}
       {!isFlowHubPipeline && (
-      <>
+      <div className="flex flex-col gap-4">
       {/* Info banner */}
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
         <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
@@ -877,7 +877,6 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
         )
       })}
     </div>
-      </>
       )}
     </div>
   )
