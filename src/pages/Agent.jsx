@@ -11,7 +11,7 @@ import {
   FileText, Trash2, Plus, X, Clock,
   ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, MessageSquare, User, Save,
-  Folder, Link, Video, Image, File, Upload, ExternalLink
+  Folder, Link, Video, Image, File, Upload, ExternalLink, Info
 } from 'lucide-react'
 
 // ─── TABS ────────────────────────────────────────────────────────
@@ -1377,7 +1377,7 @@ export default function Agent() {
   const [config, setConfig] = useState({
     agentName: 'Sofía',
     responseDelay: 3,
-    customInstructions: '',
+    customInstructions: {},
     enabledProductIds: [],
     scoring: {},
   })
@@ -1404,7 +1404,11 @@ export default function Agent() {
           ...c,
           agentName: data.agentName ?? c.agentName,
           responseDelay: data.responseDelay ?? c.responseDelay,
-          customInstructions: data.customInstructions ?? c.customInstructions,
+          customInstructions: (data.customInstructions !== undefined)
+            ? (typeof data.customInstructions === 'object' && !Array.isArray(data.customInstructions)
+                ? data.customInstructions
+                : {})
+            : c.customInstructions,
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
           scoring: data.scoring ?? c.scoring,
           assistantId: data.assistantId,
@@ -1640,14 +1644,11 @@ export default function Agent() {
                       </div>
                     </>
                   ) : (
-                    <>
-                      <textarea value={config.customInstructions} onChange={e => set('customInstructions', e.target.value)}
-                        rows={8} className="input text-sm resize-none"
-                        placeholder={`Escribe aquí lo que el agente debe saber y no está en los documentos:\n\n• Casos de éxito o testimoniales clave\n• Preguntas frecuentes y sus respuestas\n• Políticas especiales o excepciones\n• Instrucciones específicas de comportamiento`} />
-                      <p className="text-[10px] text-tertiary">
-                        Este texto se combina con los documentos subidos. Juntos forman el 100% del conocimiento del agente.
-                      </p>
-                    </>
+                    <PromptByPipelineTab
+                      pipelines={pipelines}
+                      instructions={config.customInstructions}
+                      onChange={v => set('customInstructions', v)}
+                    />
                   )}
                 </Section>
               </>

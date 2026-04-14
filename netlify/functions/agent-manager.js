@@ -362,9 +362,11 @@ async function chatWithAssistant(orgId, leadId, message) {
         customInstructions: distribConfig.agentPrompt + extraScoringText,
       }
     } else if (extraScoringText) {
+      // customInstructions may be an object (per-pipeline) — we'll handle resolution later; just append to base string
+      const base = typeof agentConfig.customInstructions === 'string' ? agentConfig.customInstructions : ''
       agentConfig = {
         ...agentConfig,
-        customInstructions: (agentConfig.customInstructions || '') + extraScoringText,
+        customInstructions: base + extraScoringText,
       }
     }
   }
@@ -449,8 +451,19 @@ async function chatWithAssistant(orgId, leadId, message) {
     }
   }
 
+  // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
+  const rawInstructions = agentConfig.customInstructions
+  if (typeof rawInstructions === 'object' && rawInstructions !== null && !Array.isArray(rawInstructions)) {
+    const resolved = (pipelineId && rawInstructions[pipelineId])
+      || rawInstructions['__default__']
+      || Object.values(rawInstructions).find(Boolean)
+      || ''
+    agentConfig = { ...agentConfig, customInstructions: resolved }
+  }
+  // (if already a string — legacy or distribuidor override — leave as-is)
+
   const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources)
-  const history = await getConversationHistory(orgId, leadId)
+
 
   // Save user message
   await saveTestMessage(orgId, leadId, 'user', message)
