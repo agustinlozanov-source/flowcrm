@@ -2902,10 +2902,20 @@ function DistribuidorConfig() {
         body: JSON.stringify({ stages: stagesToSync }),
       })
       const result = await res.json()
+      console.log('[save config] sync result:', JSON.stringify(result, null, 2))
 
       if (!res.ok) throw new Error(result.error || 'Error en sync')
 
-      toast.success(`Configuración guardada — pipeline actualizado en ${result.updated} distribuidor${result.updated !== 1 ? 'es' : ''}`)
+      if (result.errors?.length > 0) {
+        console.error('[save config] errores por org:', result.errors)
+        toast.error(`Errores en ${result.errors.length} org(s): ${result.errors[0].error}`)
+      }
+
+      if (result.total === 0) {
+        toast.success('Configuración guardada — sin orgs distribuidoras (isDistribuidor: true) en Firestore')
+      } else {
+        toast.success(`Configuración guardada — pipeline actualizado en ${result.updated}/${result.total} distribuidor${result.total !== 1 ? 'es' : ''}`)
+      }
     } catch (err) {
       console.error('[save config]', err)
       toast.error(err.message)
