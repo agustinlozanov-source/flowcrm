@@ -2241,23 +2241,26 @@ function DistribuidoresPanel() {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       })
 
-      // 6. Crear etapas editables
-      const editableStages = [
-        { name: 'Prospecto identificado', color: '#8e8e93', order: 1, scoreMin: 0, scoreMax: 30, locked: false },
-        { name: 'Primer contacto', color: '#0066ff', order: 2, scoreMin: 31, scoreMax: 50, locked: false },
-        { name: 'Reunión agendada', color: '#7c3aed', order: 3, scoreMin: 51, scoreMax: 65, locked: false },
-        { name: 'Presentación hecha', color: '#ff9500', order: 4, scoreMin: 66, scoreMax: 75, locked: false },
+      // 6. Leer etapas desde la config global (Scoring-Pipeline del Superadmin)
+      const defaultPipelineStages = [
+        { name: 'Prospecto identificado', color: '#8e8e93', scoreMin: 0,  scoreMax: 30 },
+        { name: 'Primer contacto',        color: '#0066ff', scoreMin: 31, scoreMax: 50 },
+        { name: 'Reunión agendada',        color: '#7c3aed', scoreMin: 51, scoreMax: 65 },
+        { name: 'Presentación hecha',      color: '#ff9500', scoreMin: 66, scoreMax: 75 },
+        { name: 'Enlace enviado',          color: '#00b8d9', scoreMin: 76, scoreMax: 85 },
+        { name: 'Formulario completado',   color: '#6366f1', scoreMin: 86, scoreMax: 92 },
+        { name: 'En verificación',         color: '#ff9500', scoreMin: 93, scoreMax: 97 },
       ]
-      // 7. Etapas fijas
-      const fixedStages = [
-        { name: 'Enlace enviado', color: '#00b8d9', order: 5, scoreMin: 76, scoreMax: 85, locked: true },
-        { name: 'Formulario completado', color: '#6366f1', order: 6, scoreMin: 86, scoreMax: 92, locked: true },
-        { name: 'En verificación', color: '#ff9500', order: 7, scoreMin: 93, scoreMax: 97, locked: true },
-        { name: 'Verificado — Activo', color: '#00c853', order: 8, scoreMin: 98, scoreMax: 100, locked: true },
-      ]
-      for (const stage of [...editableStages, ...fixedStages]) {
+      const configPipelineStages = config.pipelineStages || defaultPipelineStages
+      const FIXED_STAGE = { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true }
+      const allStagesToCreate = [...configPipelineStages, FIXED_STAGE]
+      for (const [idx, stage] of allStagesToCreate.entries()) {
         await addDoc(collection(db, 'organizations', orgId, 'pipeline_stages'), {
-          ...stage, pipelineId: pipelineRef.id, isFlowHubStage: true,
+          name: stage.name, color: stage.color,
+          scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
+          order: idx + 1,
+          locked: stage.locked ?? false,
+          pipelineId: pipelineRef.id, isFlowHubStage: true,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         })
       }
@@ -2880,7 +2883,46 @@ function DistribuidorConfig() {
       await setDoc(doc(db, 'flowhub_config', 'distribuidor_niveles'), {
         ...config, updatedAt: serverTimestamp()
       })
-      toast.success('Configuración guardada — se aplica a todos los distribuidores')
+
+      // Propagar etapas del Scoring-Pipeline a todos los orgs distribuidores existentes
+      if (config.pipelineStages) {
+        const FIXED_STAGE = { name: 'Verificado — Activo', color: '#00c853', scoreMin: 98, scoreMax: 100, locked: true }
+        const allStages = [...config.pipelineStages, FIXED_STAGE]
+
+        const orgsSnap = await getDocs(query(collection(db, 'organizations'), where('isDistribuidor', '==', true)))
+        for (const orgDoc of orgsSnap.docs) {
+          const oId = orgDoc.id
+          // Encontrar el pipeline FlowHub de este org
+          const pipesSnap = await getDocs(query(
+            collection(db, 'organizations', oId, 'pipelines'),
+            where('isFlowHubPipeline', '==', true)
+          ))
+          if (pipesSnap.empty) continue
+          const pipelineId = pipesSnap.docs[0].id
+
+          // Borrar etapas FlowHub existentes
+          const stagesSnap = await getDocs(query(
+            collection(db, 'organizations', oId, 'pipeline_stages'),
+            where('pipelineId', '==', pipelineId),
+            where('isFlowHubStage', '==', true)
+          ))
+          for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
+
+          // Recrear desde config actual
+          for (const [idx, stage] of allStages.entries()) {
+            await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
+              name: stage.name, color: stage.color,
+              scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
+              order: idx + 1,
+              locked: stage.locked ?? false,
+              pipelineId, isFlowHubStage: true,
+              createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            })
+          }
+        }
+      }
+
+      toast.success('Configuración guardada — pipeline actualizado en todos los distribuidores')
     } catch (err) {
       toast.error(err.message)
     } finally {
