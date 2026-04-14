@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
-  collection, query, orderBy, onSnapshot,
+  collection, query, orderBy, where, onSnapshot,
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, getDoc
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -478,6 +478,17 @@ export function usePipeline() {
     await deleteDoc(doc(db, 'organizations', orgId, 'pipeline_stages', stageId))
   }
 
+  const deletePipeline = async (pipelineId) => {
+    if (!orgId) return
+    // Delete all stages belonging to this pipeline
+    const stagesSnap = await getDocs(
+      query(collection(db, 'organizations', orgId, 'pipeline_stages'), where('pipelineId', '==', pipelineId))
+    )
+    for (const d of stagesSnap.docs) await deleteDoc(d.ref)
+    // Delete pipeline doc
+    await deleteDoc(doc(db, 'organizations', orgId, 'pipelines', pipelineId))
+  }
+
   const adoptOrphanStages = async ({ name, purpose }) => {
     if (!orgId) return
     const pipelineRef = await addDoc(collection(db, 'organizations', orgId, 'pipelines'), {
@@ -538,6 +549,7 @@ export function usePipeline() {
     deleteStage,
     createPipeline,
     updatePipeline,
+    deletePipeline,
     adoptOrphanStages,
   }
 }

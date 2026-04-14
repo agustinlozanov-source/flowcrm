@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info } from 'lucide-react'
+import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -74,7 +74,7 @@ function Toggle({ value, onChange }) {
 }
 
 // ─── MAIN MODAL ───────────────────────────────────────────────────
-export default function EditPipelineModal({ mode = 'edit', pipeline, stages = [], onSave, onClose }) {
+export default function EditPipelineModal({ mode = 'edit', pipeline, stages = [], onSave, onDelete, onClose }) {
   const isAdopt = mode === 'adopt'
   const originalIds = stages.map(s => s.id)
 
@@ -100,6 +100,8 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
   const [autoAssign, setAutoAssign] = useState(pipeline?.autoAssign || false)
 
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -132,6 +134,12 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       })
       onClose()
     } finally { setSaving(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try { await onDelete() } finally { setDeleting(false) }
   }
 
   const TABS = [
@@ -326,17 +334,43 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-black/[0.08] flex-shrink-0">
-          <button onClick={onClose}
-            className="text-[13px] px-4 py-2 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors">
-            Cancelar
-          </button>
-          <button onClick={handleSubmit} disabled={!name.trim() || saving}
-            className="btn-primary text-[13px] py-2 px-4 disabled:opacity-40 flex items-center gap-1.5">
-            {saving ? 'Guardando...' : isAdopt
-              ? <><GitBranch size={13} /> Configurar pipeline</>
-              : <><Pencil size={13} /> Guardar cambios</>}
-          </button>
+        <div className="flex items-center gap-2 px-6 py-4 border-t border-black/[0.08] flex-shrink-0">
+          {/* Delete — only in edit mode with onDelete handler */}
+          {!isAdopt && onDelete && (
+            confirmDelete ? (
+              <div className="flex items-center gap-2 flex-1">
+                <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+                <span className="text-[12px] text-red-600 font-semibold flex-1">
+                  ¿Eliminar "{pipeline?.name}" y todas sus etapas?
+                </span>
+                <button onClick={() => setConfirmDelete(false)}
+                  className="text-[12px] px-3 py-1.5 rounded-[7px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors flex-shrink-0">
+                  No
+                </button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="text-[12px] px-3 py-1.5 rounded-[7px] bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex-shrink-0 flex items-center gap-1.5">
+                  {deleting ? 'Eliminando...' : <><Trash2 size={12} /> Sí, eliminar</>}
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)}
+                className="text-[12.5px] px-3 py-2 rounded-[8px] text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-1.5 flex-shrink-0">
+                <Trash2 size={13} /> Eliminar pipeline
+              </button>
+            )
+          )}
+          <div className="flex items-center gap-2 ml-auto">
+            <button onClick={onClose}
+              className="text-[13px] px-4 py-2 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleSubmit} disabled={!name.trim() || saving}
+              className="btn-primary text-[13px] py-2 px-4 disabled:opacity-40 flex items-center gap-1.5">
+              {saving ? 'Guardando...' : isAdopt
+                ? <><GitBranch size={13} /> Configurar pipeline</>
+                : <><Pencil size={13} /> Guardar cambios</>}
+            </button>
+          </div>
         </div>
       </div>
     </div>

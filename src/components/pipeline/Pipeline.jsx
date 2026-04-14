@@ -33,7 +33,7 @@ export default function Pipeline() {
     allStages, stages, leads, systemLeads, leadsByStage, leadsBySystemStage,
     pipelineStats, loading,
     moveLead, createLead, updateLead, deleteLead,
-    createStage, updateStage, deleteStage, createPipeline, updatePipeline, adoptOrphanStages,
+    createStage, updateStage, deleteStage, createPipeline, updatePipeline, deletePipeline, adoptOrphanStages,
   } = usePipeline()
   const { products } = useProducts()
 
@@ -351,6 +351,12 @@ export default function Pipeline() {
           pipeline={activePipelineId ? pipelines.find(p => p.id === activePipelineId) : null}
           stages={stages}
           onSave={handleSaveEditPipeline}
+          onDelete={activePipelineId ? async () => {
+            await deletePipeline(activePipelineId)
+            setActivePipelineId(pipelines.find(p => p.id !== activePipelineId)?.id || null)
+            setShowEditPipeline(false)
+            toast.success('Pipeline eliminado')
+          } : undefined}
           onClose={() => setShowEditPipeline(false)} />
       )}
 
