@@ -994,6 +994,68 @@ function DeleteFileModal({ file, onConfirm, onCancel }) {
   )
 }
 
+// ─── DISTRIBUIDOR SCORING READ-ONLY VIEW ─────────────────────────
+function DistribuidorScoringReadOnly({ signals }) {
+  const total = signals.reduce((s, c) => s + (c.tope || 0), 0)
+  return (
+    <div>
+      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px] mb-4">
+        <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[12.5px] text-amber-800 font-semibold mb-0.5">Señales administradas globalmente</p>
+          <p className="text-[11.5px] text-amber-700 leading-relaxed">
+            Estas señales de scoring son configuradas por Flow Hub para todos los distribuidores. El agente IA las usa automáticamente en cada conversación.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-display font-bold text-sm">Señales de Scoring del Agente IA</span>
+        <span className={clsx(
+          'text-[11px] font-bold px-2.5 py-1 rounded-full',
+          total === 100
+            ? 'bg-green-100 text-green-700 border border-green-200'
+            : 'bg-red-100 text-red-600 border border-red-200'
+        )}>
+          {total} / 100 pts {total === 100 ? '✓' : '⚠'}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {signals.map((cat, ci) => (
+          <div key={cat.id || ci} className="border border-black/[0.08] rounded-[12px] overflow-hidden bg-white">
+            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-black/[0.06]">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#8e8e93' }} />
+              <span className="font-semibold text-[13px] text-primary flex-1">{cat.label}</span>
+              <span className="text-[11px] text-secondary font-medium">Tope: {cat.tope} pts</span>
+            </div>
+            {(cat.subcategories || []).map((sub, si) => (
+              <div key={sub.id || si} className="px-4 py-3 border-b border-black/[0.04] last:border-0">
+                <p className="text-[12px] font-semibold text-secondary mb-2">{sub.label} <span className="font-normal text-tertiary">({sub.tope} pts)</span></p>
+                <div className="space-y-1.5">
+                  {(sub.signals || []).map((sig, sgi) => (
+                    <div key={sig.id || sgi} className="flex items-start gap-2">
+                      <span className={clsx(
+                        'flex-shrink-0 text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded',
+                        sig.type === 'down' || sig.weight < 0
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-green-100 text-green-700'
+                      )}>
+                        {sig.weight >= 0 ? `+${sig.weight}` : sig.weight}
+                      </span>
+                      <span className="text-[12px] text-primary leading-snug">{sig.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN COMPONENT ──────────────────────────────────────────────
 export default function Agent() {
   const { org } = useAuthStore()
@@ -1004,6 +1066,7 @@ export default function Agent() {
   const [pipelines, setPipelines] = useState([])
   const [uploadingFile, setUploadingFile] = useState(false)
   const [deleteModal, setDeleteModal] = useState(null)
+  const [distribuidorConfig, setDistribuidorConfig] = useState(null)
   const fileInputRef = useRef()
 
   const [config, setConfig] = useState({
@@ -1055,6 +1118,15 @@ export default function Agent() {
     })
     return unsub
   }, [org?.id])
+
+  // Load global distribuidor config (prompt + scoring signals set by Superadmin)
+  useEffect(() => {
+    if (!org?.isDistribuidor) return
+    const unsub = onSnapshot(doc(db, 'flowhub_config', 'distribuidor_niveles'), snap => {
+      setDistribuidorConfig(snap.exists() ? snap.data() : null)
+    })
+    return unsub
+  }, [org?.isDistribuidor])
 
   // Initialize scoring for new pipelines that don't have it yet
   useEffect(() => {
@@ -1265,13 +1337,30 @@ export default function Agent() {
                   )}
                 </Section>
 
-                <Section title="Conocimiento manual" desc="Complementa los documentos con información que no está en archivos">
-                  <textarea value={config.customInstructions} onChange={e => set('customInstructions', e.target.value)}
-                    rows={8} className="input text-sm resize-none"
-                    placeholder={`Escribe aquí lo que el agente debe saber y no está en los documentos:\n\n• Casos de éxito o testimoniales clave\n• Preguntas frecuentes y sus respuestas\n• Políticas especiales o excepciones\n• Instrucciones específicas de comportamiento`} />
-                  <p className="text-[10px] text-tertiary">
-                    Este texto se combina con los documentos subidos. Juntos forman el 100% del conocimiento del agente.
-                  </p>
+                <Section title="Conocimiento manual"
+                  desc={org?.isDistribuidor ? 'Prompt global administrado por Flow Hub — solo lectura' : 'Complementa los documentos con información que no está en archivos'}>
+                  {org?.isDistribuidor && distribuidorConfig?.agentPrompt ? (
+                    <>
+                      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px] mb-3">
+                        <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-[12px] text-amber-800 leading-relaxed">
+                          El prompt de tu agente IA es administrado globalmente por Flow Hub. No puedes modificarlo desde aquí — los cambios se aplican desde la Configuración Global.
+                        </p>
+                      </div>
+                      <div className="text-[12px] text-primary bg-gray-50 border border-black/[0.08] rounded-[10px] p-4 max-h-52 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed">
+                        {distribuidorConfig.agentPrompt}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <textarea value={config.customInstructions} onChange={e => set('customInstructions', e.target.value)}
+                        rows={8} className="input text-sm resize-none"
+                        placeholder={`Escribe aquí lo que el agente debe saber y no está en los documentos:\n\n• Casos de éxito o testimoniales clave\n• Preguntas frecuentes y sus respuestas\n• Políticas especiales o excepciones\n• Instrucciones específicas de comportamiento`} />
+                      <p className="text-[10px] text-tertiary">
+                        Este texto se combina con los documentos subidos. Juntos forman el 100% del conocimiento del agente.
+                      </p>
+                    </>
+                  )}
                 </Section>
               </>
             )}
@@ -1286,11 +1375,13 @@ export default function Agent() {
 
             {/* ── SCORING ── */}
             {activeTab === 'scoring' && (
-              <ScoringTab
-                pipelines={pipelines}
-                scoring={config.scoring}
-                onChange={v => set('scoring', v)}
-              />
+              org?.isDistribuidor && distribuidorConfig?.scoringSignals?.length > 0
+                ? <DistribuidorScoringReadOnly signals={distribuidorConfig.scoringSignals} />
+                : <ScoringTab
+                    pipelines={pipelines}
+                    scoring={config.scoring}
+                    onChange={v => set('scoring', v)}
+                  />
             )}
 
             {/* ── PROBAR ── */}

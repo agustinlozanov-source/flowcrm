@@ -128,18 +128,18 @@ function parseAgentResponse(text) {
 
 // ── CALCULATE NEW SCORE ───────────────────────────────────────────
 function calculateNewScore(currentScore, scoringDeltas, scoringConfig) {
-  if (!scoringConfig) return currentScore
+  if (!scoringDeltas || Object.keys(scoringDeltas).length === 0) return currentScore
 
   let total = 0
   const categoryScores = {}
 
-  Object.entries(scoringConfig).forEach(([catId, cat]) => {
-    const delta = scoringDeltas?.[catId]?.delta || 0
-    // For now, accumulate delta to current score per category
-    // In a real implementation, track per-category scores
-    total += Math.max(0, Math.min(cat.cap || 25, delta))
-    categoryScores[catId] = delta
-  })
+  if (scoringConfig) {
+    Object.entries(scoringConfig).forEach(([catId, cat]) => {
+      const delta = scoringDeltas?.[catId]?.delta || 0
+      total += Math.max(0, Math.min(cat.cap || 25, delta))
+      categoryScores[catId] = delta
+    })
+  }
 
   // Simple: add deltas to current score, clamp 0-100
   const newScore = Math.max(0, Math.min(100, currentScore + Object.values(scoringDeltas || {}).reduce((sum, s) => sum + (s.delta || 0), 0)))
@@ -330,10 +330,10 @@ function buildDistribuidorScoringText(scoringSignals) {
   if (!scoringSignals?.length) return ''
   return '\n\nSEÑALES DE CALIFICACIÓN PARA DISTRIBUIDORES:\n' +
     scoringSignals.map(cat =>
-      `${cat.name} (máx ${cat.tope} pts):\n` +
+      `${cat.label || cat.name} (máx ${cat.tope} pts):\n` +
       (cat.subcategories || []).map(sub =>
-        `  ${sub.name}:\n` +
-        (sub.signals || []).map(sig => `    - ${sig.name}: ${sig.weight >= 0 ? '+' : ''}${sig.weight} pts`).join('\n')
+        `  ${sub.label || sub.name}:\n` +
+        (sub.signals || []).map(sig => `    - ${sig.text || sig.name}: ${sig.weight >= 0 ? '+' : ''}${sig.weight} pts`).join('\n')
       ).join('\n')
     ).join('\n\n')
 }
