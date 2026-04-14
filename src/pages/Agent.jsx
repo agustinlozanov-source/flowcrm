@@ -527,7 +527,7 @@ function TestPanel({ orgId, config }) {
 }
 
 // ─── SCORING TAB ─────────────────────────────────────────────────
-function ScoringTab({ pipelines, scoring, onChange }) {
+function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
   const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
   const [openCats, setOpenCats] = useState({})
   const [openSubs, setOpenSubs] = useState({})
@@ -537,6 +537,7 @@ function ScoringTab({ pipelines, scoring, onChange }) {
   const activePipeline = pipelines.find(p => p.id === activePipelineTab)
   const purpose = activePipeline?.purpose || 'adquisicion'
   const catalog = CATALOG_BY_PURPOSE[purpose] || CATALOG_ADQUISICION
+  const isFlowHubPipeline = activePipeline?.isFlowHubPipeline === true
 
   // Scoring for the active pipeline
   const pipelineScoring = scoring[activePipelineTab] || buildDefaultScoring(catalog)
@@ -697,6 +698,21 @@ function ScoringTab({ pipelines, scoring, onChange }) {
         ))}
       </div>
 
+      {/* FlowHub pipeline → read-only global distribuidor scoring */}
+      {isFlowHubPipeline && distribuidorConfig?.scoringSignals?.length > 0 && (
+        <DistribuidorScoringReadOnly signals={distribuidorConfig.scoringSignals} />
+      )}
+      {isFlowHubPipeline && !distribuidorConfig?.scoringSignals?.length && (
+        <div className="card p-8 text-center">
+          <BarChart2 size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
+          <p className="font-semibold text-sm text-primary mb-1">Sin señales configuradas</p>
+          <p className="text-xs text-secondary">El Superadmin no ha configurado señales de scoring para distribuidores todavía.</p>
+        </div>
+      )}
+
+      {/* Regular pipelines → editable scoring */}
+      {!isFlowHubPipeline && (
+      <>
       {/* Info banner */}
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
         <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
@@ -860,6 +876,9 @@ function ScoringTab({ pipelines, scoring, onChange }) {
           </div>
         )
       })}
+    </div>
+      </>
+      )}
     </div>
   )
 }
@@ -1375,13 +1394,12 @@ export default function Agent() {
 
             {/* ── SCORING ── */}
             {activeTab === 'scoring' && (
-              org?.isDistribuidor && distribuidorConfig?.scoringSignals?.length > 0
-                ? <DistribuidorScoringReadOnly signals={distribuidorConfig.scoringSignals} />
-                : <ScoringTab
-                    pipelines={pipelines}
-                    scoring={config.scoring}
-                    onChange={v => set('scoring', v)}
-                  />
+              <ScoringTab
+                pipelines={pipelines}
+                scoring={config.scoring}
+                onChange={v => set('scoring', v)}
+                distribuidorConfig={distribuidorConfig}
+              />
             )}
 
             {/* ── PROBAR ── */}
