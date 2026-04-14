@@ -28,29 +28,38 @@ function buildSystemPrompt(config, ragContent, products, scoringConfig, leadCont
       ).join('\n')}`
     : ''
 
-  // Scoring instructions
+  // Scoring instructions — supports both stage-based (stageName field) and legacy category-based
+  const isStageScoring = scoringConfig && Object.values(scoringConfig).some(v => v.stageName !== undefined)
   const scoringSection = scoringConfig
     ? `\nSISTEMA DE SCORING ACTIVO:
-Mientras conversas, evalúa silenciosamente al lead en estas categorías.
-Después de CADA respuesta, debes indicar en el JSON interno qué señales se activaron.
+Mientras conversas, evalúa silenciosamente al lead.
+Después de CADA respuesta, indica en el JSON interno qué señales se activaron.
 
-${Object.entries(scoringConfig).map(([catId, cat]) => {
-  const catLabel = { necesidad: 'NECESIDAD', capacidad: 'CAPACIDAD', intencion: 'INTENCIÓN', confianza: 'CONFIANZA' }[catId] || catId
-  const allSignals = []
-  if (cat.subcategories) {
-    Object.values(cat.subcategories).forEach(sub => {
-      if (sub.signals) {
-        Object.entries(sub.signals).forEach(([sigId, sigConfig]) => {
-          if (sigConfig.enabled) allSignals.push({ sigId, pts: sigConfig.pts })
+${isStageScoring
+  ? Object.entries(scoringConfig).map(([stageId, sc]) => {
+      const enabled = (sc.signals || []).filter(s => s.enabled !== false)
+      if (!enabled.length) return null
+      return `ETAPA "${sc.stageName}" [id:${stageId}] (score ${sc.scoreMin ?? 0}–${sc.scoreMax ?? 100} pts):\n` +
+        enabled.map(s => `  · ${s.text} → ${s.pts >= 0 ? '+' : ''}${s.pts} pts`).join('\n')
+    }).filter(Boolean).join('\n\n')
+  : Object.entries(scoringConfig).map(([catId, cat]) => {
+      const catLabel = { necesidad: 'NECESIDAD', capacidad: 'CAPACIDAD', intencion: 'INTENCIÓN', confianza: 'CONFIANZA' }[catId] || catId
+      const allSignals = []
+      if (cat.subcategories) {
+        Object.values(cat.subcategories).forEach(sub => {
+          if (sub.signals) {
+            Object.entries(sub.signals).forEach(([sigId, sigConfig]) => {
+              if (sigConfig.enabled) allSignals.push({ sigId, pts: sigConfig.pts })
+            })
+          }
+          if (sub.customSignals) {
+            sub.customSignals.forEach(cs => allSignals.push({ text: cs.text, pts: cs.pts, type: cs.type }))
+          }
         })
       }
-      if (sub.customSignals) {
-        sub.customSignals.forEach(cs => allSignals.push({ text: cs.text, pts: cs.pts, type: cs.type }))
-      }
-    })
-  }
-  return `${catLabel} (tope: ${cat.cap} pts)\n${allSignals.slice(0, 5).map(s => `  · ${s.text || s.sigId} → ${s.pts} pts`).join('\n')}`
-}).join('\n\n')}`
+      return `${catLabel} (tope: ${cat.cap} pts)\n${allSignals.slice(0, 5).map(s => `  · ${s.text || s.sigId} → ${s.pts} pts`).join('\n')}`
+    }).join('\n\n')
+}`
     : ''
 
   // Lead context
@@ -87,10 +96,9 @@ Siempre responde con JSON en este formato exacto:
 {
   "response": "El mensaje que verá el lead",
   "scoring": {
-    "necesidad": { "delta": 0, "reason": "" },
-    "capacidad": { "delta": 0, "reason": "" },
-    "intencion": { "delta": 0, "reason": "" },
-    "confianza": { "delta": 0, "reason": "" }
+${scoringConfig && Object.keys(scoringConfig).length > 0
+  ? Object.keys(scoringConfig).map(k => `    "${k}": { "delta": 0, "reason": "" }`).join(',\n')
+  : '    "general": { "delta": 0, "reason": "" }'}
   },
   "profileB": false,
   "profileBReason": "",

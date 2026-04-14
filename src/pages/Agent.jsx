@@ -527,141 +527,63 @@ function TestPanel({ orgId, config }) {
 }
 
 // ─── SCORING TAB ─────────────────────────────────────────────────
-function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
+function ScoringTab({ pipelines, pipelineStages, scoring, onChange, distribuidorConfig }) {
   const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
-  const [openCats, setOpenCats] = useState({})
-  const [openSubs, setOpenSubs] = useState({})
   const [newSignalText, setNewSignalText] = useState({})
   const [newSignalType, setNewSignalType] = useState({})
 
   const activePipeline = pipelines.find(p => p.id === activePipelineTab)
-  const purpose = activePipeline?.purpose || 'adquisicion'
-  const catalog = CATALOG_BY_PURPOSE[purpose] || CATALOG_ADQUISICION
   const isFlowHubPipeline = activePipeline?.isFlowHubPipeline === true
 
-  // Scoring for the active pipeline
-  const pipelineScoring = scoring[activePipelineTab] || buildDefaultScoring(catalog)
+  const activeStages = (pipelineStages || [])
+    .filter(s => s.pipelineId === activePipelineTab)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-  const updatePipelineScoring = (newPipelineScoring) => {
-    onChange({ ...scoring, [activePipelineTab]: newPipelineScoring })
+  const pipelineScoring = scoring[activePipelineTab] || {}
+
+  const getStageConfig = (stage) => pipelineScoring[stage.id] || {
+    stageName: stage.name,
+    stageColor: stage.color,
+    scoreMin: stage.scoreMin,
+    scoreMax: stage.scoreMax,
+    signals: [],
   }
 
-  const toggleCat = (id) => setOpenCats(s => ({ ...s, [id]: !s[id] }))
-  const toggleSub = (id) => setOpenSubs(s => ({ ...s, [id]: !s[id] }))
-
-  const updateCatCap = (catId, val) => {
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: { ...pipelineScoring[catId], cap: Number(val) }
-    })
+  const updateStageConfig = (stageId, newConfig) => {
+    onChange({ ...scoring, [activePipelineTab]: { ...pipelineScoring, [stageId]: newConfig } })
   }
 
-  const updateSubCap = (catId, subId, val) => {
-    const cat = pipelineScoring[catId]
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...cat,
-        subcategories: {
-          ...cat.subcategories,
-          [subId]: { ...cat.subcategories[subId], cap: Number(val) }
-        }
-      }
-    })
-  }
-
-  const toggleSignal = (catId, subId, sigId) => {
-    const sub = pipelineScoring[catId]?.subcategories?.[subId]
-    if (!sub) return
-    const sig = sub.signals?.[sigId] || { enabled: true, pts: 10 }
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...pipelineScoring[catId],
-        subcategories: {
-          ...pipelineScoring[catId].subcategories,
-          [subId]: {
-            ...sub,
-            signals: { ...sub.signals, [sigId]: { ...sig, enabled: !sig.enabled } }
-          }
-        }
-      }
-    })
-  }
-
-  const updateSignalPts = (catId, subId, sigId, val) => {
-    const sub = pipelineScoring[catId]?.subcategories?.[subId]
-    if (!sub) return
-    const sig = sub.signals?.[sigId] || { enabled: true, pts: 10 }
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...pipelineScoring[catId],
-        subcategories: {
-          ...pipelineScoring[catId].subcategories,
-          [subId]: {
-            ...sub,
-            signals: { ...sub.signals, [sigId]: { ...sig, pts: Number(val) } }
-          }
-        }
-      }
-    })
-  }
-
-  const addCustomSignal = (catId, subId) => {
-    const key = `${catId}_${subId}`
-    const text = (newSignalText[key] || '').trim()
+  const addSignal = (stage) => {
+    const text = (newSignalText[stage.id] || '').trim()
     if (!text) return
-    const type = newSignalType[key] || 'up'
-    const sub = pipelineScoring[catId]?.subcategories?.[subId] || { cap: 10, signals: {}, customSignals: [] }
-    const newSig = { id: `custom_${Date.now()}`, text, type, pts: 10, enabled: true }
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...pipelineScoring[catId],
-        subcategories: {
-          ...pipelineScoring[catId]?.subcategories,
-          [subId]: { ...sub, customSignals: [...(sub.customSignals || []), newSig] }
-        }
-      }
-    })
-    setNewSignalText(s => ({ ...s, [key]: '' }))
+    const type = newSignalType[stage.id] || 'up'
+    const config = getStageConfig(stage)
+    const newSig = { id: `sig_${Date.now()}`, text, type, pts: type === 'up' ? 10 : -5, enabled: true }
+    updateStageConfig(stage.id, { ...config, signals: [...(config.signals || []), newSig] })
+    setNewSignalText(s => ({ ...s, [stage.id]: '' }))
   }
 
-  const removeCustomSignal = (catId, subId, sigIdx) => {
-    const sub = pipelineScoring[catId]?.subcategories?.[subId]
-    if (!sub) return
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...pipelineScoring[catId],
-        subcategories: {
-          ...pipelineScoring[catId].subcategories,
-          [subId]: { ...sub, customSignals: sub.customSignals.filter((_, i) => i !== sigIdx) }
-        }
-      }
+  const removeSignal = (stage, sigIdx) => {
+    const config = getStageConfig(stage)
+    updateStageConfig(stage.id, { ...config, signals: config.signals.filter((_, i) => i !== sigIdx) })
+  }
+
+  const toggleSignal = (stage, sigIdx) => {
+    const config = getStageConfig(stage)
+    updateStageConfig(stage.id, {
+      ...config,
+      signals: config.signals.map((s, i) => i === sigIdx ? { ...s, enabled: s.enabled === false } : s),
     })
   }
 
-  const updateCustomSignalPts = (catId, subId, sigIdx, val) => {
-    const sub = pipelineScoring[catId]?.subcategories?.[subId]
-    if (!sub) return
-    updatePipelineScoring({
-      ...pipelineScoring,
-      [catId]: {
-        ...pipelineScoring[catId],
-        subcategories: {
-          ...pipelineScoring[catId].subcategories,
-          [subId]: {
-            ...sub,
-            customSignals: sub.customSignals.map((s, i) => i === sigIdx ? { ...s, pts: Number(val) } : s)
-          }
-        }
-      }
+  const updateSignalPts = (stage, sigIdx, rawVal, sigType) => {
+    const config = getStageConfig(stage)
+    const pts = sigType === 'up' ? Math.abs(Number(rawVal)) : -Math.abs(Number(rawVal))
+    updateStageConfig(stage.id, {
+      ...config,
+      signals: config.signals.map((s, i) => i === sigIdx ? { ...s, pts } : s),
     })
   }
-
-  const totalCap = Object.values(pipelineScoring).reduce((sum, cat) => sum + (cat.cap || 0), 0)
 
   if (pipelines.length === 0) {
     return (
@@ -678,11 +600,7 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
       {/* Pipeline tabs */}
       <div className="card p-1 flex gap-1">
         {pipelines.map(p => (
-          <button key={p.id} onClick={() => {
-            setActivePipelineTab(p.id)
-            setOpenCats({})
-            setOpenSubs({})
-          }}
+          <button key={p.id} onClick={() => setActivePipelineTab(p.id)}
             className={clsx(
               'flex-1 px-3 py-2 rounded-[8px] text-[12.5px] font-semibold transition-all text-center',
               activePipelineTab === p.id
@@ -692,7 +610,7 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
             <div>{p.name}</div>
             <div className={clsx('text-[10px] font-normal mt-0.5',
               activePipelineTab === p.id ? 'text-white/70' : 'text-tertiary')}>
-              {PURPOSE_LABELS[p.purpose] || p.purpose}
+              {PURPOSE_LABELS[p.purpose] || p.purpose || 'Pipeline'}
             </div>
           </button>
         ))}
@@ -710,173 +628,104 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
         </div>
       )}
 
-      {/* Regular pipelines → editable scoring */}
+      {/* Regular pipeline → stage-based scoring */}
       {!isFlowHubPipeline && (
-      <div className="flex flex-col gap-4">
-      {/* Info banner */}
-      <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
-        <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-[12.5px] text-blue-800 font-semibold mb-0.5">
-            Scoring para pipeline de {PURPOSE_LABELS[purpose] || purpose}
-          </p>
-          <p className="text-[11.5px] text-blue-700 leading-relaxed">
-            {purpose === 'adquisicion' && 'Mide la probabilidad de primera compra — Necesidad, Capacidad, Intención y Confianza.'}
-            {purpose === 'retencion' && 'Mide el riesgo de abandono y la probabilidad de recompra — Satisfacción, Engagement, Riesgo e Intención de renovar.'}
-            {purpose === 'distribucion' && 'Mide el potencial como distribuidor — Perfil emprendedor, Red de contactos, Disponibilidad y Comprensión del modelo.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Score total */}
-      <div className="card p-4 flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-bold text-secondary uppercase tracking-wide">Score máximo total</p>
-          <p className="text-[11px] text-tertiary mt-0.5">Suma de los topes de las {Object.keys(catalog).length} categorías</p>
-        </div>
-        <div className="text-right">
-          <span className="font-display font-bold text-2xl text-primary">{totalCap}</span>
-          <span className="text-sm text-secondary ml-1">pts</span>
-        </div>
-      </div>
-
-      {/* Categories */}
-      {Object.entries(catalog).map(([catId, catDef]) => {
-        const catConfig = pipelineScoring[catId] || { cap: 25, subcategories: {} }
-        const isOpen = openCats[catId]
-
-        return (
-          <div key={catId} className="card overflow-hidden">
-            {/* Category header */}
-            <div className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-black/[0.02] transition-colors"
-              onClick={() => toggleCat(catId)}>
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: catDef.color }} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-display font-bold text-sm text-primary">{catDef.label}</span>
-                  <span className="text-[10px] text-secondary">{catDef.desc}</span>
-                </div>
+        activeStages.length === 0 ? (
+          <div className="card p-8 text-center">
+            <BarChart2 size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
+            <p className="font-semibold text-sm text-primary mb-1">Sin etapas en este pipeline</p>
+            <p className="text-xs text-secondary">Agrega etapas al pipeline para configurar el scoring del agente.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
+              <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[12.5px] text-blue-800 font-semibold mb-0.5">Señales por etapa del pipeline</p>
+                <p className="text-[11.5px] text-blue-700 leading-relaxed">
+                  Configura qué frases o comportamientos del lead indican que está avanzando hacia cada etapa. El agente los evalúa silenciosamente en cada mensaje.
+                </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Tope</span>
-                <input type="number" min={1} max={100} value={catConfig.cap}
-                  onChange={e => updateCatCap(catId, e.target.value)}
-                  className="w-14 text-center input text-sm py-1 font-bold"
-                  style={{ borderColor: catDef.color + '60' }} />
-                <span className="text-[10px] text-secondary">pts</span>
-              </div>
-              {isOpen
-                ? <ChevronUp size={14} className="text-tertiary flex-shrink-0" />
-                : <ChevronDown size={14} className="text-tertiary flex-shrink-0" />}
             </div>
 
-            {/* Subcategories */}
-            {isOpen && (
-              <div className="border-t border-black/[0.06]">
-                {Object.entries(catDef.subcategories).map(([subId, subDef]) => {
-                  const subKey = `${catId}_${subId}`
-                  const subConfig = catConfig.subcategories?.[subId] || { cap: 10, signals: {}, customSignals: [] }
-                  const isSubOpen = openSubs[subKey]
+            {activeStages.map(stage => {
+              const stageConfig = getStageConfig(stage)
+              const activeSignals = (stageConfig.signals || []).filter(s => s.enabled !== false).length
+              return (
+                <div key={stage.id} className="card overflow-hidden">
+                  {/* Stage header */}
+                  <div className="flex items-center gap-3 px-5 py-3.5"
+                    style={{ borderBottom: `2px solid ${stage.color || '#8e8e93'}22`, background: (stage.color || '#8e8e93') + '08' }}>
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: stage.color || '#8e8e93' }} />
+                    <div className="flex-1">
+                      <p className="font-display font-bold text-sm text-primary">{stage.name}</p>
+                      <p className="text-[10px] text-secondary mt-0.5">Score {stage.scoreMin ?? 0}–{stage.scoreMax ?? 100} pts</p>
+                    </div>
+                    <span className="text-[10px] font-medium text-secondary">
+                      {activeSignals} señal{activeSignals !== 1 ? 'es' : ''} activa{activeSignals !== 1 ? 's' : ''}
+                    </span>
+                  </div>
 
-                  return (
-                    <div key={subId} className="border-b border-black/[0.04] last:border-b-0">
-                      <div className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
-                        style={{ paddingLeft: 28 }} onClick={() => toggleSub(subKey)}>
-                        <span className="text-[12.5px] font-semibold text-primary flex-1">{subDef.label}</span>
-                        <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                          <span className="text-[10px] text-tertiary">Tope</span>
-                          <input type="number" min={1} max={50} value={subConfig.cap}
-                            onChange={e => updateSubCap(catId, subId, e.target.value)}
-                            className="w-12 text-center input text-xs py-0.5" />
+                  {/* Signals list + add form */}
+                  <div className="px-5 py-4 flex flex-col gap-2">
+                    {(stageConfig.signals || []).length === 0 && (
+                      <p className="text-[11.5px] text-tertiary text-center py-2 italic">
+                        Sin señales — agrega señales para que el agente evalúe esta etapa
+                      </p>
+                    )}
+                    {(stageConfig.signals || []).map((sig, idx) => (
+                      <div key={sig.id || idx} className={clsx(
+                        'flex items-center gap-3 px-3 py-2 rounded-[8px] border transition-all',
+                        sig.enabled !== false ? 'bg-surface border-black/[0.08]' : 'bg-surface-2 border-black/[0.04] opacity-50'
+                      )}>
+                        <div onClick={() => toggleSignal(stage, idx)}
+                          className={clsx('w-8 h-4 rounded-full cursor-pointer transition-all relative flex-shrink-0',
+                            sig.enabled !== false ? 'bg-accent-blue' : 'bg-black/20')}>
+                          <div className={clsx('absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all',
+                            sig.enabled !== false ? 'left-4' : 'left-0.5')} />
+                        </div>
+                        <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
+                          sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
+                          {sig.type === 'up' ? '▲' : '▼'}
+                        </span>
+                        <span className="text-[12px] text-primary flex-1 leading-snug">{sig.text}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input type="number" min={1} max={50} value={Math.abs(sig.pts ?? 10)}
+                            onChange={e => updateSignalPts(stage, idx, e.target.value, sig.type)}
+                            disabled={sig.enabled === false}
+                            className="w-10 text-center input text-xs py-0.5 disabled:opacity-40" />
                           <span className="text-[10px] text-tertiary">pts</span>
                         </div>
-                        {isSubOpen
-                          ? <ChevronUp size={12} className="text-tertiary flex-shrink-0" />
-                          : <ChevronDown size={12} className="text-tertiary flex-shrink-0" />}
+                        <button onClick={() => removeSignal(stage, idx)}
+                          className="text-tertiary hover:text-red-500 transition-colors flex-shrink-0">
+                          <X size={12} />
+                        </button>
                       </div>
-
-                      {isSubOpen && (
-                        <div className="px-5 pb-4" style={{ paddingLeft: 36 }}>
-                          {/* Catalog signals */}
-                          <div className="flex flex-col gap-1.5 mb-3">
-                            {subDef.signals.map(sig => {
-                              const sigConfig = subConfig.signals?.[sig.id] || { enabled: true, pts: sig.type === 'up' ? 10 : 5 }
-                              return (
-                                <div key={sig.id} className={clsx(
-                                  'flex items-center gap-3 px-3 py-2 rounded-[8px] border transition-all',
-                                  sigConfig.enabled ? 'bg-surface border-black/[0.08]' : 'bg-surface-2 border-black/[0.04] opacity-50'
-                                )}>
-                                  <div onClick={() => toggleSignal(catId, subId, sig.id)}
-                                    className={clsx('w-8 h-4 rounded-full cursor-pointer transition-all relative flex-shrink-0',
-                                      sigConfig.enabled ? 'bg-accent-blue' : 'bg-black/20')}>
-                                    <div className={clsx('absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all',
-                                      sigConfig.enabled ? 'left-4' : 'left-0.5')} />
-                                  </div>
-                                  <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-                                    sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
-                                    {sig.type === 'up' ? '▲' : '▼'}
-                                  </span>
-                                  <span className="text-[12px] text-primary flex-1 leading-snug">{sig.text}</span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    <input type="number" min={1} max={50} value={sigConfig.pts}
-                                      onChange={e => updateSignalPts(catId, subId, sig.id, e.target.value)}
-                                      disabled={!sigConfig.enabled}
-                                      className="w-10 text-center input text-xs py-0.5 disabled:opacity-40" />
-                                    <span className="text-[10px] text-tertiary">pts</span>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-
-                          {/* Custom signals */}
-                          {(subConfig.customSignals || []).map((sig, idx) => (
-                            <div key={sig.id} className="flex items-center gap-3 px-3 py-2 rounded-[8px] border border-dashed border-black/[0.12] bg-surface mb-1.5">
-                              <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-                                sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
-                                {sig.type === 'up' ? '▲' : '▼'} Custom
-                              </span>
-                              <span className="text-[12px] text-primary flex-1">{sig.text}</span>
-                              <input type="number" min={1} max={50} value={sig.pts}
-                                onChange={e => updateCustomSignalPts(catId, subId, idx, e.target.value)}
-                                className="w-10 text-center input text-xs py-0.5" />
-                              <span className="text-[10px] text-tertiary">pts</span>
-                              <button onClick={() => removeCustomSignal(catId, subId, idx)}
-                                className="text-tertiary hover:text-red-500 transition-colors flex-shrink-0">
-                                <X size={12} />
-                              </button>
-                            </div>
-                          ))}
-
-                          {/* Add custom signal */}
-                          <div className="flex gap-2 mt-2">
-                            <select value={newSignalType[`${catId}_${subId}`] || 'up'}
-                              onChange={e => setNewSignalType(s => ({ ...s, [`${catId}_${subId}`]: e.target.value }))}
-                              className="input text-xs py-1.5 w-24 flex-shrink-0">
-                              <option value="up">▲ Sube</option>
-                              <option value="down">▼ Baja</option>
-                            </select>
-                            <input value={newSignalText[`${catId}_${subId}`] || ''}
-                              onChange={e => setNewSignalText(s => ({ ...s, [`${catId}_${subId}`]: e.target.value }))}
-                              onKeyDown={e => { if (e.key === 'Enter') addCustomSignal(catId, subId) }}
-                              placeholder="Agregar señal personalizada..."
-                              className="input text-xs py-1.5 flex-1" />
-                            <button onClick={() => addCustomSignal(catId, subId)}
-                              className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0 flex items-center gap-1">
-                              <Plus size={11} /> Agregar
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                    ))}
+                    {/* Add signal */}
+                    <div className="flex gap-2 mt-1">
+                      <select value={newSignalType[stage.id] || 'up'}
+                        onChange={e => setNewSignalType(s => ({ ...s, [stage.id]: e.target.value }))}
+                        className="input text-xs py-1.5 w-24 flex-shrink-0">
+                        <option value="up">▲ Sube</option>
+                        <option value="down">▼ Baja</option>
+                      </select>
+                      <input value={newSignalText[stage.id] || ''}
+                        onChange={e => setNewSignalText(s => ({ ...s, [stage.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') addSignal(stage) }}
+                        placeholder={`Señal para "${stage.name}"...`}
+                        className="input text-xs py-1.5 flex-1" />
+                      <button onClick={() => addSignal(stage)}
+                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0 flex items-center gap-1">
+                        <Plus size={11} /> Agregar
+                      </button>
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
-      })}
-    </div>
       )}
     </div>
   )
@@ -1085,6 +934,7 @@ export default function Agent() {
   const [uploadingFile, setUploadingFile] = useState(false)
   const [deleteModal, setDeleteModal] = useState(null)
   const [distribuidorConfig, setDistribuidorConfig] = useState(null)
+  const [pipelineStages, setPipelineStages] = useState([])
   const fileInputRef = useRef()
 
   const [config, setConfig] = useState({
@@ -1137,6 +987,16 @@ export default function Agent() {
     return unsub
   }, [org?.id])
 
+  // Load pipeline stages (for stage-based scoring)
+  useEffect(() => {
+    if (!org?.id) return
+    const unsub = onSnapshot(
+      collection(db, 'organizations', org.id, 'pipeline_stages'),
+      snap => setPipelineStages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    )
+    return unsub
+  }, [org?.id])
+
   // Load global distribuidor config (prompt + scoring signals set by Superadmin)
   useEffect(() => {
     if (!org?.isDistribuidor) return
@@ -1145,23 +1005,6 @@ export default function Agent() {
     })
     return unsub
   }, [org?.isDistribuidor])
-
-  // Initialize scoring for new pipelines that don't have it yet
-  useEffect(() => {
-    if (pipelines.length === 0) return
-    setConfig(c => {
-      const newScoring = { ...c.scoring }
-      let changed = false
-      pipelines.forEach(p => {
-        if (!newScoring[p.id]) {
-          const catalog = CATALOG_BY_PURPOSE[p.purpose] || CATALOG_ADQUISICION
-          newScoring[p.id] = buildDefaultScoring(catalog)
-          changed = true
-        }
-      })
-      return changed ? { ...c, scoring: newScoring } : c
-    })
-  }, [pipelines])
 
   const handleSave = async () => {
     setSaving(true)
@@ -1395,6 +1238,7 @@ export default function Agent() {
             {activeTab === 'scoring' && (
               <ScoringTab
                 pipelines={pipelines}
+                pipelineStages={pipelineStages}
                 scoring={config.scoring}
                 onChange={v => set('scoring', v)}
                 distribuidorConfig={distribuidorConfig}
