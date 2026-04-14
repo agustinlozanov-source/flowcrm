@@ -526,64 +526,332 @@ function TestPanel({ orgId, config }) {
   )
 }
 
+// ─── DEFAULT SCORING TEMPLATE ────────────────────────────────────
+const DEFAULT_AGENT_SCORING = [
+  {
+    id: 'cat_necesidad', label: 'Necesidad', color: '#0066ff',
+    desc: '¿Tiene un problema real que resolver?', tope: 25,
+    subcategories: [
+      {
+        id: 'sub_urgencia', label: 'Urgencia', tope: 15, signals: [
+          { id: 's_n1', text: 'Tiene fecha límite explícita o consecuencia de no actuar', type: 'up', weight: 8 },
+          { id: 's_n2', text: 'El problema ya le está costando dinero o tiempo hoy', type: 'up', weight: 6 },
+          { id: 's_n3', text: 'Es un deseo futuro sin presión de tiempo', type: 'down', weight: -5 },
+        ],
+      },
+      {
+        id: 'sub_claridad', label: 'Claridad del problema', tope: 10, signals: [
+          { id: 's_n4', text: 'Sabe exactamente qué necesita y lo describe con detalle', type: 'up', weight: 7 },
+          { id: 's_n5', text: 'Confunde síntomas con el problema real', type: 'down', weight: -5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'cat_capacidad', label: 'Capacidad', color: '#00875a',
+    desc: '¿Puede comprar?', tope: 25,
+    subcategories: [
+      {
+        id: 'sub_presupuesto', label: 'Presupuesto', tope: 15, signals: [
+          { id: 's_c1', text: 'Mencionó presupuesto disponible espontáneamente', type: 'up', weight: 8 },
+          { id: 's_c2', text: 'Dijo que no tiene presupuesto asignado aún', type: 'down', weight: -8 },
+        ],
+      },
+      {
+        id: 'sub_autoridad', label: 'Autoridad', tope: 10, signals: [
+          { id: 's_c3', text: 'Confirmó que decide solo sin consultar a nadie', type: 'up', weight: 8 },
+          { id: 's_c4', text: 'Necesita consultar con alguien antes de decidir', type: 'down', weight: -6 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'cat_intencion', label: 'Intención', color: '#b45309',
+    desc: '¿Quiere comprar ahora?', tope: 25,
+    subcategories: [
+      {
+        id: 'sub_horizonte', label: 'Horizonte de compra', tope: 15, signals: [
+          { id: 's_i1', text: 'Quiere resolver esto esta semana o este mes', type: 'up', weight: 8 },
+          { id: 's_i2', text: 'No tiene ningún horizonte de tiempo definido', type: 'down', weight: -6 },
+        ],
+      },
+      {
+        id: 'sub_avance', label: 'Señales de avance', tope: 10, signals: [
+          { id: 's_i3', text: 'Él propone los siguientes pasos de la conversación', type: 'up', weight: 8 },
+          { id: 's_i4', text: 'Volvió a escribir por iniciativa propia después de silencio', type: 'up', weight: 6 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'cat_confianza', label: 'Confianza', color: '#5b21b6',
+    desc: '¿Confía en ti y en el producto?', tope: 25,
+    subcategories: [
+      {
+        id: 'sub_apertura', label: 'Apertura', tope: 15, signals: [
+          { id: 's_co1', text: 'Comparte información personal sin que le pregunten', type: 'up', weight: 7 },
+          { id: 's_co2', text: 'Es reservado y evita dar información concreta', type: 'down', weight: -5 },
+        ],
+      },
+      {
+        id: 'sub_receptividad', label: 'Receptividad', tope: 10, signals: [
+          { id: 's_co3', text: 'Acepta la información y hace preguntas de seguimiento', type: 'up', weight: 7 },
+          { id: 's_co4', text: 'Cuando resuelves una objeción aparece otra inmediatamente', type: 'down', weight: -6 },
+        ],
+      },
+    ],
+  },
+]
+
+// ─── PIPELINE SCORING EDITOR ──────────────────────────────────────
+function PipelineScoringEditor({ data, onChange }) {
+  const [openCats, setOpenCats] = useState({})
+  const [openSubs, setOpenSubs] = useState({})
+  const [newSigText, setNewSigText] = useState({})
+  const [newSigType, setNewSigType] = useState({})
+  const [newSubName, setNewSubName] = useState({})
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatForm, setNewCatForm] = useState({ label: '', color: '#0066ff', desc: '', tope: 25 })
+
+  const totalTope = data.reduce((s, c) => s + (c.tope || 0), 0)
+
+  const upd = (ci, field, val) =>
+    onChange(data.map((c, i) => i === ci ? { ...c, [field]: field === 'tope' ? Number(val) : val } : c))
+  const removeCat = (ci) => onChange(data.filter((_, i) => i !== ci))
+  const addCat = () => {
+    if (!newCatForm.label.trim()) return
+    onChange([...data, { id: `cat_${Date.now()}`, ...newCatForm, tope: Number(newCatForm.tope) || 25, subcategories: [] }])
+    setNewCatForm({ label: '', color: '#0066ff', desc: '', tope: 25 })
+    setAddingCat(false)
+  }
+
+  const updSub = (ci, si, field, val) =>
+    onChange(data.map((c, i) => i !== ci ? c : {
+      ...c,
+      subcategories: c.subcategories.map((s, j) =>
+        j !== si ? s : { ...s, [field]: field === 'tope' ? Number(val) : val }
+      ),
+    }))
+  const removeSub = (ci, si) =>
+    onChange(data.map((c, i) => i !== ci ? c : { ...c, subcategories: c.subcategories.filter((_, j) => j !== si) }))
+  const addSub = (ci) => {
+    const name = (newSubName[ci] || '').trim()
+    if (!name) return
+    onChange(data.map((c, i) => i !== ci ? c : {
+      ...c,
+      subcategories: [...(c.subcategories || []), { id: `sub_${Date.now()}`, label: name, tope: 10, signals: [] }],
+    }))
+    setNewSubName(s => ({ ...s, [ci]: '' }))
+  }
+
+  const updSig = (ci, si, sgi, field, val) =>
+    onChange(data.map((c, i) => i !== ci ? c : {
+      ...c,
+      subcategories: c.subcategories.map((s, j) => j !== si ? s : {
+        ...s,
+        signals: s.signals.map((sg, k) =>
+          k !== sgi ? sg : { ...sg, [field]: field === 'weight' ? Number(val) : val }
+        ),
+      }),
+    }))
+  const removeSig = (ci, si, sgi) =>
+    onChange(data.map((c, i) => i !== ci ? c : {
+      ...c,
+      subcategories: c.subcategories.map((s, j) => j !== si ? s : {
+        ...s, signals: s.signals.filter((_, k) => k !== sgi),
+      }),
+    }))
+  const addSig = (ci, si) => {
+    const key = `${ci}_${si}`
+    const text = (newSigText[key] || '').trim()
+    if (!text) return
+    const type = newSigType[key] || 'up'
+    onChange(data.map((c, i) => i !== ci ? c : {
+      ...c,
+      subcategories: c.subcategories.map((s, j) => j !== si ? s : {
+        ...s,
+        signals: [...(s.signals || []), { id: `sig_${Date.now()}`, text, type, weight: type === 'up' ? 5 : -5 }],
+      }),
+    }))
+    setNewSigText(s => ({ ...s, [key]: '' }))
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Total tope badge */}
+      <div className="flex items-center justify-between">
+        <span className="text-[11.5px] text-secondary">Distribución de puntos (la suma debe ser 100)</span>
+        <span className={clsx(
+          'text-[11px] font-bold px-2.5 py-1 rounded-full border',
+          totalTope === 100
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-amber-50 text-amber-700 border-amber-200'
+        )}>
+          {totalTope} / 100 pts {totalTope === 100 ? '✓' : '⚠'}
+        </span>
+      </div>
+
+      {data.map((cat, ci) => {
+        const isOpen = !!openCats[ci]
+        return (
+          <div key={cat.id || ci} className="card overflow-hidden">
+            {/* Category header */}
+            <div className="flex items-center gap-2 px-4 py-3"
+              style={{ background: (cat.color || '#8e8e93') + '12', borderBottom: isOpen ? `2px solid ${cat.color || '#8e8e93'}30` : undefined }}>
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: cat.color || '#8e8e93' }} />
+              <input value={cat.label} onChange={e => upd(ci, 'label', e.target.value)}
+                className="input text-[13px] font-bold py-1 w-28 flex-shrink-0" placeholder="Categoría" />
+              <input value={cat.desc || ''} onChange={e => upd(ci, 'desc', e.target.value)}
+                className="input text-[11px] text-secondary py-1 flex-1 min-w-0" placeholder="Descripción (opcional)" />
+              <input type="color" value={cat.color || '#0066ff'} onChange={e => upd(ci, 'color', e.target.value)}
+                className="w-7 h-7 rounded cursor-pointer border border-black/10 flex-shrink-0" />
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-[10px] text-secondary">Tope</span>
+                <input type="number" min={1} max={100} value={cat.tope}
+                  onChange={e => upd(ci, 'tope', e.target.value)}
+                  className="w-14 input text-center text-[12px] font-bold py-1" />
+                <span className="text-[10px] text-secondary">pts</span>
+              </div>
+              <button onClick={() => removeCat(ci)} className="text-tertiary hover:text-red-500 transition-colors p-1">
+                <Trash2 size={13} />
+              </button>
+              <button onClick={() => setOpenCats(s => ({ ...s, [ci]: !s[ci] }))} className="text-tertiary p-1">
+                {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
+
+            {/* Subcategories */}
+            {isOpen && (
+              <div className="px-4 py-3 flex flex-col gap-2">
+                {(cat.subcategories || []).map((sub, si) => {
+                  const subKey = `${ci}_${si}`
+                  const isSubOpen = !!openSubs[subKey]
+                  return (
+                    <div key={sub.id || si} className="border border-black/[0.08] rounded-[10px] overflow-hidden">
+                      {/* Sub header */}
+                      <div className="flex items-center gap-2 px-3 py-2 bg-surface-2">
+                        <input value={sub.label} onChange={e => updSub(ci, si, 'label', e.target.value)}
+                          className="input text-[12px] font-semibold py-0.5 flex-1" placeholder="Subcategoría" />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[10px] text-tertiary">Tope</span>
+                          <input type="number" min={1} max={100} value={sub.tope}
+                            onChange={e => updSub(ci, si, 'tope', e.target.value)}
+                            className={clsx('w-12 input text-center text-[11px] py-0.5',
+                              sub.tope > cat.tope ? 'border-red-400 text-red-600' : '')} />
+                          <span className="text-[10px] text-tertiary">pts</span>
+                        </div>
+                        <button onClick={() => removeSub(ci, si)} className="text-tertiary hover:text-red-500 p-0.5">
+                          <X size={11} />
+                        </button>
+                        <button onClick={() => setOpenSubs(s => ({ ...s, [subKey]: !s[subKey] }))} className="text-tertiary p-0.5">
+                          {isSubOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
+                      </div>
+
+                      {/* Signals */}
+                      {isSubOpen && (
+                        <div className="px-3 py-2 flex flex-col gap-1.5">
+                          {(sub.signals || []).map((sig, sgi) => (
+                            <div key={sig.id || sgi} className={clsx(
+                              'flex items-center gap-2 px-2 py-1.5 rounded-[7px] border',
+                              sig.type === 'up' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                            )}>
+                              <select value={sig.type} onChange={e => updSig(ci, si, sgi, 'type', e.target.value)}
+                                className="input text-[10px] py-0.5 w-20 flex-shrink-0">
+                                <option value="up">▲ Sube</option>
+                                <option value="down">▼ Baja</option>
+                              </select>
+                              <input value={sig.text} onChange={e => updSig(ci, si, sgi, 'text', e.target.value)}
+                                className="input text-[12px] py-0.5 flex-1 min-w-0" placeholder="Descripción de la señal" />
+                              <input type="number" value={sig.weight} onChange={e => updSig(ci, si, sgi, 'weight', e.target.value)}
+                                className={clsx('w-14 input text-center text-[12px] py-0.5 font-bold flex-shrink-0',
+                                  sig.type === 'down' ? 'text-red-600' : 'text-green-700')} />
+                              <span className="text-[10px] text-secondary flex-shrink-0">pts</span>
+                              <button onClick={() => removeSig(ci, si, sgi)} className="text-tertiary hover:text-red-500 p-0.5 flex-shrink-0">
+                                <X size={11} />
+                              </button>
+                            </div>
+                          ))}
+                          {/* Add signal row */}
+                          <div className="flex gap-1.5 mt-1">
+                            <select value={newSigType[`${ci}_${si}`] || 'up'}
+                              onChange={e => setNewSigType(s => ({ ...s, [`${ci}_${si}`]: e.target.value }))}
+                              className="input text-[10px] py-1 w-20 flex-shrink-0">
+                              <option value="up">▲ Sube</option>
+                              <option value="down">▼ Baja</option>
+                            </select>
+                            <input value={newSigText[`${ci}_${si}`] || ''}
+                              onChange={e => setNewSigText(s => ({ ...s, [`${ci}_${si}`]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === 'Enter') addSig(ci, si) }}
+                              placeholder="Nueva señal..."
+                              className="input text-[12px] py-1 flex-1" />
+                            <button onClick={() => addSig(ci, si)}
+                              className="btn-secondary text-[11px] py-1 px-2.5 flex-shrink-0 flex items-center gap-1">
+                              <Plus size={11} /> Add
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {/* Add subcategory row */}
+                <div className="flex gap-2 mt-1">
+                  <input value={newSubName[ci] || ''}
+                    onChange={e => setNewSubName(s => ({ ...s, [ci]: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') addSub(ci) }}
+                    placeholder="Nueva subcategoría..."
+                    className="input text-[12px] py-1.5 flex-1" />
+                  <button onClick={() => addSub(ci)}
+                    className="btn-secondary text-[11px] py-1.5 px-3 flex-shrink-0 flex items-center gap-1">
+                    <Plus size={11} /> Subcategoría
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Add category */}
+      {addingCat ? (
+        <div className="card p-4 flex flex-col gap-2 border-2 border-dashed border-black/10">
+          <div className="flex gap-2">
+            <input value={newCatForm.label} onChange={e => setNewCatForm(f => ({ ...f, label: e.target.value }))}
+              placeholder="Nombre de la categoría" className="input text-[13px] py-1.5 flex-1" autoFocus />
+            <input type="color" value={newCatForm.color} onChange={e => setNewCatForm(f => ({ ...f, color: e.target.value }))}
+              className="w-9 h-9 rounded cursor-pointer border border-black/10" />
+            <input type="number" min={1} max={100} value={newCatForm.tope}
+              onChange={e => setNewCatForm(f => ({ ...f, tope: Number(e.target.value) }))}
+              className="w-16 input text-center text-[13px] py-1.5" />
+            <span className="text-[11px] text-secondary self-center flex-shrink-0">pts</span>
+          </div>
+          <input value={newCatForm.desc} onChange={e => setNewCatForm(f => ({ ...f, desc: e.target.value }))}
+            placeholder="Descripción (opcional)" className="input text-[12px] py-1.5" />
+          <div className="flex gap-2">
+            <button onClick={addCat} className="btn-primary text-[12px] py-1.5 px-4 flex-1">Agregar categoría</button>
+            <button onClick={() => setAddingCat(false)} className="btn-secondary text-[12px] py-1.5 px-3">Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAddingCat(true)}
+          className="w-full border-2 border-dashed border-black/[0.12] rounded-[12px] py-3 text-[12.5px] text-secondary hover:border-accent-blue hover:text-accent-blue transition-all flex items-center justify-center gap-2">
+          <Plus size={14} /> Nueva categoría
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── SCORING TAB ─────────────────────────────────────────────────
-function ScoringTab({ pipelines, pipelineStages, scoring, onChange, distribuidorConfig }) {
+function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
   const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
-  const [newSignalText, setNewSignalText] = useState({})
-  const [newSignalType, setNewSignalType] = useState({})
 
   const activePipeline = pipelines.find(p => p.id === activePipelineTab)
   const isFlowHubPipeline = activePipeline?.isFlowHubPipeline === true
-
-  const activeStages = (pipelineStages || [])
-    .filter(s => s.pipelineId === activePipelineTab)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-
-  const pipelineScoring = scoring[activePipelineTab] || {}
-
-  const getStageConfig = (stage) => pipelineScoring[stage.id] || {
-    stageName: stage.name,
-    stageColor: stage.color,
-    scoreMin: stage.scoreMin,
-    scoreMax: stage.scoreMax,
-    signals: [],
-  }
-
-  const updateStageConfig = (stageId, newConfig) => {
-    onChange({ ...scoring, [activePipelineTab]: { ...pipelineScoring, [stageId]: newConfig } })
-  }
-
-  const addSignal = (stage) => {
-    const text = (newSignalText[stage.id] || '').trim()
-    if (!text) return
-    const type = newSignalType[stage.id] || 'up'
-    const config = getStageConfig(stage)
-    const newSig = { id: `sig_${Date.now()}`, text, type, pts: type === 'up' ? 10 : -5, enabled: true }
-    updateStageConfig(stage.id, { ...config, signals: [...(config.signals || []), newSig] })
-    setNewSignalText(s => ({ ...s, [stage.id]: '' }))
-  }
-
-  const removeSignal = (stage, sigIdx) => {
-    const config = getStageConfig(stage)
-    updateStageConfig(stage.id, { ...config, signals: config.signals.filter((_, i) => i !== sigIdx) })
-  }
-
-  const toggleSignal = (stage, sigIdx) => {
-    const config = getStageConfig(stage)
-    updateStageConfig(stage.id, {
-      ...config,
-      signals: config.signals.map((s, i) => i === sigIdx ? { ...s, enabled: s.enabled === false } : s),
-    })
-  }
-
-  const updateSignalPts = (stage, sigIdx, rawVal, sigType) => {
-    const config = getStageConfig(stage)
-    const pts = sigType === 'up' ? Math.abs(Number(rawVal)) : -Math.abs(Number(rawVal))
-    updateStageConfig(stage.id, {
-      ...config,
-      signals: config.signals.map((s, i) => i === sigIdx ? { ...s, pts } : s),
-    })
-  }
+  const pipelineScoring = Array.isArray(scoring[activePipelineTab])
+    ? scoring[activePipelineTab]
+    : DEFAULT_AGENT_SCORING
 
   if (pipelines.length === 0) {
     return (
@@ -628,104 +896,12 @@ function ScoringTab({ pipelines, pipelineStages, scoring, onChange, distribuidor
         </div>
       )}
 
-      {/* Regular pipeline → stage-based scoring */}
+      {/* Regular pipeline → fully editable category/subcategory/signal scoring */}
       {!isFlowHubPipeline && (
-        activeStages.length === 0 ? (
-          <div className="card p-8 text-center">
-            <BarChart2 size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
-            <p className="font-semibold text-sm text-primary mb-1">Sin etapas en este pipeline</p>
-            <p className="text-xs text-secondary">Agrega etapas al pipeline para configurar el scoring del agente.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-[12px]">
-              <BarChart2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[12.5px] text-blue-800 font-semibold mb-0.5">Señales por etapa del pipeline</p>
-                <p className="text-[11.5px] text-blue-700 leading-relaxed">
-                  Configura qué frases o comportamientos del lead indican que está avanzando hacia cada etapa. El agente los evalúa silenciosamente en cada mensaje.
-                </p>
-              </div>
-            </div>
-
-            {activeStages.map(stage => {
-              const stageConfig = getStageConfig(stage)
-              const activeSignals = (stageConfig.signals || []).filter(s => s.enabled !== false).length
-              return (
-                <div key={stage.id} className="card overflow-hidden">
-                  {/* Stage header */}
-                  <div className="flex items-center gap-3 px-5 py-3.5"
-                    style={{ borderBottom: `2px solid ${stage.color || '#8e8e93'}22`, background: (stage.color || '#8e8e93') + '08' }}>
-                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: stage.color || '#8e8e93' }} />
-                    <div className="flex-1">
-                      <p className="font-display font-bold text-sm text-primary">{stage.name}</p>
-                      <p className="text-[10px] text-secondary mt-0.5">Score {stage.scoreMin ?? 0}–{stage.scoreMax ?? 100} pts</p>
-                    </div>
-                    <span className="text-[10px] font-medium text-secondary">
-                      {activeSignals} señal{activeSignals !== 1 ? 'es' : ''} activa{activeSignals !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-
-                  {/* Signals list + add form */}
-                  <div className="px-5 py-4 flex flex-col gap-2">
-                    {(stageConfig.signals || []).length === 0 && (
-                      <p className="text-[11.5px] text-tertiary text-center py-2 italic">
-                        Sin señales — agrega señales para que el agente evalúe esta etapa
-                      </p>
-                    )}
-                    {(stageConfig.signals || []).map((sig, idx) => (
-                      <div key={sig.id || idx} className={clsx(
-                        'flex items-center gap-3 px-3 py-2 rounded-[8px] border transition-all',
-                        sig.enabled !== false ? 'bg-surface border-black/[0.08]' : 'bg-surface-2 border-black/[0.04] opacity-50'
-                      )}>
-                        <div onClick={() => toggleSignal(stage, idx)}
-                          className={clsx('w-8 h-4 rounded-full cursor-pointer transition-all relative flex-shrink-0',
-                            sig.enabled !== false ? 'bg-accent-blue' : 'bg-black/20')}>
-                          <div className={clsx('absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all',
-                            sig.enabled !== false ? 'left-4' : 'left-0.5')} />
-                        </div>
-                        <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-                          sig.type === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
-                          {sig.type === 'up' ? '▲' : '▼'}
-                        </span>
-                        <span className="text-[12px] text-primary flex-1 leading-snug">{sig.text}</span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <input type="number" min={1} max={50} value={Math.abs(sig.pts ?? 10)}
-                            onChange={e => updateSignalPts(stage, idx, e.target.value, sig.type)}
-                            disabled={sig.enabled === false}
-                            className="w-10 text-center input text-xs py-0.5 disabled:opacity-40" />
-                          <span className="text-[10px] text-tertiary">pts</span>
-                        </div>
-                        <button onClick={() => removeSignal(stage, idx)}
-                          className="text-tertiary hover:text-red-500 transition-colors flex-shrink-0">
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                    {/* Add signal */}
-                    <div className="flex gap-2 mt-1">
-                      <select value={newSignalType[stage.id] || 'up'}
-                        onChange={e => setNewSignalType(s => ({ ...s, [stage.id]: e.target.value }))}
-                        className="input text-xs py-1.5 w-24 flex-shrink-0">
-                        <option value="up">▲ Sube</option>
-                        <option value="down">▼ Baja</option>
-                      </select>
-                      <input value={newSignalText[stage.id] || ''}
-                        onChange={e => setNewSignalText(s => ({ ...s, [stage.id]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === 'Enter') addSignal(stage) }}
-                        placeholder={`Señal para "${stage.name}"...`}
-                        className="input text-xs py-1.5 flex-1" />
-                      <button onClick={() => addSignal(stage)}
-                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0 flex items-center gap-1">
-                        <Plus size={11} /> Agregar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )
+        <PipelineScoringEditor
+          data={pipelineScoring}
+          onChange={newData => onChange({ ...scoring, [activePipelineTab]: newData })}
+        />
       )}
     </div>
   )
@@ -934,7 +1110,6 @@ export default function Agent() {
   const [uploadingFile, setUploadingFile] = useState(false)
   const [deleteModal, setDeleteModal] = useState(null)
   const [distribuidorConfig, setDistribuidorConfig] = useState(null)
-  const [pipelineStages, setPipelineStages] = useState([])
   const fileInputRef = useRef()
 
   const [config, setConfig] = useState({
@@ -984,16 +1159,6 @@ export default function Agent() {
     const unsub = onSnapshot(q, snap => {
       setFiles(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
-    return unsub
-  }, [org?.id])
-
-  // Load pipeline stages (for stage-based scoring)
-  useEffect(() => {
-    if (!org?.id) return
-    const unsub = onSnapshot(
-      collection(db, 'organizations', org.id, 'pipeline_stages'),
-      snap => setPipelineStages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    )
     return unsub
   }, [org?.id])
 
@@ -1238,7 +1403,6 @@ export default function Agent() {
             {activeTab === 'scoring' && (
               <ScoringTab
                 pipelines={pipelines}
-                pipelineStages={pipelineStages}
                 scoring={config.scoring}
                 onChange={v => set('scoring', v)}
                 distribuidorConfig={distribuidorConfig}

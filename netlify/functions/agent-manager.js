@@ -28,20 +28,20 @@ function buildSystemPrompt(config, ragContent, products, scoringConfig, leadCont
       ).join('\n')}`
     : ''
 
-  // Scoring instructions — supports both stage-based (stageName field) and legacy category-based
-  const isStageScoring = scoringConfig && Object.values(scoringConfig).some(v => v.stageName !== undefined)
-  const scoringSection = scoringConfig
+  // Scoring instructions — supports array format (categories/subcategories/signals) and legacy object format
+  const isArrayScoring = Array.isArray(scoringConfig)
+  const hasScoring = isArrayScoring ? scoringConfig.length > 0 : (scoringConfig && Object.keys(scoringConfig).length > 0)
+  const scoringSection = hasScoring
     ? `\nSISTEMA DE SCORING ACTIVO:
 Mientras conversas, evalúa silenciosamente al lead.
 Después de CADA respuesta, indica en el JSON interno qué señales se activaron.
 
-${isStageScoring
-  ? Object.entries(scoringConfig).map(([stageId, sc]) => {
-      const enabled = (sc.signals || []).filter(s => s.enabled !== false)
-      if (!enabled.length) return null
-      return `ETAPA "${sc.stageName}" [id:${stageId}] (score ${sc.scoreMin ?? 0}–${sc.scoreMax ?? 100} pts):\n` +
-        enabled.map(s => `  · ${s.text} → ${s.pts >= 0 ? '+' : ''}${s.pts} pts`).join('\n')
-    }).filter(Boolean).join('\n\n')
+${isArrayScoring
+  ? scoringConfig.map(cat => {
+      const signals = (cat.subcategories || []).flatMap(sub => sub.signals || [])
+      return `${cat.label.toUpperCase()} (tope: ${cat.tope} pts)${cat.desc ? ` — ${cat.desc}` : ''}\n` +
+        signals.slice(0, 8).map(s => `  · ${s.text} → ${s.weight >= 0 ? '+' : ''}${s.weight} pts`).join('\n')
+    }).join('\n\n')
   : Object.entries(scoringConfig).map(([catId, cat]) => {
       const catLabel = { necesidad: 'NECESIDAD', capacidad: 'CAPACIDAD', intencion: 'INTENCIÓN', confianza: 'CONFIANZA' }[catId] || catId
       const allSignals = []
@@ -53,7 +53,7 @@ ${isStageScoring
             })
           }
           if (sub.customSignals) {
-            sub.customSignals.forEach(cs => allSignals.push({ text: cs.text, pts: cs.pts, type: cs.type }))
+            sub.customSignals.forEach(cs => allSignals.push({ text: cs.text, pts: cs.pts }))
           }
         })
       }
@@ -96,9 +96,11 @@ Siempre responde con JSON en este formato exacto:
 {
   "response": "El mensaje que verá el lead",
   "scoring": {
-${scoringConfig && Object.keys(scoringConfig).length > 0
-  ? Object.keys(scoringConfig).map(k => `    "${k}": { "delta": 0, "reason": "" }`).join(',\n')
-  : '    "general": { "delta": 0, "reason": "" }'}
+${isArrayScoring && scoringConfig.length > 0
+  ? scoringConfig.map(cat => `    "${cat.id}": { "delta": 0, "reason": "" }`).join(',\n')
+  : !isArrayScoring && scoringConfig && Object.keys(scoringConfig).length > 0
+    ? Object.keys(scoringConfig).map(k => `    "${k}": { "delta": 0, "reason": "" }`).join(',\n')
+    : '    "general": { "delta": 0, "reason": "" }'}
   },
   "profileB": false,
   "profileBReason": "",
@@ -135,23 +137,12 @@ function parseAgentResponse(text) {
 }
 
 // ── CALCULATE NEW SCORE ───────────────────────────────────────────
-function calculateNewScore(currentScore, scoringDeltas, scoringConfig) {
+function calculateNewScore(currentScore, scoringDeltas) {
   if (!scoringDeltas || Object.keys(scoringDeltas).length === 0) return currentScore
-
-  let total = 0
-  const categoryScores = {}
-
-  if (scoringConfig) {
-    Object.entries(scoringConfig).forEach(([catId, cat]) => {
-      const delta = scoringDeltas?.[catId]?.delta || 0
-      total += Math.max(0, Math.min(cat.cap || 25, delta))
-      categoryScores[catId] = delta
-    })
-  }
-
-  // Simple: add deltas to current score, clamp 0-100
-  const newScore = Math.max(0, Math.min(100, currentScore + Object.values(scoringDeltas || {}).reduce((sum, s) => sum + (s.delta || 0), 0)))
-  return newScore
+  // Sum all category deltas, clamp result to 0–100
+  return Math.max(0, Math.min(100,
+    currentScore + Object.values(scoringDeltas).reduce((sum, s) => sum + (s.delta || 0), 0)
+  ))
 }
 
 // ── FIND TARGET STAGE BY SCORE ────────────────────────────────────
@@ -185,7 +176,7 @@ async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentSco
   if (!leadSnap.exists) return
 
   const lead = leadSnap.data()
-  const newScore = calculateNewScore(currentScore, parsedResponse.scoring, scoringConfig)
+  const newScore = calculateNewScore(currentScore, parsedResponse.scoring)
 
   const updateData = {
     score: newScore,
