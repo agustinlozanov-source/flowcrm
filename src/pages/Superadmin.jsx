@@ -2898,37 +2898,50 @@ function DistribuidorConfig() {
       const allStages = [...stagesToSync, FIXED_STAGE]
 
       const orgsSnap = await getDocs(query(collection(db, 'organizations'), where('isDistribuidor', '==', true)))
+      console.log('[sync] orgs distribuidoras encontradas:', orgsSnap.size, orgsSnap.docs.map(d => d.id))
+
       for (const orgDoc of orgsSnap.docs) {
         const oId = orgDoc.id
-        // Encontrar el pipeline FlowHub de este org
-        const pipesSnap = await getDocs(query(
-          collection(db, 'organizations', oId, 'pipelines'),
-          where('isFlowHubPipeline', '==', true)
-        ))
-        if (pipesSnap.empty) continue
-        const pipelineId = pipesSnap.docs[0].id
+        try {
+          // Buscar el pipeline FlowHub de este org
+          const pipesSnap = await getDocs(query(
+            collection(db, 'organizations', oId, 'pipelines'),
+            where('isFlowHubPipeline', '==', true)
+          ))
+          console.log(`[sync] org ${oId} — pipelines FlowHub encontrados:`, pipesSnap.size)
+          if (pipesSnap.empty) {
+            console.warn(`[sync] org ${oId} no tiene pipeline isFlowHubPipeline — saltando`)
+            continue
+          }
+          const pipelineId = pipesSnap.docs[0].id
+          console.log(`[sync] org ${oId} — pipelineId:`, pipelineId)
 
-        // Borrar TODAS las etapas del pipeline (query simple, sin índice compuesto)
-        const stagesSnap = await getDocs(query(
-          collection(db, 'organizations', oId, 'pipeline_stages'),
-          where('pipelineId', '==', pipelineId)
-        ))
-        for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
+          // Borrar TODAS las etapas del pipeline
+          const stagesSnap = await getDocs(query(
+            collection(db, 'organizations', oId, 'pipeline_stages'),
+            where('pipelineId', '==', pipelineId)
+          ))
+          console.log(`[sync] org ${oId} — etapas a borrar:`, stagesSnap.size)
+          for (const stageDoc of stagesSnap.docs) await deleteDoc(stageDoc.ref)
 
-        // Recrear desde config actual
-        for (const [idx, stage] of allStages.entries()) {
-          await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
-            name: stage.name, color: stage.color,
-            scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
-            order: idx + 1,
-            locked: stage.locked ?? false,
-            pipelineId, isFlowHubStage: true,
-            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-          })
+          // Recrear desde config actual
+          for (const [idx, stage] of allStages.entries()) {
+            await addDoc(collection(db, 'organizations', oId, 'pipeline_stages'), {
+              name: stage.name, color: stage.color,
+              scoreMin: stage.scoreMin, scoreMax: stage.scoreMax,
+              order: idx + 1,
+              locked: stage.locked ?? false,
+              pipelineId, isFlowHubStage: true,
+              createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            })
+          }
+          console.log(`[sync] org ${oId} — ✓ ${allStages.length} etapas recreadas`)
+        } catch (orgErr) {
+          console.error(`[sync] ERROR en org ${oId}:`, orgErr)
         }
       }
 
-      toast.success('Configuración guardada — pipeline actualizado en todos los distribuidores')
+      toast.success(`Configuración guardada — pipeline actualizado en ${orgsSnap.size} distribuidor${orgsSnap.size !== 1 ? 'es' : ''}`)
     } catch (err) {
       toast.error(err.message)
     } finally {
