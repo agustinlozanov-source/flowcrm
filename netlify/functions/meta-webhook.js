@@ -440,44 +440,10 @@ async function processFacebookLead(entry, orgId) {
 }
 
 // ── MAIN HANDLER ──
+// DESACTIVADO: El agente vive en Railway (backend/services/metaService.js).
+// Esta function queda como stub para no romper la suscripción de Meta,
+// pero todo el procesamiento real ocurre en Railway.
 exports.handler = async (event) => {
-  // GET = webhook verification
-  if (event.httpMethod === 'GET') {
-    return verifyWebhook(event)
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' }
-  }
-
-  try {
-    const body = JSON.parse(event.body)
-    console.log('PAYLOAD:', JSON.stringify(body))
-    // Use first org for now — multi-org routing via page ID mapping is next step
-    const orgId = process.env.DEFAULT_ORG_ID
-
-    if (!orgId) {
-      console.error('DEFAULT_ORG_ID not set')
-      return { statusCode: 200, body: 'OK' } // Always return 200 to Meta
-    }
-
-    const object = body.object // 'whatsapp_business_account' | 'page' | 'instagram'
-
-    for (const entry of (body.entry || [])) {
-      if (object === 'whatsapp_business_account') {
-        await processWhatsApp(entry, orgId)
-      } else if (object === 'page') {
-        // Could be Messenger or Lead Ads
-        if (entry.messaging) await processMessaging(entry, 'messenger', orgId)
-        if (entry.changes?.some(c => c.field === 'leadgen')) await processFacebookLead(entry, orgId)
-      } else if (object === 'instagram') {
-        await processMessaging(entry, 'instagram', orgId)
-      }
-    }
-
-    return { statusCode: 200, body: 'EVENT_RECEIVED' }
-  } catch (err) {
-    console.error('meta-webhook error:', err)
-    return { statusCode: 200, body: 'EVENT_RECEIVED' } // Always 200 to Meta
-  }
+  if (event.httpMethod === 'GET') return verifyWebhook(event)
+  return { statusCode: 200, body: 'EVENT_RECEIVED' }
 }
