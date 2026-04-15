@@ -377,37 +377,13 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
 
   const { id: senderId, phoneNumber, name: senderName } = message.sender
   const { text, platform } = message
-  const incomingAccountId = account?.id
-
   // Usar phoneNumber como ID estable del lead (identificador real del contacto en WhatsApp)
-  // Fallback a sender.id si no hay teléfono
+  // Fallback a sender.id si no hay teléfono (ej: Messenger)
   const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId
 
   setImmediate(async () => {
     const orgRef = db.collection('organizations').doc(orgId)
     const leadRef = orgRef.collection('leads').doc(leadDocId)
-
-    // ── ACCOUNT BINDING ──────────────────────────────────────────────────────
-    // Zernio fires ALL webhooks in the account for every message, regardless of
-    // which WhatsApp number received it. We bind each orgId to its Zernio
-    // account.id on first use and reject messages from other accounts after that.
-    if (incomingAccountId) {
-      try {
-        const orgSnap = await orgRef.get()
-        const storedAccountId = orgSnap.data()?.zernioAccountId
-        if (storedAccountId && storedAccountId !== incomingAccountId) {
-          console.log(`[Zernio][${orgId}] ⛔ Account mismatch — expected ${storedAccountId}, got ${incomingAccountId}. Skipping.`)
-          return
-        }
-        if (!storedAccountId) {
-          await orgRef.set({ zernioAccountId: incomingAccountId }, { merge: true })
-          console.log(`[Zernio][${orgId}] ✅ Bound to Zernio account ${incomingAccountId} (${account?.displayName || account?.username || ''})`)
-        }
-      } catch (err) {
-        console.error(`[Zernio][${orgId}] ERROR account binding:`, err.message)
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────────
 
     console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId}`)
     console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${leadDocId}`)
