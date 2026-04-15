@@ -148,7 +148,21 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     ? scoringConfig.map(cat => `    "${cat.id}": { "delta": 0, "reason": "" }`).join(',\n')
     : '    "general": { "delta": 0, "reason": "" }'
 
+  const now = new Date()
+  const fechaActual = now.toLocaleDateString('es-MX', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: 'America/Monterrey',
+  })
+  const horaActual = now.toLocaleTimeString('es-MX', {
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Monterrey',
+  })
+
   const systemPrompt = `Eres ${agentName}, un agente de ventas especializado.
+
+FECHA Y HORA ACTUAL: ${fechaActual}, ${horaActual} (hora de México)
+Usa esta fecha como referencia para calcular "mañana", "esta semana", etc.
+Cuando generes scheduledAt en MEETING_SCHEDULED usa el año y fecha correctos.
 
 INSTRUCCIONES PRINCIPALES:
 - Responde siempre en español, de forma breve (máximo 3-4 oraciones)
@@ -204,15 +218,20 @@ IMPORTANTE:
 
 // ── PARSE CLAUDE REPLY + UPDATE SCORE ──
 async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
+  // Fallback: si no hay JSON válido, devolver el rawReply tal cual
   let visibleReply = rawReply
   let detectedPipelineId = null
   try {
-    const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
+    // Regex ajustado: captura el JSON sin tragarse el bloque MEETING_SCHEDULED que viene después
+    const jsonMatch = rawReply.match(/\{[\s\S]*?\}(?=\s*\n*(?:MEETING_SCHEDULED|$))/m)
+      || rawReply.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0])
+
+      // Solo el campo response va al lead — nunca el JSON completo
       if (parsed.response) visibleReply = parsed.response
 
-      // Update score
+      // ── Scoring + mover etapa ──
       if (parsed.scoring && lead.id) {
         const delta = Object.values(parsed.scoring).reduce((sum, s) => sum + (s.delta || 0), 0)
         if (delta !== 0) {
@@ -222,7 +241,7 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }).catch(() => {})
 
-          // FIX 2 — Mover el lead a la etapa correcta según score
+          // Mover lead a la etapa correcta según score
           if (lead.pipelineId) {
             try {
               const stagesSnap = await orgRef.collection('pipeline_stages')
@@ -246,7 +265,25 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
         }
       }
 
-      // Paso 2 — Detectar y asignar pipeline si el lead no tiene uno
+      // ── Handoff ──
+      if (parsed.suggestHandoff === true && lead.id) {
+        await orgRef.collection('leads').doc(lead.id).update({
+          systemStage: 'handoff',
+          systemStageAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {})
+        await orgRef.collection('alerts').add({
+          type: 'handoff_ready',
+          leadId: lead.id,
+          leadName: lead.name || '',
+          message: `${lead.name} está listo para hablar con un vendedor`,
+          seen: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {})
+        console.log(`[Score] Handoff activado para ${lead.name}`)
+      }
+
+      // ── Asignar pipeline si el lead no tiene uno ──
       detectedPipelineId = parsed.detectedPipelineId || null
       if (detectedPipelineId && !lead.pipelineId) {
         try {
@@ -259,7 +296,6 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
             stageId: firstStageId,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           })
-          // Actualizar lead local para que el move de etapa funcione correctamente
           lead.pipelineId = detectedPipelineId
           lead.stageId = firstStageId
           console.log(`[Score] Lead ${lead.id} asignado al pipeline: ${detectedPipelineId}`)
@@ -712,31 +748,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       reply = visibleReply
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
 
-      // FIX 3 — Detectar handoff sugerido por Claude
-      try {
-        const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
-          if (parsed.suggestHandoff === true) {
-            await orgRef.collection('leads').doc(leadDocId).update({
-              systemStage: 'handoff',
-              systemStageAt: admin.firestore.FieldValue.serverTimestamp(),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            })
-            await orgRef.collection('alerts').add({
-              type: 'handoff_ready',
-              leadId: leadDocId,
-              leadName: senderName || '',
-              message: `${senderName} está listo para hablar con un vendedor`,
-              seen: false,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            })
-            console.log(`[Zernio][${orgId}] Handoff activado para ${senderName}`)
-          }
-        }
-      } catch {}
-
-      // FIX 4 — Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
+      // Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
       const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
       if (meetingMatch) {
         try {
