@@ -900,7 +900,7 @@ function PipelineScoringEditor({ data, onChange }) {
 // Self-contained: pipeline tabs + document upload/list + textarea per pipeline
 const ACCEPTED_TYPES_KB = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
 
-function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange }) {
+function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, distribuidorConfig }) {
   const [activeId, setActiveId] = useState(null)
   const [files, setFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(false)
@@ -972,6 +972,7 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange }) {
   }
 
   const activePipeline = pipelines.find(p => p.id === activeId)
+  const isFlowHubPipeline = activePipeline?.isFlowHubPipeline === true
   const currentInstructions = (typeof instructions === 'object' && !Array.isArray(instructions))
     ? (instructions[activeId] || '') : ''
   const handleInstructionsChange = (val) => {
@@ -994,60 +995,87 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange }) {
         ))}
       </div>
 
-      {/* Documents for this pipeline */}
-      <Section title="Documentos" desc={`PDFs, Word o TXT — conocimiento específico para "${activePipeline?.name || ''}"` }>
-        <div onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-black/[0.14] rounded-[14px] p-8 text-center cursor-pointer hover:border-accent-purple hover:bg-purple-50/50 transition-all">
-          {uploadingFile
-            ? <Zap size={28} className="text-accent-purple mx-auto mb-2 animate-bounce" />
-            : <FileText size={28} className="text-tertiary mx-auto mb-2" />}
-          <p className="font-semibold text-sm text-primary mb-1">
-            {uploadingFile ? 'Subiendo archivo...' : 'Sube documentos al agente'}
-          </p>
-          <p className="text-xs text-secondary">PDF, Word, TXT · Máximo 10MB por archivo</p>
-          <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
-            onChange={e => { if (e.target.files[0]) { handleUpload(e.target.files[0]); e.target.value = '' } }} />
-        </div>
-        {files.length > 0 && (
-          <div className="card overflow-hidden mt-1">
-            <div className="px-5 py-3 border-b border-black/[0.06]">
-              <span className="font-display font-bold text-sm">Documentos ({files.length})</span>
-            </div>
-            <div className="divide-y divide-black/[0.04]">
-              {files.map(f => (
-                <div key={f.id} className="flex items-center gap-3 px-5 py-3">
-                  <FileText size={18} className={clsx('flex-shrink-0',
-                    f.mimeType === 'application/pdf' ? 'text-red-400' : 'text-blue-400')} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-primary truncate">{f.name}</p>
-                    <p className="text-[10px] text-tertiary">
-                      {(f.size / 1024).toFixed(0)} KB · {f.status === 'processing' ? '⏳ Procesando...' : '✓ Listo'}
-                    </p>
-                  </div>
-                  <button onClick={() => setDeleteModal(f)}
-                    className="text-tertiary hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
+      {/* FlowHub pipeline — read-only, content comes from Superadmin */}
+      {isFlowHubPipeline && (
+        <>
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px]">
+            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[12.5px] text-amber-800 font-semibold mb-0.5">Conocimiento administrado por Flow Hub</p>
+              <p className="text-[12px] text-amber-700 leading-relaxed">
+                El contenido de este pipeline es configurado globalmente por el Superadmin. No puedes subir archivos ni editar instrucciones aquí.
+              </p>
             </div>
           </div>
-        )}
-      </Section>
+          {distribuidorConfig?.agentPrompt && (
+            <Section title="Instrucciones globales" desc="Solo lectura — administrado por Flow Hub">
+              <div className="text-[12px] text-primary bg-gray-50 border border-black/[0.08] rounded-[10px] p-4 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed">
+                {distribuidorConfig.agentPrompt}
+              </div>
+            </Section>
+          )}
+        </>
+      )}
 
-      {/* Manual instructions for this pipeline */}
-      <Section title="Instrucciones manuales" desc={`Texto libre que el agente usa como contexto para "${activePipeline?.name || ''}"` }>
-        <textarea
-          value={currentInstructions}
-          onChange={e => handleInstructionsChange(e.target.value)}
-          placeholder={`Instrucciones para "${activePipeline?.name || ''}"...\n\nEj: Cuando el lead pregunte por precios, menciona siempre el plan de financiamiento.`}
-          rows={8}
-          className="input text-[13px] leading-relaxed resize-none font-mono"
-        />
-        <p className="text-[11px] text-tertiary">
-          Estas instrucciones se agregan al prompt solo cuando el agente atiende leads de este pipeline.
-        </p>
-      </Section>
+      {/* Regular pipeline — fully editable */}
+      {!isFlowHubPipeline && (
+        <>
+          {/* Documents for this pipeline */}
+          <Section title="Documentos" desc={`PDFs, Word o TXT — conocimiento específico para "${activePipeline?.name || ''}"`}>
+            <div onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-black/[0.14] rounded-[14px] p-8 text-center cursor-pointer hover:border-accent-purple hover:bg-purple-50/50 transition-all">
+              {uploadingFile
+                ? <Zap size={28} className="text-accent-purple mx-auto mb-2 animate-bounce" />
+                : <FileText size={28} className="text-tertiary mx-auto mb-2" />}
+              <p className="font-semibold text-sm text-primary mb-1">
+                {uploadingFile ? 'Subiendo archivo...' : 'Sube documentos al agente'}
+              </p>
+              <p className="text-xs text-secondary">PDF, Word, TXT · Máximo 10MB por archivo</p>
+              <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+                onChange={e => { if (e.target.files[0]) { handleUpload(e.target.files[0]); e.target.value = '' } }} />
+            </div>
+            {files.length > 0 && (
+              <div className="card overflow-hidden mt-1">
+                <div className="px-5 py-3 border-b border-black/[0.06]">
+                  <span className="font-display font-bold text-sm">Documentos ({files.length})</span>
+                </div>
+                <div className="divide-y divide-black/[0.04]">
+                  {files.map(f => (
+                    <div key={f.id} className="flex items-center gap-3 px-5 py-3">
+                      <FileText size={18} className={clsx('flex-shrink-0',
+                        f.mimeType === 'application/pdf' ? 'text-red-400' : 'text-blue-400')} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-primary truncate">{f.name}</p>
+                        <p className="text-[10px] text-tertiary">
+                          {(f.size / 1024).toFixed(0)} KB · {f.status === 'processing' ? '⏳ Procesando...' : '✓ Listo'}
+                        </p>
+                      </div>
+                      <button onClick={() => setDeleteModal(f)}
+                        className="text-tertiary hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Section>
+
+          {/* Manual instructions for this pipeline */}
+          <Section title="Instrucciones manuales" desc={`Texto libre que el agente usa como contexto para "${activePipeline?.name || ''}"`}>
+            <textarea
+              value={currentInstructions}
+              onChange={e => handleInstructionsChange(e.target.value)}
+              placeholder={`Instrucciones para "${activePipeline?.name || ''}"...\n\nEj: Cuando el lead pregunte por precios, menciona siempre el plan de financiamiento.`}
+              rows={8}
+              className="input text-[13px] leading-relaxed resize-none font-mono"
+            />
+            <p className="text-[11px] text-tertiary">
+              Estas instrucciones se agregan al prompt solo cuando el agente atiende leads de este pipeline.
+            </p>
+          </Section>
+        </>
+      )}
 
       {deleteModal && (
         <DeleteFileModal file={deleteModal} onConfirm={handleDelete} onCancel={() => setDeleteModal(null)} />
@@ -1760,6 +1788,7 @@ export default function Agent() {
                   pipelines={pipelines}
                   instructions={config.customInstructions}
                   onChange={v => set('customInstructions', v)}
+                  distribuidorConfig={distribuidorConfig}
                 />
               </>
             )}
