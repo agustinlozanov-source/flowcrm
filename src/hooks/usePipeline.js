@@ -86,6 +86,17 @@ export function usePipeline() {
     return unsub
   }, [orgId])
 
+  // Auto-seleccionar el primer pipeline cuando cargan y no hay ninguno activo
+  useEffect(() => {
+    if (pipelines.length === 0) return
+    if (activePipelineId) return // ya hay uno seleccionado
+    const hasOrphans = allStages.some(s => !s.pipelineId)
+    if (!hasOrphans) {
+      // No hay etapas huérfanas — seleccionar el primer pipeline automáticamente
+      setActivePipelineId(pipelines[0].id)
+    }
+  }, [pipelines, allStages, activePipelineId])
+
   useEffect(() => {
     if (!orgId) return
     const unsub = onSnapshot(
