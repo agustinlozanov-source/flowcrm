@@ -99,6 +99,13 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   const agentName = agentConfig.agentName || 'Asistente'
   const pipelineId = lead.pipelineId || null
 
+  // Load available pipelines for detectedPipelineId hint
+  let availablePipelines = []
+  try {
+    const pipSnap = await orgRef.collection('pipelines').get()
+    availablePipelines = pipSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+  } catch {}
+
   // RAG content
   let ragContent = ''
   try {
@@ -166,8 +173,18 @@ Responde SIEMPRE con este JSON exacto:
 ${scoringKeys}
   },
   "suggestHandoff": false,
-  "detectedProductId": null
-}`
+  "detectedProductId": null,
+  "detectedPipelineId": null
+}
+
+REGLAS PARA detectedPipelineId:
+- Si el lead menciona un producto o servicio específico que reconoces → pon el pipelineId correspondiente
+- Si el lead dice que ya es cliente o quiere renovar → pon el pipelineId de retención
+- Si el lead quiere vender, ser distribuidor o ganar dinero → pon el pipelineId de distribución
+- Si no hay suficiente contexto todavía → deja null
+- Los pipelines disponibles son:
+${availablePipelines.map(p => `  · "${p.id}" → ${p.name} (${p.purpose || 'adquisicion'})`).join('\n')}
+`
 
   return { systemPrompt, scoringConfig, pipelineId }
 }
@@ -175,11 +192,14 @@ ${scoringKeys}
 // ── PARSE CLAUDE REPLY + UPDATE SCORE ──
 async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
   let visibleReply = rawReply
+  let detectedPipelineId = null
   try {
     const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0])
       if (parsed.response) visibleReply = parsed.response
+
+      // Update score
       if (parsed.scoring && lead.id) {
         const delta = Object.values(parsed.scoring).reduce((sum, s) => sum + (s.delta || 0), 0)
         if (delta !== 0) {
@@ -188,13 +208,57 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
             score: newScore,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }).catch(() => {})
+
+          // FIX 2 — Mover el lead a la etapa correcta según score
+          if (lead.pipelineId) {
+            try {
+              const stagesSnap = await orgRef.collection('pipeline_stages')
+                .where('pipelineId', '==', lead.pipelineId)
+                .orderBy('order', 'asc').get()
+              const stages = stagesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+              const correctStage = stages.find(s =>
+                newScore >= (s.scoreMin || 0) && newScore <= (s.scoreMax || 100)
+              )
+              if (correctStage && correctStage.id !== lead.stageId) {
+                await orgRef.collection('leads').doc(lead.id).update({
+                  stageId: correctStage.id,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                })
+                console.log(`[Score] Lead ${lead.id} movido a etapa: ${correctStage.name} (score: ${newScore})`)
+              }
+            } catch (stageErr) {
+              console.error('[Score] Error al mover etapa:', stageErr.message)
+            }
+          }
+        }
+      }
+
+      // Paso 2 — Detectar y asignar pipeline si el lead no tiene uno
+      detectedPipelineId = parsed.detectedPipelineId || null
+      if (detectedPipelineId && !lead.pipelineId) {
+        try {
+          const stagesSnap = await orgRef.collection('pipeline_stages')
+            .where('pipelineId', '==', detectedPipelineId)
+            .orderBy('order', 'asc').limit(1).get()
+          const firstStageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+          await orgRef.collection('leads').doc(lead.id).update({
+            pipelineId: detectedPipelineId,
+            stageId: firstStageId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+          // Actualizar lead local para que el move de etapa funcione correctamente
+          lead.pipelineId = detectedPipelineId
+          lead.stageId = firstStageId
+          console.log(`[Score] Lead ${lead.id} asignado al pipeline: ${detectedPipelineId}`)
+        } catch (pipeErr) {
+          console.error('[Score] Error al asignar pipeline:', pipeErr.message)
         }
       }
     }
   } catch (err) {
     console.error('JSON parse error:', err.message)
   }
-  return visibleReply
+  return { visibleReply, detectedPipelineId }
 }
 
 app.get('/health', async (req, res) => {
@@ -423,7 +487,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         messages
       })
 
-      const reply = await parseAndUpdateScore(orgRef, leadData, response.content[0].text, scoringConfig)
+      const { visibleReply: reply } = await parseAndUpdateScore(orgRef, leadData, response.content[0].text, scoringConfig)
 
       // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
@@ -497,9 +561,23 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     try {
       const existingSnap = await leadRef.get()
       if (!existingSnap.exists) {
-        const stagesSnap = await orgRef.collection('pipeline_stages')
-          .orderBy('order', 'asc').limit(1).get()
-        const stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+        // FIX 5 — mensajes muy cortos/genéricos van a Contactos (sin pipeline)
+        const isGenericMessage = text.trim().split(/\s+/).length < 4
+
+        // FIX 1 — obtener pipeline por defecto (el primero por createdAt)
+        const pipelinesSnap = await orgRef.collection('pipelines')
+          .orderBy('createdAt', 'asc').limit(1).get()
+        const defaultPipelineId = isGenericMessage ? null
+          : (pipelinesSnap.empty ? null : pipelinesSnap.docs[0].id)
+
+        // Primera etapa del pipeline por defecto
+        let stageId = null
+        if (defaultPipelineId) {
+          const stagesSnap = await orgRef.collection('pipeline_stages')
+            .where('pipelineId', '==', defaultPipelineId)
+            .orderBy('order', 'asc').limit(1).get()
+          stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+        }
 
         await leadRef.set({
           subscriber_id: senderId,
@@ -509,9 +587,11 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           company: '',
           source: platform || 'whatsapp',
           channel: platform || 'whatsapp',
+          pipelineId: defaultPipelineId,
           stageId,
           score: 0,
           assignedTo: null,
+          channelIds: { [platform || 'whatsapp']: senderId },
           lastMessage: text,
           hasUnread: true,
           lastMessageChannel: platform || 'whatsapp',
@@ -519,7 +599,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
-        console.log(`[Zernio][${orgId}] Lead creado: ${leadDocId} (${senderName})`)
+        console.log(`[Zernio][${orgId}] Lead creado: ${leadDocId} (${senderName}) — pipeline: ${defaultPipelineId || 'Contactos'}`)
       } else {
         await leadRef.update({
           name: senderName || existingSnap.data().name,
@@ -615,15 +695,42 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         messages,
       })
       const rawReply = response.content[0].text
-      reply = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
+      const { visibleReply, detectedPipelineId } = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
+      reply = visibleReply
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
 
-      // Detectar si el agente programó una reunión
+      // FIX 3 — Detectar handoff sugerido por Claude
+      try {
+        const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (parsed.suggestHandoff === true) {
+            await orgRef.collection('leads').doc(leadDocId).update({
+              systemStage: 'handoff',
+              systemStageAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            await orgRef.collection('alerts').add({
+              type: 'handoff_ready',
+              leadId: leadDocId,
+              leadName: senderName || '',
+              message: `${senderName} está listo para hablar con un vendedor`,
+              seen: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            console.log(`[Zernio][${orgId}] Handoff activado para ${senderName}`)
+          }
+        }
+      } catch {}
+
+      // FIX 4 — Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
       const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
       if (meetingMatch) {
         try {
           const meetingData = JSON.parse(meetingMatch[1])
-          await orgRef.collection('appointments').add({
+
+          // Crear appointment en Firestore
+          const apptRef = await orgRef.collection('appointments').add({
             leadId: leadDocId,
             leadName: senderName || '',
             type: 'video',
@@ -636,6 +743,47 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdBy: 'agent',
           })
+
+          // Crear evento en Google Calendar y obtener link de Meet
+          try {
+            const integSnap = await orgRef.collection('settings').doc('integrations').get()
+            const tokens = integSnap.data()?.googleCalendar
+            if (tokens?.connected) {
+              const apptOAuth = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                process.env.GOOGLE_REDIRECT_URI
+              )
+              apptOAuth.setCredentials({
+                access_token: tokens.accessToken,
+                refresh_token: tokens.refreshToken,
+              })
+              const calendar = google.calendar({ version: 'v3', auth: apptOAuth })
+              const start = new Date(meetingData.scheduledAt)
+              const end = new Date(start.getTime() + (meetingData.duration || 30) * 60000)
+
+              const event = await calendar.events.insert({
+                calendarId: 'primary',
+                conferenceDataVersion: 1,
+                requestBody: {
+                  summary: `Reunión con ${senderName}`,
+                  start: { dateTime: start.toISOString() },
+                  end: { dateTime: end.toISOString() },
+                  conferenceData: { createRequest: { requestId: `flowcrm-${apptRef.id}` } },
+                }
+              })
+
+              const meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri || ''
+              if (meetLink) {
+                await apptRef.update({ link: meetLink, googleEventId: event.data.id })
+                reply = reply + `\n\nEnlace para tu videollamada: ${meetLink}`
+                console.log(`[Zernio][${orgId}] Meet link generado: ${meetLink}`)
+              }
+            }
+          } catch (calErr) {
+            console.error(`[Zernio][${orgId}] Error Google Calendar:`, calErr.message)
+          }
+
           console.log(`[Zernio][${orgId}] Meeting agendado para ${senderName}`)
         } catch (e) {
           console.error(`[Zernio][${orgId}] Error al crear meeting:`, e.message)
