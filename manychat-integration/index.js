@@ -216,17 +216,38 @@ IMPORTANTE:
   return { systemPrompt, scoringConfig, pipelineId }
 }
 
+// ── EXTRACT FIRST JSON OBJECT (brace-counting, handles nested objects) ──
+// Regex non-greedy fails with nested braces; this walks char-by-char instead.
+function extractFirstJson(text) {
+  const start = text.indexOf('{')
+  if (start === -1) return null
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
 // ── PARSE CLAUDE REPLY + UPDATE SCORE ──
 async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
   // Fallback: si no hay JSON válido, devolver el rawReply tal cual
   let visibleReply = rawReply
   let detectedPipelineId = null
   try {
-    // Regex ajustado: captura el JSON sin tragarse el bloque MEETING_SCHEDULED que viene después
-    const jsonMatch = rawReply.match(/\{[\s\S]*?\}(?=\s*\n*(?:MEETING_SCHEDULED|$))/m)
-      || rawReply.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
+    const jsonStr = extractFirstJson(rawReply)
+    if (jsonStr) {
+      const parsed = JSON.parse(jsonStr)
 
       // Solo el campo response va al lead — nunca el JSON completo
       if (parsed.response) visibleReply = parsed.response
