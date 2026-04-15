@@ -76,10 +76,12 @@ console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL)
 console.log('FIREBASE_PRIVATE_KEY present:', !!process.env.FIREBASE_PRIVATE_KEY)
 console.log('=========================')
 
-// ── ATOMIC DEDUP LOCK ──
-async function checkAndLockMessage(orgId, msgId) {
-  if (!msgId) return false
-  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+// ── GLOBAL ATOMIC DEDUP LOCK ──
+// Uses root-level collection so two orgs receiving the same platformMessageId
+// don't both respond to the same WhatsApp message.
+async function checkAndLockMessage(platformMsgId) {
+  if (!platformMsgId) return false
+  const lockRef = db.collection('_global_msg_locks').doc(String(platformMsgId))
   try {
     const already = await db.runTransaction(async t => {
       const snap = await t.get(lockRef)
@@ -475,10 +477,10 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       return
     }
 
-    // 5. Dedup por message.id
-    const zernioMsgId = message?.id ? `zernio_${message.id}` : null
-    if (zernioMsgId && await checkAndLockMessage(orgId, zernioMsgId)) {
-      console.log(`[Zernio][${orgId}] Dup message ${message.id} skipped`)
+    // 5. GLOBAL dedup — use platformMessageId so two orgs don't both reply to the same WA message
+    const platformMsgId = message?.platformMessageId || message?.id || null
+    if (platformMsgId && await checkAndLockMessage(platformMsgId)) {
+      console.log(`[Zernio][${orgId}] Dup platformMessageId ${platformMsgId} — skipped`)
       return
     }
 

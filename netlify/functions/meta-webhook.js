@@ -14,10 +14,10 @@ if (!admin.apps.length) {
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ── ATOMIC MESSAGE DEDUP LOCK ──
-async function checkAndLockMessage(orgId, msgId) {
+// ── GLOBAL ATOMIC MESSAGE DEDUP LOCK ──
+async function checkAndLockMessage(msgId) {
   if (!msgId) return false
-  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+  const lockRef = db.collection('_global_msg_locks').doc(String(msgId))
   try {
     const alreadyProcessed = await db.runTransaction(async t => {
       const snap = await t.get(lockRef)
@@ -351,7 +351,7 @@ async function processWhatsApp(entry, orgId) {
       const text = msg.text?.body || ''
       const profileName = value.contacts?.[0]?.profile?.name || 'WhatsApp User'
 
-      if (await checkAndLockMessage(orgId, msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
+      if (await checkAndLockMessage(msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
 
       const lead = await findOrCreateLead(orgId, {
         name: profileName,
@@ -391,7 +391,7 @@ async function processMessaging(entry, channel, orgId) {
       name = profile.name || name
     } catch { }
 
-    if (await checkAndLockMessage(orgId, event.message.mid)) { console.log(`⚠️ Dup ${event.message.mid} skipped`); continue }
+    if (await checkAndLockMessage(event.message.mid)) { console.log(`⚠️ Dup ${event.message.mid} skipped`); continue }
 
     const lead = await findOrCreateLead(orgId, {
       name,

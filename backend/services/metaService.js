@@ -3,11 +3,12 @@ const Anthropic = require('@anthropic-ai/sdk')
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ── ATOMIC MESSAGE DEDUP LOCK ──
-// Returns true if already processed (skip), false if first time (proceed)
-async function checkAndLockMessage(orgId, msgId) {
+// ── GLOBAL ATOMIC MESSAGE DEDUP LOCK ──
+// Root-level collection so two handlers receiving the same platformMessageId
+// (e.g. Railway + Netlify both subscribed) don’t both reply.
+async function checkAndLockMessage(msgId) {
   if (!msgId) return false
-  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+  const lockRef = db.collection('_global_msg_locks').doc(String(msgId))
   try {
     const alreadyProcessed = await db.runTransaction(async t => {
       const snap = await t.get(lockRef)
@@ -297,7 +298,7 @@ async function processWhatsApp(entry, orgId) {
       const phone = msg.from
       const text = msg.text?.body || ''
       const profileName = value.contacts?.[0]?.profile?.name || 'WhatsApp User'
-      if (await checkAndLockMessage(orgId, msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
+      if (await checkAndLockMessage(msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
       const lead = await findOrCreateLead(orgId, { name: profileName, phone, channelUserId: phone, channel: 'whatsapp' })
       await saveMessage(orgId, lead.id, { text, channel: 'whatsapp', role: 'user', channelMsgId: msg.id })
       const reply = await agentAutoReply(orgId, lead, text, 'whatsapp')
@@ -324,7 +325,7 @@ async function processMessaging(entry, channel, orgId) {
       const profile = await profileRes.json()
       name = profile.name || name
     } catch { }
-    if (await checkAndLockMessage(orgId, event.message.mid)) { console.log(`⚠️ Dup msg ${event.message.mid} skipped`); continue }
+    if (await checkAndLockMessage(event.message.mid)) { console.log(`⚠️ Dup msg ${event.message.mid} skipped`); continue }
     const lead = await findOrCreateLead(orgId, { name, channelUserId: senderId, channel })
     await saveMessage(orgId, lead.id, { text, channel, role: 'user', channelMsgId: event.message.mid })
     const reply = await agentAutoReply(orgId, lead, text, channel)
@@ -372,7 +373,7 @@ async function processInstagram(entry, orgId) {
       const profile = await profileRes.json()
       name = profile.name || name
     } catch { }
-    if (await checkAndLockMessage(orgId, val.message.mid)) { console.log(`⚠️ Dup IG ${val.message.mid} skipped`); continue }
+    if (await checkAndLockMessage(val.message.mid)) { console.log(`⚠️ Dup IG ${val.message.mid} skipped`); continue }
     const lead = await findOrCreateLead(orgId, { name, channelUserId: senderId, channel: 'instagram' })
     await saveMessage(orgId, lead.id, { text, channel: 'instagram', role: 'user', channelMsgId: val.message.mid })
     const reply = await agentAutoReply(orgId, lead, text, 'instagram')
