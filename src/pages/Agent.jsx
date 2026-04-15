@@ -898,12 +898,14 @@ function PipelineScoringEditor({ data, onChange }) {
 
 // ─── PROMPT BY PIPELINE TAB ──────────────────────────────────────
 function PromptByPipelineTab({ pipelines, instructions, onChange }) {
-  const [activeId, setActiveId] = useState(pipelines[0]?.id || null)
+  const [activeId, setActiveId] = useState(null)
 
-  // Sync active tab when pipelines load
+  // Sync active tab whenever pipelines change (handles async load)
   useEffect(() => {
-    setActiveId(prev => (prev === null && pipelines.length > 0) ? pipelines[0].id : prev)
-  }, [pipelines.length])
+    if (pipelines.length > 0) {
+      setActiveId(prev => (prev === null || !pipelines.find(p => p.id === prev)) ? pipelines[0].id : prev)
+    }
+  }, [pipelines])
 
   if (pipelines.length === 0) {
     return (
