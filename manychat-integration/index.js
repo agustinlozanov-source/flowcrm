@@ -76,74 +76,120 @@ console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL)
 console.log('FIREBASE_PRIVATE_KEY present:', !!process.env.FIREBASE_PRIVATE_KEY)
 console.log('=========================')
 
-// ── BUILD SYSTEM PROMPT (igual que agent.js) ──
-function buildSystemPrompt(config) {
-  const {
-    agentName = 'Asistente',
-    personality = 'amigable',
-    productDescription = '',
-    prices = '',
-    mainObjective = 'agendar_llamada',
-    salesTechnique = 'aida',
-    closingTechnique = 'valor_primero',
-    objections = [],
-    qualifyingQuestions = [],
-    limits = [],
-    customInstructions = '',
-  } = config
+// ── ATOMIC DEDUP LOCK ──
+async function checkAndLockMessage(orgId, msgId) {
+  if (!msgId) return false
+  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+  try {
+    const already = await db.runTransaction(async t => {
+      const snap = await t.get(lockRef)
+      if (snap.exists) return true
+      t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
+      return false
+    })
+    return already
+  } catch { return false }
+}
 
-  const personalities = {
-    profesional: 'formal, directo, enfocado en resultados y datos concretos.',
-    amigable: 'cálido, cercano, conversacional. Usas el nombre del lead frecuentemente.',
-    consultivo: 'analítico, haces preguntas poderosas, das perspectivas únicas.',
-    energico: 'entusiasta, motivador, creas urgencia de forma natural.',
+// ── BUILD MODERN SYSTEM PROMPT ──
+async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
+  const agentName = agentConfig.agentName || 'Asistente'
+  const pipelineId = lead.pipelineId || null
+
+  // RAG content
+  let ragContent = ''
+  try {
+    const filesSnap = await orgRef.collection('agent_files').where('status', '==', 'ready').get()
+    ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
+  } catch {}
+
+  // Scoring config for this lead's pipeline
+  let scoringConfig = null
+  if (pipelineId && agentConfig.scoring?.[pipelineId]) {
+    scoringConfig = agentConfig.scoring[pipelineId]
+  } else if (agentConfig.scoring) {
+    const firstKey = Object.keys(agentConfig.scoring)[0]
+    if (firstKey) scoringConfig = agentConfig.scoring[firstKey]
   }
-  const objectives = {
-    agendar_llamada: 'Tu objetivo principal es AGENDAR UNA LLAMADA O REUNIÓN.',
-    calificar: 'Tu objetivo es CALIFICAR AL LEAD usando el método BANT.',
-    cerrar_chat: 'Tu objetivo es CERRAR LA VENTA DIRECTAMENTE POR CHAT.',
-    nutrir: 'Tu objetivo es NUTRIR AL LEAD. Educa, comparte valor, construye confianza.',
+
+  // Resolve per-pipeline customInstructions
+  let customInstructions = agentConfig.customInstructions || ''
+  if (typeof customInstructions === 'object' && !Array.isArray(customInstructions)) {
+    customInstructions = (pipelineId && customInstructions[pipelineId])
+      || customInstructions['__default__']
+      || Object.values(customInstructions).find(Boolean)
+      || ''
   }
-  const techniques = {
-    spin: 'Usa SPIN Selling: Situación, Problema, Implicación, Necesidad-Beneficio.',
-    aida: 'Usa AIDA: Atención, Interés, Deseo, Acción.',
-    challenger: 'Usa Challenger Sale: Enseña, Adapta, Toma control.',
-    rapport: 'Prioriza construir RAPPORT primero antes de vender.',
+
+  // Scoring section
+  const isArrayScoring = Array.isArray(scoringConfig)
+  let scoringSection = ''
+  if (isArrayScoring && scoringConfig.length > 0) {
+    scoringSection = `\nSISTEMA DE SCORING ACTIVO:\nEvalúa silenciosamente al lead.\n${scoringConfig.map(cat => {
+      const signals = (cat.subcategories || []).flatMap(sub => sub.signals || [])
+      return `${cat.label} (tope: ${cat.tope} pts):\n` +
+        signals.slice(0, 6).map(s => `  · ${s.text}: ${s.weight >= 0 ? '+' : ''}${s.weight} pts`).join('\n')
+    }).join('\n')}`
   }
-  const closings = {
-    valor_primero: 'Siempre presenta el VALOR antes de mencionar el precio.',
-    urgencia: 'Crea urgencia GENUINA basada en hechos reales.',
-    alternativas: 'Usa el cierre de alternativas: "¿prefieres el plan A o el plan B?"',
-    directo: 'Cuando el lead muestre señales de compra, ve directo al cierre.',
-  }
-  const objectionsText = objections.filter(o => o.objection && o.response).length > 0
-    ? `\nMANEJO DE OBJECIONES:\n${objections.filter(o => o.objection && o.response).map(o => `- "${o.objection}": ${o.response}`).join('\n')}`
-    : ''
-  const questionsText = qualifyingQuestions.filter(Boolean).length > 0
-    ? `\nPREGUNTAS DE CALIFICACIÓN:\n${qualifyingQuestions.filter(Boolean).map((q, i) => `${i + 1}. ${q}`).join('\n')}`
-    : ''
-  const limitsText = limits.filter(Boolean).length > 0
-    ? `\nREGLAS ABSOLUTAS:\n${limits.filter(Boolean).map(l => `- ${l}`).join('\n')}`
-    : ''
 
-  return `Eres ${agentName}, un agente de ventas con personalidad ${personalities[personality] || personalities.amigable}
+  const scoringKeys = isArrayScoring && scoringConfig?.length > 0
+    ? scoringConfig.map(cat => `    "${cat.id}": { "delta": 0, "reason": "" }`).join(',\n')
+    : '    "general": { "delta": 0, "reason": "" }'
 
-${objectives[mainObjective] || objectives.agendar_llamada}
+  const systemPrompt = `Eres ${agentName}, un agente de ventas especializado.
 
-PRODUCTO/SERVICIO:
-${productDescription || 'Responde preguntas de forma general.'}
-
-${prices ? `PRECIOS:\n${prices}` : ''}
-
-TÉCNICA DE PROSPECCIÓN: ${techniques[salesTechnique] || techniques.aida}
-TÉCNICA DE CIERRE: ${closings[closingTechnique] || closings.valor_primero}
-${objectionsText}${questionsText}${limitsText}
-
-INSTRUCCIONES GENERALES:
-- Responde siempre en español, máximo 3-4 oraciones por mensaje
+INSTRUCCIONES PRINCIPALES:
+- Responde siempre en español, de forma breve (máximo 3-4 oraciones)
 - Nunca menciones que eres una IA a menos que te lo pregunten directamente
-- Siempre termina con una pregunta o llamada a acción concreta
-${customInstructions ? `\nINSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}`
+- Termina siempre con una pregunta o llamada a acción concreta
+- Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
+${scoringSection}
+
+CONTEXTO DEL LEAD:
+- Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
+
+BASE DE CONOCIMIENTO:
+${ragContent || 'No hay documentos cargados aún.'}
+
+${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
+
+FORMATO DE RESPUESTA IMPORTANTE:
+Responde SIEMPRE con este JSON exacto:
+{
+  "response": "El mensaje que verá el lead",
+  "scoring": {
+${scoringKeys}
+  },
+  "suggestHandoff": false,
+  "detectedProductId": null
+}`
+
+  return { systemPrompt, scoringConfig, pipelineId }
+}
+
+// ── PARSE CLAUDE REPLY + UPDATE SCORE ──
+async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
+  let visibleReply = rawReply
+  try {
+    const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      if (parsed.response) visibleReply = parsed.response
+      if (parsed.scoring && lead.id) {
+        const delta = Object.values(parsed.scoring).reduce((sum, s) => sum + (s.delta || 0), 0)
+        if (delta !== 0) {
+          const newScore = Math.max(0, Math.min(100, (lead.score || 0) + delta))
+          await orgRef.collection('leads').doc(lead.id).update({
+            score: newScore,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+        }
+      }
+    }
+  } catch (err) {
+    console.error('JSON parse error:', err.message)
+  }
+  return visibleReply
 }
 
 app.get('/health', async (req, res) => {
