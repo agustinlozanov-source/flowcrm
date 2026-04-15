@@ -12,7 +12,7 @@ import clsx from 'clsx'
 import {
   X, Plus, Clock, Calendar as CalendarIcon, Video, Phone,
   List, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  RotateCcw, Star, AlertTriangle, Search, Check
+  RotateCcw, Star, AlertTriangle, Search, Check, Trash2
 } from 'lucide-react'
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
@@ -404,8 +404,14 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
             Iniciar {type.label.toLowerCase()}
           </button>
           <button onClick={() => onCancel(appointment.id)}
-            className="px-3 py-2 rounded-[8px] border border-black/[0.1] text-secondary hover:border-red-200 hover:text-red-500 transition-all text-[12px]">
+            title="Cancelar cita"
+            className="px-3 py-2 rounded-[8px] border border-black/[0.1] text-secondary hover:border-amber-200 hover:text-amber-500 transition-all text-[12px]">
             <XCircle size={14} />
+          </button>
+          <button onClick={() => onDelete(appointment)}
+            title="Eliminar cita"
+            className="px-3 py-2 rounded-[8px] border border-black/[0.1] text-secondary hover:border-red-200 hover:text-red-500 transition-all text-[12px]">
+            <Trash2 size={14} />
           </button>
         </div>
       )}
@@ -581,6 +587,24 @@ export default function Meetings() {
     if (!confirm('¿Cancelar esta cita?')) return
     await cancelAppointment(id)
     toast.success('Cita cancelada')
+  }
+
+  const handleDelete = async (appointment) => {
+    if (!confirm('¿Eliminar esta cita permanentemente? Esta acción no se puede deshacer.')) return
+    // Si tiene evento en Google Calendar, eliminarlo primero
+    if (appointment.googleEventId) {
+      try {
+        await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId: org?.id, googleEventId: appointment.googleEventId }),
+        })
+      } catch (err) {
+        console.error('Error eliminando evento de Calendar:', err.message)
+      }
+    }
+    await deleteAppointment(appointment.id)
+    toast.success('Cita eliminada')
   }
 
   const cockpitLead = cockpit ? leads.find(l => l.id === cockpit.leadId) : null
@@ -762,7 +786,7 @@ export default function Meetings() {
                       lead={leads.find(l => l.id === a.leadId)}
                       onOpenCockpit={setCockpit}
                       onCancel={handleCancel}
-                      onDelete={() => deleteAppointment(a.id)} />
+                      onDelete={handleDelete} />
                   ))}
                 </div>
               )}
@@ -789,7 +813,7 @@ export default function Meetings() {
                     lead={leads.find(l => l.id === a.leadId)}
                     onOpenCockpit={setCockpit}
                     onCancel={handleCancel}
-                    onDelete={() => deleteAppointment(a.id)} />
+                    onDelete={handleDelete} />
                 ))}
               </div>
             )}

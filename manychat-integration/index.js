@@ -290,7 +290,30 @@ app.post('/meetings/google/create', async (req, res) => {
   }
 })
 
-// Webhook por tenant
+// DELETE /meetings/google/delete — Elimina evento de Google Calendar
+app.delete('/meetings/google/delete', async (req, res) => {
+  const { orgId, googleEventId } = req.body
+  if (!orgId || !googleEventId) return res.status(400).json({ error: 'Missing orgId or googleEventId' })
+  try {
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const tokens = integSnap.data()?.googleCalendar
+    if (!tokens?.connected) return res.json({ success: true, skipped: true })
+
+    oauth2Client.setCredentials({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    })
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
+    await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId })
+    res.json({ success: true })
+  } catch (err) {
+    // Si el evento ya no existe en Calendar (410 Gone) lo ignoramos
+    if (err.code === 410 || err.status === 410) return res.json({ success: true, skipped: true })
+    console.error('[Google Calendar] delete error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
 app.post('/webhook/manychat/:orgId', (req, res) => {
   res.sendStatus(200)
 
