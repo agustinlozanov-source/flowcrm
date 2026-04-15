@@ -415,6 +415,17 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
           </button>
         </div>
       )}
+
+      {/* Delete button — always visible for non-pending */}
+      {!isPending && (
+        <div className="flex justify-end">
+          <button onClick={() => onDelete(appointment)}
+            title="Eliminar cita"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[7px] text-[11.5px] text-tertiary hover:text-red-500 hover:bg-red-50 transition-all">
+            <Trash2 size={13} /> Eliminar
+          </button>
+        </div>
+      )}
     </div>
   )
 }
