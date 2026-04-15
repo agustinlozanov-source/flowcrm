@@ -102,7 +102,9 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   let ragContent = ''
   try {
     const filesSnap = await orgRef.collection('agent_files').where('status', '==', 'ready').get()
-    ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
+    ragContent = filesSnap.docs
+      .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
+      .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
   } catch {}
 
   // Scoring config for this lead's pipeline

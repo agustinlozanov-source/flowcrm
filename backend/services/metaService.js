@@ -122,7 +122,9 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     // RAG content
     const filesSnap = await db.collection('organizations').doc(orgId)
       .collection('agent_files').where('status', '==', 'ready').get()
-    const ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
+    const ragContent = filesSnap.docs
+      .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
+      .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
 
     // Scoring config for this lead's pipeline
     const pipelineId = lead.pipelineId || null

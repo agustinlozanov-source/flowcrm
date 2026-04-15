@@ -265,7 +265,7 @@ async function syncAssistant(orgId, config) {
 }
 
 // ── UPLOAD FILE ───────────────────────────────────────────────────
-async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
+async function uploadFile(orgId, fileBuffer, fileName, mimeType, pipelineId) {
   let content = ''
   try {
     content = fileBuffer.toString('utf-8')
@@ -276,6 +276,7 @@ async function uploadFile(orgId, fileBuffer, fileName, mimeType) {
     mimeType,
     content,
     status: 'ready',
+    pipelineId: pipelineId || null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   })
   return { fileId: fileRef.id }
@@ -379,10 +380,12 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
     }
   }
 
-  // Load RAG files
+  // Load RAG files — filter by pipelineId (null = global, applies to all)
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
     .where('status', '==', 'ready').get()
-  const ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
+  const ragContent = filesSnap.docs
+    .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
+    .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
 
   // Load enabled products
   let products = []
@@ -556,7 +559,7 @@ exports.handler = async (event) => {
     }
     if (action === 'upload') {
       const buffer = Buffer.from(body.fileData, 'base64')
-      const result = await uploadFile(orgId, buffer, body.fileName, body.mimeType)
+      const result = await uploadFile(orgId, buffer, body.fileName, body.mimeType, body.pipelineId || null)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
     if (action === 'delete_file') {
