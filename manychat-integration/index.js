@@ -184,6 +184,19 @@ REGLAS PARA detectedPipelineId:
 - Si no hay suficiente contexto todavía → deja null
 - Los pipelines disponibles son:
 ${availablePipelines.map(p => `  · "${p.id}" → ${p.name} (${p.purpose || 'adquisicion'})`).join('\n')}
+
+INSTRUCCIONES PARA AGENDAR REUNIONES:
+Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
+1. En tu respuesta dile que le estás enviando el link ahora mismo
+2. Al FINAL de tu JSON, después del campo "detectedPipelineId", agrega EXACTAMENTE esto en una línea separada:
+MEETING_SCHEDULED: {"scheduledAt": "2026-04-16T18:00:00", "duration": 30, "notes": "Demo Flow Hub"}
+
+IMPORTANTE:
+- Usa la fecha y hora que el lead confirmó
+- El formato de scheduledAt es ISO 8601 en hora local México (UTC-6)
+- NO prometas que "alguien más" enviará el link — TÚ lo envías automáticamente
+- Solo emite MEETING_SCHEDULED cuando el lead haya confirmado fecha Y hora específicas
+- Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
 
   return { systemPrompt, scoringConfig, pipelineId }
