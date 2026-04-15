@@ -1741,27 +1741,28 @@ export default function Agent() {
                   )}
                 </Section>
 
-                <Section title="Conocimiento manual"
-                  desc={org?.isDistribuidor ? 'Prompt global administrado por Flow Hub — solo lectura' : 'Complementa los documentos con información que no está en archivos'}>
-                  {org?.isDistribuidor && distribuidorConfig?.agentPrompt ? (
-                    <>
-                      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px] mb-3">
-                        <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-[12px] text-amber-800 leading-relaxed">
-                          El prompt de tu agente IA es administrado globalmente por Flow Hub. No puedes modificarlo desde aquí — los cambios se aplican desde la Configuración Global.
-                        </p>
-                      </div>
-                      <div className="text-[12px] text-primary bg-gray-50 border border-black/[0.08] rounded-[10px] p-4 max-h-52 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed">
-                        {distribuidorConfig.agentPrompt}
-                      </div>
-                    </>
-                  ) : (
-                    <PromptByPipelineTab
-                      pipelines={pipelines}
-                      instructions={config.customInstructions}
-                      onChange={v => set('customInstructions', v)}
-                    />
-                  )}
+                {/* Prompt global de Flow Hub (solo distribuidores) */}
+                {org?.isDistribuidor && distribuidorConfig?.agentPrompt && (
+                  <Section title="Prompt global Flow Hub" desc="Administrado por Flow Hub — solo lectura">
+                    <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-[12px]">
+                      <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-amber-800 leading-relaxed">
+                        El prompt de tu agente IA es administrado globalmente por Flow Hub. No puedes modificarlo desde aquí — los cambios se aplican desde la Configuración Global.
+                      </p>
+                    </div>
+                    <div className="text-[12px] text-primary bg-gray-50 border border-black/[0.08] rounded-[10px] p-4 max-h-52 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed">
+                      {distribuidorConfig.agentPrompt}
+                    </div>
+                  </Section>
+                )}
+
+                <Section title="Instrucciones por pipeline"
+                  desc="Instrucciones adicionales específicas para cada pipeline. Se combinan con el prompt global.">
+                  <PromptByPipelineTab
+                    pipelines={pipelines}
+                    instructions={config.customInstructions}
+                    onChange={v => set('customInstructions', v)}
+                  />
                 </Section>
               </>
             )}
