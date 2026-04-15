@@ -12,7 +12,7 @@ import clsx from 'clsx'
 import {
   X, Plus, Clock, Calendar as CalendarIcon, Video, Phone,
   List, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  RotateCcw, Star, AlertTriangle, Search
+  RotateCcw, Star, AlertTriangle, Search, Check
 } from 'lucide-react'
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
@@ -643,7 +643,16 @@ export default function Meetings() {
       </div>
 
       {/* Google Calendar banner */}
-      {!googleConnected && (
+      {googleConnected ? (
+        <div className="flex items-center gap-3 px-5 py-2.5 bg-green-50/70 border-b border-green-100">
+          <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+            <Check size={11} className="text-white" strokeWidth={3} />
+          </div>
+          <span className="text-[12.5px] text-green-700 font-semibold flex-1">
+            Google Calendar conectado — las videollamadas de Meet se crean automáticamente
+          </span>
+        </div>
+      ) : (
         <div className="flex items-center gap-3 px-5 py-3 bg-blue-50/60 border-b border-blue-100">
           <Video size={15} className="text-blue-500 flex-shrink-0" />
           <span className="text-[12.5px] text-blue-700 flex-1">
