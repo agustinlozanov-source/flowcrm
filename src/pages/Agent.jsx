@@ -896,6 +896,66 @@ function PipelineScoringEditor({ data, onChange }) {
   )
 }
 
+// ─── PROMPT BY PIPELINE TAB ──────────────────────────────────────
+function PromptByPipelineTab({ pipelines, instructions, onChange }) {
+  const [activeId, setActiveId] = useState(pipelines[0]?.id || null)
+
+  // Sync active tab when pipelines load
+  useEffect(() => {
+    setActiveId(prev => (prev === null && pipelines.length > 0) ? pipelines[0].id : prev)
+  }, [pipelines.length])
+
+  if (pipelines.length === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <Brain size={32} className="text-tertiary mx-auto mb-3" strokeWidth={1.5} />
+        <p className="font-semibold text-sm text-primary mb-1">Sin pipelines configurados</p>
+        <p className="text-xs text-secondary">Crea un pipeline primero para cargar instrucciones personalizadas.</p>
+      </div>
+    )
+  }
+
+  const current = typeof instructions === 'object' && !Array.isArray(instructions)
+    ? (instructions[activeId] || '')
+    : ''
+
+  const handleChange = (val) => {
+    const base = (typeof instructions === 'object' && !Array.isArray(instructions)) ? instructions : {}
+    onChange({ ...base, [activeId]: val })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Pipeline tabs */}
+      <div className="card p-1 flex gap-1">
+        {pipelines.map(p => (
+          <button key={p.id} onClick={() => setActiveId(p.id)}
+            className={clsx(
+              'flex-1 px-3 py-2 rounded-[8px] text-[12.5px] font-semibold transition-all text-center',
+              activeId === p.id
+                ? 'bg-primary text-white'
+                : 'text-secondary hover:bg-surface-2 hover:text-primary'
+            )}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Textarea for the active pipeline */}
+      <textarea
+        value={current}
+        onChange={e => handleChange(e.target.value)}
+        placeholder={`Instrucciones adicionales para el pipeline "${pipelines.find(p => p.id === activeId)?.name || ''}"...\n\nEj: Cuando el lead pregunte por precios, menciona siempre nuestro plan de financiamiento. Si el lead ya visitó la tienda, priorizarlo para llamada inmediata.`}
+        rows={8}
+        className="input text-[13px] leading-relaxed resize-none font-mono"
+      />
+      <p className="text-[11px] text-tertiary">
+        Estas instrucciones se agregan al prompt del agente solo cuando está atendiendo leads de este pipeline.
+      </p>
+    </div>
+  )
+}
+
 // ─── SCORING TAB ─────────────────────────────────────────────────
 function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
   const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
