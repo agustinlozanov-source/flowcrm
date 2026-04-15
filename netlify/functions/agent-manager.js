@@ -471,8 +471,17 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
   }
 
   // Load all pipelines (used for routing section in system prompt)
-  const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').orderBy('createdAt', 'asc').get()
-  const allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+  let allPipelines = []
+  try {
+    const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').orderBy('createdAt', 'asc').get()
+    allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+  } catch {
+    // orderBy may fail without index — fall back to unordered
+    try {
+      const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').get()
+      allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+    } catch {}
+  }
 
   // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
   const rawInstructions = agentConfig.customInstructions
@@ -487,6 +496,8 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
 
   const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId)
 
+  // Load conversation history
+  const history = await getConversationHistory(orgId, leadId)
 
   // Save user message
   await saveTestMessage(orgId, leadId, 'user', message)
