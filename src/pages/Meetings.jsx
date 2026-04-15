@@ -1,6 +1,9 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppointments, APPOINTMENT_TYPES, APPOINTMENT_STATUS, VIDEO_PLATFORMS } from '@/hooks/useAppointments'
 import { usePipeline } from '@/hooks/usePipeline'
+import { useAuthStore } from '@/store/authStore'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import CallCockpit from '@/components/pipeline/CallCockpit'
@@ -463,6 +466,7 @@ function TodayPanel({ appointments, leads, onOpenCockpit, onCancel }) {
 
 // ─── MAIN MEETINGS ────────────────────────────────────────────────
 export default function Meetings() {
+  const { org } = useAuthStore()
   const {
     appointments, loading,
     createAppointment, cancelAppointment, deleteAppointment
@@ -478,6 +482,32 @@ export default function Meetings() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
+  const [googleConnected, setGoogleConnected] = useState(false)
+
+  // Detectar si viene de OAuth exitoso
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('google') === 'connected') {
+      toast.success('Google Calendar conectado ✓')
+      window.history.replaceState({}, '', '/meetings')
+      setGoogleConnected(true)
+    } else if (params.get('google') === 'error') {
+      toast.error('Error al conectar Google Calendar')
+      window.history.replaceState({}, '', '/meetings')
+    }
+  }, [])
+
+  // Leer estado de conexión Google desde Firestore
+  useEffect(() => {
+    if (!org?.id) return
+    getDoc(doc(db, 'organizations', org.id, 'settings', 'integrations'))
+      .then(snap => setGoogleConnected(snap.data()?.googleCalendar?.connected || false))
+      .catch(() => {})
+  }, [org?.id])
+
+  const connectGoogle = () => {
+    window.location.href = `https://flowcrm-production-6d63.up.railway.app/meetings/auth/google?orgId=${org.id}`
+  }
 
   // Calendar days
   const calendarDays = eachDayOfInterval({
@@ -508,7 +538,36 @@ export default function Meetings() {
   }, [appointments, statusFilter, typeFilter, view, selectedDay])
 
   const handleCreate = async (data) => {
-    await createAppointment(data)
+    const appointmentId = await createAppointment(data)
+
+    if (data.type === 'video' && data.platform === 'meet' && googleConnected && appointmentId) {
+      try {
+        const lead = leads.find(l => l.id === data.leadId)
+        const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orgId: org.id,
+            title: `Reunión con ${data.leadName || lead?.name || 'Lead'}`,
+            scheduledAt: data.scheduledAt,
+            duration: data.duration || 30,
+            leadEmail: lead?.email || null,
+            leadName: data.leadName || lead?.name || '',
+            notes: data.notes || '',
+          }),
+        })
+        const result = await res.json()
+        if (result.meetLink) {
+          await updateDoc(doc(db, 'organizations', org.id, 'appointments', appointmentId), {
+            link: result.meetLink,
+            googleEventId: result.eventId,
+          })
+          toast.success('Evento creado en Google Calendar ✓')
+        }
+      } catch (err) {
+        console.error('Google Calendar create error:', err.message)
+      }
+    }
   }
 
   const handleCancel = async (id) => {
@@ -582,6 +641,20 @@ export default function Meetings() {
           </div>
         </div>
       </div>
+
+      {/* Google Calendar banner */}
+      {!googleConnected && (
+        <div className="flex items-center gap-3 px-5 py-3 bg-blue-50/60 border-b border-blue-100">
+          <Video size={15} className="text-blue-500 flex-shrink-0" />
+          <span className="text-[12.5px] text-blue-700 flex-1">
+            Conecta Google Calendar para crear videollamadas de Google Meet automáticamente
+          </span>
+          <button onClick={connectGoogle}
+            className="flex-shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[12px] font-bold rounded-[8px] transition-colors">
+            Conectar Google Meet
+          </button>
+        </div>
+      )}
 
       {/* TODAY PANEL */}
       <TodayPanel

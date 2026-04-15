@@ -513,6 +513,30 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       const rawReply = response.content[0].text
       reply = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
+
+      // Detectar si el agente programó una reunión
+      const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
+      if (meetingMatch) {
+        try {
+          const meetingData = JSON.parse(meetingMatch[1])
+          await orgRef.collection('appointments').add({
+            leadId: leadDocId,
+            leadName: senderName || '',
+            type: 'video',
+            scheduledAt: new Date(meetingData.scheduledAt),
+            duration: meetingData.duration || 30,
+            platform: 'meet',
+            link: '',
+            notes: meetingData.notes || '',
+            status: 'pending',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdBy: 'agent',
+          })
+          console.log(`[Zernio][${orgId}] Meeting agendado para ${senderName}`)
+        } catch (e) {
+          console.error(`[Zernio][${orgId}] Error al crear meeting:`, e.message)
+        }
+      }
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 7 (Claude):`, err.message)
       return
