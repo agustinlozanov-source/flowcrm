@@ -3,6 +3,24 @@ const Anthropic = require('@anthropic-ai/sdk')
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ── ATOMIC MESSAGE DEDUP LOCK ──
+// Returns true if already processed (skip), false if first time (proceed)
+async function checkAndLockMessage(orgId, msgId) {
+  if (!msgId) return false
+  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+  try {
+    const alreadyProcessed = await db.runTransaction(async t => {
+      const snap = await t.get(lockRef)
+      if (snap.exists) return true
+      t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
+      return false
+    })
+    return alreadyProcessed
+  } catch {
+    return false // on error, proceed
+  }
+}
+
 // ── FIND OR CREATE LEAD ──
 async function findOrCreateLead(orgId, contact) {
   const { name, phone, email, channelUserId, channel } = contact
@@ -279,14 +297,8 @@ async function processWhatsApp(entry, orgId) {
       const phone = msg.from
       const text = msg.text?.body || ''
       const profileName = value.contacts?.[0]?.profile?.name || 'WhatsApp User'
+      if (await checkAndLockMessage(orgId, msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
       const lead = await findOrCreateLead(orgId, { name: profileName, phone, channelUserId: phone, channel: 'whatsapp' })
-      // Dedup: skip if already processed
-      if (msg.id) {
-        const dup = await db.collection('organizations').doc(orgId)
-          .collection('leads').doc(lead.id)
-          .collection('conversations').where('channelMsgId', '==', msg.id).limit(1).get()
-        if (!dup.empty) { console.log(`⚠️ Dup WA msg ${msg.id} skipped`); continue }
-      }
       await saveMessage(orgId, lead.id, { text, channel: 'whatsapp', role: 'user', channelMsgId: msg.id })
       const reply = await agentAutoReply(orgId, lead, text, 'whatsapp')
       if (reply) {
@@ -312,14 +324,8 @@ async function processMessaging(entry, channel, orgId) {
       const profile = await profileRes.json()
       name = profile.name || name
     } catch { }
+    if (await checkAndLockMessage(orgId, event.message.mid)) { console.log(`⚠️ Dup msg ${event.message.mid} skipped`); continue }
     const lead = await findOrCreateLead(orgId, { name, channelUserId: senderId, channel })
-    // Dedup: skip if already processed
-    if (event.message.mid) {
-      const dup = await db.collection('organizations').doc(orgId)
-        .collection('leads').doc(lead.id)
-        .collection('conversations').where('channelMsgId', '==', event.message.mid).limit(1).get()
-      if (!dup.empty) { console.log(`⚠️ Dup msg ${event.message.mid} skipped`); continue }
-    }
     await saveMessage(orgId, lead.id, { text, channel, role: 'user', channelMsgId: event.message.mid })
     const reply = await agentAutoReply(orgId, lead, text, channel)
     if (reply) {
@@ -366,14 +372,8 @@ async function processInstagram(entry, orgId) {
       const profile = await profileRes.json()
       name = profile.name || name
     } catch { }
+    if (await checkAndLockMessage(orgId, val.message.mid)) { console.log(`⚠️ Dup IG ${val.message.mid} skipped`); continue }
     const lead = await findOrCreateLead(orgId, { name, channelUserId: senderId, channel: 'instagram' })
-    // Dedup: skip if already processed
-    if (val.message.mid) {
-      const dup = await db.collection('organizations').doc(orgId)
-        .collection('leads').doc(lead.id)
-        .collection('conversations').where('channelMsgId', '==', val.message.mid).limit(1).get()
-      if (!dup.empty) { console.log(`⚠️ Dup IG msg ${val.message.mid} skipped`); continue }
-    }
     await saveMessage(orgId, lead.id, { text, channel: 'instagram', role: 'user', channelMsgId: val.message.mid })
     const reply = await agentAutoReply(orgId, lead, text, 'instagram')
     if (reply) {

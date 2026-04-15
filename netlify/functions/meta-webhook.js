@@ -14,6 +14,23 @@ if (!admin.apps.length) {
 const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ── ATOMIC MESSAGE DEDUP LOCK ──
+async function checkAndLockMessage(orgId, msgId) {
+  if (!msgId) return false
+  const lockRef = db.collection('organizations').doc(orgId).collection('_msg_locks').doc(String(msgId))
+  try {
+    const alreadyProcessed = await db.runTransaction(async t => {
+      const snap = await t.get(lockRef)
+      if (snap.exists) return true
+      t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
+      return false
+    })
+    return alreadyProcessed
+  } catch {
+    return false
+  }
+}
+
 // ── VERIFY WEBHOOK (Meta handshake) ──
 function verifyWebhook(event) {
   const params = new URLSearchParams(event.rawQuery || '')
@@ -334,20 +351,14 @@ async function processWhatsApp(entry, orgId) {
       const text = msg.text?.body || ''
       const profileName = value.contacts?.[0]?.profile?.name || 'WhatsApp User'
 
+      if (await checkAndLockMessage(orgId, msg.id)) { console.log(`⚠️ Dup WA ${msg.id} skipped`); continue }
+
       const lead = await findOrCreateLead(orgId, {
         name: profileName,
         phone,
         channelUserId: phone,
         channel: 'whatsapp',
       })
-
-      // Dedup: skip if already processed
-      if (msg.id) {
-        const dup = await db.collection('organizations').doc(orgId)
-          .collection('leads').doc(lead.id)
-          .collection('conversations').where('channelMsgId', '==', msg.id).limit(1).get()
-        if (!dup.empty) { console.log(`⚠️ Dup WA msg ${msg.id} skipped`); continue }
-      }
 
       await saveMessage(orgId, lead.id, { text, channel: 'whatsapp', role: 'user', channelMsgId: msg.id })
 
@@ -380,19 +391,13 @@ async function processMessaging(entry, channel, orgId) {
       name = profile.name || name
     } catch { }
 
+    if (await checkAndLockMessage(orgId, event.message.mid)) { console.log(`⚠️ Dup ${event.message.mid} skipped`); continue }
+
     const lead = await findOrCreateLead(orgId, {
       name,
       channelUserId: senderId,
       channel,
     })
-
-    // Dedup: skip if already processed
-    if (event.message.mid) {
-      const dup = await db.collection('organizations').doc(orgId)
-        .collection('leads').doc(lead.id)
-        .collection('conversations').where('channelMsgId', '==', event.message.mid).limit(1).get()
-      if (!dup.empty) { console.log(`⚠️ Dup msg ${event.message.mid} skipped`); continue }
-    }
 
     await saveMessage(orgId, lead.id, { text, channel, role: 'user', channelMsgId: event.message.mid })
 

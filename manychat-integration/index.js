@@ -255,20 +255,11 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         return
       }
 
-      // Leer archivos RAG (igual que el tab de Prueba)
-      const filesSnap = await orgRef.collection('agent_files')
-        .where('status', '==', 'ready').get()
-      const filesContent = filesSnap.docs
-        .map(d => d.data().content || '')
-        .filter(Boolean)
-        .join('\n\n---\n\n')
-
-      console.log(`[${orgId}] RAG archivos: ${filesSnap.docs.length} | chars: ${filesContent.length}`)
-
-      // Si hay archivos RAG, usarlos como prompt (igual que Prueba)
-      // Si no, caer a buildSystemPrompt con la config del agente
-      const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
-        + `\n\nContexto: nombre del lead=${name}, canal=${channel}`
+      // 5b. Build modern system prompt
+      const existingSnap2 = await leadRef.get()
+      const leadData = { id: subscriber_id, ...(existingSnap2.exists ? existingSnap2.data() : {}), name }
+      const { systemPrompt, scoringConfig } = await buildModernSystemPrompt(orgRef, agentConfig, leadData, channel)
+      console.log(`[${orgId}] System prompt construido — ${systemPrompt.length} chars`)
 
       // 5. Claude responde
       const response = await anthropic.messages.create({
@@ -278,7 +269,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
         messages
       })
 
-      const reply = response.content[0].text
+      const reply = await parseAndUpdateScore(orgRef, leadData, response.content[0].text, scoringConfig)
 
       // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
@@ -438,24 +429,29 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       return
     }
 
-    // 5. RAG files
-    let filesContent = ''
-    try {
-      const filesSnap = await orgRef.collection('agent_files')
-        .where('status', '==', 'ready').get()
-      filesContent = filesSnap.docs
-        .map(d => d.data().content || '')
-        .filter(Boolean)
-        .join('\n\n---\n\n')
-      console.log(`[Zernio][${orgId}] RAG archivos: ${filesSnap.docs.length} | chars: ${filesContent.length}`)
-    } catch (err) {
-      console.error(`[Zernio][${orgId}] ERROR paso 5 (RAG files):`, err.message)
+    // 5. Dedup por message.id
+    const zernioMsgId = message?.id ? `zernio_${message.id}` : null
+    if (zernioMsgId && await checkAndLockMessage(orgId, zernioMsgId)) {
+      console.log(`[Zernio][${orgId}] Dup message ${message.id} skipped`)
+      return
     }
 
-    const systemPrompt = (filesContent || buildSystemPrompt(agentConfig))
-      + `\n\nContexto: nombre del lead=${senderName || 'Sin nombre'}, canal=${platform || 'whatsapp'}`
+    // 6. Build modern system prompt
+    let systemPrompt = ''
+    let scoringConfig = null
+    const leadSnap2 = await leadRef.get()
+    const leadData = { id: leadDocId, ...(leadSnap2.exists ? leadSnap2.data() : {}), name: senderName || 'Sin nombre' }
+    try {
+      const built = await buildModernSystemPrompt(orgRef, agentConfig, leadData, platform || 'whatsapp')
+      systemPrompt = built.systemPrompt
+      scoringConfig = built.scoringConfig
+      console.log(`[Zernio][${orgId}] System prompt construido — ${systemPrompt.length} chars`)
+    } catch (err) {
+      console.error(`[Zernio][${orgId}] ERROR paso 6 (buildPrompt):`, err.message)
+      return
+    }
 
-    // 6. Claude responde
+    // 7. Claude responde
     let reply = null
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
@@ -465,10 +461,11 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         system: systemPrompt,
         messages,
       })
-      reply = response.content[0].text
-      console.log(`[Zernio][${orgId}] Respuesta de Claude: "${reply}"`)
+      const rawReply = response.content[0].text
+      reply = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
+      console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
     } catch (err) {
-      console.error(`[Zernio][${orgId}] ERROR paso 6 (Claude):`, err.message)
+      console.error(`[Zernio][${orgId}] ERROR paso 7 (Claude):`, err.message)
       return
     }
 
