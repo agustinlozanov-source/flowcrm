@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAppointments, DISCARD_CATEGORIES_CALL } from '@/hooks/useAppointments'
 import { usePipeline, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
+import { useAuthStore } from '@/store/authStore'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -56,8 +57,9 @@ const OUTCOMES = [
 ]
 
 export default function CallCockpit({ appointment, lead, onClose, onCompleted }) {
-  const { completeAppointment, createAppointment } = useAppointments()
+  const { completeAppointment, createAppointment, updateAppointment } = useAppointments()
   const { resolveHandoff, discardLead } = usePipeline()
+  const { org } = useAuthStore()
 
   const [notes, setNotes] = useState(appointment.notes || '')
   const [outcome, setOutcome] = useState(null)
@@ -103,17 +105,41 @@ export default function CallCockpit({ appointment, lead, onClose, onCompleted })
       // 3. If rescheduled — create new appointment
       if (outcome === 'rescheduled') {
         const newDateTime = new Date(`${rescheduleDate}T${rescheduleTime}:00`)
-        await createAppointment({
+        const newId = await createAppointment({
           leadId: appointment.leadId,
           leadName: appointment.leadName,
           type: appointment.type,
           scheduledAt: newDateTime,
           duration: appointment.duration,
           platform: appointment.platform,
-          link: appointment.link,
+          link: '',
           notes: `Reagendada desde llamada del ${format(dateTime, "d 'de' MMMM", { locale: es })}`,
           assignedTo: appointment.assignedTo,
         })
+
+        // Si es video Meet, generar nuevo link
+        if (appointment.type === 'video' && appointment.platform === 'meet' && newId) {
+          try {
+            const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orgId: org?.id,
+                title: `Reunión con ${appointment.leadName}`,
+                scheduledAt: newDateTime.toISOString(),
+                duration: appointment.duration,
+                leadName: appointment.leadName,
+                notes: '',
+              }),
+            })
+            const data = await res.json()
+            if (data.meetLink) {
+              await updateAppointment(newId, { link: data.meetLink, googleEventId: data.eventId })
+            }
+          } catch (e) {
+            console.error('Error creando Meet en reagendado:', e)
+          }
+        }
         toast.success('Nueva llamada agendada')
       }
 

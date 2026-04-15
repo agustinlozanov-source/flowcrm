@@ -545,7 +545,8 @@ function HandoffPanel({ lead }) {
 
 // ── ScheduleModal ────────────────────────────────────────────────
 function ScheduleModal({ lead, onClose }) {
-  const { createAppointment } = useAppointments()
+  const { org } = useAuthStore()
+  const { createAppointment, updateAppointment } = useAppointments()
   const [form, setForm] = useState({
     type: 'call',
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -564,8 +565,36 @@ function ScheduleModal({ lead, onClose }) {
     setLoading(true)
     try {
       const scheduledAt = new Date(`${form.date}T${form.time}:00`)
-      await createAppointment({ ...form, leadId: lead.id, leadName: lead.name, scheduledAt })
-      toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+      const appointmentId = await createAppointment({ ...form, leadId: lead.id, leadName: lead.name, scheduledAt })
+
+      // Si es videollamada de Meet, crear evento en Google Calendar
+      if (form.type === 'video' && form.platform === 'meet' && appointmentId) {
+        try {
+          const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orgId: org?.id,
+              title: `Reunión con ${lead.name}`,
+              scheduledAt: scheduledAt.toISOString(),
+              duration: form.duration || 30,
+              leadName: lead.name,
+              notes: form.notes || '',
+            }),
+          })
+          const data = await res.json()
+          if (data.meetLink) {
+            await updateAppointment(appointmentId, { link: data.meetLink, googleEventId: data.eventId })
+            toast.success('Videollamada de Meet creada ✓')
+          } else {
+            toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+          }
+        } catch {
+          toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+        }
+      } else {
+        toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+      }
       onClose()
     } catch { toast.error('Error al agendar') }
     finally { setLoading(false) }

@@ -370,12 +370,11 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
         <p className="text-[12px] text-secondary leading-relaxed line-clamp-2">{appointment.notes}</p>
       )}
 
-      {/* Video link */}
+      {/* Video link — informativo */}
       {appointment.type === 'video' && appointment.link && (
-        <a href={appointment.link} target="_blank" rel="noreferrer"
-          className="flex items-center gap-1.5 text-[12px] text-blue-600 hover:underline">
-          <Video size={12} /> {VIDEO_PLATFORMS.find(p => p.value === appointment.platform)?.label || 'Videollamada'}
-        </a>
+        <span className="flex items-center gap-1.5 text-[12px] text-tertiary">
+          <Video size={12} /> Google Meet · enlace generado automáticamente
+        </span>
       )}
 
       {/* Outcome summary (if completed) */}
@@ -394,7 +393,12 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
       {/* Actions */}
       {isPending && (
         <div className="flex gap-2">
-          <button onClick={() => onOpenCockpit(appointment)}
+          <button onClick={() => {
+              if (appointment.type === 'video' && appointment.link) {
+                window.open(appointment.link, '_blank')
+              }
+              onOpenCockpit(appointment)
+            }}
             className="btn-primary flex-1 text-[12.5px] py-2 flex items-center justify-center gap-1.5">
             {appointment.type === 'call' ? <Phone size={13} /> : <Video size={13} />}
             Iniciar {type.label.toLowerCase()}
@@ -452,7 +456,10 @@ function TodayPanel({ appointments, leads, onOpenCockpit, onCancel }) {
                   {dt ? format(dt, 'HH:mm') : '—'} · {a.duration}min
                 </div>
               </div>
-              <button onClick={() => onOpenCockpit(a)}
+              <button onClick={() => {
+                  if (a.type === 'video' && a.link) window.open(a.link, '_blank')
+                  onOpenCockpit(a)
+                }}
                 className="text-[11px] font-bold px-3 py-1.5 rounded-[7px] bg-primary text-white hover:bg-primary/90 transition-colors flex items-center gap-1">
                 {a.type === 'call' ? <Phone size={11} /> : <Video size={11} />} Iniciar
               </button>
