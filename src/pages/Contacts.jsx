@@ -184,7 +184,8 @@ function LeadImportModal({ onClose, onImport }) {
 }
 
 export default function Contacts() {
-  const { orgId } = useAuthStore()
+  const { org } = useAuthStore()
+  const orgId = org?.id
   const { stages, leads, systemLeads, discardedLeads, loading, createLead } = usePipeline()
   const [selectedLead, setSelectedLead] = useState(null)
   const [search, setSearch] = useState('')

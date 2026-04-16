@@ -12,6 +12,7 @@ app.use((req, res, next) => {
   const allowed = [
     'https://flowhubcrm.app',
     'https://www.flowhubcrm.app',
+    'https://flowcrm.netlify.app',
     'http://localhost:5173',
     'http://localhost:3000',
   ]
