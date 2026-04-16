@@ -178,6 +178,18 @@ const NAV_SECTIONS = [
           </svg>
         ),
       },
+      {
+        to: '/settings',
+        moduleId: 'settings',
+        labelKey: 'nav.settings',
+        permission: null,
+        icon: (
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="3" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.42 1.42M13.36 13.36l1.42 1.42M3.22 14.78l1.42-1.42M13.36 4.64l1.42-1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        ),
+      },
     ],
   },
 ]

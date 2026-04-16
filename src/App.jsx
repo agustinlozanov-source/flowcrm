@@ -23,6 +23,7 @@ import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
 import Team from '@/pages/Team'
+import Settings from '@/pages/Settings'
 import JoinPage from '@/pages/JoinPage'
 
 import WelcomeForm from '@/pages/WelcomeForm'
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="landing" element={<LandingPages />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="team" element={<Team />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
 
         {/* Superadmin */}

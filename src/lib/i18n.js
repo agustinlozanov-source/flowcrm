@@ -30,6 +30,7 @@ export const translations = {
     'nav.referrals': 'Referidos',
     'nav.goals': 'Objetivos',
     'nav.landing': 'Páginas',
+    'nav.settings': 'Configuración',
 
     // User
     'user.role': 'Admin',
@@ -67,6 +68,7 @@ export const translations = {
     'nav.referrals': 'Referrals',
     'nav.goals': 'Goals',
     'nav.landing': 'Pages',
+    'nav.settings': 'Settings',
 
     // User
     'user.role': 'Admin',

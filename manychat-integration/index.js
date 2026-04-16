@@ -1150,4 +1150,57 @@ app.post('/webhook/vapi', async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── OAuth de canales (WhatsApp / Facebook / Instagram) via Zernio ─────────────
+const ZERNIO_PROFILE_ID = '69dcf5e6b7066684b587e8fc'
+const APP_URL = 'https://flowhubcrm.app'
+const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
+
+function registerChannelOAuth(app, platform) {
+  // GET /{platform}/connect?orgId=xxx
+  app.get(`/${platform}/connect`, async (req, res) => {
+    const { orgId } = req.query
+    if (!orgId) return res.status(400).send('Missing orgId')
+    try {
+      const response = await axios.get(`https://zernio.com/api/v1/connect/${platform}`, {
+        params: {
+          profileId: ZERNIO_PROFILE_ID,
+          redirect_url: `${RAILWAY_URL}/${platform}/callback?orgId=${orgId}`
+        },
+        headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+      })
+      res.redirect(response.data.authUrl)
+    } catch (err) {
+      console.error(`[${platform} Connect]`, err.response?.data || err.message)
+      res.redirect(`${APP_URL}/settings?${platform}=error`)
+    }
+  })
+
+  // GET /{platform}/callback?orgId=xxx&accountId=xxx
+  app.get(`/${platform}/callback`, async (req, res) => {
+    const { orgId, accountId, error } = req.query
+    if (error || !accountId || !orgId) {
+      return res.redirect(`${APP_URL}/settings?${platform}=error`)
+    }
+    try {
+      await db.collection('organizations').doc(orgId)
+        .collection('settings').doc('integrations').set({
+          [platform]: {
+            accountId,
+            connected: true,
+            connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }
+        }, { merge: true })
+      console.log(`[${platform}] Conectado para org ${orgId} — accountId: ${accountId}`)
+      res.redirect(`${APP_URL}/settings?${platform}=connected`)
+    } catch (err) {
+      console.error(`[${platform} Callback]`, err.message)
+      res.redirect(`${APP_URL}/settings?${platform}=error`)
+    }
+  })
+}
+
+registerChannelOAuth(app, 'whatsapp')
+registerChannelOAuth(app, 'facebook')
+registerChannelOAuth(app, 'instagram')
+
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
