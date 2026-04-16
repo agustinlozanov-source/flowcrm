@@ -877,6 +877,14 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
                 access_token: tokens.accessToken,
                 refresh_token: tokens.refreshToken,
               })
+              // Forzar refresh del token si está por vencer
+              apptOAuth.on('tokens', async (newTokens) => {
+                if (newTokens.access_token) {
+                  await orgRef.collection('settings').doc('integrations').set({
+                    googleCalendar: { accessToken: newTokens.access_token, expiryDate: newTokens.expiry_date }
+                  }, { merge: true }).catch(() => {})
+                }
+              })
               const calendar = google.calendar({ version: 'v3', auth: apptOAuth })
               const start = new Date(meetingData.scheduledAt)
               const end = new Date(start.getTime() + (meetingData.duration || 30) * 60000)
@@ -892,11 +900,23 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
                 }
               })
 
-              const meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri || ''
+              // A veces Google tarda en generar el conferenceData — reintentar hasta 3 veces
+              let meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri || ''
+              if (!meetLink) {
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  await new Promise(r => setTimeout(r, 2000))
+                  const ev2 = await calendar.events.get({ calendarId: 'primary', eventId: event.data.id })
+                  meetLink = ev2.data.conferenceData?.entryPoints?.[0]?.uri || ''
+                  if (meetLink) break
+                }
+              }
+
               if (meetLink) {
                 await apptRef.update({ link: meetLink, googleEventId: event.data.id })
                 reply = reply + `\n\nEnlace para tu videollamada: ${meetLink}`
                 console.log(`[Zernio][${orgId}] Meet link generado: ${meetLink}`)
+              } else {
+                console.warn(`[Zernio][${orgId}] Meet link no disponible después de reintentos`)
               }
             }
           } catch (calErr) {
