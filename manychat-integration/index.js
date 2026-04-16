@@ -638,6 +638,13 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
 
   setImmediate(async () => {
     const orgRef = db.collection('organizations').doc(orgId)
+
+    // Guard: leadDocId no puede ser vacío
+    if (!leadDocId) {
+      console.error(`[Zernio][${orgId}] leadDocId vacío — senderId: ${senderId}, phoneNumber: ${phoneNumber}. Abortando.`)
+      return
+    }
+
     const leadRef = orgRef.collection('leads').doc(leadDocId)
 
     console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId}`)
@@ -651,19 +658,23 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
         // FIX 5 — mensajes muy cortos/genéricos van a Contactos (sin pipeline)
         const isGenericMessage = text.trim().split(/\s+/).length < 4
 
-        // FIX 1 — obtener pipeline por defecto (el primero por createdAt)
-        const pipelinesSnap = await orgRef.collection('pipelines')
-          .orderBy('createdAt', 'asc').limit(1).get()
-        const defaultPipelineId = isGenericMessage ? null
-          : (pipelinesSnap.empty ? null : pipelinesSnap.docs[0].id)
-
-        // Primera etapa del pipeline por defecto
+        // Obtener pipeline y etapa por defecto — en try/catch propio para no bloquear la creación del lead
+        let defaultPipelineId = null
         let stageId = null
-        if (defaultPipelineId) {
-          const stagesSnap = await orgRef.collection('pipeline_stages')
-            .where('pipelineId', '==', defaultPipelineId)
-            .orderBy('order', 'asc').limit(1).get()
-          stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+        if (!isGenericMessage) {
+          try {
+            const pipelinesSnap = await orgRef.collection('pipelines')
+              .orderBy('createdAt', 'asc').limit(1).get()
+            defaultPipelineId = pipelinesSnap.empty ? null : pipelinesSnap.docs[0].id
+            if (defaultPipelineId) {
+              const stagesSnap = await orgRef.collection('pipeline_stages')
+                .where('pipelineId', '==', defaultPipelineId)
+                .orderBy('order', 'asc').limit(1).get()
+              stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+            }
+          } catch (pipeErr) {
+            console.error(`[Zernio][${orgId}] Error al obtener pipeline por defecto (se crea lead sin pipeline):`, pipeErr.message)
+          }
         }
 
         await leadRef.set({
@@ -672,16 +683,16 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           name: senderName || 'Sin nombre',
           phone: phoneNumber || '',
           company: '',
-          source: platform || 'whatsapp',
-          channel: platform || 'whatsapp',
+          source: platform,
+          channel: platform,
           pipelineId: defaultPipelineId,
           stageId,
           score: 0,
           assignedTo: null,
-          channelIds: { [platform || 'whatsapp']: senderId },
+          channelIds: { [platform]: senderId },
           lastMessage: text,
           hasUnread: true,
-          lastMessageChannel: platform || 'whatsapp',
+          lastMessageChannel: platform,
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
