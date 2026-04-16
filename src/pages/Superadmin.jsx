@@ -682,6 +682,21 @@ function Organizations({ orgs, resellers, onRefresh }) {
         })
         const result = await res.json()
         if (!res.ok) throw new Error(result.error || 'Error al crear organización')
+
+        // Crear perfil en Zernio para esta org
+        if (result.orgId) {
+          try {
+            await fetch('https://flowcrm-production-6d63.up.railway.app/zernio/create-profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orgId: result.orgId, orgName: form.name }),
+            })
+            console.log('[Zernio] Perfil creado para:', form.name)
+          } catch (err) {
+            console.error('[Zernio] Error creando perfil:', err)
+          }
+        }
+
         toast.success('Organización creada')
       }
       setShowModal(false)

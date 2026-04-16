@@ -1151,19 +1151,51 @@ app.post('/webhook/vapi', async (req, res) => {
 })
 
 // ── OAuth de canales (WhatsApp / Facebook / Instagram) via Zernio ─────────────
-const ZERNIO_PROFILE_ID = '69dcf5e6b7066684b587e8fc'
 const APP_URL = 'https://flowhubcrm.app'
 const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
 
+// POST /zernio/create-profile
+app.post('/zernio/create-profile', async (req, res) => {
+  const { orgId, orgName } = req.body
+  if (!orgId || !orgName) return res.status(400).json({ error: 'Missing orgId or orgName' })
+  try {
+    const response = await axios.post('https://zernio.com/api/v1/profiles', {
+      name: orgName,
+      description: 'Flow Hub CRM',
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    })
+    const profileId = response.data.profile._id
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        zernio: {
+          profileId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+    console.log(`[Zernio] Perfil creado para org ${orgId}: ${profileId}`)
+    res.json({ success: true, profileId })
+  } catch (err) {
+    console.error('[Zernio] Error creando perfil:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 function registerChannelOAuth(app, platform) {
-  // GET /{platform}/connect?orgId=xxx
   app.get(`/${platform}/connect`, async (req, res) => {
     const { orgId } = req.query
     if (!orgId) return res.status(400).send('Missing orgId')
     try {
+      const integSnap = await db.collection('organizations').doc(orgId)
+        .collection('settings').doc('integrations').get()
+      const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+
       const response = await axios.get(`https://zernio.com/api/v1/connect/${platform}`, {
         params: {
-          profileId: ZERNIO_PROFILE_ID,
+          profileId,
           redirect_url: `${RAILWAY_URL}/${platform}/callback?orgId=${orgId}`
         },
         headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
@@ -1175,7 +1207,6 @@ function registerChannelOAuth(app, platform) {
     }
   })
 
-  // GET /{platform}/callback?orgId=xxx&accountId=xxx
   app.get(`/${platform}/callback`, async (req, res) => {
     const { orgId, accountId, error } = req.query
     if (error || !accountId || !orgId) {
