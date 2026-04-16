@@ -965,11 +965,20 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
 
     // 8. Enviar respuesta vía API de Zernio
     try {
-      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversation?.id}, accountId: ${account?.id}`)
+      // Leer accountId del canal del cliente desde Firestore
+      const integSnap = await orgRef.collection('settings').doc('integrations').get()
+      const integData = integSnap.data()
+      const clientAccountId =
+        (platform === 'whatsapp' && integData?.whatsapp?.accountId) ||
+        (platform === 'facebook' && integData?.facebook?.accountId) ||
+        (platform === 'instagram' && integData?.instagram?.accountId) ||
+        account?.id // fallback al accountId del payload
+
+      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversation?.id}, accountId: ${clientAccountId}`)
       const zernioResponse = await axios.post(
         `https://zernio.com/api/v1/inbox/conversations/${conversation?.id}/messages`,
         {
-          accountId: account?.id,
+          accountId: clientAccountId,
           message: reply,
         },
         {
