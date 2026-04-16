@@ -222,6 +222,27 @@ IMPORTANTE:
   return { systemPrompt, scoringConfig, pipelineId }
 }
 
+// ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
+function cleanRawReply(text) {
+  // Quitar bloque MEETING_SCHEDULED
+  let clean = text.replace(/MEETING_SCHEDULED:\s*\{[\s\S]*?\}/m, '').trim()
+  // Quitar el primer objeto JSON completo (brace-counting)
+  const start = clean.indexOf('{')
+  if (start !== -1) {
+    let depth = 0, inStr = false, esc = false
+    for (let i = start; i < clean.length; i++) {
+      const ch = clean[i]
+      if (esc) { esc = false; continue }
+      if (ch === '\\' && inStr) { esc = true; continue }
+      if (ch === '"') { inStr = !inStr; continue }
+      if (inStr) continue
+      if (ch === '{') depth++
+      else if (ch === '}') { depth--; if (depth === 0) { clean = (clean.slice(0, start) + clean.slice(i + 1)).trim(); break } }
+    }
+  }
+  return clean || text
+}
+
 // ── EXTRACT FIRST JSON OBJECT (brace-counting, handles nested objects) ──
 // Regex non-greedy fails with nested braces; this walks char-by-char instead.
 function extractFirstJson(text) {
@@ -247,8 +268,8 @@ function extractFirstJson(text) {
 
 // ── PARSE CLAUDE REPLY + UPDATE SCORE ──
 async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
-  // Fallback: si no hay JSON válido, devolver el rawReply tal cual
-  let visibleReply = rawReply
+  // Fallback robusto: si JSON falla, al menos quitamos el bloque JSON del reply
+  let visibleReply = cleanRawReply(rawReply)
   let detectedPipelineId = null
   try {
     const jsonStr = extractFirstJson(rawReply)
@@ -558,12 +579,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       // 5. Claude responde
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        system: systemPrompt,
-        messages
-      })
-
-      const { visibleReply: reply } = await parseAndUpdateScore(orgRef, leadData, response.content[0].text, scoringConfig)
+        max_tokens: 1024,(orgRef, leadData, response.content[0].text, scoringConfig)
 
       // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
@@ -788,11 +804,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        system: systemPrompt,
-        messages,
-      })
-      const rawReply = response.content[0].text
+        max_tokens: 1024,
       const { visibleReply, detectedPipelineId } = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
       reply = visibleReply
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
