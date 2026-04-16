@@ -1222,14 +1222,39 @@ function registerChannelOAuth(app, platform) {
       return res.redirect(`${APP_URL}/settings?${platform}=error`)
     }
     try {
-      await db.collection('organizations').doc(orgId)
-        .collection('settings').doc('integrations').set({
-          [platform]: {
-            accountId,
-            connected: true,
-            connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+      const orgRef = db.collection('organizations').doc(orgId)
+
+      // 1. Leer profileId del cliente
+      const integSnap = await orgRef.collection('settings').doc('integrations').get()
+      const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+
+      // 2. Guardar accountId en Firestore
+      await orgRef.collection('settings').doc('integrations').set({
+        [platform]: {
+          accountId,
+          connected: true,
+          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+      // 3. Registrar webhook en Zernio para este account
+      try {
+        await axios.post('https://zernio.com/api/v1/webhooks', {
+          profileId,
+          url: `${RAILWAY_URL}/webhook/zernio/${orgId}`,
+          accountIds: [accountId],
+          events: ['message.received', 'post.published', 'post.failed', 'post.scheduled', 'post.cancelled']
+        }, {
+          headers: {
+            Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+            'Content-Type': 'application/json',
           }
-        }, { merge: true })
+        })
+        console.log(`[${platform}] Webhook registrado para org ${orgId} — accountId: ${accountId}`)
+      } catch (webhookErr) {
+        console.error(`[${platform}] Error registrando webhook:`, webhookErr.response?.data || webhookErr.message)
+      }
+
       console.log(`[${platform}] Conectado para org ${orgId} — accountId: ${accountId}`)
       res.redirect(`${APP_URL}/settings?${platform}=connected`)
     } catch (err) {
