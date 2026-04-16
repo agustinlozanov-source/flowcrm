@@ -180,7 +180,7 @@ const NAV_SECTIONS = [
       },
       {
         to: '/settings',
-        moduleId: 'settings',
+        moduleId: null,
         labelKey: 'nav.settings',
         permission: null,
         icon: (
