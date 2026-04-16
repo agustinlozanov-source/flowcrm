@@ -191,6 +191,12 @@ ${scoringKeys}
   "detectedPipelineId": null
 }
 
+REGLAS PARA suggestHandoff:
+- Ponlo en true cuando el lead haya confirmado una cita/reunión (junto con MEETING_SCHEDULED)
+- Ponlo en true cuando el lead pida hablar con un humano o vendedor
+- Ponlo en true cuando ya tienes suficiente información para que un vendedor cierre
+- En todos los demás casos déjalo en false
+
 REGLAS PARA detectedPipelineId:
 - Si el lead menciona un producto o servicio específico que reconoces → pon el pipelineId correspondiente
 - Si el lead dice que ya es cliente o quiere renovar → pon el pipelineId de retención
@@ -842,6 +848,22 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
           }
 
           console.log(`[Zernio][${orgId}] Meeting agendado para ${senderName}`)
+
+          // Activar handoff automáticamente al agendar reunión
+          await orgRef.collection('leads').doc(leadDocId).update({
+            systemStage: 'handoff',
+            systemStageAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+          await orgRef.collection('alerts').add({
+            type: 'handoff_ready',
+            leadId: leadDocId,
+            leadName: senderName || '',
+            message: `${senderName} agendó una reunión — listo para vendedor`,
+            seen: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+          console.log(`[Zernio][${orgId}] Handoff activado por meeting agendado`)
         } catch (e) {
           console.error(`[Zernio][${orgId}] Error al crear meeting:`, e.message)
         }
