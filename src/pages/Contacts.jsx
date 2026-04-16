@@ -4,10 +4,11 @@ import { usePipeline, SYSTEM_STAGES, DISCARD_CATEGORIES } from '@/hooks/usePipel
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import {
   Search, Users, MousePointerClick, Instagram, MessageCircle,
   Linkedin, Globe, Star, PenTool, Archive, Filter,
-  Upload, X, Check, Download
+  Upload, X, Check, Download, Trash2
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -183,6 +184,7 @@ function LeadImportModal({ onClose, onImport }) {
 }
 
 export default function Contacts() {
+  const { orgId } = useAuthStore()
   const { stages, leads, systemLeads, discardedLeads, loading, createLead } = usePipeline()
   const [selectedLead, setSelectedLead] = useState(null)
   const [search, setSearch] = useState('')
@@ -191,6 +193,26 @@ export default function Contacts() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [viewMode, setViewMode] = useState('active')
   const [showImport, setShowImport] = useState(false)
+  const [clearing, setClearing] = useState(false)
+
+  const handleClearAllLeads = async () => {
+    const total = leads.length + systemLeads.length + discardedLeads.length
+    if (!window.confirm(`¿Borrar los ${total} leads y todas sus conversaciones? Esto no se puede deshacer.`)) return
+    setClearing(true)
+    try {
+      const res = await fetch(
+        `https://flowcrm-production-6d63.up.railway.app/admin/clear-leads/${orgId}?secret=flowhub-clear-2026`,
+        { method: 'DELETE' }
+      )
+      const data = await res.json()
+      if (data.success) toast.success(`${data.deleted} leads eliminados`)
+      else toast.error(data.error || 'Error al limpiar')
+    } catch (e) {
+      toast.error('Error de conexión')
+    } finally {
+      setClearing(false)
+    }
+  }
 
   // Combine leads based on view mode
   const allLeadsForView = useMemo(() => {
@@ -299,6 +321,10 @@ export default function Contacts() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <button onClick={handleClearAllLeads} disabled={clearing}
+              className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5 text-red-500 hover:bg-red-50 border-red-200">
+              <Trash2 size={13} /> {clearing ? 'Borrando...' : 'Limpiar leads'}
+            </button>
             <button onClick={() => setShowImport(true)}
               className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
               <Upload size={13} /> Importar
