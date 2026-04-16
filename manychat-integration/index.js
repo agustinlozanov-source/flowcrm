@@ -834,6 +834,10 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       const response = await callClaudeWithRetry({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+      })
+      const rawReply = response.content[0].text
       const { visibleReply, detectedPipelineId } = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
       reply = visibleReply
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
