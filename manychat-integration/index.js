@@ -337,36 +337,6 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
   return { visibleReply, detectedPipelineId }
 }
 
-// ── ADMIN: CLEAR LEADS (temporal) ───────────────────────────────
-app.delete('/admin/clear-leads/:orgId', async (req, res) => {
-  const { orgId } = req.params
-  const { secret } = req.query
-
-  if (secret !== 'flowhub-clear-2026') {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  try {
-    const orgRef = db.collection('organizations').doc(orgId)
-    const leadsSnap = await orgRef.collection('leads').get()
-
-    let deleted = 0
-    for (const leadDoc of leadsSnap.docs) {
-      const convsSnap = await leadDoc.ref.collection('conversations').get()
-      for (const conv of convsSnap.docs) await conv.ref.delete()
-      await leadDoc.ref.delete()
-      deleted++
-    }
-
-    const locksSnap = await db.collection('_global_msg_locks').get()
-    for (const lock of locksSnap.docs) await lock.ref.delete()
-
-    res.json({ success: true, deleted })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
 app.get('/health', async (req, res) => {
   try {
     const testRef = db.collection('_healthcheck').doc('ping')
