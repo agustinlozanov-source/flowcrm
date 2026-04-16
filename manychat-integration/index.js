@@ -603,7 +603,12 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       // 5. Claude responde
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,(orgRef, leadData, response.content[0].text, scoringConfig)
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages
+      })
+
+      const { visibleReply: reply } = await parseAndUpdateScore(orgRef, leadData, response.content[0].text, scoringConfig)
 
       // 6. Guardar respuesta
       await leadRef.collection('conversations').add({
