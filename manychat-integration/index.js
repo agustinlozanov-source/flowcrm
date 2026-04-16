@@ -614,7 +614,18 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   }
 
   const { id: senderId, phoneNumber, name: senderName } = message.sender
-  const { text, platform } = message
+  const { text, platform: rawPlatform } = message
+
+  // Normalizar el canal a nuestros valores canónicos
+  function normalizePlatform(p) {
+    if (!p) return 'whatsapp'
+    const v = String(p).toLowerCase()
+    if (v.includes('facebook') || v.includes('messenger') || v === 'fb') return 'messenger'
+    if (v.includes('instagram') || v === 'ig') return 'instagram'
+    if (v.includes('whatsapp') || v === 'wa') return 'whatsapp'
+    return v // pasar tal cual si es otro valor conocido
+  }
+  const platform = normalizePlatform(rawPlatform)
   // Usar phoneNumber como ID estable del lead (identificador real del contacto en WhatsApp)
   // Fallback a sender.id si no hay teléfono (ej: Messenger)
   const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId

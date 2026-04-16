@@ -12,11 +12,13 @@ import clsx from 'clsx'
 import { MessageCircle, Facebook, Instagram, MousePointerClick, Globe, MessageSquare, Zap, User } from 'lucide-react'
 
 const CHANNEL_CONFIG = {
-  whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: '#25D366', bg: '#e8fdf0' },
-  messenger: { label: 'Messenger', icon: Facebook, color: '#0084ff', bg: '#e8f4ff' },
-  instagram: { label: 'Instagram', icon: Instagram, color: '#e1306c', bg: '#fdeef3' },
-  facebook_leads: { label: 'Lead Ads', icon: MousePointerClick, color: '#1877f2', bg: '#eaf1ff' },
-  web: { label: 'Web', icon: Globe, color: '#6366f1', bg: '#f0f0ff' },
+  whatsapp:          { label: 'WhatsApp',  icon: MessageCircle, color: '#25D366', bg: '#e8fdf0' },
+  messenger:         { label: 'Messenger', icon: Facebook,      color: '#0084ff', bg: '#e8f4ff' },
+  facebook:          { label: 'Facebook',  icon: Facebook,      color: '#1877f2', bg: '#eaf1ff' },
+  facebook_messenger:{ label: 'Messenger', icon: Facebook,      color: '#0084ff', bg: '#e8f4ff' },
+  instagram:         { label: 'Instagram', icon: Instagram,     color: '#e1306c', bg: '#fdeef3' },
+  facebook_leads:    { label: 'Lead Ads',  icon: MousePointerClick, color: '#1877f2', bg: '#eaf1ff' },
+  web:               { label: 'Web',       icon: Globe,         color: '#6366f1', bg: '#f0f0ff' },
 }
 
 const ROLE_CONFIG = {

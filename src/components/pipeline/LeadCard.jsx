@@ -5,13 +5,16 @@ import { Package, Clock, AlertTriangle, Star } from 'lucide-react'
 import { SYSTEM_STAGES } from '@/hooks/usePipeline'
 
 const SOURCE_CONFIG = {
-  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
-  instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp:  { icon: '💬', label: 'WhatsApp' },
-  linkedin:  { icon: '💼', label: 'LinkedIn' },
-  web:       { icon: '🌐', label: 'Web' },
-  referral:  { icon: '⭐', label: 'Referido' },
-  manual:    { icon: '✏️', label: 'Manual' },
+  meta_ads:          { icon: '🔵', label: 'Meta Ads' },
+  instagram:         { icon: '📸', label: 'Instagram' },
+  whatsapp:          { icon: '💬', label: 'WhatsApp' },
+  messenger:         { icon: '💙', label: 'Messenger' },
+  facebook:          { icon: '💙', label: 'Facebook' },
+  facebook_messenger:{ icon: '💙', label: 'Messenger' },
+  linkedin:          { icon: '💼', label: 'LinkedIn' },
+  web:               { icon: '🌐', label: 'Web' },
+  referral:          { icon: '⭐', label: 'Referido' },
+  manual:            { icon: '✏️', label: 'Manual' },
 }
 
 const scoreColor = (score) => {
