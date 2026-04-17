@@ -3380,19 +3380,28 @@ function DistribuidorConfig() {
 // ─── CHANNELS PANEL ───
 const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
+const PLATFORM_META = {
+  whatsapp:  { label: 'WhatsApp',          color: '#25d366', bg: 'rgba(37,211,102,0.1)',  icon: '💬' },
+  facebook:  { label: 'Facebook Messenger', color: '#0084ff', bg: 'rgba(0,132,255,0.1)',   icon: '📘' },
+  instagram: { label: 'Instagram',          color: '#e1306c', bg: 'rgba(225,48,108,0.1)',  icon: '📸' },
+}
+
 function ChannelsPanel({ orgs }) {
-  const [orgId, setOrgId] = useState('')
-  const [accountId, setAccountId] = useState('')
+  const [orgId, setOrgId]           = useState('')
+  const [accountId, setAccountId]   = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-  const [platform, setPlatform] = useState('whatsapp')
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [secret, setSecret] = useState('')
+  const [platform, setPlatform]     = useState('whatsapp')
+  const [loading, setLoading]       = useState(false)
+  const [secret, setSecret]         = useState('')
+  const [done, setDone]             = useState(null)
+
+  const selectedOrg = orgs.find(o => o.id === orgId)
+  const meta = PLATFORM_META[platform]
 
   const handleMap = async () => {
-    if (!orgId || !accountId || !secret) return toast.error('Faltan campos obligatorios')
+    if (!orgId || !accountId || !secret) return toast.error('Completa todos los campos obligatorios')
     setLoading(true)
-    setResult(null)
+    setDone(null)
     try {
       const res = await fetch(`${RAILWAY}/admin/map-account`, {
         method: 'POST',
@@ -3400,103 +3409,153 @@ function ChannelsPanel({ orgs }) {
         body: JSON.stringify({ secret, orgId, accountId, platform, phoneNumber }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error')
-      setResult({ success: true, data })
-      toast.success('Canal mapeado correctamente')
+      if (!res.ok) throw new Error(data.error || 'Error desconocido')
+      setDone({ ok: true, msg: `${meta.label} activado para ${selectedOrg?.name || orgId}` })
+      toast.success('Canal registrado correctamente')
+      setAccountId('')
+      setPhoneNumber('')
     } catch (err) {
-      setResult({ success: false, error: err.message })
+      setDone({ ok: false, msg: err.message })
       toast.error(err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const selectedOrg = orgs.find(o => o.id === orgId)
-
   return (
-    <div style={{ maxWidth: 560 }}>
-      <p style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
-        Usa esto para registrar manualmente un canal de WhatsApp, Facebook o Instagram que hayas conectado desde el dashboard de Zernio. Esto activa la integración en la app del cliente y routea los webhooks correctamente.
-      </p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Secret *</label>
-          <input
-            className="sa-input"
-            type="password"
-            placeholder="ADMIN_SECRET de Railway"
-            value={secret}
-            onChange={e => setSecret(e.target.value)}
-          />
+    <div className="sa-content">
+      {/* Info banner */}
+      <div style={{
+        background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)',
+        borderRadius: 12, padding: '14px 18px', marginBottom: 24,
+        display: 'flex', gap: 12, alignItems: 'flex-start',
+      }}>
+        <AlertCircle size={16} style={{ color: '#0066ff', marginTop: 1, flexShrink: 0 }} />
+        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>
+          Usa esta pantalla para registrar manualmente un canal que hayas conectado desde el dashboard de Zernio.
+          Esto activa la integración en la app del cliente y routea los webhooks correctamente.
         </div>
+      </div>
 
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Organización *</label>
-          <select className="sa-input" value={orgId} onChange={e => setOrgId(e.target.value)}>
-            <option value="">— Selecciona una org —</option>
-            {orgs.map(o => (
-              <option key={o.id} value={o.id}>{o.name || o.id}</option>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+
+        {/* Formulario */}
+        <div className="sa-card">
+          <div className="sa-card-header">
+            <div className="sa-card-title">Registrar canal</div>
+          </div>
+
+          {/* Selector de plataforma */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {Object.entries(PLATFORM_META).map(([key, m]) => (
+              <button
+                key={key}
+                onClick={() => setPlatform(key)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: `2px solid ${platform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
+                  background: platform === key ? m.bg : 'white',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 4, transition: 'all 0.15s',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{m.icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: platform === key ? m.color : '#666' }}>{m.label.split(' ')[0]}</span>
+              </button>
             ))}
-          </select>
-          {selectedOrg && <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>ID: {orgId}</div>}
-        </div>
-
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Canal *</label>
-          <select className="sa-input" value={platform} onChange={e => setPlatform(e.target.value)}>
-            <option value="whatsapp">WhatsApp</option>
-            <option value="facebook">Facebook Messenger</option>
-            <option value="instagram">Instagram</option>
-          </select>
-        </div>
-
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Account ID de Zernio *</label>
-          <input
-            className="sa-input"
-            placeholder="El _id del número/cuenta en Zernio"
-            value={accountId}
-            onChange={e => setAccountId(e.target.value)}
-          />
-          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Lo encuentras en el dashboard de Zernio → Phone Numbers o Accounts</div>
-        </div>
-
-        {platform === 'whatsapp' && (
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Número de teléfono</label>
-            <input
-              className="sa-input"
-              placeholder="+1 xxx xxx xxxx"
-              value={phoneNumber}
-              onChange={e => setPhoneNumber(e.target.value)}
-            />
           </div>
-        )}
 
-        <button
-          className="sa-btn-primary"
-          onClick={handleMap}
-          disabled={loading}
-          style={{ marginTop: 8 }}
-        >
-          {loading ? 'Registrando...' : 'Registrar conexión'}
-        </button>
-
-        {result && (
-          <div style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            background: result.success ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${result.success ? '#86efac' : '#fca5a5'}`,
-            fontSize: 13,
-            color: result.success ? '#166534' : '#991b1b',
-          }}>
-            {result.success
-              ? `✅ ${platform} conectado para ${selectedOrg?.name || orgId} — accountId: ${result.data.accountId}`
-              : `❌ Error: ${result.error}`}
+          <div className="sa-form-group">
+            <label className="sa-form-label">Admin Secret *</label>
+            <input className="sa-form-input" type="password" placeholder="ADMIN_SECRET de Railway" value={secret} onChange={e => setSecret(e.target.value)} />
           </div>
-        )}
+
+          <div className="sa-form-group">
+            <label className="sa-form-label">Organización *</label>
+            <select className="sa-form-input sa-form-select" value={orgId} onChange={e => setOrgId(e.target.value)}>
+              <option value="">— Selecciona una org —</option>
+              {orgs.map(o => <option key={o.id} value={o.id}>{o.name || o.id}</option>)}
+            </select>
+            {selectedOrg && <span style={{ fontSize: 11, color: '#888', marginTop: 2 }}>ID: {orgId}</span>}
+          </div>
+
+          <div className="sa-form-group">
+            <label className="sa-form-label">Account ID de Zernio *</label>
+            <input className="sa-form-input" placeholder="Ej: 69e2756b7dea335c2b048e82" value={accountId} onChange={e => setAccountId(e.target.value)} />
+            <span style={{ fontSize: 11, color: '#888' }}>Dashboard de Zernio → Phone Numbers → _id</span>
+          </div>
+
+          {platform === 'whatsapp' && (
+            <div className="sa-form-group">
+              <label className="sa-form-label">Número de teléfono</label>
+              <input className="sa-form-input" placeholder="+1 xxx xxx xxxx" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
+            </div>
+          )}
+
+          <button
+            className="sa-btn sa-btn-blue"
+            onClick={handleMap}
+            disabled={loading || !orgId || !accountId || !secret}
+            style={{ width: '100%', marginTop: 4 }}
+          >
+            {loading ? 'Registrando...' : `Activar ${meta.label}`}
+          </button>
+
+          {done && (
+            <div style={{
+              marginTop: 14, padding: '11px 14px', borderRadius: 10,
+              background: done.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
+              border: `1px solid ${done.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
+              fontSize: 13, fontWeight: 600,
+              color: done.ok ? '#1a7f37' : '#c0392b',
+              display: 'flex', gap: 8, alignItems: 'center',
+            }}>
+              {done.ok ? <Check size={15} /> : <AlertCircle size={15} />}
+              {done.msg}
+            </div>
+          )}
+        </div>
+
+        {/* Panel de instrucciones */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="sa-card">
+            <div className="sa-card-header">
+              <div className="sa-card-title">Cómo obtener el Account ID</div>
+            </div>
+            {[
+              { num: '1', text: 'Entra al dashboard de Zernio' },
+              { num: '2', text: 'Ve a Channels → Phone Numbers (WhatsApp) o Accounts (Facebook/Instagram)' },
+              { num: '3', text: 'Abre el número o cuenta conectada' },
+              { num: '4', text: 'Copia el campo _id o Account ID' },
+            ].map(s => (
+              <div key={s.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%', background: '#0066ff',
+                  color: 'white', fontSize: 12, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>{s.num}</div>
+                <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="sa-card">
+            <div className="sa-card-header">
+              <div className="sa-card-title">¿Qué hace este registro?</div>
+            </div>
+            {[
+              { icon: '🔗', text: 'Mapea el Account ID al cliente en la base de datos' },
+              { icon: '📥', text: 'Los mensajes entrantes se routean al Inbox correcto' },
+              { icon: '✅', text: 'Muestra el canal como "Conectado" en la app del cliente' },
+              { icon: '🤖', text: 'Claude puede responder automáticamente desde ese canal' },
+            ].map(s => (
+              <div key={s.icon} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{s.icon}</span>
+                <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s.text}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
