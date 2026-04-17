@@ -1318,6 +1318,78 @@ app.get('/whatsapp/number-status/:numberId', async (req, res) => {
   }
 })
 
+// POST /whatsapp/activate-number
+// Llámalo desde el frontend cuando el número esté listo (verified).
+// Busca el account.id real en Zernio, lo mapea en _zernio_account_map y activa la integración.
+app.post('/whatsapp/activate-number', async (req, res) => {
+  const { orgId, numberId } = req.body
+  if (!orgId || !numberId) return res.status(400).json({ error: 'Missing orgId or numberId' })
+
+  try {
+    // 1. Buscar el número en Zernio para obtener account.id real
+    const numbersRes = await axios.get('https://zernio.com/api/v1/whatsapp/phone-numbers', {
+      headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+    })
+    const number = (numbersRes.data.numbers || []).find(n => n._id === numberId || n.id === numberId)
+    if (!number) return res.status(404).json({ error: 'Number not found in Zernio' })
+
+    if (number.metaVerificationStatus !== 'verified') {
+      return res.status(400).json({ error: 'Number not verified yet', status: number.metaVerificationStatus })
+    }
+
+    // El account.id real puede venir en distintos campos según Zernio
+    const realAccountId = number.accountId || number.account?.id || number._id || numberId
+
+    // 2. Mapear en _zernio_account_map
+    await db.collection('_zernio_account_map').doc(realAccountId).set({
+      orgId,
+      platform: 'whatsapp',
+      phoneNumber: number.phoneNumber,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true })
+
+    // 3. Activar integración en Firestore
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: {
+          accountId: realAccountId,
+          phoneNumber: number.phoneNumber,
+          pendingNumberId: numberId,
+          connected: true,
+          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+    // 4. Registrar webhook global si aún no existe
+    try {
+      const existingRes = await axios.get('https://zernio.com/api/v1/webhooks/settings', {
+        headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+      })
+      const globalUrl = `${RAILWAY_URL}/webhook/zernio`
+      const alreadyExists = (existingRes.data?.webhooks || []).some(w => w.url === globalUrl)
+      if (!alreadyExists) {
+        await axios.post('https://zernio.com/api/v1/webhooks/settings', {
+          name: 'FlowCRM Global Webhook',
+          url: globalUrl,
+          events: ['message.received'],
+          isActive: true,
+        }, {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' }
+        })
+        console.log(`[WhatsApp Activate] Webhook global registrado`)
+      }
+    } catch (webhookErr) {
+      console.error('[WhatsApp Activate] Error registrando webhook:', webhookErr.response?.data || webhookErr.message)
+    }
+
+    console.log(`[WhatsApp Activate] Número activado para org ${orgId} — accountId: ${realAccountId}`)
+    res.json({ success: true, accountId: realAccountId, phoneNumber: number.phoneNumber })
+  } catch (err) {
+    console.error('[WhatsApp Activate] Error:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message, detail: err.response?.data })
+  }
+})
+
 function registerChannelOAuth(app, platform) {
   app.get(`/${platform}/connect`, async (req, res) => {
     const { orgId } = req.query
