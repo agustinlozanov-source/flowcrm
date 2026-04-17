@@ -73,6 +73,8 @@ export default function Settings() {
   const [whatsappStep, setWhatsappStep] = useState('options')
   const [purchasedNumber, setPurchasedNumber] = useState(null)
 
+  const whatsappConnected = integrations?.whatsapp?.connected === true
+
   // Load integrations from Firestore
   useEffect(() => {
     if (!orgId) return
@@ -193,7 +195,7 @@ export default function Settings() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">WhatsApp Business</span>
-                  {integrations.whatsapp?.connected ? (
+                  {whatsappConnected ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                       Conectado
@@ -208,7 +210,7 @@ export default function Settings() {
                 <p className="text-xs text-gray-500 mt-0.5">Recibe y responde mensajes de WhatsApp automáticamente</p>
               </div>
             </div>
-            {integrations.whatsapp?.connected ? (
+            {whatsappConnected ? (
               <button
                 onClick={() => handleDisconnect('whatsapp')}
                 disabled={loadingChannel === 'whatsapp'}
@@ -227,7 +229,7 @@ export default function Settings() {
           </div>
 
           {/* Panel de opciones */}
-          {showWhatsAppOptions && !integrations.whatsapp?.connected && (
+          {showWhatsAppOptions && !whatsappConnected && (
             <div style={{ marginTop: 16, padding: 20, background: '#f5f5f7',
               borderRadius: 12, border: '1px solid #e8e8ed' }}>
 
