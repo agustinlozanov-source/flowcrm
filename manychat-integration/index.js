@@ -1011,11 +1011,19 @@ async function processZernioMessage(body, orgId) {
 // ── ZERNIO WEBHOOK PER-ORG (legacy — mantiene compatibilidad con webhooks ya registrados) ──
 app.post('/webhook/zernio/:orgId', (req, res) => {
   res.sendStatus(200)
-  const { event, message } = req.body
+  const { event, message, account } = req.body
   const { orgId } = req.params
   const msgText = message?.text || message?.message || ''
   if (event !== 'message.received' || !msgText) return
-  console.log(`[Zernio/legacy] orgId: ${orgId}`)
+  const incomingAccountId = account?.id || account?._id || ''
+  console.log(`[Zernio/legacy] orgId: ${orgId} account: ${incomingAccountId}`)
+  // Auto-actualizar _zernio_account_map con el account.id real del webhook
+  if (incomingAccountId) {
+    db.collection('_zernio_account_map').doc(incomingAccountId).set({
+      orgId, platform: account?.platform || '',
+      registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => {})
+  }
   setImmediate(() => processZernioMessage(req.body, orgId))
 })
 
@@ -1329,39 +1337,8 @@ function registerChannelOAuth(app, platform) {
         }
       }, { merge: true })
 
-      // 3. Obtener el account.id real de Zernio (no el profileId del OAuth)
-      // y guardarlo en _zernio_account_map para routing del webhook global
-      try {
-        const accountsRes = await axios.get('https://zernio.com/api/v1/accounts', {
-          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
-        })
-        const accounts = accountsRes.data?.accounts || []
-        // Buscar la cuenta que coincida con el username o profileId recién conectado
-        const matchedAccount = accounts.find(a =>
-          a.platform === platform &&
-          (a.username === username || a._id === accountId || a.profileId === accountId)
-        ) || accounts.find(a => a.platform === platform) // fallback: primera cuenta de esa plataforma
-
-        if (matchedAccount) {
-          const realAccountId = matchedAccount._id
-          // Guardar en mapa central: account.id → orgId
-          await db.collection('_zernio_account_map').doc(realAccountId).set({
-            orgId, platform, username: username || matchedAccount.username,
-            registeredAt: admin.firestore.FieldValue.serverTimestamp(),
-          })
-          // También guardar en integrations de la org
-          await orgRef.collection('settings').doc('integrations').set({
-            [platform]: { realAccountId }
-          }, { merge: true })
-          console.log(`[${platform}] realAccountId ${realAccountId} mapeado a org ${orgId}`)
-        } else {
-          console.warn(`[${platform}] No se encontró cuenta en Zernio para username: ${username}`)
-        }
-      } catch (acctErr) {
-        console.error(`[${platform}] Error obteniendo accounts de Zernio:`, acctErr.response?.data || acctErr.message)
-      }
-
-      // 4. Registrar webhook global (una sola vez — idempotente por nombre)
+      // 3. Registrar webhook global (una sola vez — idempotente por nombre)
+      // El account.id real se mapea automáticamente cuando llega el primer webhook
       try {
         const existingRes = await axios.get('https://zernio.com/api/v1/webhooks/settings', {
           headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
