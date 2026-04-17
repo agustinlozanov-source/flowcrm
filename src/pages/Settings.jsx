@@ -71,6 +71,9 @@ export default function Settings() {
   const [loadingChannel, setLoadingChannel] = useState(null)
   const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
   const [purchasingNumber, setPurchasingNumber] = useState(false)
+  const [purchasedNumber, setPurchasedNumber] = useState(null)
+  const [connectingNumber, setConnectingNumber] = useState(false)
+  const [connectingSeconds, setConnectingSeconds] = useState(35)
 
   // Load integrations from Firestore
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function Settings() {
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 
-  const purchaseAndConnect = async () => {
+  const purchaseNumber = async () => {
     setPurchasingNumber(true)
     try {
       const res = await fetch('https://flowcrm-production-6d63.up.railway.app/whatsapp/purchase-number', {
@@ -103,15 +106,26 @@ export default function Settings() {
       })
       const data = await res.json()
       if (data.success) {
-        window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${data.number.id}`
+        setPurchasedNumber(data.number)
+        toast.success(`Número ${data.number.phoneNumber} asignado ✓`)
       } else {
         toast.error('Error al obtener el número')
-        setPurchasingNumber(false)
       }
     } catch {
       toast.error('Error al comprar número')
+    } finally {
       setPurchasingNumber(false)
     }
+  }
+
+  const connectPurchasedNumber = async () => {
+    setConnectingNumber(true)
+    for (let i = 35; i > 0; i--) {
+      setConnectingSeconds(i)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    window.location.href =
+      `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${purchasedNumber.id}`
   }
 
   const connectOwnNumber = () => {
@@ -204,43 +218,75 @@ export default function Settings() {
           {/* Panel de opciones */}
           {showWhatsAppOptions && !integrations.whatsapp?.connected && (
             <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="text-sm font-bold text-gray-900 mb-0.5">Conecta tu WhatsApp Business</p>
-              <p className="text-xs text-gray-500 mb-4">Necesitas un número dedicado para WhatsApp Business API</p>
 
-              {/* Opción A — Comprar número */}
-              <div
-                onClick={!purchasingNumber ? purchaseAndConnect : undefined}
-                className={`flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-blue-500 mb-3 cursor-pointer transition-opacity ${purchasingNumber ? 'opacity-60 pointer-events-none' : 'hover:bg-blue-50'}`}
-              >
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">📱</div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-gray-900">
-                    {purchasingNumber ? 'Comprando número...' : 'Obtener número US'}
+              {/* PASO 2 — Número ya comprado */}
+              {purchasedNumber ? (
+                <div>
+                  <div className="flex items-center gap-3 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <span className="text-xl">✓</span>
+                    <div>
+                      <div className="text-sm font-bold text-emerald-700">Número asignado: {purchasedNumber.phoneNumber}</div>
+                      <div className="text-xs text-gray-500">Pre-verificado con Meta · Listo para conectar</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">$2/mes · Verificado con Meta automáticamente · Sin OTP</div>
+                  <button
+                    onClick={connectPurchasedNumber}
+                    disabled={connectingNumber}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-70"
+                  >
+                    {connectingNumber ? `Verificando con Meta... ${connectingSeconds}s` : 'Conectar con WhatsApp →'}
+                  </button>
+                  {!connectingNumber && (
+                    <button
+                      onClick={() => setPurchasedNumber(null)}
+                      className="mt-2 w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  )}
                 </div>
-                <span className="text-xs font-bold text-blue-600 flex-shrink-0">Recomendado →</span>
-              </div>
+              ) : (
+                /* PASO 1 — Elegir opción */
+                <div>
+                  <p className="text-sm font-bold text-gray-900 mb-0.5">Conecta tu WhatsApp Business</p>
+                  <p className="text-xs text-gray-500 mb-4">Necesitas un número dedicado para WhatsApp Business API</p>
 
-              {/* Opción B — Número propio */}
-              <div
-                onClick={connectOwnNumber}
-                className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">🔢</div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-gray-900">Usar mi propio número</div>
-                  <div className="text-xs text-gray-500">Conecta un número existente · Requiere verificación OTP</div>
+                  {/* Opción A — Comprar número */}
+                  <div
+                    onClick={!purchasingNumber ? purchaseNumber : undefined}
+                    className={`flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-blue-500 mb-3 cursor-pointer transition-opacity ${purchasingNumber ? 'opacity-60 pointer-events-none' : 'hover:bg-blue-50'}`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">📱</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-gray-900">
+                        {purchasingNumber ? 'Comprando número...' : 'Obtener número US'}
+                      </div>
+                      <div className="text-xs text-gray-500">$2/mes · Verificado con Meta · Sin OTP</div>
+                    </div>
+                    <span className="text-xs font-bold text-blue-600 flex-shrink-0">Recomendado →</span>
+                  </div>
+
+                  {/* Opción B — Número propio */}
+                  <div
+                    onClick={connectOwnNumber}
+                    className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">🔢</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-gray-900">Usar mi propio número</div>
+                      <div className="text-xs text-gray-500">Conecta un número existente · Requiere verificación OTP</div>
+                    </div>
+                    <span className="text-xs text-gray-400 flex-shrink-0">→</span>
+                  </div>
+
+                  <button
+                    onClick={() => setShowWhatsAppOptions(false)}
+                    className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Cancelar
+                  </button>
                 </div>
-                <span className="text-xs text-gray-400 flex-shrink-0">→</span>
-              </div>
-
-              <button
-                onClick={() => setShowWhatsAppOptions(false)}
-                className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Cancelar
-              </button>
+              )}
             </div>
           )}
         </div>
