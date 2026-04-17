@@ -648,36 +648,40 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
   })
 })
 
-// ── ZERNIO WEBHOOK ───────────────────────────────────────────────
-// Zernio webhooks son globales por API key — el mismo mensaje llega a todos los
-// endpoints registrados. Usamos una colección _zernio_account_map para saber
-// qué orgId es dueño de cada account.id, y descartamos en los demás.
-app.post('/webhook/zernio/:orgId', (req, res) => {
-  // Responder 200 inmediatamente para que Zernio no reintente
+// ── ZERNIO WEBHOOK GLOBAL (1 request por mensaje, sin importar cuántas orgs) ──
+app.post('/webhook/zernio', (req, res) => {
   res.sendStatus(200)
+  const { event, message, account } = req.body
+  const msgText = message?.text || message?.message || ''
+  const incomingAccountId = account?.id || account?._id || ''
 
-  const { event, message, conversation, account } = req.body
-  const { orgId } = req.params
+  if (event !== 'message.received' || !msgText) return
+  if (!incomingAccountId) { console.log(`[Zernio/global] Sin account.id`); return }
 
-  console.log(`[Zernio] Webhook recibido — orgId: ${orgId}`)
+  setImmediate(async () => {
+    const mapSnap = await db.collection('_zernio_account_map').doc(incomingAccountId).get().catch(() => null)
+    if (!mapSnap || !mapSnap.exists) {
+      console.log(`[Zernio/global] account ${incomingAccountId} sin org mapeada`)
+      return
+    }
+    const orgId = mapSnap.data().orgId
+    console.log(`[Zernio/global] → org ${orgId}`)
+    processZernioMessage(req.body, orgId)
+  })
+})
 
-  // Zernio webhook payload fields (message.text + message.sender nested)
+// ── PROCESAR MENSAJE ZERNIO (función compartida entre endpoint global y per-org) ──
+async function processZernioMessage(body, orgId) {
+  const { event, message, conversation, account } = body
+
   const msgText = message?.text || message?.message || ''
   const senderId = message?.sender?.id || message?.senderId || ''
   const senderName = message?.sender?.name || message?.senderName || 'Sin nombre'
   const phoneNumber = message?.sender?.phoneNumber || message?.senderPhone || ''
   const rawPlatform = message?.platform || account?.platform || ''
   const conversationId = conversation?.id || conversation?._id || message?.conversationId || ''
-  const incomingAccountId = account?.id || account?._id || ''
-
-  if (event !== 'message.received' || !msgText) {
-    console.log(`[Zernio] Ignorado — event: ${event}`)
-    return
-  }
-
   const text = msgText
 
-  // Normalizar el canal a nuestros valores canónicos
   function normalizePlatform(p) {
     if (!p) return 'whatsapp'
     const v = String(p).toLowerCase()
@@ -689,38 +693,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const platform = normalizePlatform(rawPlatform)
   const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId
 
-  setImmediate(async () => {
-    // ── ROUTING: solo procesa la org que tiene esta plataforma conectada ──
-    const incomingAccountId = account?.id || account?._id || ''
-    const platformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
-    try {
-      const integSnap = await orgRef.collection('settings').doc('integrations').get()
-      const integData = integSnap.data() || {}
-      const platformInteg = integData?.[platformKey]
-
-      if (!platformInteg?.connected) {
-        console.log(`[Zernio][${orgId}] Ignorado — ${platformKey} no conectado para esta org`)
-        return
-      }
-
-      const realAccountId = platformInteg?.realAccountId
-      if (realAccountId && realAccountId !== incomingAccountId) {
-        console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} ≠ ${realAccountId}`)
-        return
-      }
-
-      if (!realAccountId && incomingAccountId) {
-        // Primera vez — guardar el account.id real del webhook
-        await orgRef.collection('settings').doc('integrations').set({
-          [platformKey]: { realAccountId: incomingAccountId }
-        }, { merge: true })
-        console.log(`[Zernio][${orgId}] realAccountId guardado: ${incomingAccountId}`)
-      }
-    } catch (e) {
-      console.warn(`[Zernio][${orgId}] Error verificando integración — continuando:`, e.message)
-    }
-
-    const orgRef = db.collection('organizations').doc(orgId)
+  const orgRef = db.collection('organizations').doc(orgId)
 
     // Guard: leadDocId no puede ser vacío
     if (!leadDocId) {
@@ -1033,7 +1006,17 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     }
 
     console.log(`[Zernio][${orgId}] ✓ Flujo completo para ${senderName} (${leadDocId})`)
-  })
+}
+
+// ── ZERNIO WEBHOOK PER-ORG (legacy — mantiene compatibilidad con webhooks ya registrados) ──
+app.post('/webhook/zernio/:orgId', (req, res) => {
+  res.sendStatus(200)
+  const { event, message } = req.body
+  const { orgId } = req.params
+  const msgText = message?.text || message?.message || ''
+  if (event !== 'message.received' || !msgText) return
+  console.log(`[Zernio/legacy] orgId: ${orgId}`)
+  setImmediate(() => processZernioMessage(req.body, orgId))
 })
 
 // ── CONTENT: GENERATE IMAGE ──────────────────────────────────────
@@ -1346,22 +1329,60 @@ function registerChannelOAuth(app, platform) {
         }
       }, { merge: true })
 
-      // 3. Registrar webhook en Zernio para este account
+      // 3. Obtener el account.id real de Zernio (no el profileId del OAuth)
+      // y guardarlo en _zernio_account_map para routing del webhook global
       try {
-        const webhookRes = await axios.post('https://zernio.com/api/v1/webhooks/settings', {
-          name: `FlowCRM - ${platform} - ${orgId}`,
-          url: `${RAILWAY_URL}/webhook/zernio/${orgId}`,
-          events: ['message.received', 'message.sent', 'message.delivered', 'message.read'],
-          isActive: true,
-        }, {
-          headers: {
-            Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
-            'Content-Type': 'application/json',
-          }
+        const accountsRes = await axios.get('https://zernio.com/api/v1/accounts', {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
         })
-        console.log(`[${platform}] Webhook registrado para org ${orgId} — id: ${webhookRes.data?.webhook?._id}`)
+        const accounts = accountsRes.data?.accounts || []
+        // Buscar la cuenta que coincida con el username o profileId recién conectado
+        const matchedAccount = accounts.find(a =>
+          a.platform === platform &&
+          (a.username === username || a._id === accountId || a.profileId === accountId)
+        ) || accounts.find(a => a.platform === platform) // fallback: primera cuenta de esa plataforma
+
+        if (matchedAccount) {
+          const realAccountId = matchedAccount._id
+          // Guardar en mapa central: account.id → orgId
+          await db.collection('_zernio_account_map').doc(realAccountId).set({
+            orgId, platform, username: username || matchedAccount.username,
+            registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+          // También guardar en integrations de la org
+          await orgRef.collection('settings').doc('integrations').set({
+            [platform]: { realAccountId }
+          }, { merge: true })
+          console.log(`[${platform}] realAccountId ${realAccountId} mapeado a org ${orgId}`)
+        } else {
+          console.warn(`[${platform}] No se encontró cuenta en Zernio para username: ${username}`)
+        }
+      } catch (acctErr) {
+        console.error(`[${platform}] Error obteniendo accounts de Zernio:`, acctErr.response?.data || acctErr.message)
+      }
+
+      // 4. Registrar webhook global (una sola vez — idempotente por nombre)
+      try {
+        const existingRes = await axios.get('https://zernio.com/api/v1/webhooks/settings', {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+        })
+        const globalUrl = `${RAILWAY_URL}/webhook/zernio`
+        const alreadyExists = (existingRes.data?.webhooks || []).some(w => w.url === globalUrl)
+        if (!alreadyExists) {
+          await axios.post('https://zernio.com/api/v1/webhooks/settings', {
+            name: 'FlowCRM Global Webhook',
+            url: globalUrl,
+            events: ['message.received'],
+            isActive: true,
+          }, {
+            headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' }
+          })
+          console.log(`[${platform}] Webhook global registrado: ${globalUrl}`)
+        } else {
+          console.log(`[${platform}] Webhook global ya existe — skipped`)
+        }
       } catch (webhookErr) {
-        console.error(`[${platform}] Error registrando webhook:`, webhookErr.response?.data || webhookErr.message)
+        console.error(`[${platform}] Error registrando webhook global:`, webhookErr.response?.data || webhookErr.message)
       }
 
       console.log(`[${platform}] Conectado para org ${orgId} — accountId: ${accountId}`)
