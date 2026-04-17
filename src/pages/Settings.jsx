@@ -70,10 +70,9 @@ export default function Settings() {
   const [integrations, setIntegrations] = useState({})
   const [loadingChannel, setLoadingChannel] = useState(null)
   const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
-  const [purchasingNumber, setPurchasingNumber] = useState(false)
+  const [whatsappStep, setWhatsappStep] = useState('options') // 'options' | 'verifying' | 'ready' | 'connecting'
   const [purchasedNumber, setPurchasedNumber] = useState(null)
-  const [connectingNumber, setConnectingNumber] = useState(false)
-  const [connectingSeconds, setConnectingSeconds] = useState(35)
+  const [verifySeconds, setVerifySeconds] = useState(35)
 
   // Load integrations from Firestore
   useEffect(() => {
@@ -97,7 +96,8 @@ export default function Settings() {
   }, [])
 
   const purchaseNumber = async () => {
-    setPurchasingNumber(true)
+    setWhatsappStep('verifying')
+    setVerifySeconds(35)
     try {
       const res = await fetch('https://flowcrm-production-6d63.up.railway.app/whatsapp/purchase-number', {
         method: 'POST',
@@ -105,25 +105,25 @@ export default function Settings() {
         body: JSON.stringify({ orgId }),
       })
       const data = await res.json()
-      if (data.success) {
-        setPurchasedNumber(data.number)
-        toast.success(`Número ${data.number.phoneNumber} asignado ✓`)
-      } else {
+      if (!data.success) {
+        setWhatsappStep('options')
         toast.error('Error al obtener el número')
+        return
       }
+      setPurchasedNumber(data.number)
+      for (let i = 35; i > 0; i--) {
+        setVerifySeconds(i)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      setWhatsappStep('ready')
     } catch {
       toast.error('Error al comprar número')
-    } finally {
-      setPurchasingNumber(false)
+      setWhatsappStep('options')
     }
   }
 
-  const connectPurchasedNumber = async () => {
-    setConnectingNumber(true)
-    for (let i = 35; i > 0; i--) {
-      setConnectingSeconds(i)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
+  const connectNumber = () => {
+    setWhatsappStep('connecting')
     window.location.href =
       `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${purchasedNumber.id}`
   }
@@ -217,74 +217,102 @@ export default function Settings() {
 
           {/* Panel de opciones */}
           {showWhatsAppOptions && !integrations.whatsapp?.connected && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div style={{ marginTop: 16, padding: 20, background: '#f5f5f7',
+              borderRadius: 12, border: '1px solid #e8e8ed' }}>
 
-              {/* PASO 2 — Número ya comprado */}
-              {purchasedNumber ? (
+              {/* ESTADO: opciones iniciales */}
+              {whatsappStep === 'options' && (
                 <div>
-                  <div className="flex items-center gap-3 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <span className="text-xl">✓</span>
-                    <div>
-                      <div className="text-sm font-bold text-emerald-700">Número asignado: {purchasedNumber.phoneNumber}</div>
-                      <div className="text-xs text-gray-500">Pre-verificado con Meta · Listo para conectar</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={connectPurchasedNumber}
-                    disabled={connectingNumber}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-70"
-                  >
-                    {connectingNumber ? `Verificando con Meta... ${connectingSeconds}s` : 'Conectar con WhatsApp →'}
-                  </button>
-                  {!connectingNumber && (
-                    <button
-                      onClick={() => setPurchasedNumber(null)}
-                      className="mt-2 w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              ) : (
-                /* PASO 1 — Elegir opción */
-                <div>
-                  <p className="text-sm font-bold text-gray-900 mb-0.5">Conecta tu WhatsApp Business</p>
-                  <p className="text-xs text-gray-500 mb-4">Necesitas un número dedicado para WhatsApp Business API</p>
-
-                  {/* Opción A — Comprar número */}
-                  <div
-                    onClick={!purchasingNumber ? purchaseNumber : undefined}
-                    className={`flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-blue-500 mb-3 cursor-pointer transition-opacity ${purchasingNumber ? 'opacity-60 pointer-events-none' : 'hover:bg-blue-50'}`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">📱</div>
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-gray-900">
-                        {purchasingNumber ? 'Comprando número...' : 'Obtener número US'}
+                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif",
+                    fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Conecta tu WhatsApp Business</div>
+                  <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 16 }}>Necesitas un número dedicado para WhatsApp Business API</div>
+                  <div onClick={purchaseNumber}
+                    style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
+                      border: '2px solid #0066ff', marginBottom: 10, cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10,
+                        background: 'rgba(0,102,255,0.08)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>Obtener número US</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93' }}>$2/mes · Sin OTP · Verificado automáticamente</div>
                       </div>
-                      <div className="text-xs text-gray-500">$2/mes · Verificado con Meta · Sin OTP</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0066ff' }}>Recomendado →</div>
                     </div>
-                    <span className="text-xs font-bold text-blue-600 flex-shrink-0">Recomendado →</span>
                   </div>
-
-                  {/* Opción B — Número propio */}
-                  <div
-                    onClick={connectOwnNumber}
-                    className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">🔢</div>
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-gray-900">Usar mi propio número</div>
-                      <div className="text-xs text-gray-500">Conecta un número existente · Requiere verificación OTP</div>
+                  <div onClick={connectOwnNumber}
+                    style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
+                      border: '1px solid #e8e8ed', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10,
+                        background: '#f5f5f7', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔢</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>Usar mi propio número</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93' }}>Requiere verificación OTP</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#8e8e93' }}>→</div>
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">→</span>
                   </div>
+                  <button onClick={() => setShowWhatsAppOptions(false)}
+                    style={{ marginTop: 12, background: 'none', border: 'none',
+                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+                </div>
+              )}
 
-                  <button
-                    onClick={() => setShowWhatsAppOptions(false)}
-                    className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
+              {/* ESTADO: verificando con Meta */}
+              {whatsappStep === 'verifying' && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Verificando número con Meta</div>
+                  {purchasedNumber && (
+                    <div style={{ fontSize: 14, color: '#0066ff', fontWeight: 700, marginBottom: 8 }}>
+                      {purchasedNumber.phoneNumber}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 16 }}>Zernio está registrando tu número con Meta</div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '10px 20px', background: 'rgba(0,102,255,0.08)',
+                    borderRadius: 20, fontSize: 14, fontWeight: 700, color: '#0066ff' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0066ff' }} />
+                    Verificando... {verifySeconds}s
+                  </div>
+                </div>
+              )}
+
+              {/* ESTADO: listo para conectar */}
+              {whatsappStep === 'ready' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '14px 16px', background: 'rgba(0,200,83,0.08)',
+                    border: '1px solid rgba(0,200,83,0.2)', borderRadius: 10, marginBottom: 16 }}>
+                    <span style={{ fontSize: 24 }}>✅</span>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: '#00a04a' }}>Número verificado con Meta</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#070708', marginTop: 2 }}>{purchasedNumber?.phoneNumber}</div>
+                      <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Listo para conectar · Sin OTP requerido</div>
+                    </div>
+                  </div>
+                  <button onClick={connectNumber}
+                    style={{ width: '100%', padding: '14px 20px', background: '#0066ff',
+                      color: 'white', border: 'none', borderRadius: 10,
+                      fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                    Conectar {purchasedNumber?.phoneNumber} con WhatsApp →
+                  </button>
+                  <button onClick={() => { setWhatsappStep('options'); setPurchasedNumber(null) }}
+                    style={{ marginTop: 8, width: '100%', padding: '10px',
+                      background: 'transparent', border: 'none', color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
                     Cancelar
                   </button>
+                </div>
+              )}
+
+              {/* ESTADO: conectando */}
+              {whatsappStep === 'connecting' && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Abriendo WhatsApp Business...</div>
+                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Completa el proceso en la ventana de Meta</div>
                 </div>
               )}
             </div>
