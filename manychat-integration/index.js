@@ -87,7 +87,15 @@ async function checkAndLockMessage(platformMsgId) {
   try {
     const already = await db.runTransaction(async t => {
       const snap = await t.get(lockRef)
-      if (snap.exists) return true
+      if (snap.exists) {
+        // Si el lock tiene más de 5 minutos, ignorarlo (cleanup de locks viejos)
+        const ts = snap.data()?.ts?.toDate?.()
+        if (ts && (Date.now() - ts.getTime()) > 5 * 60 * 1000) {
+          t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
+          return false
+        }
+        return true
+      }
       t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
       return false
     })
