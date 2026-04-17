@@ -3387,16 +3387,40 @@ const PLATFORM_META = {
 }
 
 function ChannelsPanel({ orgs }) {
-  const [orgId, setOrgId]           = useState('')
-  const [accountId, setAccountId]   = useState('')
+  const [orgId, setOrgId]             = useState('')
+  const [accountId, setAccountId]     = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-  const [platform, setPlatform]     = useState('whatsapp')
-  const [loading, setLoading]       = useState(false)
-  const [secret, setSecret]         = useState('')
-  const [done, setDone]             = useState(null)
+  const [platform, setPlatform]       = useState('whatsapp')
+  const [loading, setLoading]         = useState(false)
+  const [secret, setSecret]           = useState('')
+  const [done, setDone]               = useState(null)
+  const [zAccounts, setZAccounts]     = useState([])
+  const [loadingZ, setLoadingZ]       = useState(false)
 
   const selectedOrg = orgs.find(o => o.id === orgId)
   const meta = PLATFORM_META[platform]
+
+  const loadZernioAccounts = async () => {
+    if (!secret) return toast.error('Ingresa el Admin Secret primero')
+    setLoadingZ(true)
+    setZAccounts([])
+    try {
+      const res = await fetch(`${RAILWAY}/admin/zernio-accounts?secret=${encodeURIComponent(secret)}&platform=${platform}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      setZAccounts(data.accounts || [])
+      if (!data.accounts?.length) toast('No se encontraron cuentas conectadas en Zernio para este canal')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setLoadingZ(false)
+    }
+  }
+
+  const selectAccount = (acc) => {
+    setAccountId(acc.id)
+    if (acc.label?.startsWith('+')) setPhoneNumber(acc.label)
+  }
 
   const handleMap = async () => {
     if (!orgId || !accountId || !secret) return toast.error('Completa todos los campos obligatorios')
@@ -3414,6 +3438,7 @@ function ChannelsPanel({ orgs }) {
       toast.success('Canal registrado correctamente')
       setAccountId('')
       setPhoneNumber('')
+      setZAccounts([])
     } catch (err) {
       setDone({ ok: false, msg: err.message })
       toast.error(err.message)
@@ -3424,7 +3449,6 @@ function ChannelsPanel({ orgs }) {
 
   return (
     <div className="sa-content">
-      {/* Info banner */}
       <div style={{
         background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)',
         borderRadius: 12, padding: '14px 18px', marginBottom: 24,
@@ -3438,8 +3462,6 @@ function ChannelsPanel({ orgs }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-
-        {/* Formulario */}
         <div className="sa-card">
           <div className="sa-card-header">
             <div className="sa-card-title">Registrar canal</div>
@@ -3448,17 +3470,13 @@ function ChannelsPanel({ orgs }) {
           {/* Selector de plataforma */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             {Object.entries(PLATFORM_META).map(([key, m]) => (
-              <button
-                key={key}
-                onClick={() => setPlatform(key)}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: 10, border: `2px solid ${platform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
-                  background: platform === key ? m.bg : 'white',
-                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 4, transition: 'all 0.15s',
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
+              <button key={key} onClick={() => { setPlatform(key); setZAccounts([]); setAccountId('') }} style={{
+                flex: 1, padding: '10px 0', borderRadius: 10,
+                border: `2px solid ${platform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
+                background: platform === key ? m.bg : 'white',
+                cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: 4, transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+              }}>
                 <span style={{ fontSize: 18 }}>{m.icon}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: platform === key ? m.color : '#666' }}>{m.label.split(' ')[0]}</span>
               </button>
@@ -3479,10 +3497,39 @@ function ChannelsPanel({ orgs }) {
             {selectedOrg && <span style={{ fontSize: 11, color: '#888', marginTop: 2 }}>ID: {orgId}</span>}
           </div>
 
+          {/* Cargar desde Zernio */}
           <div className="sa-form-group">
-            <label className="sa-form-label">Account ID de Zernio *</label>
-            <input className="sa-form-input" placeholder="Ej: 69e2756b7dea335c2b048e82" value={accountId} onChange={e => setAccountId(e.target.value)} />
-            <span style={{ fontSize: 11, color: '#888' }}>Dashboard de Zernio → Phone Numbers → _id</span>
+            <label className="sa-form-label">Cuenta de Zernio *</label>
+            <button className="sa-btn sa-btn-ghost sa-btn-sm" onClick={loadZernioAccounts} disabled={loadingZ} style={{ marginBottom: 8, width: 'fit-content' }}>
+              <RefreshCw size={13} style={{ marginRight: 6 }} />
+              {loadingZ ? 'Cargando...' : 'Cargar cuentas desde Zernio'}
+            </button>
+
+            {zAccounts.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                {zAccounts.map(acc => (
+                  <button key={acc.id} onClick={() => selectAccount(acc)} style={{
+                    padding: '10px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                    border: `2px solid ${accountId === acc.id ? meta.color : 'rgba(0,0,0,0.1)'}`,
+                    background: accountId === acc.id ? meta.bg : 'white',
+                    transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#070708' }}>{acc.label}</div>
+                      {acc.extra && <div style={{ fontSize: 11, color: '#888' }}>{acc.extra}</div>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      {acc.status && <span style={{ fontSize: 10, fontWeight: 700, color: acc.status === 'verified' ? '#1a7f37' : '#666', background: acc.status === 'verified' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', padding: '2px 7px', borderRadius: 20 }}>{acc.status}</span>}
+                      <span style={{ fontSize: 10, color: '#aaa' }}>{acc.id.slice(-8)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Fallback manual */}
+            <input className="sa-form-input" placeholder="O pega el Account ID manualmente" value={accountId} onChange={e => setAccountId(e.target.value)} />
           </div>
 
           {platform === 'whatsapp' && (
@@ -3492,12 +3539,7 @@ function ChannelsPanel({ orgs }) {
             </div>
           )}
 
-          <button
-            className="sa-btn sa-btn-blue"
-            onClick={handleMap}
-            disabled={loading || !orgId || !accountId || !secret}
-            style={{ width: '100%', marginTop: 4 }}
-          >
+          <button className="sa-btn sa-btn-blue" onClick={handleMap} disabled={loading || !orgId || !accountId || !secret} style={{ width: '100%', marginTop: 4 }}>
             {loading ? 'Registrando...' : `Activar ${meta.label}`}
           </button>
 
@@ -3520,20 +3562,16 @@ function ChannelsPanel({ orgs }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="sa-card">
             <div className="sa-card-header">
-              <div className="sa-card-title">Cómo obtener el Account ID</div>
+              <div className="sa-card-title">Pasos para conectar</div>
             </div>
             {[
-              { num: '1', text: 'Entra al dashboard de Zernio' },
-              { num: '2', text: 'Ve a Channels → Phone Numbers (WhatsApp) o Accounts (Facebook/Instagram)' },
-              { num: '3', text: 'Abre el número o cuenta conectada' },
-              { num: '4', text: 'Copia el campo _id o Account ID' },
+              { num: '1', text: 'Conecta el número o cuenta desde el dashboard de Zernio' },
+              { num: '2', text: 'Selecciona la org del cliente y la plataforma aquí' },
+              { num: '3', text: 'Pulsa "Cargar cuentas desde Zernio" — verás los números conectados' },
+              { num: '4', text: 'Selecciona el número correcto y pulsa Activar' },
             ].map(s => (
               <div key={s.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: '50%', background: '#0066ff',
-                  color: 'white', fontSize: 12, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>{s.num}</div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0066ff', color: 'white', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.num}</div>
                 <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
               </div>
             ))}

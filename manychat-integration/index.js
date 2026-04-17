@@ -1223,6 +1223,45 @@ app.post('/webhook/vapi', async (req, res) => {
 const APP_URL = 'https://flowhubcrm.app'
 const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
 
+// GET /admin/zernio-accounts?secret=xxx&platform=whatsapp|facebook|instagram
+// Devuelve los canales conectados en Zernio para seleccionar el account.id correcto
+app.get('/admin/zernio-accounts', async (req, res) => {
+  const { secret, platform = 'whatsapp' } = req.query
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    let accounts = []
+    if (platform === 'whatsapp') {
+      const r = await axios.get('https://zernio.com/api/v1/whatsapp/phone-numbers', {
+        headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+      })
+      accounts = (r.data.numbers || r.data.phoneNumbers || []).map(n => ({
+        id: n._id || n.id,
+        label: n.phoneNumber || n.name || n._id,
+        status: n.metaVerificationStatus || n.status || '',
+        extra: n.profileName || '',
+      }))
+    } else {
+      // Facebook / Instagram — listar accounts del perfil
+      const r = await axios.get('https://zernio.com/api/v1/accounts', {
+        headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+      })
+      const all = r.data.accounts || r.data || []
+      accounts = all
+        .filter(a => !platform || (a.platform || '').toLowerCase().includes(platform === 'facebook' ? 'messenger' : platform))
+        .map(a => ({
+          id: a._id || a.id,
+          label: a.name || a.username || a._id,
+          status: a.status || '',
+          extra: a.platform || '',
+        }))
+    }
+    res.json({ accounts })
+  } catch (err) {
+    console.error('[Admin zernio-accounts]', err.response?.data || err.message)
+    res.status(500).json({ error: err.message, detail: err.response?.data })
+  }
+})
+
 // POST /admin/map-account — mapeo manual de account.id → orgId (para WhatsApp conectado desde Zernio dashboard)
 // Body: { secret, orgId, accountId, platform, phoneNumber }
 app.post('/admin/map-account', async (req, res) => {
