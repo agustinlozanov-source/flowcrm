@@ -1016,13 +1016,22 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const msgText = message?.text || message?.message || ''
   if (event !== 'message.received' || !msgText) return
   const incomingAccountId = account?.id || account?._id || ''
+  const rawPlatform = message?.platform || account?.platform || ''
+  const platformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
   console.log(`[Zernio/legacy] orgId: ${orgId} account: ${incomingAccountId}`)
-  // Auto-actualizar _zernio_account_map con el account.id real del webhook
+  // Solo actualizar el mapa si esta org tiene esa plataforma conectada
   if (incomingAccountId) {
-    db.collection('_zernio_account_map').doc(incomingAccountId).set({
-      orgId, platform: account?.platform || '',
-      registeredAt: admin.firestore.FieldValue.serverTimestamp(),
-    }).catch(() => {})
+    db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+      .then(snap => {
+        if (snap.data()?.[platformKey]?.connected === true) {
+          db.collection('_zernio_account_map').doc(incomingAccountId).set({
+            orgId, platform: rawPlatform,
+            registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+          console.log(`[Zernio/legacy] Mapa actualizado: ${incomingAccountId} → ${orgId}`)
+        }
+      }).catch(() => {})
   }
   setImmediate(() => processZernioMessage(req.body, orgId))
 })
