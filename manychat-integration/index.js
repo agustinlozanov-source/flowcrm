@@ -1213,8 +1213,10 @@ app.post('/whatsapp/purchase-number', async (req, res) => {
     })
     res.json({ success: true, number: response.data.number })
   } catch (err) {
-    console.error('[WhatsApp] Error comprando número:', err.response?.data || err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[WhatsApp] Error comprando número:', JSON.stringify(err.response?.data))
+    console.error('[WhatsApp] Status:', err.response?.status)
+    console.error('[WhatsApp] Body enviado a Zernio:', { profileId, country: 'US' })
+    res.status(500).json({ error: err.message, detail: err.response?.data })
   }
 })
 
