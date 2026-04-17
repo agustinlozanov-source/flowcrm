@@ -1218,7 +1218,20 @@ app.post('/whatsapp/purchase-number', async (req, res) => {
       { profileId, country: 'US' },
       { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
     )
-    res.json({ success: true, number: response.data.phoneNumber })
+    const number = response.data.phoneNumber
+
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: {
+          pendingNumberId: number.id,
+          pendingPhoneNumber: number.phoneNumber,
+          connected: false,
+          purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+    console.log(`[WhatsApp] Número guardado en Firestore: ${number.phoneNumber} para org ${orgId}`)
+    res.json({ success: true, number })
   } catch (err) {
     console.error('[WhatsApp] Error comprando número:', err.response?.data)
     res.status(500).json({ error: err.message, detail: err.response?.data })

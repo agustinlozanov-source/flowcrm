@@ -80,7 +80,18 @@ export default function Settings() {
     if (!orgId) return
     const ref = doc(db, 'organizations', orgId, 'settings', 'integrations')
     getDoc(ref).then(snap => {
-      if (snap.exists()) setIntegrations(snap.data())
+      if (snap.exists()) {
+        const data = snap.data()
+        setIntegrations(data)
+        if (data?.whatsapp?.pendingNumberId && !data?.whatsapp?.connected) {
+          setPurchasedNumber({
+            id: data.whatsapp.pendingNumberId,
+            phoneNumber: data.whatsapp.pendingPhoneNumber,
+          })
+          setWhatsappStep('ready')
+          setShowWhatsAppOptions(true)
+        }
+      }
     })
   }, [orgId])
 
@@ -137,8 +148,11 @@ export default function Settings() {
 
   const connectNumber = () => {
     setWhatsappStep('connecting')
-    window.location.href =
-      `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${purchasedNumber.id}`
+    window.open(
+      `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${purchasedNumber.id}`,
+      '_blank'
+    )
+    setTimeout(() => setWhatsappStep('ready'), 2000)
   }
 
   const connectOwnNumber = () => {
@@ -296,25 +310,53 @@ export default function Settings() {
               {/* ESTADO: listo para conectar */}
               {whatsappStep === 'ready' && (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '14px 16px', background: 'rgba(0,200,83,0.08)',
+                  <div style={{ padding: '14px 16px', background: 'rgba(0,200,83,0.08)',
                     border: '1px solid rgba(0,200,83,0.2)', borderRadius: 10, marginBottom: 16 }}>
-                    <span style={{ fontSize: 24 }}>✅</span>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: '#00a04a' }}>Número verificado con Meta</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#070708', marginTop: 2 }}>{purchasedNumber?.phoneNumber}</div>
-                      <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Listo para conectar · Sin OTP requerido</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#00a04a', marginBottom: 4 }}>
+                      ✅ Número asignado y verificado
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#070708' }}>
+                      {purchasedNumber?.phoneNumber}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
+                      Guarda este número — lo necesitarás en el siguiente paso
                     </div>
                   </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
+                      Cómo conectar tu WhatsApp Business:
+                    </div>
+                    {[
+                      'Se abrirá una ventana de Meta en nueva pestaña',
+                      'Inicia sesión con tu cuenta de Facebook',
+                      'Selecciona tu Portfolio comercial',
+                      'En "Cuenta de WhatsApp Business" → elige "Crear una cuenta nueva"',
+                      `En el paso de número → selecciona ${purchasedNumber?.phoneNumber} — ya aparece como Verificado`,
+                      'Completa el proceso y cierra la ventana de Meta',
+                    ].map((step, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0066ff',
+                          color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {i + 1}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{step}</div>
+                      </div>
+                    ))}
+                  </div>
+
                   <button onClick={connectNumber}
                     style={{ width: '100%', padding: '14px 20px', background: '#0066ff',
                       color: 'white', border: 'none', borderRadius: 10,
                       fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
                     Conectar {purchasedNumber?.phoneNumber} con WhatsApp →
                   </button>
+
                   <button onClick={() => { setWhatsappStep('options'); setPurchasedNumber(null) }}
                     style={{ marginTop: 8, width: '100%', padding: '10px',
-                      background: 'transparent', border: 'none', color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
+                      background: 'transparent', border: 'none',
+                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
                     Cancelar
                   </button>
                 </div>
