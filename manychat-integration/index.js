@@ -987,12 +987,14 @@ async function processZernioMessage(body, orgId) {
       // Leer accountId del canal del cliente desde Firestore
       const integSnap = await orgRef.collection('settings').doc('integrations').get()
       const integData = integSnap.data()
+      // Prioritize account.id from webhook payload (real inbox account ID)
+      // Firestore stores the OAuth profileId which is different and invalid for API calls
       const clientAccountId =
+        account?.id || account?._id ||
         (platform === 'whatsapp' && integData?.whatsapp?.accountId) ||
         (platform === 'messenger' && integData?.facebook?.accountId) ||
         (platform === 'facebook' && integData?.facebook?.accountId) ||
-        (platform === 'instagram' && integData?.instagram?.accountId) ||
-        account?.id || account?._id // fallback al accountId del payload
+        (platform === 'instagram' && integData?.instagram?.accountId)
 
       console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversationId}, accountId: ${clientAccountId}`)
       const zernioResponse = await axios.post(
