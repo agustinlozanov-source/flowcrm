@@ -1218,7 +1218,7 @@ app.post('/whatsapp/purchase-number', async (req, res) => {
       { profileId, country: 'US' },
       { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
     )
-    res.json({ success: true, number: response.data.number })
+    res.json({ success: true, number: response.data.phoneNumber })
   } catch (err) {
     console.error('[WhatsApp] Error comprando número:', err.response?.data)
     res.status(500).json({ error: err.message, detail: err.response?.data })

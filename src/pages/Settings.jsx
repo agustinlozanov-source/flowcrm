@@ -103,7 +103,7 @@ export default function Settings() {
       })
       const data = await res.json()
       if (data.success) {
-        window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${data.number._id}`
+        window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${data.number.id}`
       } else {
         toast.error('Error al obtener el número')
         setPurchasingNumber(false)
