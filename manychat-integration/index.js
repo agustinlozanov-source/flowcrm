@@ -690,38 +690,34 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId
 
   setImmediate(async () => {
-    // ── ROUTING: verificar que este orgId es el dueño del account.id ──
-    // _zernio_account_map/{accountId} → { orgId }
-    // Usamos transaction para evitar race condition cuando múltiples orgs
-    // reciben el mismo webhook simultáneamente
-    if (incomingAccountId) {
-      try {
-        const mapRef = db.collection('_zernio_account_map').doc(incomingAccountId)
-        let shouldProcess = false
+    // ── ROUTING: solo procesa la org que tiene esta plataforma conectada ──
+    const incomingAccountId = account?.id || account?._id || ''
+    const platformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
+    try {
+      const integSnap = await orgRef.collection('settings').doc('integrations').get()
+      const integData = integSnap.data() || {}
+      const platformInteg = integData?.[platformKey]
 
-        await db.runTransaction(async (t) => {
-          const mapSnap = await t.get(mapRef)
-          if (mapSnap.exists) {
-            shouldProcess = mapSnap.data().orgId === orgId
-          } else {
-            // Primera vez — esta org gana el lock atómicamente
-            t.set(mapRef, {
-              orgId,
-              platform: rawPlatform,
-              registeredAt: admin.firestore.FieldValue.serverTimestamp(),
-            })
-            shouldProcess = true
-            console.log(`[Zernio][${orgId}] account ${incomingAccountId} registrado como dueño`)
-          }
-        })
-
-        if (!shouldProcess) {
-          console.log(`[Zernio][${orgId}] Ignorado — account ${incomingAccountId} pertenece a otra org`)
-          return
-        }
-      } catch (e) {
-        console.warn(`[Zernio][${orgId}] Error en routing lookup — continuando:`, e.message)
+      if (!platformInteg?.connected) {
+        console.log(`[Zernio][${orgId}] Ignorado — ${platformKey} no conectado para esta org`)
+        return
       }
+
+      const realAccountId = platformInteg?.realAccountId
+      if (realAccountId && realAccountId !== incomingAccountId) {
+        console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} ≠ ${realAccountId}`)
+        return
+      }
+
+      if (!realAccountId && incomingAccountId) {
+        // Primera vez — guardar el account.id real del webhook
+        await orgRef.collection('settings').doc('integrations').set({
+          [platformKey]: { realAccountId: incomingAccountId }
+        }, { merge: true })
+        console.log(`[Zernio][${orgId}] realAccountId guardado: ${incomingAccountId}`)
+      }
+    } catch (e) {
+      console.warn(`[Zernio][${orgId}] Error verificando integración — continuando:`, e.message)
     }
 
     const orgRef = db.collection('organizations').doc(orgId)
