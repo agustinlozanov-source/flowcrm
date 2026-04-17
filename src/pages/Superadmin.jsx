@@ -3377,6 +3377,131 @@ function DistribuidorConfig() {
   )
 }
 
+// ─── CHANNELS PANEL ───
+const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
+
+function ChannelsPanel({ orgs }) {
+  const [orgId, setOrgId] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [platform, setPlatform] = useState('whatsapp')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [secret, setSecret] = useState('')
+
+  const handleMap = async () => {
+    if (!orgId || !accountId || !secret) return toast.error('Faltan campos obligatorios')
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch(`${RAILWAY}/admin/map-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, orgId, accountId, platform, phoneNumber }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      setResult({ success: true, data })
+      toast.success('Canal mapeado correctamente')
+    } catch (err) {
+      setResult({ success: false, error: err.message })
+      toast.error(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectedOrg = orgs.find(o => o.id === orgId)
+
+  return (
+    <div style={{ maxWidth: 560 }}>
+      <p style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
+        Usa esto para registrar manualmente un canal de WhatsApp, Facebook o Instagram que hayas conectado desde el dashboard de Zernio. Esto activa la integración en la app del cliente y routea los webhooks correctamente.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Secret *</label>
+          <input
+            className="sa-input"
+            type="password"
+            placeholder="ADMIN_SECRET de Railway"
+            value={secret}
+            onChange={e => setSecret(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Organización *</label>
+          <select className="sa-input" value={orgId} onChange={e => setOrgId(e.target.value)}>
+            <option value="">— Selecciona una org —</option>
+            {orgs.map(o => (
+              <option key={o.id} value={o.id}>{o.name || o.id}</option>
+            ))}
+          </select>
+          {selectedOrg && <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>ID: {orgId}</div>}
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Canal *</label>
+          <select className="sa-input" value={platform} onChange={e => setPlatform(e.target.value)}>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="facebook">Facebook Messenger</option>
+            <option value="instagram">Instagram</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Account ID de Zernio *</label>
+          <input
+            className="sa-input"
+            placeholder="El _id del número/cuenta en Zernio"
+            value={accountId}
+            onChange={e => setAccountId(e.target.value)}
+          />
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Lo encuentras en el dashboard de Zernio → Phone Numbers o Accounts</div>
+        </div>
+
+        {platform === 'whatsapp' && (
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Número de teléfono</label>
+            <input
+              className="sa-input"
+              placeholder="+1 xxx xxx xxxx"
+              value={phoneNumber}
+              onChange={e => setPhoneNumber(e.target.value)}
+            />
+          </div>
+        )}
+
+        <button
+          className="sa-btn-primary"
+          onClick={handleMap}
+          disabled={loading}
+          style={{ marginTop: 8 }}
+        >
+          {loading ? 'Registrando...' : 'Registrar conexión'}
+        </button>
+
+        {result && (
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: result.success ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${result.success ? '#86efac' : '#fca5a5'}`,
+            fontSize: 13,
+            color: result.success ? '#166534' : '#991b1b',
+          }}>
+            {result.success
+              ? `✅ ${platform} conectado para ${selectedOrg?.name || orgId} — accountId: ${result.data.accountId}`
+              : `❌ Error: ${result.error}`}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN SUPERADMIN ───
 export default function Superadmin() {
   const [authed, setAuthed] = useState(false)
@@ -3434,9 +3559,10 @@ export default function Superadmin() {
     { id: 'pipelines', icon: <Target size={16} />, label: 'Pipeline Builder' },
     { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
+    { id: 'channels', icon: <Smartphone size={16} />, label: 'Canales' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones' }
 
   if (!authed) {
     return (
@@ -3503,6 +3629,7 @@ export default function Superadmin() {
           {activeTab === 'pipelines' && <PipelineBuilder orgs={orgs} />}
           {activeTab === 'distribuidores' && <DistribuidoresPanel />}
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
+          {activeTab === 'channels' && <ChannelsPanel orgs={orgs} />}
         </div>
       </div>
     </div>
