@@ -649,6 +649,9 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 })
 
 // ── ZERNIO WEBHOOK ───────────────────────────────────────────────
+// Zernio webhooks son globales por API key — el mismo mensaje llega a todos los
+// endpoints registrados. Usamos una colección _zernio_account_map para saber
+// qué orgId es dueño de cada account.id, y descartamos en los demás.
 app.post('/webhook/zernio/:orgId', (req, res) => {
   // Responder 200 inmediatamente para que Zernio no reintente
   res.sendStatus(200)
@@ -657,21 +660,18 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const { orgId } = req.params
 
   console.log(`[Zernio] Webhook recibido — orgId: ${orgId}`)
-  console.log(`[Zernio] Payload completo:`, JSON.stringify(req.body, null, 2))
 
-  // Zernio webhook payload fields:
-  // message.message (text), message.senderId, message.senderName, message.platform
-  // Fallbacks for backwards compat with old nested structure
-  const msgText = message?.message || message?.text || ''
-  const senderId = message?.senderId || message?.sender?.id || ''
-  const senderName = message?.senderName || message?.sender?.name || 'Sin nombre'
-  const phoneNumber = message?.senderPhone || message?.sender?.phoneNumber || ''
+  // Zernio webhook payload fields (message.text + message.sender nested)
+  const msgText = message?.text || message?.message || ''
+  const senderId = message?.sender?.id || message?.senderId || ''
+  const senderName = message?.sender?.name || message?.senderName || 'Sin nombre'
+  const phoneNumber = message?.sender?.phoneNumber || message?.senderPhone || ''
   const rawPlatform = message?.platform || account?.platform || ''
-  // conversation.id can be a string (platform convo id)
   const conversationId = conversation?.id || conversation?._id || message?.conversationId || ''
+  const incomingAccountId = account?.id || account?._id || ''
 
   if (event !== 'message.received' || !msgText) {
-    console.log(`[Zernio] Ignorado — event: ${event}, text: ${msgText}`)
+    console.log(`[Zernio] Ignorado — event: ${event}`)
     return
   }
 
@@ -684,49 +684,45 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     if (v.includes('facebook') || v.includes('messenger') || v === 'fb') return 'messenger'
     if (v.includes('instagram') || v === 'ig') return 'instagram'
     if (v.includes('whatsapp') || v === 'wa') return 'whatsapp'
-    return v // pasar tal cual si es otro valor conocido
+    return v
   }
   const platform = normalizePlatform(rawPlatform)
-  // Usar phoneNumber como ID estable del lead (identificador real del contacto en WhatsApp)
-  // Fallback a sender.id si no hay teléfono (ej: Messenger)
   const leadDocId = (phoneNumber || '').replace(/\D/g, '') || senderId
 
   setImmediate(async () => {
+    // ── ROUTING: verificar que este orgId es el dueño del account.id ──
+    // _zernio_account_map/{accountId} → { orgId }
+    if (incomingAccountId) {
+      try {
+        const mapRef = db.collection('_zernio_account_map').doc(incomingAccountId)
+        const mapSnap = await mapRef.get()
+
+        if (mapSnap.exists) {
+          const ownerOrgId = mapSnap.data().orgId
+          if (ownerOrgId !== orgId) {
+            console.log(`[Zernio][${orgId}] Ignorado — account ${incomingAccountId} pertenece a org ${ownerOrgId}`)
+            return
+          }
+        } else {
+          // Primera vez que vemos este account.id — registrar esta org como dueña
+          await mapRef.set({
+            orgId,
+            platform: rawPlatform,
+            registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+          console.log(`[Zernio][${orgId}] account ${incomingAccountId} registrado en _zernio_account_map`)
+        }
+      } catch (e) {
+        console.warn(`[Zernio][${orgId}] Error en routing lookup — continuando:`, e.message)
+      }
+    }
+
     const orgRef = db.collection('organizations').doc(orgId)
 
     // Guard: leadDocId no puede ser vacío
     if (!leadDocId) {
-      console.error(`[Zernio][${orgId}] leadDocId vacío — senderId: ${senderId}, phoneNumber: ${phoneNumber}. Abortando.`)
+      console.error(`[Zernio][${orgId}] leadDocId vacío — abortando.`)
       return
-    }
-
-    // Guard: verificar que el account.id del payload pertenece a esta org
-    // Solo filtramos por realAccountId (guardado en el primer mensaje exitoso)
-    // accountId del OAuth es el profileId de Zernio — diferente al account.id del webhook
-    const incomingAccountId = account?.id || account?._id || ''
-    const incomingPlatformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
-    if (incomingAccountId) {
-      try {
-        const integSnap = await orgRef.collection('settings').doc('integrations').get()
-        const integData = integSnap.data() || {}
-        const realAccountId = integData?.[incomingPlatformKey]?.realAccountId
-
-        if (realAccountId && realAccountId !== incomingAccountId) {
-          // Ya tenemos el realAccountId guardado y no coincide — no es nuestro mensaje
-          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} ≠ realAccountId ${realAccountId}`)
-          return
-        }
-
-        if (!realAccountId) {
-          // Primera vez — guardar el realAccountId para filtrar futuros mensajes
-          await orgRef.collection('settings').doc('integrations').set({
-            [incomingPlatformKey]: { realAccountId: incomingAccountId }
-          }, { merge: true }).catch(() => {})
-          console.log(`[Zernio][${orgId}] realAccountId guardado: ${incomingAccountId}`)
-        }
-      } catch (e) {
-        console.warn(`[Zernio][${orgId}] No se pudo verificar account.id — continuando:`, e.message)
-      }
     }
 
     const leadRef = orgRef.collection('leads').doc(leadDocId)
