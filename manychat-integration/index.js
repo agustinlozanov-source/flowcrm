@@ -1202,7 +1202,7 @@ app.post('/whatsapp/purchase-number', async (req, res) => {
       .collection('settings').doc('integrations').get()
     const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
 
-    const response = await axios.post('https://zernio.com/api/v1/whatsapp/phone-numbers', {
+    const response = await axios.post('https://zernio.com/api/v1/whatsapp/phone-numbers/purchase', {
       profileId,
       country: 'US',
     }, {
