@@ -69,6 +69,8 @@ export default function Settings() {
 
   const [integrations, setIntegrations] = useState({})
   const [loadingChannel, setLoadingChannel] = useState(null)
+  const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
+  const [purchasingNumber, setPurchasingNumber] = useState(false)
 
   // Load integrations from Firestore
   useEffect(() => {
@@ -91,6 +93,31 @@ export default function Settings() {
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 
+  const purchaseAndConnect = async () => {
+    setPurchasingNumber(true)
+    try {
+      const res = await fetch('https://flowcrm-production-6d63.up.railway.app/whatsapp/purchase-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${data.number._id}`
+      } else {
+        toast.error('Error al obtener el número')
+        setPurchasingNumber(false)
+      }
+    } catch {
+      toast.error('Error al comprar número')
+      setPurchasingNumber(false)
+    }
+  }
+
+  const connectOwnNumber = () => {
+    window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}`
+  }
+
   const handleDisconnect = async (channel) => {
     setLoadingChannel(channel)
     try {
@@ -105,14 +132,7 @@ export default function Settings() {
     }
   }
 
-  const channels = [
-    {
-      key: 'whatsapp',
-      icon: '📱',
-      name: 'WhatsApp Business',
-      description: 'Recibe y responde mensajes de WhatsApp automáticamente',
-      connectUrl: `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}`,
-    },
+  const otherChannels = [
     {
       key: 'facebook',
       icon: '💬',
@@ -136,12 +156,97 @@ export default function Settings() {
         <p className="text-sm text-gray-500 mt-1">Gestiona tus canales, integraciones y cuenta</p>
       </div>
 
-      {/* ── Canales ── */}
       <Section
         title="Canales"
         description="Conecta tus plataformas de mensajería para que el agente pueda recibir y responder mensajes"
       >
-        {channels.map(ch => (
+        {/* ── WhatsApp — flujo especial ── */}
+        <div className="p-4 rounded-xl border border-gray-100 bg-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">📱</div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">WhatsApp Business</span>
+                  {integrations.whatsapp?.connected ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                      Conectado
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
+                      No conectado
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">Recibe y responde mensajes de WhatsApp automáticamente</p>
+              </div>
+            </div>
+            {integrations.whatsapp?.connected ? (
+              <button
+                onClick={() => handleDisconnect('whatsapp')}
+                disabled={loadingChannel === 'whatsapp'}
+                className="text-xs text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Desconectar
+              </button>
+            ) : !showWhatsAppOptions ? (
+              <button
+                onClick={() => setShowWhatsAppOptions(true)}
+                className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Conectar
+              </button>
+            ) : null}
+          </div>
+
+          {/* Panel de opciones */}
+          {showWhatsAppOptions && !integrations.whatsapp?.connected && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <p className="text-sm font-bold text-gray-900 mb-0.5">Conecta tu WhatsApp Business</p>
+              <p className="text-xs text-gray-500 mb-4">Necesitas un número dedicado para WhatsApp Business API</p>
+
+              {/* Opción A — Comprar número */}
+              <div
+                onClick={!purchasingNumber ? purchaseAndConnect : undefined}
+                className={`flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-blue-500 mb-3 cursor-pointer transition-opacity ${purchasingNumber ? 'opacity-60 pointer-events-none' : 'hover:bg-blue-50'}`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">📱</div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-gray-900">
+                    {purchasingNumber ? 'Comprando número...' : 'Obtener número US'}
+                  </div>
+                  <div className="text-xs text-gray-500">$2/mes · Verificado con Meta automáticamente · Sin OTP</div>
+                </div>
+                <span className="text-xs font-bold text-blue-600 flex-shrink-0">Recomendado →</span>
+              </div>
+
+              {/* Opción B — Número propio */}
+              <div
+                onClick={connectOwnNumber}
+                className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">🔢</div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-gray-900">Usar mi propio número</div>
+                  <div className="text-xs text-gray-500">Conecta un número existente · Requiere verificación OTP</div>
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0">→</span>
+              </div>
+
+              <button
+                onClick={() => setShowWhatsAppOptions(false)}
+                className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Facebook e Instagram — flujo directo ── */}
+        {otherChannels.map(ch => (
           <ChannelCard
             key={ch.key}
             icon={ch.icon}
