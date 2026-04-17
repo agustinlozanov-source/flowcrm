@@ -659,13 +659,23 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   console.log(`[Zernio] Webhook recibido — orgId: ${orgId}`)
   console.log(`[Zernio] Payload completo:`, JSON.stringify(req.body, null, 2))
 
-  if (event !== 'message.received' || !message?.text) {
-    console.log(`[Zernio] Ignorado — event: ${event}, text: ${message?.text}`)
+  // Zernio webhook payload fields:
+  // message.message (text), message.senderId, message.senderName, message.platform
+  // Fallbacks for backwards compat with old nested structure
+  const msgText = message?.message || message?.text || ''
+  const senderId = message?.senderId || message?.sender?.id || ''
+  const senderName = message?.senderName || message?.sender?.name || 'Sin nombre'
+  const phoneNumber = message?.senderPhone || message?.sender?.phoneNumber || ''
+  const rawPlatform = message?.platform || account?.platform || ''
+  // conversation.id can be a string (platform convo id)
+  const conversationId = conversation?.id || conversation?._id || message?.conversationId || ''
+
+  if (event !== 'message.received' || !msgText) {
+    console.log(`[Zernio] Ignorado — event: ${event}, text: ${msgText}`)
     return
   }
 
-  const { id: senderId, phoneNumber, name: senderName } = message.sender
-  const { text, platform: rawPlatform } = message
+  const text = msgText
 
   // Normalizar el canal a nuestros valores canónicos
   function normalizePlatform(p) {
@@ -970,13 +980,14 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       const integData = integSnap.data()
       const clientAccountId =
         (platform === 'whatsapp' && integData?.whatsapp?.accountId) ||
+        (platform === 'messenger' && integData?.facebook?.accountId) ||
         (platform === 'facebook' && integData?.facebook?.accountId) ||
         (platform === 'instagram' && integData?.instagram?.accountId) ||
-        account?.id // fallback al accountId del payload
+        account?.id || account?._id // fallback al accountId del payload
 
-      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversation?.id}, accountId: ${clientAccountId}`)
+      console.log(`[Zernio][${orgId}] Enviando respuesta a Zernio API — conversationId: ${conversationId}, accountId: ${clientAccountId}`)
       const zernioResponse = await axios.post(
-        `https://zernio.com/api/v1/inbox/conversations/${conversation?.id}/messages`,
+        `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
         {
           accountId: clientAccountId,
           message: reply,
@@ -1309,18 +1320,18 @@ function registerChannelOAuth(app, platform) {
 
       // 3. Registrar webhook en Zernio para este account
       try {
-        await axios.post('https://zernio.com/api/v1/webhooks', {
-          profileId,
+        const webhookRes = await axios.post('https://zernio.com/api/v1/webhooks/settings', {
+          name: `FlowCRM - ${platform} - ${orgId}`,
           url: `${RAILWAY_URL}/webhook/zernio/${orgId}`,
-          accountIds: [accountId],
-          events: ['message.received', 'post.published', 'post.failed', 'post.scheduled', 'post.cancelled']
+          events: ['message.received', 'message.sent', 'message.delivered', 'message.read'],
+          isActive: true,
         }, {
           headers: {
             Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
             'Content-Type': 'application/json',
           }
         })
-        console.log(`[${platform}] Webhook registrado para org ${orgId} — accountId: ${accountId}`)
+        console.log(`[${platform}] Webhook registrado para org ${orgId} — id: ${webhookRes.data?.webhook?._id}`)
       } catch (webhookErr) {
         console.error(`[${platform}] Error registrando webhook:`, webhookErr.response?.data || webhookErr.message)
       }
