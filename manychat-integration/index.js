@@ -1193,6 +1193,31 @@ app.post('/zernio/create-profile', async (req, res) => {
   }
 })
 
+// POST /whatsapp/purchase-number
+app.post('/whatsapp/purchase-number', async (req, res) => {
+  const { orgId } = req.body
+  if (!orgId) return res.status(400).json({ error: 'Missing orgId' })
+  try {
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+
+    const response = await axios.post('https://zernio.com/api/v1/whatsapp/phone-numbers', {
+      profileId,
+      country: 'US',
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    })
+    res.json({ success: true, number: response.data.number })
+  } catch (err) {
+    console.error('[WhatsApp] Error comprando número:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 function registerChannelOAuth(app, platform) {
   app.get(`/${platform}/connect`, async (req, res) => {
     const { orgId } = req.query
