@@ -692,25 +692,32 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   setImmediate(async () => {
     // ── ROUTING: verificar que este orgId es el dueño del account.id ──
     // _zernio_account_map/{accountId} → { orgId }
+    // Usamos transaction para evitar race condition cuando múltiples orgs
+    // reciben el mismo webhook simultáneamente
     if (incomingAccountId) {
       try {
         const mapRef = db.collection('_zernio_account_map').doc(incomingAccountId)
-        const mapSnap = await mapRef.get()
+        let shouldProcess = false
 
-        if (mapSnap.exists) {
-          const ownerOrgId = mapSnap.data().orgId
-          if (ownerOrgId !== orgId) {
-            console.log(`[Zernio][${orgId}] Ignorado — account ${incomingAccountId} pertenece a org ${ownerOrgId}`)
-            return
+        await db.runTransaction(async (t) => {
+          const mapSnap = await t.get(mapRef)
+          if (mapSnap.exists) {
+            shouldProcess = mapSnap.data().orgId === orgId
+          } else {
+            // Primera vez — esta org gana el lock atómicamente
+            t.set(mapRef, {
+              orgId,
+              platform: rawPlatform,
+              registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            shouldProcess = true
+            console.log(`[Zernio][${orgId}] account ${incomingAccountId} registrado como dueño`)
           }
-        } else {
-          // Primera vez que vemos este account.id — registrar esta org como dueña
-          await mapRef.set({
-            orgId,
-            platform: rawPlatform,
-            registeredAt: admin.firestore.FieldValue.serverTimestamp(),
-          })
-          console.log(`[Zernio][${orgId}] account ${incomingAccountId} registrado en _zernio_account_map`)
+        })
+
+        if (!shouldProcess) {
+          console.log(`[Zernio][${orgId}] Ignorado — account ${incomingAccountId} pertenece a otra org`)
+          return
         }
       } catch (e) {
         console.warn(`[Zernio][${orgId}] Error en routing lookup — continuando:`, e.message)
