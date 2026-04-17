@@ -1225,6 +1225,26 @@ app.post('/whatsapp/purchase-number', async (req, res) => {
   }
 })
 
+// GET /whatsapp/number-status/:numberId
+app.get('/whatsapp/number-status/:numberId', async (req, res) => {
+  const { numberId } = req.params
+  try {
+    const response = await axios.get(
+      'https://zernio.com/api/v1/whatsapp/phone-numbers',
+      { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` } }
+    )
+    const number = response.data.numbers.find(n => n._id === numberId || n.id === numberId)
+    if (!number) return res.status(404).json({ error: 'Number not found' })
+    res.json({
+      verified: number.metaVerificationStatus === 'verified',
+      status: number.metaVerificationStatus,
+      phoneNumber: number.phoneNumber,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 function registerChannelOAuth(app, platform) {
   app.get(`/${platform}/connect`, async (req, res) => {
     const { orgId } = req.query

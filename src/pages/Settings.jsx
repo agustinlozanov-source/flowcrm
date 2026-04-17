@@ -70,9 +70,8 @@ export default function Settings() {
   const [integrations, setIntegrations] = useState({})
   const [loadingChannel, setLoadingChannel] = useState(null)
   const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
-  const [whatsappStep, setWhatsappStep] = useState('options') // 'options' | 'verifying' | 'ready' | 'connecting'
+  const [whatsappStep, setWhatsappStep] = useState('options')
   const [purchasedNumber, setPurchasedNumber] = useState(null)
-  const [verifySeconds, setVerifySeconds] = useState(35)
 
   // Load integrations from Firestore
   useEffect(() => {
@@ -97,7 +96,6 @@ export default function Settings() {
 
   const purchaseNumber = async () => {
     setWhatsappStep('verifying')
-    setVerifySeconds(35)
     try {
       const res = await fetch('https://flowcrm-production-6d63.up.railway.app/whatsapp/purchase-number', {
         method: 'POST',
@@ -111,11 +109,24 @@ export default function Settings() {
         return
       }
       setPurchasedNumber(data.number)
-      for (let i = 35; i > 0; i--) {
-        setVerifySeconds(i)
-        await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Polling cada 3 segundos hasta que Meta verifique (máx 2 min)
+      const maxAttempts = 40
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        const statusRes = await fetch(
+          `https://flowcrm-production-6d63.up.railway.app/whatsapp/number-status/${data.number.id}`
+        )
+        const statusData = await statusRes.json()
+        if (statusData.verified) {
+          setWhatsappStep('ready')
+          return
+        }
       }
-      setWhatsappStep('ready')
+
+      toast.error('La verificación tardó demasiado — intenta de nuevo')
+      setWhatsappStep('options')
+      setPurchasedNumber(null)
     } catch {
       toast.error('Error al comprar número')
       setWhatsappStep('options')
@@ -275,7 +286,7 @@ export default function Settings() {
                     padding: '10px 20px', background: 'rgba(0,102,255,0.08)',
                     borderRadius: 20, fontSize: 14, fontWeight: 700, color: '#0066ff' }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0066ff' }} />
-                    Verificando... {verifySeconds}s
+                    Verificando con Meta...
                   </div>
                 </div>
               )}
