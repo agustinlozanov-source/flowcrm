@@ -701,21 +701,33 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     }
 
     // Guard: verificar que el account.id del payload pertenece a esta org
-    // Zernio dispara webhooks globales a todos los endpoints registrados, hay que filtrar por cuenta
+    // Zernio dispara el mismo webhook a todos los endpoints registrados — filtramos por account.id
     const incomingAccountId = account?.id || account?._id || ''
+    const incomingPlatformKey = rawPlatform === 'facebook' ? 'facebook' : rawPlatform === 'instagram' ? 'instagram' : 'whatsapp'
     if (incomingAccountId) {
       try {
         const integSnap = await orgRef.collection('settings').doc('integrations').get()
         const integData = integSnap.data() || {}
         const orgAccountIds = [
           integData?.facebook?.accountId,
+          integData?.facebook?.realAccountId,
           integData?.instagram?.accountId,
+          integData?.instagram?.realAccountId,
           integData?.whatsapp?.accountId,
           integData?.messenger?.accountId,
         ].filter(Boolean)
+
         if (orgAccountIds.length > 0 && !orgAccountIds.includes(incomingAccountId)) {
-          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} no pertenece a esta org`)
+          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} no pertenece a esta org (esperados: ${orgAccountIds.join(', ')})`)
           return
+        }
+
+        // Auto-guardar el account.id real de Zernio para futuras comparaciones
+        if (!orgAccountIds.includes(incomingAccountId)) {
+          await orgRef.collection('settings').doc('integrations').set({
+            [incomingPlatformKey]: { realAccountId: incomingAccountId }
+          }, { merge: true }).catch(() => {})
+          console.log(`[Zernio][${orgId}] realAccountId guardado: ${incomingAccountId}`)
         }
       } catch (e) {
         console.warn(`[Zernio][${orgId}] No se pudo verificar account.id — continuando:`, e.message)
