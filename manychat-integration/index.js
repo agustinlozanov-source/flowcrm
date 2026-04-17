@@ -701,29 +701,24 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     }
 
     // Guard: verificar que el account.id del payload pertenece a esta org
-    // Zernio dispara el mismo webhook a todos los endpoints registrados — filtramos por account.id
+    // Solo filtramos por realAccountId (guardado en el primer mensaje exitoso)
+    // accountId del OAuth es el profileId de Zernio — diferente al account.id del webhook
     const incomingAccountId = account?.id || account?._id || ''
-    const incomingPlatformKey = rawPlatform === 'facebook' ? 'facebook' : rawPlatform === 'instagram' ? 'instagram' : 'whatsapp'
+    const incomingPlatformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
     if (incomingAccountId) {
       try {
         const integSnap = await orgRef.collection('settings').doc('integrations').get()
         const integData = integSnap.data() || {}
-        const orgAccountIds = [
-          integData?.facebook?.accountId,
-          integData?.facebook?.realAccountId,
-          integData?.instagram?.accountId,
-          integData?.instagram?.realAccountId,
-          integData?.whatsapp?.accountId,
-          integData?.messenger?.accountId,
-        ].filter(Boolean)
+        const realAccountId = integData?.[incomingPlatformKey]?.realAccountId
 
-        if (orgAccountIds.length > 0 && !orgAccountIds.includes(incomingAccountId)) {
-          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} no pertenece a esta org (esperados: ${orgAccountIds.join(', ')})`)
+        if (realAccountId && realAccountId !== incomingAccountId) {
+          // Ya tenemos el realAccountId guardado y no coincide — no es nuestro mensaje
+          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} ≠ realAccountId ${realAccountId}`)
           return
         }
 
-        // Auto-guardar el account.id real de Zernio para futuras comparaciones
-        if (!orgAccountIds.includes(incomingAccountId)) {
+        if (!realAccountId) {
+          // Primera vez — guardar el realAccountId para filtrar futuros mensajes
           await orgRef.collection('settings').doc('integrations').set({
             [incomingPlatformKey]: { realAccountId: incomingAccountId }
           }, { merge: true }).catch(() => {})
