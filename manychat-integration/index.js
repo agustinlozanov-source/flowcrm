@@ -1284,7 +1284,8 @@ function registerChannelOAuth(app, platform) {
   app.get(`/${platform}/callback`, async (req, res) => {
     console.log(`[${platform} Callback] Query params:`, JSON.stringify(req.query))
     const { orgId, error } = req.query
-    const accountId = req.query.accountId || req.query.account_id || req.query.id || req.query.code
+    const accountId = req.query.accountId || req.query.account_id || req.query.profileId || req.query.id || req.query.code
+    const username = req.query.username || null
     if (error || !accountId || !orgId) {
       console.error(`[${platform} Callback] Faltan parámetros — accountId: ${accountId}, orgId: ${orgId}, error: ${error}`)
       return res.redirect(`${APP_URL}/settings?${platform}=error`)
@@ -1300,6 +1301,7 @@ function registerChannelOAuth(app, platform) {
       await orgRef.collection('settings').doc('integrations').set({
         [platform]: {
           accountId,
+          ...(username && { username }),
           connected: true,
           connectedAt: admin.firestore.FieldValue.serverTimestamp(),
         }
