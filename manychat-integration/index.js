@@ -1223,6 +1223,40 @@ app.post('/webhook/vapi', async (req, res) => {
 const APP_URL = 'https://flowhubcrm.app'
 const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
 
+// POST /admin/map-account — mapeo manual de account.id → orgId (para WhatsApp conectado desde Zernio dashboard)
+// Body: { secret, orgId, accountId, platform, phoneNumber }
+app.post('/admin/map-account', async (req, res) => {
+  const { secret, orgId, accountId, platform = 'whatsapp', phoneNumber } = req.body
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  if (!orgId || !accountId) return res.status(400).json({ error: 'Missing orgId or accountId' })
+  try {
+    // 1. Mapear en _zernio_account_map
+    await db.collection('_zernio_account_map').doc(accountId).set({
+      orgId,
+      platform,
+      ...(phoneNumber && { phoneNumber }),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true })
+
+    // 2. Activar integración en Firestore de la org
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        [platform]: {
+          accountId,
+          ...(phoneNumber && { phoneNumber }),
+          connected: true,
+          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+    console.log(`[Admin] Mapeado account ${accountId} → org ${orgId} (${platform})`)
+    res.json({ success: true, accountId, orgId, platform })
+  } catch (err) {
+    console.error('[Admin map-account] Error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // POST /zernio/create-profile
 app.post('/zernio/create-profile', async (req, res) => {
   const { orgId, orgName } = req.body
