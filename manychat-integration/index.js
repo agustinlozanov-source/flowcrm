@@ -1020,6 +1020,14 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const platformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
 
   setImmediate(async () => {
+    // Si el mapa ya tiene este account.id asignado a otra org, ignorar
+    if (incomingAccountId) {
+      const mapSnap = await db.collection('_zernio_account_map').doc(incomingAccountId).get().catch(() => null)
+      if (mapSnap && mapSnap.exists && mapSnap.data().orgId !== orgId) {
+        console.log(`[Zernio/legacy][${orgId}] Ignorado — account ${incomingAccountId} pertenece a org ${mapSnap.data().orgId}`)
+        return
+      }
+    }
     // Solo procesar si esta org tiene esa plataforma conectada
     const integSnap = await db.collection('organizations').doc(orgId)
       .collection('settings').doc('integrations').get().catch(() => null)
