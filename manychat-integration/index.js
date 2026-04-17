@@ -1197,25 +1197,30 @@ app.post('/zernio/create-profile', async (req, res) => {
 app.post('/whatsapp/purchase-number', async (req, res) => {
   const { orgId } = req.body
   if (!orgId) return res.status(400).json({ error: 'Missing orgId' })
+
+  let profileId = process.env.ZERNIO_PROFILE_ID // fallback
+
   try {
     const integSnap = await db.collection('organizations').doc(orgId)
       .collection('settings').doc('integrations').get()
-    const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+    if (integSnap.exists && integSnap.data()?.zernio?.profileId) {
+      profileId = integSnap.data().zernio.profileId
+    }
+    console.log(`[WhatsApp] Comprando número para org ${orgId} con profileId ${profileId}`)
+  } catch (err) {
+    console.error('[WhatsApp] Error leyendo Firestore:', err.message)
+    // Continúa con el fallback
+  }
 
-    const response = await axios.post('https://zernio.com/api/v1/whatsapp/phone-numbers/purchase', {
-      profileId,
-      country: 'US',
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
-        'Content-Type': 'application/json',
-      }
-    })
+  try {
+    const response = await axios.post(
+      'https://zernio.com/api/v1/whatsapp/phone-numbers/purchase',
+      { profileId, country: 'US' },
+      { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+    )
     res.json({ success: true, number: response.data.number })
   } catch (err) {
-    console.error('[WhatsApp] Error comprando número:', JSON.stringify(err.response?.data))
-    console.error('[WhatsApp] Status:', err.response?.status)
-    console.error('[WhatsApp] Body enviado a Zernio:', { profileId, country: 'US' })
+    console.error('[WhatsApp] Error comprando número:', err.response?.data)
     res.status(500).json({ error: err.message, detail: err.response?.data })
   }
 })
