@@ -700,6 +700,28 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
       return
     }
 
+    // Guard: verificar que el account.id del payload pertenece a esta org
+    // Zernio dispara webhooks globales a todos los endpoints registrados, hay que filtrar por cuenta
+    const incomingAccountId = account?.id || account?._id || ''
+    if (incomingAccountId) {
+      try {
+        const integSnap = await orgRef.collection('settings').doc('integrations').get()
+        const integData = integSnap.data() || {}
+        const orgAccountIds = [
+          integData?.facebook?.accountId,
+          integData?.instagram?.accountId,
+          integData?.whatsapp?.accountId,
+          integData?.messenger?.accountId,
+        ].filter(Boolean)
+        if (orgAccountIds.length > 0 && !orgAccountIds.includes(incomingAccountId)) {
+          console.log(`[Zernio][${orgId}] Ignorado — account.id ${incomingAccountId} no pertenece a esta org`)
+          return
+        }
+      } catch (e) {
+        console.warn(`[Zernio][${orgId}] No se pudo verificar account.id — continuando:`, e.message)
+      }
+    }
+
     const leadRef = orgRef.collection('leads').doc(leadDocId)
 
     console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId}`)
