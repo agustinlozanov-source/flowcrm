@@ -119,6 +119,10 @@ export default function Settings() {
       toast.success('Google Calendar conectado ✓')
       setIntegrations(prev => ({ ...prev, googleCalendar: { connected: true } }))
     }
+    if (params.get('google') === 'error') {
+      const msg = params.get('msg') || 'Error al conectar Google Calendar'
+      toast.error(msg)
+    }
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 

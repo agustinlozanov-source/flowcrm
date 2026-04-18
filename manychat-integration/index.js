@@ -415,6 +415,7 @@ app.get('/meetings/auth/google', (req, res) => {
   const { orgId, redirect = 'meetings' } = req.query
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
+    prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/calendar'],
     state: JSON.stringify({ orgId, redirect }),
   })
@@ -441,8 +442,8 @@ app.get('/meetings/auth/google/callback', async (req, res) => {
       }, { merge: true })
     res.redirect(`https://flowhubcrm.app/${redirect}?google=connected`)
   } catch (err) {
-    console.error('[Google OAuth] callback error:', err.message)
-    res.redirect(`https://flowhubcrm.app/${redirect}?google=error`)
+    console.error('[Google OAuth] callback error:', err.message, err.response?.data)
+    res.redirect(`https://flowhubcrm.app/${redirect}?google=error&msg=${encodeURIComponent(err.message)}`)
   }
 })
 
