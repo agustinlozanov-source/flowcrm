@@ -72,6 +72,9 @@ export default function Settings() {
   const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
   const [whatsappStep, setWhatsappStep] = useState('options')
   const [purchasedNumber, setPurchasedNumber] = useState(null)
+  const [assignedNumber, setAssignedNumber] = useState(null) // { phoneNumber, metaPreverifiedId }
+
+  const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
   const whatsappConnected = integrations?.whatsapp?.connected === true
 
@@ -83,6 +86,7 @@ export default function Settings() {
       if (snap.exists()) {
         const data = snap.data()
         setIntegrations(data)
+        // Flujo legado (pendingNumberId)
         if (data?.whatsapp?.pendingNumberId && !data?.whatsapp?.connected) {
           setPurchasedNumber({
             id: data.whatsapp.pendingNumberId,
@@ -90,6 +94,13 @@ export default function Settings() {
           })
           setWhatsappStep('ready')
           setShowWhatsAppOptions(true)
+        }
+        // Flujo nuevo (assignedNumber por admin)
+        if (data?.whatsapp?.assignedNumber && !data?.whatsapp?.connected) {
+          setAssignedNumber({
+            phoneNumber: data.whatsapp.assignedNumber,
+            metaPreverifiedId: data.whatsapp.metaPreverifiedId,
+          })
         }
       }
     })
@@ -106,6 +117,85 @@ export default function Settings() {
     })
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
+
+  const connectEmbedded = async () => {
+    setWhatsappStep('loading_sdk')
+    try {
+      // 1. Obtener sdk-config del backend (appId, configId, metaPreverifiedId)
+      const configRes = await fetch(`${RAILWAY}/whatsapp/sdk-config?orgId=${orgId}`)
+      const configData = await configRes.json()
+      if (!configRes.ok) throw new Error(configData.error || 'Error al obtener configuración')
+      const { appId, configId, metaPreverifiedId } = configData
+
+      // 2. Cargar FB SDK si no está cargado
+      await new Promise((resolve, reject) => {
+        if (window.FB) return resolve()
+        const script = document.createElement('script')
+        script.src = 'https://connect.facebook.net/en_US/sdk.js'
+        script.onload = () => {
+          window.FB.init({ appId, cookie: true, xfbml: false, version: 'v22.0' })
+          resolve()
+        }
+        script.onerror = reject
+        document.body.appendChild(script)
+      })
+
+      // 3. Escuchar postMessage para capturar wabaId y phoneNumberId
+      let wabaId = null
+      let phoneNumberId = null
+      const messageHandler = (e) => {
+        if (!e.origin.includes('facebook.com')) return
+        try {
+          const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data
+          if (data?.type === 'WA_EMBEDDED_SIGNUP') {
+            wabaId = data.data?.waba_id
+            phoneNumberId = data.data?.phone_number_id
+          }
+        } catch {}
+      }
+      window.addEventListener('message', messageHandler)
+
+      // 4. Lanzar FB.login
+      setWhatsappStep('popup')
+      window.FB.login(async (response) => {
+        window.removeEventListener('message', messageHandler)
+        if (!response?.authResponse?.code) {
+          setWhatsappStep('assigned')
+          return
+        }
+        // 5. Completar signup en backend
+        setWhatsappStep('completing')
+        try {
+          const signupRes = await fetch(`${RAILWAY}/whatsapp/embedded-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orgId, code: response.authResponse.code, wabaId, phoneNumberId }),
+          })
+          const signupData = await signupRes.json()
+          if (!signupRes.ok) throw new Error(signupData.error || 'Error al conectar')
+          // Actualizar estado local
+          setIntegrations(prev => ({ ...prev, whatsapp: { ...prev.whatsapp, connected: true } }))
+          setShowWhatsAppOptions(false)
+          toast.success('¡WhatsApp conectado exitosamente! 🎉')
+        } catch (err) {
+          toast.error(err.message)
+          setWhatsappStep('assigned')
+        }
+      }, {
+        config_id: configId,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {
+            preVerifiedPhone: { ids: [metaPreverifiedId] }
+          }
+        }
+      })
+    } catch (err) {
+      toast.error(err.message)
+      setWhatsappStep('options')
+    }
+  }
 
   const purchaseNumber = async () => {
     setWhatsappStep('verifying')
@@ -234,7 +324,11 @@ export default function Settings() {
               </button>
             ) : !showWhatsAppOptions ? (
               <button
-                onClick={() => setShowWhatsAppOptions(true)}
+                onClick={() => {
+                  setShowWhatsAppOptions(true)
+                  if (assignedNumber) setWhatsappStep('assigned')
+                  else setWhatsappStep('options')
+                }}
                 className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Conectar
@@ -253,20 +347,40 @@ export default function Settings() {
                   <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif",
                     fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Conecta tu WhatsApp Business</div>
                   <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 16 }}>Necesitas un número dedicado para WhatsApp Business API</div>
-                  <div onClick={purchaseNumber}
-                    style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
-                      border: '2px solid #0066ff', marginBottom: 10, cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10,
-                        background: 'rgba(0,102,255,0.08)', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>Obtener número US</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93' }}>$2/mes · Sin OTP · Verificado automáticamente</div>
+
+                  {/* Opción A: número ya asignado por admin */}
+                  {assignedNumber ? (
+                    <div onClick={() => setWhatsappStep('assigned')}
+                      style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
+                        border: '2px solid #25d366', marginBottom: 10, cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10,
+                          background: 'rgba(37,211,102,0.1)', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>Número listo: {assignedNumber.phoneNumber}</div>
+                          <div style={{ fontSize: 12, color: '#8e8e93' }}>Sin OTP · Verificado · Conectar en 1 clic</div>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#25d366' }}>Conectar →</div>
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0066ff' }}>Recomendado →</div>
                     </div>
-                  </div>
+                  ) : (
+                    <div onClick={purchaseNumber}
+                      style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
+                        border: '2px solid #0066ff', marginBottom: 10, cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10,
+                          background: 'rgba(0,102,255,0.08)', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>Obtener número US</div>
+                          <div style={{ fontSize: 12, color: '#8e8e93' }}>$2/mes · Sin OTP · Verificado automáticamente</div>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0066ff' }}>Recomendado →</div>
+                      </div>
+                    </div>
+                  )}
+
                   <div onClick={connectOwnNumber}
                     style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
                       border: '1px solid #e8e8ed', cursor: 'pointer' }}>
@@ -284,6 +398,87 @@ export default function Settings() {
                   <button onClick={() => setShowWhatsAppOptions(false)}
                     style={{ marginTop: 12, background: 'none', border: 'none',
                       color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+                </div>
+              )}
+
+              {/* ESTADO: número asignado por admin — listo para conectar via embedded signup */}
+              {whatsappStep === 'assigned' && assignedNumber && (
+                <div>
+                  <div style={{ padding: '14px 16px', background: 'rgba(37,211,102,0.08)',
+                    border: '1px solid rgba(37,211,102,0.25)', borderRadius: 10, marginBottom: 16 }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#1a7f37', marginBottom: 4 }}>
+                      📱 Número reservado para ti
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#070708' }}>
+                      {assignedNumber.phoneNumber}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
+                      Verificado · Sin OTP · Solo necesitas tu cuenta de Facebook Business
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
+                      Qué va a pasar:
+                    </div>
+                    {[
+                      'Se abrirá una ventana de Meta',
+                      'Inicia sesión con tu cuenta de Facebook Business',
+                      'Selecciona o crea tu cuenta de WhatsApp Business',
+                      `El número ${assignedNumber.phoneNumber} aparece pre-seleccionado — sin OTP`,
+                      'Acepta permisos y cierra la ventana',
+                    ].map((step, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#25d366',
+                          color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {i + 1}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{step}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button onClick={connectEmbedded}
+                    style={{ width: '100%', padding: '14px 20px', background: '#25d366',
+                      color: 'white', border: 'none', borderRadius: 10,
+                      fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                    Conectar WhatsApp →
+                  </button>
+
+                  <button onClick={() => setWhatsappStep('options')}
+                    style={{ marginTop: 8, width: '100%', padding: '10px',
+                      background: 'transparent', border: 'none',
+                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
+                    Volver
+                  </button>
+                </div>
+              )}
+
+              {/* ESTADO: cargando FB SDK */}
+              {whatsappStep === 'loading_sdk' && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Preparando conexión...</div>
+                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Cargando configuración de Meta</div>
+                </div>
+              )}
+
+              {/* ESTADO: popup abierto */}
+              {whatsappStep === 'popup' && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Ventana de Meta abierta</div>
+                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Completa el proceso en la ventana de Facebook</div>
+                </div>
+              )}
+
+              {/* ESTADO: completando signup */}
+              {whatsappStep === 'completing' && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Activando WhatsApp...</div>
+                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Configurando tu canal en Flow Hub</div>
                 </div>
               )}
 

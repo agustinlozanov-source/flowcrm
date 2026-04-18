@@ -1296,6 +1296,107 @@ app.post('/admin/map-account', async (req, res) => {
   }
 })
 
+// POST /admin/assign-number — admin pre-asigna un número a una org para el embedded signup
+// Body: { secret, orgId, phoneNumber, metaPreverifiedId }
+app.post('/admin/assign-number', async (req, res) => {
+  const { secret, orgId, phoneNumber, metaPreverifiedId } = req.body
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  if (!orgId || !phoneNumber || !metaPreverifiedId) return res.status(400).json({ error: 'Missing orgId, phoneNumber or metaPreverifiedId' })
+  try {
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: {
+          assignedNumber: phoneNumber,
+          metaPreverifiedId,
+          status: 'assigned',
+          connected: false,
+          assignedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+    console.log(`[Admin] Número ${phoneNumber} asignado a org ${orgId}`)
+    res.json({ success: true, orgId, phoneNumber, metaPreverifiedId })
+  } catch (err) {
+    console.error('[Admin assign-number] Error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /whatsapp/sdk-config?orgId=xxx — devuelve appId, configId y metaPreverifiedId al frontend
+app.get('/whatsapp/sdk-config', async (req, res) => {
+  const { orgId } = req.query
+  if (!orgId) return res.status(400).json({ error: 'Missing orgId' })
+  try {
+    // Obtener metaPreverifiedId desde Firestore
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const whatsappData = integSnap.exists ? integSnap.data()?.whatsapp : null
+    const metaPreverifiedId = whatsappData?.metaPreverifiedId
+    const phoneNumber = whatsappData?.assignedNumber
+    if (!metaPreverifiedId) return res.status(400).json({ error: 'No hay número asignado para esta org. Contacta al administrador.' })
+
+    // Obtener appId y configId desde Zernio
+    const r = await axios.get('https://zernio.com/api/v1/connect/whatsapp/sdk-config', {
+      headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+    })
+    const { appId, configId } = r.data
+    res.json({ appId, configId, metaPreverifiedId, phoneNumber })
+  } catch (err) {
+    console.error('[WhatsApp sdk-config] Error:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message, detail: err.response?.data })
+  }
+})
+
+// POST /whatsapp/embedded-signup — completa la conexión de WhatsApp via FB SDK
+// Body: { orgId, code, wabaId, phoneNumberId }
+app.post('/whatsapp/embedded-signup', async (req, res) => {
+  const { orgId, code, wabaId, phoneNumberId } = req.body
+  if (!orgId || !code) return res.status(400).json({ error: 'Missing orgId or code' })
+  try {
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+    const assignedNumber = integSnap.data()?.whatsapp?.assignedNumber
+
+    // Llamar a Zernio embedded-signup
+    const r = await axios.post('https://zernio.com/api/v1/connect/whatsapp/embedded-signup', {
+      code,
+      profileId,
+      wabaId,
+      phoneNumberId,
+      isCoexistence: false,
+    }, { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } })
+
+    const accountId = r.data?.account?._id || r.data?.accountId || r.data?.account?.id
+
+    // Mapear en _zernio_account_map
+    if (accountId) {
+      await db.collection('_zernio_account_map').doc(accountId).set({
+        orgId,
+        platform: 'whatsapp',
+        phoneNumber: assignedNumber,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true })
+    }
+
+    // Marcar org como conectada
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: {
+          accountId,
+          connected: true,
+          status: 'connected',
+          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+    console.log(`[WhatsApp embedded-signup] Org ${orgId} conectada. Account: ${accountId}`)
+    res.json({ success: true, accountId, orgId })
+  } catch (err) {
+    console.error('[WhatsApp embedded-signup] Error:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message, detail: err.response?.data })
+  }
+})
+
 // POST /zernio/create-profile
 app.post('/zernio/create-profile', async (req, res) => {
   const { orgId, orgName } = req.body

@@ -3397,6 +3397,12 @@ function ChannelsPanel({ orgs }) {
   const [zAccounts, setZAccounts]     = useState([])
   const [loadingZ, setLoadingZ]       = useState(false)
 
+  // Assign number state
+  const [assignPhone, setAssignPhone]           = useState('')
+  const [assignPreverifiedId, setAssignPreverifiedId] = useState('')
+  const [assigning, setAssigning]               = useState(false)
+  const [assignDone, setAssignDone]             = useState(null)
+
   const selectedOrg = orgs.find(o => o.id === orgId)
   const meta = PLATFORM_META[platform]
 
@@ -3444,6 +3450,28 @@ function ChannelsPanel({ orgs }) {
       toast.error(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAssignNumber = async () => {
+    if (!orgId || !assignPhone || !assignPreverifiedId || !secret) return toast.error('Completa todos los campos')
+    setAssigning(true)
+    setAssignDone(null)
+    try {
+      const res = await fetch(`${RAILWAY}/admin/assign-number`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, orgId, phoneNumber: assignPhone, metaPreverifiedId: assignPreverifiedId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      setAssignDone({ ok: true, msg: `Número ${assignPhone} asignado a ${selectedOrg?.name || orgId}` })
+      toast.success('Número asignado correctamente')
+    } catch (err) {
+      setAssignDone({ ok: false, msg: err.message })
+      toast.error(err.message)
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -3560,6 +3588,56 @@ function ChannelsPanel({ orgs }) {
 
         {/* Panel de instrucciones */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Asignar número pre-verificado — solo WhatsApp */}
+          {platform === 'whatsapp' && (
+            <div className="sa-card">
+              <div className="sa-card-header">
+                <div className="sa-card-title">📱 Asignar número al cliente</div>
+              </div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 14, lineHeight: 1.5 }}>
+                Pre-asigna un número de tu pool para que el cliente lo vea y conecte sin OTP desde la app.
+              </div>
+
+              <div className="sa-form-group">
+                <label className="sa-form-label">Número (con código de país)</label>
+                <input className="sa-form-input" placeholder="+15102280595" value={assignPhone} onChange={e => setAssignPhone(e.target.value)} />
+              </div>
+
+              <div className="sa-form-group">
+                <label className="sa-form-label">Meta Pre-verified ID</label>
+                <input className="sa-form-input" placeholder="26402501039405467" value={assignPreverifiedId} onChange={e => setAssignPreverifiedId(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} />
+              </div>
+
+              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
+                Requiere: Secret + Org seleccionada en el formulario izquierdo.
+              </div>
+
+              <button
+                className="sa-btn sa-btn-blue"
+                onClick={handleAssignNumber}
+                disabled={assigning || !orgId || !assignPhone || !assignPreverifiedId || !secret}
+                style={{ width: '100%' }}
+              >
+                {assigning ? 'Asignando...' : 'Asignar número a org'}
+              </button>
+
+              {assignDone && (
+                <div style={{
+                  marginTop: 12, padding: '10px 13px', borderRadius: 10,
+                  background: assignDone.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
+                  border: `1px solid ${assignDone.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
+                  fontSize: 13, fontWeight: 600,
+                  color: assignDone.ok ? '#1a7f37' : '#c0392b',
+                  display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  {assignDone.ok ? <Check size={15} /> : <AlertCircle size={15} />}
+                  {assignDone.msg}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="sa-card">
             <div className="sa-card-header">
               <div className="sa-card-title">Pasos para conectar</div>
