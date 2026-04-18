@@ -3495,6 +3495,9 @@ function ChannelsPanel({ orgs }) {
             <div className="sa-card-title">Registrar canal</div>
           </div>
 
+          {/* Body con padding */}
+          <div style={{ padding: '20px 20px 16px' }}>
+
           {/* Selector de plataforma */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             {Object.entries(PLATFORM_META).map(([key, m]) => (
@@ -3584,6 +3587,8 @@ function ChannelsPanel({ orgs }) {
               {done.msg}
             </div>
           )}
+
+          </div>{/* /body padding */}
         </div>
 
         {/* Panel de instrucciones */}
@@ -3595,6 +3600,7 @@ function ChannelsPanel({ orgs }) {
               <div className="sa-card-header">
                 <div className="sa-card-title">📱 Asignar número al cliente</div>
               </div>
+              <div style={{ padding: '20px 20px 16px' }}>
               <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 14, lineHeight: 1.5 }}>
                 Pre-asigna un número de tu pool para que el cliente lo vea y conecte sin OTP desde la app.
               </div>
@@ -3635,6 +3641,7 @@ function ChannelsPanel({ orgs }) {
                   {assignDone.msg}
                 </div>
               )}
+              </div>{/* /body padding */}
             </div>
           )}
 
@@ -3642,6 +3649,7 @@ function ChannelsPanel({ orgs }) {
             <div className="sa-card-header">
               <div className="sa-card-title">Pasos para conectar</div>
             </div>
+            <div style={{ padding: '20px 20px 8px' }}>
             {[
               { num: '1', text: 'Conecta el número o cuenta desde el dashboard de Zernio' },
               { num: '2', text: 'Selecciona la org del cliente y la plataforma aquí' },
@@ -3653,12 +3661,14 @@ function ChannelsPanel({ orgs }) {
                 <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
               </div>
             ))}
+            </div>
           </div>
 
           <div className="sa-card">
             <div className="sa-card-header">
               <div className="sa-card-title">¿Qué hace este registro?</div>
             </div>
+            <div style={{ padding: '20px 20px 10px' }}>
             {[
               { icon: '🔗', text: 'Mapea el Account ID al cliente en la base de datos' },
               { icon: '📥', text: 'Los mensajes entrantes se routean al Inbox correcto' },
@@ -3670,6 +3680,7 @@ function ChannelsPanel({ orgs }) {
                 <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s.text}</div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       </div>
