@@ -9,7 +9,7 @@ function ChannelCard({ icon, name, description, connected, onConnect, onDisconne
   return (
     <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white">
       <div className="flex items-center gap-3">
-        <div className="text-2xl">{icon}</div>
+        <img src={icon} alt={name} style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-900">{name}</span>
@@ -266,14 +266,14 @@ export default function Settings() {
   const otherChannels = [
     {
       key: 'facebook',
-      icon: '💬',
+      icon: '/icons/Facebook Icon.png',
       name: 'Facebook Messenger',
       description: 'Conecta tu página de Facebook para recibir mensajes',
       connectUrl: `https://flowcrm-production-6d63.up.railway.app/facebook/connect?orgId=${orgId}`,
     },
     {
       key: 'instagram',
-      icon: '📸',
+      icon: '/icons/Instagram Icon.png',
       name: 'Instagram DM',
       description: 'Recibe mensajes directos de Instagram en tu inbox',
       connectUrl: `https://flowcrm-production-6d63.up.railway.app/instagram/connect?orgId=${orgId}`,
@@ -295,7 +295,7 @@ export default function Settings() {
         <div className="p-4 rounded-xl border border-gray-100 bg-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="text-2xl">📱</div>
+              <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">WhatsApp Business</span>
@@ -354,9 +354,7 @@ export default function Settings() {
                       style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
                         border: '2px solid #25d366', marginBottom: 10, cursor: 'pointer' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10,
-                          background: 'rgba(37,211,102,0.1)', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
+                        <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 40, height: 40, objectFit: 'contain' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>Número listo: {assignedNumber.phoneNumber}</div>
                           <div style={{ fontSize: 12, color: '#8e8e93' }}>Sin OTP · Verificado · Conectar en 1 clic</div>
@@ -369,9 +367,7 @@ export default function Settings() {
                       style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
                         border: '2px solid #0066ff', marginBottom: 10, cursor: 'pointer' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10,
-                          background: 'rgba(0,102,255,0.08)', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>
+                        <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 40, height: 40, objectFit: 'contain' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>Obtener número US</div>
                           <div style={{ fontSize: 12, color: '#8e8e93' }}>$2/mes · Sin OTP · Verificado automáticamente</div>
@@ -387,7 +383,9 @@ export default function Settings() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ width: 40, height: 40, borderRadius: 10,
                         background: '#f5f5f7', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔢</div>
+                        alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🔢</span>
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>Usar mi propio número</div>
                         <div style={{ fontSize: 12, color: '#8e8e93' }}>Requiere verificación OTP</div>
@@ -406,8 +404,9 @@ export default function Settings() {
                 <div>
                   <div style={{ padding: '14px 16px', background: 'rgba(37,211,102,0.08)',
                     border: '1px solid rgba(37,211,102,0.25)', borderRadius: 10, marginBottom: 16 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: '#1a7f37', marginBottom: 4 }}>
-                      📱 Número reservado para ti
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 13, color: '#1a7f37', marginBottom: 4 }}>
+                      <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 20, height: 20, objectFit: 'contain' }} />
+                      Número reservado para ti
                     </div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#070708' }}>
                       {assignedNumber.phoneNumber}
@@ -591,13 +590,7 @@ export default function Settings() {
       >
         <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50">
-              <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-11V7h2v4h4v2h-6v-2z" fill="#4285F4"/>
-                <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" fill="none" stroke="#4285F4" strokeWidth="0"/>
-                <circle cx="12" cy="12" r="10" fill="#fff" opacity="0"/>
-              </svg>
-            </div>
+            <img src="/icons/Google Calendar.png" alt="Google Calendar" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-900">Google Calendar</span>

@@ -226,7 +226,7 @@ const css = `
   }
 
   .sa-input:focus { border-color: #0066ff; }
-  .sa-input::placeholder { color: var(--gray-5); }
+  .sa-input::placeholder { color: #c0c0c5; }
 
   .sa-btn-primary {
     width: 100%; padding: 12px;
@@ -408,7 +408,7 @@ const css = `
     transition: border-color 0.15s; width: 100%;
   }
   .sa-form-input:focus { border-color: #0066ff; }
-  .sa-form-input::placeholder { color: var(--gray-5); }
+  .sa-form-input::placeholder { color: #c0c0c5; }
   .sa-form-select { cursor: pointer; }
   .sa-form-select option { background: white; color: #070708; }
   .sa-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -3381,9 +3381,9 @@ function DistribuidorConfig() {
 const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
 const PLATFORM_META = {
-  whatsapp:  { label: 'WhatsApp',          color: '#25d366', bg: 'rgba(37,211,102,0.1)',  icon: '💬' },
-  facebook:  { label: 'Facebook Messenger', color: '#0084ff', bg: 'rgba(0,132,255,0.1)',   icon: '📘' },
-  instagram: { label: 'Instagram',          color: '#e1306c', bg: 'rgba(225,48,108,0.1)',  icon: '📸' },
+  whatsapp:  { label: 'WhatsApp',           color: '#25d366', bg: 'rgba(37,211,102,0.1)',  icon: '/icons/WhatsApp Icon.png' },
+  facebook:  { label: 'Facebook Messenger', color: '#0084ff', bg: 'rgba(0,132,255,0.1)',   icon: '/icons/Facebook Icon.png' },
+  instagram: { label: 'Instagram',          color: '#e1306c', bg: 'rgba(225,48,108,0.1)',  icon: '/icons/Instagram Icon.png' },
 }
 
 function ChannelsPanel({ orgs }) {
@@ -3489,7 +3489,7 @@ function ChannelsPanel({ orgs }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start', maxWidth: 900 }}>
         <div className="sa-card">
           <div className="sa-card-header">
             <div className="sa-card-title">Registrar canal</div>
@@ -3503,9 +3503,9 @@ function ChannelsPanel({ orgs }) {
                 border: `2px solid ${platform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
                 background: platform === key ? m.bg : 'white',
                 cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 4, transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                alignItems: 'center', gap: 5, transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
               }}>
-                <span style={{ fontSize: 18 }}>{m.icon}</span>
+                <img src={m.icon} alt={m.label} style={{ width: 26, height: 26, objectFit: 'contain' }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: platform === key ? m.color : '#666' }}>{m.label.split(' ')[0]}</span>
               </button>
             ))}
@@ -3513,7 +3513,7 @@ function ChannelsPanel({ orgs }) {
 
           <div className="sa-form-group">
             <label className="sa-form-label">Admin Secret *</label>
-            <input className="sa-form-input" type="password" placeholder="ADMIN_SECRET de Railway" value={secret} onChange={e => setSecret(e.target.value)} />
+            <input className="sa-form-input" type="password" placeholder="ADMIN_SECRET de Railway" value={secret} onChange={e => setSecret(e.target.value)} style={{ '::placeholder': { color: '#ccc' } }} />
           </div>
 
           <div className="sa-form-group">
@@ -3728,7 +3728,7 @@ export default function Superadmin() {
     { id: 'quoter', icon: <ClipboardList size={16} />, label: 'Cotizador' },
     { id: 'implementations', icon: <Calendar size={16} />, label: 'Implementaciones' },
     { id: 'support', icon: <Ticket size={16} />, label: 'Soporte' },
-    { id: 'onboarding', icon: '📋', label: 'Formularios' },
+    { id: 'onboarding', icon: <ClipboardList size={16} />, label: 'Formularios' },
     { id: 'diag_config', icon: <ClipboardList size={16} />, label: 'Diagnóstico' },
     { id: 'diag_resp', icon: <BarChart size={16} />, label: 'Respuestas Diag.' },
     { id: 'pipelines', icon: <Target size={16} />, label: 'Pipeline Builder' },
