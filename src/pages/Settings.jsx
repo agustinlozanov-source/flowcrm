@@ -115,6 +115,10 @@ export default function Settings() {
       if (params.get(ch) === 'connected') toast.success(`${labels[ch]} conectado ✓`)
       if (params.get(ch) === 'error') toast.error(`Error al conectar ${labels[ch]}`)
     })
+    if (params.get('google') === 'connected') {
+      toast.success('Google Calendar conectado ✓')
+      setIntegrations(prev => ({ ...prev, googleCalendar: { connected: true } }))
+    }
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 
@@ -619,7 +623,7 @@ export default function Settings() {
             </button>
           ) : (
             <button
-              onClick={() => { window.location.href = `https://flowcrm-production-6d63.up.railway.app/auth/google?orgId=${orgId}` }}
+              onClick={() => { window.location.href = `https://flowcrm-production-6d63.up.railway.app/meetings/auth/google?orgId=${orgId}&redirect=settings` }}
               className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
             >
               Conectar

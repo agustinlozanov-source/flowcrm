@@ -410,20 +410,23 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 )
 
-// GET /meetings/auth/google?orgId=xxx — Inicia flujo OAuth
+// GET /meetings/auth/google?orgId=xxx&redirect=settings|meetings — Inicia flujo OAuth
 app.get('/meetings/auth/google', (req, res) => {
-  const { orgId } = req.query
+  const { orgId, redirect = 'meetings' } = req.query
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/calendar'],
-    state: orgId,
+    state: JSON.stringify({ orgId, redirect }),
   })
   res.redirect(url)
 })
 
 // GET /meetings/auth/google/callback — Recibe tokens y guarda en Firestore
 app.get('/meetings/auth/google/callback', async (req, res) => {
-  const { code, state: orgId } = req.query
+  const { code, state: rawState } = req.query
+  let orgId = rawState
+  let redirect = 'meetings'
+  try { const s = JSON.parse(rawState); orgId = s.orgId; redirect = s.redirect || 'meetings' } catch {}
   try {
     const { tokens } = await oauth2Client.getToken(code)
     await db.collection('organizations').doc(orgId)
@@ -436,10 +439,10 @@ app.get('/meetings/auth/google/callback', async (req, res) => {
           connectedAt: admin.firestore.FieldValue.serverTimestamp(),
         }
       }, { merge: true })
-    res.redirect(`https://flowcrm.netlify.app/meetings?google=connected`)
+    res.redirect(`https://flowcrm.netlify.app/${redirect}?google=connected`)
   } catch (err) {
     console.error('[Google OAuth] callback error:', err.message)
-    res.redirect(`https://flowcrm.netlify.app/meetings?google=error`)
+    res.redirect(`https://flowcrm.netlify.app/${redirect}?google=error`)
   }
 })
 
