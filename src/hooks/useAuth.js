@@ -12,7 +12,17 @@ export function useAuth() {
   } = useAuthStore()
 
   useEffect(() => {
+    // Timeout de seguridad: si Firebase no responde en 8s, forzar loading=false
+    const timeout = setTimeout(() => {
+      const { loading } = useAuthStore.getState()
+      if (loading) {
+        console.warn('[useAuth] Timeout — Firebase no respondió. Forzando loading=false')
+        useAuthStore.getState().setLoading(false)
+      }
+    }, 8000)
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(timeout)
       if (!firebaseUser) {
         reset()
         return
@@ -94,7 +104,7 @@ export function useAuth() {
       }
     })
 
-    return () => unsub()
+    return () => { unsub(); clearTimeout(timeout) }
   }, [])
 
   return { user, org, role, memberData, loading }

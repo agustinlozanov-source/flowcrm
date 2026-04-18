@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { useAuth } from '@/hooks/useAuth'
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AppLayout from '@/components/layout/AppLayout'
@@ -33,6 +34,8 @@ import RegistroDistribuidorPage from '@/pages/RegistroDistribuidorPage'
 import PortalDistribuidorPage from '@/pages/PortalDistribuidorPage'
 
 export default function App() {
+  useAuth() // singleton — inicializa onAuthStateChanged una sola vez
+
   return (
     <BrowserRouter>
       <Toaster
