@@ -36,10 +36,10 @@ router.get('/auth/google/callback', async (req, res) => {
           connectedAt: admin.firestore.FieldValue.serverTimestamp(),
         }
       }, { merge: true })
-    res.redirect(`https://flowcrm.netlify.app/meetings?google=connected`)
+    res.redirect(`https://flowhubcrm.app/meetings?google=connected`)
   } catch (err) {
     console.error('Google OAuth callback error:', err.message)
-    res.redirect(`https://flowcrm.netlify.app/meetings?google=error`)
+    res.redirect(`https://flowhubcrm.app/meetings?google=error`)
   }
 })
 
