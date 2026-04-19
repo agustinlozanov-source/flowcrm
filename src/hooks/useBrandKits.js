@@ -82,7 +82,7 @@ export function useBrandKits() {
 
   // Real-time listener
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoading(false); return }
     const unsub = onSnapshot(
       query(
         collection(db, 'organizations', orgId, 'brandKits'),
@@ -90,6 +90,10 @@ export function useBrandKits() {
       ),
       snap => {
         setKits(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setLoading(false)
+      },
+      (err) => {
+        console.error('[useBrandKits] onSnapshot error:', err)
         setLoading(false)
       }
     )

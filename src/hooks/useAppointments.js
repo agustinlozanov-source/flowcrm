@@ -43,13 +43,16 @@ export function useAppointments() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoading(false); return }
     const q = query(
       collection(db, 'organizations', orgId, 'appointments'),
       orderBy('scheduledAt', 'asc')
     )
     const unsub = onSnapshot(q, snap => {
       setAppointments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setLoading(false)
+    }, (err) => {
+      console.error('[useAppointments] onSnapshot error:', err)
       setLoading(false)
     })
     return unsub

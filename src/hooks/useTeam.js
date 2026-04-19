@@ -74,11 +74,15 @@ export function useTeam() {
 
   // Real-time members listener
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoading(false); return }
     const unsub = onSnapshot(
       query(collection(db, 'organizations', orgId, 'members'), orderBy('createdAt', 'asc')),
       snap => {
         setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setLoading(false)
+      },
+      (err) => {
+        console.error('[useTeam] onSnapshot error:', err)
         setLoading(false)
       }
     )

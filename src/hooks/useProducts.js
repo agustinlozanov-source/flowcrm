@@ -15,13 +15,16 @@ export function useProducts() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoading(false); return }
     const q = query(
       collection(db, 'organizations', orgId, 'products'),
       orderBy('createdAt', 'desc')
     )
     const unsub = onSnapshot(q, (snap) => {
       setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setLoading(false)
+    }, (err) => {
+      console.error('[useProducts] onSnapshot error:', err)
       setLoading(false)
     })
     return () => unsub()

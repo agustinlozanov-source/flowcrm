@@ -98,19 +98,21 @@ export function usePipeline() {
   }, [pipelines, allStages, activePipelineId])
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoadingStages(false); return }
     const unsub = onSnapshot(
       query(collection(db, 'organizations', orgId, 'pipeline_stages'), orderBy('order', 'asc')),
-      snap => { setAllStages(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingStages(false) }
+      snap => { setAllStages(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingStages(false) },
+      (err) => { console.error('[usePipeline] stages error:', err); setLoadingStages(false) }
     )
     return unsub
   }, [orgId])
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoadingLeads(false); return }
     const unsub = onSnapshot(
       query(collection(db, 'organizations', orgId, 'leads'), orderBy('createdAt', 'desc')),
-      snap => { setLeads(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingLeads(false) }
+      snap => { setLeads(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingLeads(false) },
+      (err) => { console.error('[usePipeline] leads error:', err); setLoadingLeads(false) }
     )
     return unsub
   }, [orgId])
