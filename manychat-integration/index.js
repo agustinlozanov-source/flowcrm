@@ -667,13 +667,38 @@ app.post('/webhook/zernio', (req, res) => {
   const msgText = message?.text || message?.message || ''
   const incomingAccountId = account?.id || account?._id || ''
 
+  console.log(`[Zernio/global] HIT — event: ${event} | account.id: ${incomingAccountId} | account keys: ${Object.keys(account || {}).join(',')} | body keys: ${Object.keys(req.body || {}).join(',')}`)
+
   if (event !== 'message.received' || !msgText) return
-  if (!incomingAccountId) { console.log(`[Zernio/global] Sin account.id`); return }
+  if (!incomingAccountId) {
+    console.log(`[Zernio/global] Sin account.id — account completo:`, JSON.stringify(account))
+    return
+  }
 
   setImmediate(async () => {
     const mapSnap = await db.collection('_zernio_account_map').doc(incomingAccountId).get().catch(() => null)
     if (!mapSnap || !mapSnap.exists) {
-      console.log(`[Zernio/global] account ${incomingAccountId} sin org mapeada`)
+      console.log(`[Zernio/global] account ${incomingAccountId} sin org mapeada — buscando en integrations...`)
+      // Fallback: buscar en todas las orgs cuál tiene este accountId
+      const orgsSnap = await db.collection('organizations').get().catch(() => null)
+      if (orgsSnap) {
+        for (const orgDoc of orgsSnap.docs) {
+          const integSnap = await orgDoc.ref.collection('settings').doc('integrations').get().catch(() => null)
+          const data = integSnap?.data()
+          for (const p of ['facebook', 'instagram', 'whatsapp']) {
+            if (data?.[p]?.accountId === incomingAccountId && data?.[p]?.connected) {
+              console.log(`[Zernio/global] Fallback encontrado: account ${incomingAccountId} → org ${orgDoc.id} (${p}) — escribiendo mapa`)
+              await db.collection('_zernio_account_map').doc(incomingAccountId).set({
+                orgId: orgDoc.id, platform: p,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true }).catch(() => {})
+              processZernioMessage(req.body, orgDoc.id)
+              return
+            }
+          }
+        }
+      }
+      console.log(`[Zernio/global] account ${incomingAccountId} sin org mapeada en ningún lado`)
       return
     }
     const orgId = mapSnap.data().orgId
@@ -1034,6 +1059,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
   const platformKey = rawPlatform === 'instagram' ? 'instagram' : rawPlatform === 'whatsapp' ? 'whatsapp' : 'facebook'
 
   setImmediate(async () => {
+    console.log(`[Zernio/legacy][${orgId}] HIT — platform: ${rawPlatform} | account.id: ${incomingAccountId} | account:`, JSON.stringify(account))
     // Si el mapa ya tiene este account.id asignado a otra org, ignorar
     if (incomingAccountId) {
       const mapSnap = await db.collection('_zernio_account_map').doc(incomingAccountId).get().catch(() => null)
@@ -1046,7 +1072,7 @@ app.post('/webhook/zernio/:orgId', (req, res) => {
     const integSnap = await db.collection('organizations').doc(orgId)
       .collection('settings').doc('integrations').get().catch(() => null)
     if (!integSnap || integSnap.data()?.[platformKey]?.connected !== true) {
-      console.log(`[Zernio/legacy][${orgId}] Ignorado — ${platformKey} no conectado`)
+      console.log(`[Zernio/legacy][${orgId}] Ignorado — ${platformKey} no conectado — integrations:`, JSON.stringify(integSnap?.data()))
       return
     }
     // Actualizar mapa con el account.id real
@@ -1226,6 +1252,38 @@ app.post('/webhook/vapi', async (req, res) => {
 // ── OAuth de canales (WhatsApp / Facebook / Instagram) via Zernio ─────────────
 const APP_URL = 'https://flowhubcrm.app'
 const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
+
+// POST /admin/backfill-account-map?secret=xxx
+// Lee todas las orgs con canales conectados y escribe _zernio_account_map sin que el cliente reconecte
+app.post('/admin/backfill-account-map', async (req, res) => {
+  const { secret } = req.query
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    const orgsSnap = await db.collection('organizations').get()
+    const results = []
+    for (const orgDoc of orgsSnap.docs) {
+      const integSnap = await orgDoc.ref.collection('settings').doc('integrations').get().catch(() => null)
+      if (!integSnap || !integSnap.exists) continue
+      const data = integSnap.data()
+      for (const platform of ['facebook', 'instagram', 'whatsapp']) {
+        const ch = data?.[platform]
+        if (ch?.connected && ch?.accountId) {
+          await db.collection('_zernio_account_map').doc(ch.accountId).set({
+            orgId: orgDoc.id,
+            platform,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          results.push({ orgId: orgDoc.id, platform, accountId: ch.accountId })
+          console.log(`[backfill] ${platform} → org ${orgDoc.id} accountId ${ch.accountId}`)
+        }
+      }
+    }
+    res.json({ ok: true, mapped: results })
+  } catch (err) {
+    console.error('[backfill]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
 
 // GET /admin/zernio-accounts?secret=xxx&platform=whatsapp|facebook|instagram
 // Devuelve los canales conectados en Zernio para seleccionar el account.id correcto
