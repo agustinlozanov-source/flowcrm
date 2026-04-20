@@ -759,7 +759,9 @@ async function processZernioMessage(body, orgId) {
 
     const leadRef = orgRef.collection('leads').doc(leadDocId)
 
-    console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId}`)
+    console.log(`[Zernio] sender.id: ${senderId} | phoneNumber: ${phoneNumber} | leadDocId: ${leadDocId} | platform: ${platform}`)
+    console.log(`[Zernio] message keys: ${Object.keys(message || {}).join(',')}`)
+    console.log(`[Zernio] message.sender:`, JSON.stringify(message?.sender || message?.senderName || 'n/a'))
     console.log(`[Zernio] Escribiendo en Firestore: organizations/${orgId}/leads/${leadDocId}`)
     console.log(`[Zernio] Firebase project: ${process.env.FIREBASE_PROJECT_ID}`)
 
@@ -767,26 +769,21 @@ async function processZernioMessage(body, orgId) {
     try {
       const existingSnap = await leadRef.get()
       if (!existingSnap.exists) {
-        // FIX 5 — mensajes muy cortos/genéricos van a Contactos (sin pipeline)
-        const isGenericMessage = text.trim().split(/\s+/).length < 4
-
-        // Obtener pipeline y etapa por defecto — en try/catch propio para no bloquear la creación del lead
+        // Obtener pipeline y etapa por defecto
         let defaultPipelineId = null
         let stageId = null
-        if (!isGenericMessage) {
-          try {
-            const pipelinesSnap = await orgRef.collection('pipelines')
-              .orderBy('createdAt', 'asc').limit(1).get()
-            defaultPipelineId = pipelinesSnap.empty ? null : pipelinesSnap.docs[0].id
-            if (defaultPipelineId) {
-              const stagesSnap = await orgRef.collection('pipeline_stages')
-                .where('pipelineId', '==', defaultPipelineId)
-                .orderBy('order', 'asc').limit(1).get()
-              stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
-            }
-          } catch (pipeErr) {
-            console.error(`[Zernio][${orgId}] Error al obtener pipeline por defecto (se crea lead sin pipeline):`, pipeErr.message)
+        try {
+          const pipelinesSnap = await orgRef.collection('pipelines')
+            .orderBy('createdAt', 'asc').limit(1).get()
+          defaultPipelineId = pipelinesSnap.empty ? null : pipelinesSnap.docs[0].id
+          if (defaultPipelineId) {
+            const stagesSnap = await orgRef.collection('pipeline_stages')
+              .where('pipelineId', '==', defaultPipelineId)
+              .orderBy('order', 'asc').limit(1).get()
+            stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
           }
+        } catch (pipeErr) {
+          console.error(`[Zernio][${orgId}] Error al obtener pipeline por defecto:`, pipeErr.message)
         }
 
         await leadRef.set({
