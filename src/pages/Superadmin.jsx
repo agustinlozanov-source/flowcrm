@@ -2360,7 +2360,7 @@ function DistribuidoresPanel() {
   }
 
   const revokeDistributor = async (application) => {
-    if (!window.confirm(`¿Revocar distribuidor a ${application.nombre} ${application.apellido_paterno}? Se eliminarán los permisos del portal.`)) return
+    if (!window.confirm(`¿Revocar distribuidor a ${application.nombre} ${application.apellido_paterno}? Se eliminarán los permisos del portal y el pipeline de Flow Hub.`)) return
     setRevoking(application.id)
     try {
       // 1. Revertir status de la solicitud
@@ -2380,10 +2380,26 @@ function DistribuidoresPanel() {
           await updateDoc(doc(db, 'organizations', orgId), {
             isDistribuidor: false,
           })
+
+          // 3. Eliminar pipeline de Flow Hub y sus stages
+          const pipesSnap = await getDocs(
+            query(collection(db, 'organizations', orgId, 'pipelines'), where('isFlowHubPipeline', '==', true))
+          )
+          for (const pipeDoc of pipesSnap.docs) {
+            // Eliminar stages del pipeline
+            const stagesSnap = await getDocs(
+              query(collection(db, 'organizations', orgId, 'pipeline_stages'), where('pipelineId', '==', pipeDoc.id))
+            )
+            for (const stageDoc of stagesSnap.docs) {
+              await deleteDoc(doc(db, 'organizations', orgId, 'pipeline_stages', stageDoc.id))
+            }
+            // Eliminar el pipeline
+            await deleteDoc(doc(db, 'organizations', orgId, 'pipelines', pipeDoc.id))
+          }
         }
       }
 
-      toast.success('Distribuidor revocado correctamente')
+      toast.success('Distribuidor revocado y pipeline de Flow Hub eliminado')
     } catch (err) {
       console.error(err)
       toast.error('Error al revocar: ' + err.message)
