@@ -679,22 +679,41 @@ app.post('/webhook/zernio', (req, res) => {
     const mapSnap = await db.collection('_zernio_account_map').doc(incomingAccountId).get().catch(() => null)
     if (!mapSnap || !mapSnap.exists) {
       console.log(`[Zernio/global] account ${incomingAccountId} sin org mapeada — buscando en integrations...`)
-      // Fallback: buscar en todas las orgs cuál tiene este accountId
+      // Fallback: buscar org que tenga la plataforma conectada
+      // El accountId guardado puede ser distinto al que llega en el webhook (profileId vs accountId real)
+      const rawP = message?.platform || account?.platform || ''
+      function normP(p) {
+        const v = String(p || '').toLowerCase()
+        if (v.includes('facebook') || v.includes('messenger')) return 'facebook'
+        if (v.includes('instagram')) return 'instagram'
+        return 'whatsapp'
+      }
+      const incomingPlatform = normP(rawP)
       const orgsSnap = await db.collection('organizations').get().catch(() => null)
       if (orgsSnap) {
         for (const orgDoc of orgsSnap.docs) {
           const integSnap = await orgDoc.ref.collection('settings').doc('integrations').get().catch(() => null)
           const data = integSnap?.data()
-          for (const p of ['facebook', 'instagram', 'whatsapp']) {
-            if (data?.[p]?.accountId === incomingAccountId && data?.[p]?.connected) {
-              console.log(`[Zernio/global] Fallback encontrado: account ${incomingAccountId} → org ${orgDoc.id} (${p}) — escribiendo mapa`)
-              await db.collection('_zernio_account_map').doc(incomingAccountId).set({
-                orgId: orgDoc.id, platform: p,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true }).catch(() => {})
-              processZernioMessage(req.body, orgDoc.id)
-              return
-            }
+          const ch = data?.[incomingPlatform]
+          if (!ch?.connected) continue
+          // Match por accountId exacto o por username
+          const storedId = ch.accountId || ch.realAccountId || ''
+          const storedUsername = ch.username || ''
+          const incomingUsername = account?.username || account?.displayName || ''
+          const isMatch = storedId === incomingAccountId ||
+            (incomingUsername && storedUsername && incomingUsername === storedUsername)
+          if (isMatch || (!storedId && ch.connected)) {
+            console.log(`[Zernio/global] Fallback match: org ${orgDoc.id} (${incomingPlatform}) storedId=${storedId} username=${storedUsername} — escribiendo mapa con ID real`)
+            // Actualizar Firestore con el accountId real que llega en el webhook
+            await orgDoc.ref.collection('settings').doc('integrations').set({
+              [incomingPlatform]: { accountId: incomingAccountId }
+            }, { merge: true }).catch(() => {})
+            await db.collection('_zernio_account_map').doc(incomingAccountId).set({
+              orgId: orgDoc.id, platform: incomingPlatform,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true }).catch(() => {})
+            processZernioMessage(req.body, orgDoc.id)
+            return
           }
         }
       }
