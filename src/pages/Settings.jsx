@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -78,32 +78,32 @@ export default function Settings() {
 
   const whatsappConnected = integrations?.whatsapp?.connected === true
 
-  // Load integrations from Firestore
+  // Load integrations from Firestore — tiempo real
   useEffect(() => {
     if (!orgId) return
     const ref = doc(db, 'organizations', orgId, 'settings', 'integrations')
-    getDoc(ref).then(snap => {
-      if (snap.exists()) {
-        const data = snap.data()
-        setIntegrations(data)
-        // Flujo legado (pendingNumberId)
-        if (data?.whatsapp?.pendingNumberId && !data?.whatsapp?.connected) {
-          setPurchasedNumber({
-            id: data.whatsapp.pendingNumberId,
-            phoneNumber: data.whatsapp.pendingPhoneNumber,
-          })
-          setWhatsappStep('ready')
-          setShowWhatsAppOptions(true)
-        }
-        // Flujo nuevo (assignedNumber por admin)
-        if (data?.whatsapp?.assignedNumber && !data?.whatsapp?.connected) {
-          setAssignedNumber({
-            phoneNumber: data.whatsapp.assignedNumber,
-            metaPreverifiedId: data.whatsapp.metaPreverifiedId,
-          })
-        }
+    const unsub = onSnapshot(ref, snap => {
+      if (!snap.exists()) return
+      const data = snap.data()
+      setIntegrations(data)
+      // Flujo legado (pendingNumberId)
+      if (data?.whatsapp?.pendingNumberId && !data?.whatsapp?.connected) {
+        setPurchasedNumber({
+          id: data.whatsapp.pendingNumberId,
+          phoneNumber: data.whatsapp.pendingPhoneNumber,
+        })
+        setWhatsappStep('ready')
+        setShowWhatsAppOptions(true)
+      }
+      // Flujo nuevo (assignedNumber por admin)
+      if (data?.whatsapp?.assignedNumber && !data?.whatsapp?.connected) {
+        setAssignedNumber({
+          phoneNumber: data.whatsapp.assignedNumber,
+          metaPreverifiedId: data.whatsapp.metaPreverifiedId,
+        })
       }
     })
+    return unsub
   }, [orgId])
 
   // Detect OAuth callback params and show toast
@@ -312,6 +312,11 @@ export default function Settings() {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                       Conectado
                     </span>
+                  ) : assignedNumber ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                      Número listo · Falta conectar
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
@@ -337,9 +342,9 @@ export default function Settings() {
                   if (assignedNumber) setWhatsappStep('assigned')
                   else setWhatsappStep('options')
                 }}
-                className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
+                className={`text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-colors ${assignedNumber ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-900 hover:bg-gray-700'}`}
               >
-                Conectar
+                {assignedNumber ? `Conectar ${assignedNumber.phoneNumber}` : 'Conectar'}
               </button>
             ) : null}
           </div>
