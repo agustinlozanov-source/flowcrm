@@ -126,83 +126,9 @@ export default function Settings() {
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 
-  const connectEmbedded = async () => {
-    setWhatsappStep('loading_sdk')
-    try {
-      // 1. Obtener sdk-config del backend (appId, configId, metaPreverifiedId)
-      const configRes = await fetch(`${RAILWAY}/whatsapp/sdk-config?orgId=${orgId}`)
-      const configData = await configRes.json()
-      if (!configRes.ok) throw new Error(configData.error || 'Error al obtener configuración')
-      const { appId, configId, metaPreverifiedId } = configData
-
-      // 2. Cargar FB SDK si no está cargado
-      await new Promise((resolve, reject) => {
-        if (window.FB) return resolve()
-        const script = document.createElement('script')
-        script.src = 'https://connect.facebook.net/en_US/sdk.js'
-        script.onload = () => {
-          window.FB.init({ appId, cookie: true, xfbml: false, version: 'v22.0' })
-          resolve()
-        }
-        script.onerror = reject
-        document.body.appendChild(script)
-      })
-
-      // 3. Escuchar postMessage para capturar wabaId y phoneNumberId
-      let wabaId = null
-      let phoneNumberId = null
-      const messageHandler = (e) => {
-        if (!e.origin.includes('facebook.com')) return
-        try {
-          const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data
-          if (data?.type === 'WA_EMBEDDED_SIGNUP') {
-            wabaId = data.data?.waba_id
-            phoneNumberId = data.data?.phone_number_id
-          }
-        } catch {}
-      }
-      window.addEventListener('message', messageHandler)
-
-      // 4. Lanzar FB.login — callback debe ser función regular (no async)
-      setWhatsappStep('popup')
-      window.FB.login((response) => {
-        window.removeEventListener('message', messageHandler)
-        if (!response?.authResponse?.code) {
-          setWhatsappStep('assigned')
-          return
-        }
-        // 5. Completar signup en backend
-        setWhatsappStep('completing')
-        fetch(`${RAILWAY}/whatsapp/embedded-signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orgId, code: response.authResponse.code, wabaId, phoneNumberId }),
-        })
-          .then(res => res.json().then(data => ({ ok: res.ok, data })))
-          .then(({ ok, data }) => {
-            if (!ok) throw new Error(data.error || 'Error al conectar')
-            setIntegrations(prev => ({ ...prev, whatsapp: { ...prev.whatsapp, connected: true } }))
-            setShowWhatsAppOptions(false)
-            toast.success('¡WhatsApp conectado exitosamente! 🎉')
-          })
-          .catch(err => {
-            toast.error(err.message)
-            setWhatsappStep('assigned')
-          })
-      }, {
-        config_id: configId,
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: {
-          setup: {
-            preVerifiedPhone: { ids: [metaPreverifiedId] }
-          }
-        }
-      })
-    } catch (err) {
-      toast.error(err.message)
-      setWhatsappStep('options')
-    }
+  const connectEmbedded = () => {
+    // Redirigir a Railway — Zernio hostea el embedded signup en su dominio
+    window.location.href = `${RAILWAY}/whatsapp/connect?orgId=${orgId}`
   }
 
   const purchaseNumber = async () => {
@@ -412,7 +338,7 @@ export default function Settings() {
                 </div>
               )}
 
-              {/* ESTADO: número asignado por admin — listo para conectar via embedded signup */}
+              {/* ESTADO: número asignado por admin — listo para conectar via Zernio */}
               {whatsappStep === 'assigned' && assignedNumber && (
                 <div>
                   <div style={{ padding: '14px 16px', background: 'rgba(37,211,102,0.08)',
@@ -430,23 +356,21 @@ export default function Settings() {
                   </div>
 
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
-                      Qué va a pasar:
-                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Qué va a pasar:</div>
                     {[
-                      'Se abrirá una ventana de Meta',
+                      'Te redirigimos a la página de conexión de Meta',
                       'Inicia sesión con tu cuenta de Facebook Business',
                       'Selecciona o crea tu cuenta de WhatsApp Business',
                       `El número ${assignedNumber.phoneNumber} aparece pre-seleccionado — sin OTP`,
-                      'Acepta permisos y cierra la ventana',
-                    ].map((step, i) => (
+                      'Acepta permisos — vuelves automáticamente a Flow Hub',
+                    ].map((s, i) => (
                       <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
                         <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#25d366',
                           color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
                           alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {i + 1}
                         </div>
-                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{step}</div>
+                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s}</div>
                       </div>
                     ))}
                   </div>
@@ -464,33 +388,6 @@ export default function Settings() {
                       color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
                     Volver
                   </button>
-                </div>
-              )}
-
-              {/* ESTADO: cargando FB SDK */}
-              {whatsappStep === 'loading_sdk' && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Preparando conexión...</div>
-                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Cargando configuración de Meta</div>
-                </div>
-              )}
-
-              {/* ESTADO: popup abierto */}
-              {whatsappStep === 'popup' && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Ventana de Meta abierta</div>
-                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Completa el proceso en la ventana de Facebook</div>
-                </div>
-              )}
-
-              {/* ESTADO: completando signup */}
-              {whatsappStep === 'completing' && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Activando WhatsApp...</div>
-                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Configurando tu canal en Flow Hub</div>
                 </div>
               )}
 
