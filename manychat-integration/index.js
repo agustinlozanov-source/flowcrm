@@ -699,9 +699,12 @@ app.post('/webhook/zernio', (req, res) => {
           // Match por accountId exacto o por username
           const storedId = ch.accountId || ch.realAccountId || ''
           const storedUsername = ch.username || ''
-          const incomingUsername = account?.username || account?.displayName || ''
+          const storedZernioUsername = ch.zernioUsername || ''
+          const incomingUsername = account?.username || ''
+          const incomingDisplayName = account?.displayName || ''
           const isMatch = storedId === incomingAccountId ||
-            (incomingUsername && storedUsername && incomingUsername === storedUsername)
+            (storedUsername && (incomingUsername === storedUsername || incomingDisplayName === storedUsername)) ||
+            (storedZernioUsername && incomingUsername === storedZernioUsername)
           if (isMatch || (!storedId && ch.connected)) {
             console.log(`[Zernio/global] Fallback match: org ${orgDoc.id} (${incomingPlatform}) storedId=${storedId} username=${storedUsername} — escribiendo mapa con ID real`)
             // Actualizar Firestore con el accountId real que llega en el webhook
@@ -1686,6 +1689,7 @@ function registerChannelOAuth(app, platform) {
         [platform]: {
           accountId,
           ...(username && { username }),
+          ...(req.query.username && { zernioUsername: req.query.username }),
           connected: true,
           connectedAt: admin.firestore.FieldValue.serverTimestamp(),
         }
@@ -1695,6 +1699,7 @@ function registerChannelOAuth(app, platform) {
       await db.collection('_zernio_account_map').doc(accountId).set({
         orgId,
         platform,
+        username: req.query.username || username || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true })
       console.log(`[${platform}] _zernio_account_map registrado — accountId: ${accountId} → org: ${orgId}`)
