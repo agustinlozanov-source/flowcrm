@@ -9,6 +9,13 @@ import { useTeam } from '@/hooks/useTeam'
 
 // ─── SYSTEM STAGES — fixed, not in Firestore ─────────────────────
 export const SYSTEM_STAGES = {
+  cold: {
+    id: 'cold',
+    name: 'Sin respuesta',
+    color: '#8e8e93',
+    description: 'Lead inactivo — no respondió en el tiempo configurado',
+    order: 99,
+  },
   handoff: {
     id: 'handoff',
     name: 'Handoff',

@@ -1618,6 +1618,11 @@ export default function Agent() {
     customInstructions: {},
     enabledProductIds: [],
     scoring: {},
+    followUp: {
+      enabled: false,
+      delayMinutes: 60,
+      maxFollowUps: 1,
+    },
   })
 
   const set = (k, v) => setConfig(c => ({ ...c, [k]: v }))
@@ -1650,6 +1655,7 @@ export default function Agent() {
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
           scoring: data.scoring ?? c.scoring,
           assistantId: data.assistantId,
+          followUp: data.followUp ?? c.followUp,
         }))
       }
     })
@@ -1754,6 +1760,75 @@ export default function Agent() {
                 <Section title="Nombre del agente" desc="Cómo se presenta ante los leads">
                   <input value={config.agentName} onChange={e => set('agentName', e.target.value)}
                     placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
+                </Section>
+
+                <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
+                  <div className="flex items-center gap-3 mb-3">
+                    <button
+                      onClick={() => set('followUp', { ...config.followUp, enabled: !config.followUp?.enabled })}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${
+                        config.followUp?.enabled ? 'bg-accent-blue' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        config.followUp?.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                    <span className="text-sm text-secondary">{config.followUp?.enabled ? 'Activado' : 'Desactivado'}</span>
+                  </div>
+
+                  {config.followUp?.enabled && (
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <label className="text-xs font-semibold text-secondary mb-2 block">Tiempo de inactividad para enviar follow-up</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { label: '30 min', value: 30 },
+                            { label: '1 hora', value: 60 },
+                            { label: '2 horas', value: 120 },
+                            { label: '4 horas', value: 240 },
+                            { label: '6 horas', value: 360 },
+                            { label: '12 horas', value: 720 },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => set('followUp', { ...config.followUp, delayMinutes: opt.value })}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                config.followUp?.delayMinutes === opt.value
+                                  ? 'bg-accent-blue text-white border-accent-blue'
+                                  : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-secondary mb-2 block">¿Cuántos follow-ups si sigue sin responder?</label>
+                        <div className="flex gap-2">
+                          {[1, 2, 3].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => set('followUp', { ...config.followUp, maxFollowUps: n })}
+                              className={`w-10 h-10 rounded-lg text-sm font-bold border transition-all ${
+                                config.followUp?.maxFollowUps === n
+                                  ? 'bg-accent-blue text-white border-accent-blue'
+                                  : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+                              }`}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-tertiary mt-1.5">
+                          Después del último follow-up sin respuesta, el lead pasa a <strong>Sin respuesta</strong> en el pipeline.
+                          {config.followUp?.maxFollowUps > 1 && ` Cada follow-up espera ${config.followUp?.delayMinutes >= 60 ? `${config.followUp?.delayMinutes / 60}h` : `${config.followUp?.delayMinutes}min`} adicionales.`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </Section>
 
                 <Section title="Delay de respuesta"

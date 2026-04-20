@@ -806,6 +806,7 @@ async function processZernioMessage(body, orgId) {
           hasUnread: true,
           lastMessageChannel: platform,
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(conversationId && { zernioConversationId: conversationId }),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         })
@@ -818,6 +819,14 @@ async function processZernioMessage(body, orgId) {
           lastMessageChannel: platform || 'whatsapp',
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          followUpCount: 0,
+          ...(conversationId && { zernioConversationId: conversationId }),
+          // Si estaba cold y volvió a escribir, reactivar
+          ...(existingSnap.data().systemStage === 'cold' ? {
+            systemStage: admin.firestore.FieldValue.delete(),
+            coldAt: admin.firestore.FieldValue.delete(),
+            reactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          } : {}),
         })
         console.log(`[Zernio][${orgId}] Lead actualizado: ${leadDocId} (${senderName})`)
       }
@@ -1781,5 +1790,128 @@ function registerChannelOAuth(app, platform) {
 registerChannelOAuth(app, 'whatsapp')
 registerChannelOAuth(app, 'facebook')
 registerChannelOAuth(app, 'instagram')
+
+// ── FOLLOW-UP CRON — corre cada 5 minutos ──────────────────────────────────
+async function runFollowUpCron() {
+  try {
+    const orgsSnap = await db.collection('organizations').get()
+    for (const orgDoc of orgsSnap.docs) {
+      const orgId = orgDoc.id
+
+      // Leer config del agente
+      const agentSnap = await orgDoc.ref.collection('settings').doc('agent').get().catch(() => null)
+      if (!agentSnap || !agentSnap.exists) continue
+      const agentConfig = agentSnap.data()
+      const followUp = agentConfig?.followUp
+      if (!followUp?.enabled) continue
+
+      const delayMs = (followUp.delayMinutes || 60) * 60 * 1000
+      const maxFollowUps = followUp.maxFollowUps || 1
+
+      // Buscar leads activos (no handoff, no systemStage, no discarded) con lastMessageAt vencido
+      const cutoff = new Date(Date.now() - delayMs)
+      const leadsSnap = await orgDoc.ref.collection('leads')
+        .where('hasUnread', '==', false)
+        .where('lastMessageAt', '<=', cutoff)
+        .get().catch(() => null)
+      if (!leadsSnap) continue
+
+      for (const leadDoc of leadsSnap.docs) {
+        const lead = leadDoc.data()
+
+        // Skip: ya en systemStage (handoff, cold, etc) o descartado
+        if (lead.systemStage || lead.discarded) continue
+        // Skip: último mensaje fue del agente (no del usuario) — verificar rol
+        const lastConvSnap = await leadDoc.ref.collection('conversations')
+          .orderBy('createdAt', 'desc').limit(1).get().catch(() => null)
+        if (!lastConvSnap || lastConvSnap.empty) continue
+        const lastMsg = lastConvSnap.docs[0].data()
+        if (lastMsg.role !== 'user') continue // ya respondimos, esperar al lead
+
+        const followUpCount = lead.followUpCount || 0
+
+        if (followUpCount >= maxFollowUps) {
+          // Máximo alcanzado — mover a cold
+          await leadDoc.ref.update({
+            systemStage: 'cold',
+            coldAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+          console.log(`[FollowUp][${orgId}] Lead ${leadDoc.id} movido a cold — ${followUpCount} follow-ups sin respuesta`)
+          continue
+        }
+
+        // Generar follow-up con Claude
+        try {
+          // Leer historial
+          const histSnap = await leadDoc.ref.collection('conversations')
+            .orderBy('createdAt', 'asc').limitToLast(10).get().catch(() => null)
+          const messages = (histSnap?.docs || []).map(d => ({
+            role: (d.data().role === 'assistant' || d.data().role === 'bot') ? 'assistant' : 'user',
+            content: d.data().text || d.data().content || '',
+          })).filter(m => m.content)
+
+          const systemPrompt = await buildModernSystemPrompt(orgDoc.ref, agentConfig, lead, lead.channel || lead.source || 'whatsapp').catch(() => null)
+          if (!systemPrompt) continue
+
+          const response = await callClaudeWithRetry({
+            model: 'claude-opus-4-5',
+            max_tokens: 300,
+            system: systemPrompt + '\n\nIMPORTANTE: El lead no ha respondido en un tiempo. Genera un mensaje de seguimiento breve, natural y contextual basado en la conversación anterior. No seas insistente. Máximo 2 oraciones.',
+            messages,
+          })
+
+          const followUpText = response.content[0].text
+
+          // Guardar en conversations
+          await leadDoc.ref.collection('conversations').add({
+            role: 'assistant',
+            text: followUpText,
+            content: followUpText,
+            channel: lead.channel || lead.source || 'whatsapp',
+            isFollowUp: true,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+
+          // Actualizar contador
+          await leadDoc.ref.update({
+            followUpCount: (followUpCount + 1),
+            lastFollowUpAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+
+          // Enviar por Zernio
+          const platform = lead.channel || lead.source || 'whatsapp'
+          const integSnap = await orgDoc.ref.collection('settings').doc('integrations').get().catch(() => null)
+          const integData = integSnap?.data()
+          const platformKey = platform === 'messenger' ? 'facebook' : platform
+          const clientAccountId = integData?.[platformKey]?.accountId
+          const conversationId = lead.zernioConversationId
+
+          if (clientAccountId && conversationId) {
+            await axios.post('https://zernio.com/api/v1/messages', {
+              conversationId,
+              accountId: clientAccountId,
+              message: { text: followUpText },
+            }, {
+              headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' }
+            }).catch(e => console.error(`[FollowUp][${orgId}] Error Zernio send:`, e.response?.data || e.message))
+          }
+
+          console.log(`[FollowUp][${orgId}] Follow-up #${followUpCount + 1} enviado a lead ${leadDoc.id} (${lead.name})`)
+        } catch (err) {
+          console.error(`[FollowUp][${orgId}] Error generando follow-up para ${leadDoc.id}:`, err.message)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[FollowUp Cron] Error global:', err.message)
+  }
+}
+
+// Correr cada 5 minutos
+setInterval(runFollowUpCron, 5 * 60 * 1000)
+// Primera ejecución al arrancar (con delay de 1 min para dar tiempo al init)
+setTimeout(runFollowUpCron, 60 * 1000)
 
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
