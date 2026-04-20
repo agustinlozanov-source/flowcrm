@@ -127,8 +127,8 @@ export default function Settings() {
   }, [])
 
   const connectEmbedded = () => {
-    // Redirigir a Railway — Zernio hostea el embedded signup en su dominio
-    window.location.href = `${RAILWAY}/whatsapp/connect?orgId=${orgId}`
+    // Abrir en nueva ventana — Zernio hostea el embedded signup en su dominio
+    window.open(`${RAILWAY}/whatsapp/connect?orgId=${orgId}`, '_blank')
   }
 
   const purchaseNumber = async () => {
