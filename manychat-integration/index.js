@@ -1617,6 +1617,14 @@ function registerChannelOAuth(app, platform) {
         }
       }, { merge: true })
 
+      // 2b. Mapear accountId → orgId para que el webhook global pueda routear
+      await db.collection('_zernio_account_map').doc(accountId).set({
+        orgId,
+        platform,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true })
+      console.log(`[${platform}] _zernio_account_map registrado — accountId: ${accountId} → org: ${orgId}`)
+
       // 3. Registrar webhook global (una sola vez — idempotente por nombre)
       // El account.id real se mapea automáticamente cuando llega el primer webhook
       try {
