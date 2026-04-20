@@ -1684,10 +1684,43 @@ function registerChannelOAuth(app, platform) {
       const integSnap = await orgRef.collection('settings').doc('integrations').get()
       const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
 
-      // 2. Guardar accountId en Firestore
+      // 1b. Consultar Zernio para obtener el account.id REAL (distinto al profileId del OAuth)
+      //     El webhook siempre llega con el id real, no con el profileId del callback
+      let realAccountId = accountId
+      try {
+        const r = await axios.get('https://zernio.com/api/v1/accounts', {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+        })
+        const all = r.data.accounts || r.data || []
+        const platformFilter = platform === 'facebook' ? 'messenger' : platform
+        const match = all.find(a =>
+          (a.platform || '').toLowerCase().includes(platformFilter) &&
+          (a._id === accountId || a.id === accountId ||
+           (username && (a.username === username || a.name === username || a.displayName === username)))
+        )
+        if (match) {
+          realAccountId = match._id || match.id || accountId
+          console.log(`[${platform} Callback] ID real encontrado en Zernio: ${realAccountId} (callback recibió: ${accountId})`)
+        } else {
+          // Tomar el más reciente del mismo platform como fallback
+          const latestForPlatform = all
+            .filter(a => (a.platform || '').toLowerCase().includes(platformFilter))
+            .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0]
+          if (latestForPlatform) {
+            realAccountId = latestForPlatform._id || latestForPlatform.id || accountId
+            console.log(`[${platform} Callback] Fallback al más reciente: ${realAccountId}`)
+          }
+        }
+      } catch (apiErr) {
+        console.error(`[${platform} Callback] No se pudo consultar Zernio accounts:`, apiErr.message)
+        // Continúa con el accountId original del callback
+      }
+
+      // 2. Guardar ambos IDs en Firestore (profileId del callback + accountId real de Zernio)
       await orgRef.collection('settings').doc('integrations').set({
         [platform]: {
-          accountId,
+          accountId: realAccountId,
+          profileId: accountId, // guardar el original también por referencia
           ...(username && { username }),
           ...(req.query.username && { zernioUsername: req.query.username }),
           connected: true,
@@ -1695,14 +1728,21 @@ function registerChannelOAuth(app, platform) {
         }
       }, { merge: true })
 
-      // 2b. Mapear accountId → orgId para que el webhook global pueda routear
-      await db.collection('_zernio_account_map').doc(accountId).set({
+      // 2b. Mapear el ID REAL → orgId en _zernio_account_map
+      await db.collection('_zernio_account_map').doc(realAccountId).set({
         orgId,
         platform,
         username: req.query.username || username || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true })
-      console.log(`[${platform}] _zernio_account_map registrado — accountId: ${accountId} → org: ${orgId}`)
+      // También mapear el profileId original por si acaso
+      if (realAccountId !== accountId) {
+        await db.collection('_zernio_account_map').doc(accountId).set({
+          orgId, platform,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true })
+      }
+      console.log(`[${platform}] _zernio_account_map registrado — realAccountId: ${realAccountId} → org: ${orgId}`)
 
       // 3. Registrar webhook global (una sola vez — idempotente por nombre)
       // El account.id real se mapea automáticamente cuando llega el primer webhook
