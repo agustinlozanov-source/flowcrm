@@ -163,9 +163,9 @@ export default function Settings() {
       }
       window.addEventListener('message', messageHandler)
 
-      // 4. Lanzar FB.login
+      // 4. Lanzar FB.login — callback debe ser función regular (no async)
       setWhatsappStep('popup')
-      window.FB.login(async (response) => {
+      window.FB.login((response) => {
         window.removeEventListener('message', messageHandler)
         if (!response?.authResponse?.code) {
           setWhatsappStep('assigned')
@@ -173,22 +173,22 @@ export default function Settings() {
         }
         // 5. Completar signup en backend
         setWhatsappStep('completing')
-        try {
-          const signupRes = await fetch(`${RAILWAY}/whatsapp/embedded-signup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orgId, code: response.authResponse.code, wabaId, phoneNumberId }),
+        fetch(`${RAILWAY}/whatsapp/embedded-signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId, code: response.authResponse.code, wabaId, phoneNumberId }),
+        })
+          .then(res => res.json().then(data => ({ ok: res.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) throw new Error(data.error || 'Error al conectar')
+            setIntegrations(prev => ({ ...prev, whatsapp: { ...prev.whatsapp, connected: true } }))
+            setShowWhatsAppOptions(false)
+            toast.success('¡WhatsApp conectado exitosamente! 🎉')
           })
-          const signupData = await signupRes.json()
-          if (!signupRes.ok) throw new Error(signupData.error || 'Error al conectar')
-          // Actualizar estado local
-          setIntegrations(prev => ({ ...prev, whatsapp: { ...prev.whatsapp, connected: true } }))
-          setShowWhatsAppOptions(false)
-          toast.success('¡WhatsApp conectado exitosamente! 🎉')
-        } catch (err) {
-          toast.error(err.message)
-          setWhatsappStep('assigned')
-        }
+          .catch(err => {
+            toast.error(err.message)
+            setWhatsappStep('assigned')
+          })
       }, {
         config_id: configId,
         response_type: 'code',
