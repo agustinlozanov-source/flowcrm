@@ -3380,14 +3380,27 @@ function DistribuidorConfig() {
 // ─── CHANNELS PANEL ───
 const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
+const PLATFORM_META = {
+  facebook:  { label: 'Facebook Messenger', color: '#0084ff', bg: 'rgba(0,132,255,0.1)', icon: '/icons/Facebook Icon.png' },
+  instagram: { label: 'Instagram',          color: '#e1306c', bg: 'rgba(225,48,108,0.1)', icon: '/icons/Instagram Icon.png' },
+}
+
 function ChannelsPanel({ orgs }) {
   const [secret, setSecret]         = useState('')
   const [orgId, setOrgId]           = useState('')
   const [zAccounts, setZAccounts]   = useState([])
   const [loadingZ, setLoadingZ]     = useState(false)
-  const [selectedAcc, setSelectedAcc] = useState(null) // { id, label (phone), status }
+  const [selectedAcc, setSelectedAcc] = useState(null)
   const [assigning, setAssigning]   = useState(false)
   const [done, setDone]             = useState(null)
+
+  // Facebook/Instagram map-account state
+  const [mapPlatform, setMapPlatform] = useState('facebook')
+  const [mapAccountId, setMapAccountId] = useState('')
+  const [mapAccounts, setMapAccounts] = useState([])
+  const [loadingMap, setLoadingMap] = useState(false)
+  const [mapping, setMapping] = useState(false)
+  const [mapDone, setMapDone] = useState(null)
 
   const selectedOrg = orgs.find(o => o.id === orgId)
 
@@ -3436,6 +3449,49 @@ function ChannelsPanel({ orgs }) {
       toast.error(err.message)
     } finally {
       setAssigning(false)
+    }
+  }
+
+  const loadMapAccounts = async () => {
+    if (!secret) return toast.error('Ingresa el Admin Secret primero')
+    setLoadingMap(true)
+    setMapAccounts([])
+    setMapAccountId('')
+    try {
+      const res = await fetch(`${RAILWAY}/admin/zernio-accounts?secret=${encodeURIComponent(secret)}&platform=${mapPlatform}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      setMapAccounts(data.accounts || [])
+      if (!data.accounts?.length) toast('No hay cuentas disponibles para este canal')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setLoadingMap(false)
+    }
+  }
+
+  const handleMapAccount = async () => {
+    if (!secret || !orgId || !mapAccountId) return toast.error('Completa todos los campos')
+    setMapping(true)
+    setMapDone(null)
+    try {
+      const res = await fetch(`${RAILWAY}/admin/map-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, orgId, accountId: mapAccountId, platform: mapPlatform }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      const selectedOrg = orgs.find(o => o.id === orgId)
+      setMapDone({ ok: true, msg: `${PLATFORM_META[mapPlatform].label} activado para ${selectedOrg?.name || orgId}` })
+      toast.success('Canal registrado correctamente')
+      setMapAccountId('')
+      setMapAccounts([])
+    } catch (err) {
+      setMapDone({ ok: false, msg: err.message })
+      toast.error(err.message)
+    } finally {
+      setMapping(false)
     }
   }
 
@@ -3587,6 +3643,103 @@ function ChannelsPanel({ orgs }) {
             </div>
           </div>
         </div>
+
+        {/* ── Facebook / Instagram — map-account después de que el cliente conecta ── */}
+        <div className="sa-card" style={{ gridColumn: '1 / -1', maxWidth: 960 }}>
+          <div className="sa-card-header">
+            <div className="sa-card-title">🔗 Activar Facebook / Instagram (post-conexión)</div>
+          </div>
+          <div style={{ padding: '20px 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 16, lineHeight: 1.5 }}>
+                Después de que el cliente conecta Facebook o Instagram desde Settings, usa esto para registrar el canal en Railway y activar el routing de webhooks.
+              </div>
+
+              {/* Selector plataforma */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {Object.entries(PLATFORM_META).map(([key, m]) => (
+                  <button key={key} onClick={() => { setMapPlatform(key); setMapAccounts([]); setMapAccountId('') }} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 10,
+                    border: `2px solid ${mapPlatform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
+                    background: mapPlatform === key ? m.bg : 'white',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 5, fontFamily: 'Inter, sans-serif',
+                  }}>
+                    <img src={m.icon} alt={m.label} style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: mapPlatform === key ? m.color : '#666' }}>{m.label.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="sa-form-group">
+                <label className="sa-form-label">Cuenta conectada</label>
+                <button className="sa-btn sa-btn-ghost sa-btn-sm" onClick={loadMapAccounts} disabled={loadingMap || !secret} style={{ marginBottom: 8, width: 'fit-content' }}>
+                  <RefreshCw size={13} style={{ marginRight: 6 }} />
+                  {loadingMap ? 'Cargando...' : 'Cargar cuentas desde Zernio'}
+                </button>
+                {mapAccounts.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                    {mapAccounts.map(acc => {
+                      const m = PLATFORM_META[mapPlatform]
+                      const isSel = mapAccountId === acc.id
+                      return (
+                        <button key={acc.id} onClick={() => setMapAccountId(isSel ? '' : acc.id)} style={{
+                          padding: '10px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                          border: `2px solid ${isSel ? m.color : 'rgba(0,0,0,0.1)'}`,
+                          background: isSel ? m.bg : 'white',
+                          fontFamily: 'Inter, sans-serif',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{acc.label}</div>
+                            <div style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{acc.id}</div>
+                          </div>
+                          {isSel && <Check size={14} color={m.color} />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <input className="sa-form-input" placeholder="O pega el Account ID manualmente" value={mapAccountId} onChange={e => setMapAccountId(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} />
+              </div>
+
+              <button
+                className="sa-btn sa-btn-blue"
+                onClick={handleMapAccount}
+                disabled={mapping || !secret || !orgId || !mapAccountId}
+                style={{ width: '100%' }}
+              >
+                {mapping ? 'Activando...' : `Activar ${PLATFORM_META[mapPlatform].label}`}
+              </button>
+
+              {mapDone && (
+                <div style={{
+                  marginTop: 12, padding: '11px 14px', borderRadius: 10,
+                  background: mapDone.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
+                  border: `1px solid ${mapDone.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
+                  fontSize: 13, fontWeight: 600,
+                  color: mapDone.ok ? '#1a7f37' : '#c0392b',
+                  display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  {mapDone.ok ? <Check size={15} /> : <AlertCircle size={15} />}
+                  {mapDone.msg}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Flujo correcto:</div>
+              {[
+                '① El cliente conecta Facebook/Instagram desde Settings (OAuth)',
+                '② Vuelves aquí, seleccionas la org y plataforma',
+                '③ Cargas las cuentas y seleccionas la que acaba de conectar',
+                '④ Pulsas "Activar" — Railway mapea el accountId a la org',
+                '⑤ Los webhooks ya se routean al Inbox del cliente',
+              ].map((t, i) => <div key={i} style={{ marginBottom: 6 }}>{t}</div>)}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   )
