@@ -3380,42 +3380,29 @@ function DistribuidorConfig() {
 // ─── CHANNELS PANEL ───
 const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
-const PLATFORM_META = {
-  whatsapp:  { label: 'WhatsApp',           color: '#25d366', bg: 'rgba(37,211,102,0.1)',  icon: '/icons/WhatsApp Icon.png' },
-  facebook:  { label: 'Facebook Messenger', color: '#0084ff', bg: 'rgba(0,132,255,0.1)',   icon: '/icons/Facebook Icon.png' },
-  instagram: { label: 'Instagram',          color: '#e1306c', bg: 'rgba(225,48,108,0.1)',  icon: '/icons/Instagram Icon.png' },
-}
-
 function ChannelsPanel({ orgs }) {
-  const [orgId, setOrgId]             = useState('')
-  const [accountId, setAccountId]     = useState('')
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [platform, setPlatform]       = useState('whatsapp')
-  const [loading, setLoading]         = useState(false)
-  const [secret, setSecret]           = useState('')
-  const [done, setDone]               = useState(null)
-  const [zAccounts, setZAccounts]     = useState([])
-  const [loadingZ, setLoadingZ]       = useState(false)
-
-  // Assign number state
-  const [assignPhone, setAssignPhone]           = useState('')
-  const [assignPreverifiedId, setAssignPreverifiedId] = useState('')
-  const [assigning, setAssigning]               = useState(false)
-  const [assignDone, setAssignDone]             = useState(null)
+  const [secret, setSecret]         = useState('')
+  const [orgId, setOrgId]           = useState('')
+  const [zAccounts, setZAccounts]   = useState([])
+  const [loadingZ, setLoadingZ]     = useState(false)
+  const [selectedAcc, setSelectedAcc] = useState(null) // { id, label (phone), status }
+  const [assigning, setAssigning]   = useState(false)
+  const [done, setDone]             = useState(null)
 
   const selectedOrg = orgs.find(o => o.id === orgId)
-  const meta = PLATFORM_META[platform]
 
   const loadZernioAccounts = async () => {
     if (!secret) return toast.error('Ingresa el Admin Secret primero')
     setLoadingZ(true)
     setZAccounts([])
+    setSelectedAcc(null)
+    setDone(null)
     try {
-      const res = await fetch(`${RAILWAY}/admin/zernio-accounts?secret=${encodeURIComponent(secret)}&platform=${platform}`)
+      const res = await fetch(`${RAILWAY}/admin/zernio-accounts?secret=${encodeURIComponent(secret)}&platform=whatsapp`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
       setZAccounts(data.accounts || [])
-      if (!data.accounts?.length) toast('No se encontraron cuentas conectadas en Zernio para este canal')
+      if (!data.accounts?.length) toast('No hay números disponibles en Zernio')
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -3423,52 +3410,29 @@ function ChannelsPanel({ orgs }) {
     }
   }
 
-  const selectAccount = (acc) => {
-    setAccountId(acc.id)
-    if (acc.label?.startsWith('+')) setPhoneNumber(acc.label)
-  }
-
-  const handleMap = async () => {
-    if (!orgId || !accountId || !secret) return toast.error('Completa todos los campos obligatorios')
-    setLoading(true)
-    setDone(null)
-    try {
-      const res = await fetch(`${RAILWAY}/admin/map-account`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, orgId, accountId, platform, phoneNumber }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error desconocido')
-      setDone({ ok: true, msg: `${meta.label} activado para ${selectedOrg?.name || orgId}` })
-      toast.success('Canal registrado correctamente')
-      setAccountId('')
-      setPhoneNumber('')
-      setZAccounts([])
-    } catch (err) {
-      setDone({ ok: false, msg: err.message })
-      toast.error(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAssignNumber = async () => {
-    if (!orgId || !assignPhone || !assignPreverifiedId || !secret) return toast.error('Completa todos los campos')
+  const handleAssign = async () => {
+    if (!secret || !orgId || !selectedAcc) return toast.error('Completa todos los campos')
     setAssigning(true)
-    setAssignDone(null)
+    setDone(null)
     try {
       const res = await fetch(`${RAILWAY}/admin/assign-number`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, orgId, phoneNumber: assignPhone, metaPreverifiedId: assignPreverifiedId }),
+        body: JSON.stringify({
+          secret,
+          orgId,
+          phoneNumber: selectedAcc.label,
+          metaPreverifiedId: selectedAcc.id,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
-      setAssignDone({ ok: true, msg: `Número ${assignPhone} asignado a ${selectedOrg?.name || orgId}` })
+      setDone({ ok: true, msg: `Número ${selectedAcc.label} asignado a ${selectedOrg?.name || orgId}. El cliente ya puede conectarlo desde Settings.` })
       toast.success('Número asignado correctamente')
+      setSelectedAcc(null)
+      setZAccounts([])
     } catch (err) {
-      setAssignDone({ ok: false, msg: err.message })
+      setDone({ ok: false, msg: err.message })
       toast.error(err.message)
     } finally {
       setAssigning(false)
@@ -3477,209 +3441,149 @@ function ChannelsPanel({ orgs }) {
 
   return (
     <div className="sa-content">
-      <div style={{
-        background: 'rgba(0,102,255,0.06)', border: '1px solid rgba(0,102,255,0.15)',
-        borderRadius: 12, padding: '14px 18px', marginBottom: 24,
-        display: 'flex', gap: 12, alignItems: 'flex-start',
-      }}>
-        <AlertCircle size={16} style={{ color: '#0066ff', marginTop: 1, flexShrink: 0 }} />
-        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>
-          Usa esta pantalla para registrar manualmente un canal que hayas conectado desde el dashboard de Zernio.
-          Esto activa la integración en la app del cliente y routea los webhooks correctamente.
-        </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start', maxWidth: 900 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start', maxWidth: 960 }}>
+
+        {/* ── Formulario principal ── */}
         <div className="sa-card">
           <div className="sa-card-header">
-            <div className="sa-card-title">Registrar canal</div>
+            <div className="sa-card-title">📱 Asignar número WhatsApp</div>
           </div>
+          <div style={{ padding: '20px 20px 20px' }}>
 
-          {/* Body con padding */}
-          <div style={{ padding: '20px 20px 16px' }}>
-
-          {/* Selector de plataforma */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            {Object.entries(PLATFORM_META).map(([key, m]) => (
-              <button key={key} onClick={() => { setPlatform(key); setZAccounts([]); setAccountId('') }} style={{
-                flex: 1, padding: '10px 0', borderRadius: 10,
-                border: `2px solid ${platform === key ? m.color : 'rgba(0,0,0,0.1)'}`,
-                background: platform === key ? m.bg : 'white',
-                cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 5, transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
-              }}>
-                <img src={m.icon} alt={m.label} style={{ width: 26, height: 26, objectFit: 'contain' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: platform === key ? m.color : '#666' }}>{m.label.split(' ')[0]}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="sa-form-group">
-            <label className="sa-form-label">Admin Secret *</label>
-            <input className="sa-form-input" type="password" placeholder="ADMIN_SECRET de Railway" value={secret} onChange={e => setSecret(e.target.value)} style={{ '::placeholder': { color: '#ccc' } }} />
-          </div>
-
-          <div className="sa-form-group">
-            <label className="sa-form-label">Organización *</label>
-            <select className="sa-form-input sa-form-select" value={orgId} onChange={e => setOrgId(e.target.value)}>
-              <option value="">— Selecciona una org —</option>
-              {orgs.map(o => <option key={o.id} value={o.id}>{o.name || o.id}</option>)}
-            </select>
-            {selectedOrg && <span style={{ fontSize: 11, color: '#888', marginTop: 2 }}>ID: {orgId}</span>}
-          </div>
-
-          {/* Cargar desde Zernio */}
-          <div className="sa-form-group">
-            <label className="sa-form-label">Cuenta de Zernio *</label>
-            <button className="sa-btn sa-btn-ghost sa-btn-sm" onClick={loadZernioAccounts} disabled={loadingZ} style={{ marginBottom: 8, width: 'fit-content' }}>
-              <RefreshCw size={13} style={{ marginRight: 6 }} />
-              {loadingZ ? 'Cargando...' : 'Cargar cuentas desde Zernio'}
-            </button>
-
-            {zAccounts.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                {zAccounts.map(acc => (
-                  <button key={acc.id} onClick={() => selectAccount(acc)} style={{
-                    padding: '10px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                    border: `2px solid ${accountId === acc.id ? meta.color : 'rgba(0,0,0,0.1)'}`,
-                    background: accountId === acc.id ? meta.bg : 'white',
-                    transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#070708' }}>{acc.label}</div>
-                      {acc.extra && <div style={{ fontSize: 11, color: '#888' }}>{acc.extra}</div>}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                      {acc.status && <span style={{ fontSize: 10, fontWeight: 700, color: acc.status === 'verified' ? '#1a7f37' : '#666', background: acc.status === 'verified' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', padding: '2px 7px', borderRadius: 20 }}>{acc.status}</span>}
-                      <span style={{ fontSize: 10, color: '#aaa' }}>{acc.id.slice(-8)}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Fallback manual */}
-            <input className="sa-form-input" placeholder="O pega el Account ID manualmente" value={accountId} onChange={e => setAccountId(e.target.value)} />
-          </div>
-
-          {platform === 'whatsapp' && (
+            {/* Paso 1 — Secret */}
             <div className="sa-form-group">
-              <label className="sa-form-label">Número de teléfono</label>
-              <input className="sa-form-input" placeholder="+1 xxx xxx xxxx" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
+              <label className="sa-form-label">① Admin Secret</label>
+              <input
+                className="sa-form-input" type="password"
+                placeholder="ADMIN_SECRET de Railway"
+                value={secret} onChange={e => { setSecret(e.target.value); setZAccounts([]); setSelectedAcc(null) }}
+              />
             </div>
-          )}
 
-          <button className="sa-btn sa-btn-blue" onClick={handleMap} disabled={loading || !orgId || !accountId || !secret} style={{ width: '100%', marginTop: 4 }}>
-            {loading ? 'Registrando...' : `Activar ${meta.label}`}
-          </button>
-
-          {done && (
-            <div style={{
-              marginTop: 14, padding: '11px 14px', borderRadius: 10,
-              background: done.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
-              border: `1px solid ${done.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
-              fontSize: 13, fontWeight: 600,
-              color: done.ok ? '#1a7f37' : '#c0392b',
-              display: 'flex', gap: 8, alignItems: 'center',
-            }}>
-              {done.ok ? <Check size={15} /> : <AlertCircle size={15} />}
-              {done.msg}
+            {/* Paso 2 — Org */}
+            <div className="sa-form-group">
+              <label className="sa-form-label">② Organización destino</label>
+              <select className="sa-form-input sa-form-select" value={orgId} onChange={e => setOrgId(e.target.value)}>
+                <option value="">— Selecciona una org —</option>
+                {orgs.map(o => <option key={o.id} value={o.id}>{o.name || o.id}</option>)}
+              </select>
+              {selectedOrg && (
+                <span style={{ fontSize: 11, color: '#888', marginTop: 3, display: 'block' }}>ID: {orgId}</span>
+              )}
             </div>
-          )}
 
-          </div>{/* /body padding */}
-        </div>
-
-        {/* Panel de instrucciones */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Asignar número pre-verificado — solo WhatsApp */}
-          {platform === 'whatsapp' && (
-            <div className="sa-card">
-              <div className="sa-card-header">
-                <div className="sa-card-title">📱 Asignar número al cliente</div>
-              </div>
-              <div style={{ padding: '20px 20px 16px' }}>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 14, lineHeight: 1.5 }}>
-                Pre-asigna un número de tu pool para que el cliente lo vea y conecte sin OTP desde la app.
-              </div>
-
-              <div className="sa-form-group">
-                <label className="sa-form-label">Número (con código de país)</label>
-                <input className="sa-form-input" placeholder="+15102280595" value={assignPhone} onChange={e => setAssignPhone(e.target.value)} />
-              </div>
-
-              <div className="sa-form-group">
-                <label className="sa-form-label">Meta Pre-verified ID</label>
-                <input className="sa-form-input" placeholder="26402501039405467" value={assignPreverifiedId} onChange={e => setAssignPreverifiedId(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} />
-              </div>
-
-              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
-                Requiere: Secret + Org seleccionada en el formulario izquierdo.
-              </div>
-
+            {/* Paso 3 — Cargar números */}
+            <div className="sa-form-group">
+              <label className="sa-form-label">③ Números disponibles en Zernio</label>
               <button
-                className="sa-btn sa-btn-blue"
-                onClick={handleAssignNumber}
-                disabled={assigning || !orgId || !assignPhone || !assignPreverifiedId || !secret}
-                style={{ width: '100%' }}
+                className="sa-btn sa-btn-ghost sa-btn-sm"
+                onClick={loadZernioAccounts}
+                disabled={loadingZ || !secret}
+                style={{ marginBottom: 10, width: 'fit-content' }}
               >
-                {assigning ? 'Asignando...' : 'Asignar número a org'}
+                <RefreshCw size={13} style={{ marginRight: 6 }} />
+                {loadingZ ? 'Cargando...' : 'Cargar números disponibles'}
               </button>
 
-              {assignDone && (
-                <div style={{
-                  marginTop: 12, padding: '10px 13px', borderRadius: 10,
-                  background: assignDone.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
-                  border: `1px solid ${assignDone.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
-                  fontSize: 13, fontWeight: 600,
-                  color: assignDone.ok ? '#1a7f37' : '#c0392b',
-                  display: 'flex', gap: 8, alignItems: 'center',
-                }}>
-                  {assignDone.ok ? <Check size={15} /> : <AlertCircle size={15} />}
-                  {assignDone.msg}
+              {zAccounts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {zAccounts.map(acc => {
+                    const isSelected = selectedAcc?.id === acc.id
+                    return (
+                      <button key={acc.id} onClick={() => setSelectedAcc(isSelected ? null : acc)} style={{
+                        padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                        border: `2px solid ${isSelected ? '#25d366' : 'rgba(0,0,0,0.1)'}`,
+                        background: isSelected ? 'rgba(37,211,102,0.07)' : 'white',
+                        transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#070708' }}>{acc.label}</div>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2, fontFamily: 'monospace' }}>ID: {acc.id}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          {acc.status && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700,
+                              color: acc.status === 'verified' ? '#1a7f37' : '#666',
+                              background: acc.status === 'verified' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)',
+                              padding: '2px 8px', borderRadius: 20,
+                            }}>{acc.status}</span>
+                          )}
+                          {isSelected && <Check size={14} color="#25d366" />}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
-              </div>{/* /body padding */}
             </div>
-          )}
 
+            {/* Paso 4 — Asignar */}
+            <button
+              className="sa-btn sa-btn-blue"
+              onClick={handleAssign}
+              disabled={assigning || !secret || !orgId || !selectedAcc}
+              style={{ width: '100%', marginTop: 4 }}
+            >
+              {assigning ? 'Asignando...' : selectedAcc ? `Asignar ${selectedAcc.label} a ${selectedOrg?.name || 'org'}` : 'Asignar número a org'}
+            </button>
+
+            {done && (
+              <div style={{
+                marginTop: 14, padding: '12px 14px', borderRadius: 10,
+                background: done.ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)',
+                border: `1px solid ${done.ok ? 'rgba(52,199,89,0.25)' : 'rgba(255,59,48,0.2)'}`,
+                fontSize: 13, fontWeight: 600,
+                color: done.ok ? '#1a7f37' : '#c0392b',
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+              }}>
+                {done.ok ? <Check size={15} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />}
+                {done.msg}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Panel informativo ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="sa-card">
             <div className="sa-card-header">
-              <div className="sa-card-title">Pasos para conectar</div>
+              <div className="sa-card-title">¿Cómo funciona?</div>
             </div>
             <div style={{ padding: '20px 20px 8px' }}>
-            {[
-              { num: '1', text: 'Conecta el número o cuenta desde el dashboard de Zernio' },
-              { num: '2', text: 'Selecciona la org del cliente y la plataforma aquí' },
-              { num: '3', text: 'Pulsa "Cargar cuentas desde Zernio" — verás los números conectados' },
-              { num: '4', text: 'Selecciona el número correcto y pulsa Activar' },
-            ].map(s => (
-              <div key={s.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0066ff', color: 'white', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.num}</div>
-                <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
-              </div>
-            ))}
+              {[
+                { num: '1', text: 'Ingresa el Admin Secret y selecciona la organización del cliente' },
+                { num: '2', text: 'Carga los números disponibles del pool de Zernio' },
+                { num: '3', text: 'Selecciona el número que quieres asignarle' },
+                { num: '4', text: 'Pulsa "Asignar" — el número queda reservado pero no conectado' },
+                { num: '5', text: 'El cliente entra a Settings y ve el número listo para conectar con un clic, sin OTP' },
+              ].map(s => (
+                <div key={s.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0066ff', color: 'white', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.num}</div>
+                  <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="sa-card">
             <div className="sa-card-header">
-              <div className="sa-card-title">¿Qué hace este registro?</div>
+              <div className="sa-card-title">¿Qué pasa después?</div>
             </div>
             <div style={{ padding: '20px 20px 10px' }}>
-            {[
-              { icon: '🔗', text: 'Mapea el Account ID al cliente en la base de datos' },
-              { icon: '📥', text: 'Los mensajes entrantes se routean al Inbox correcto' },
-              { icon: '✅', text: 'Muestra el canal como "Conectado" en la app del cliente' },
-              { icon: '🤖', text: 'Claude puede responder automáticamente desde ese canal' },
-            ].map(s => (
-              <div key={s.icon} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{s.icon}</span>
-                <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s.text}</div>
-              </div>
-            ))}
+              {[
+                { icon: '👤', text: 'El cliente ve en Settings: "Número listo: +1xxx · Conectar en 1 clic"' },
+                { icon: '✅', text: 'Al conectar, se activa el canal y los webhooks se routean a su Inbox' },
+                { icon: '🤖', text: 'Claude puede responder automáticamente desde ese número' },
+                { icon: '📵', text: 'Mientras no conecte, el número no está activo en su cuenta' },
+              ].map(s => (
+                <div key={s.icon} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{s.icon}</span>
+                  <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s.text}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
