@@ -1195,16 +1195,16 @@ async function processZernioMessage(body, orgId) {
         try {
           const videoResp = await axios.post(
             `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-            { accountId: clientAccountId, mediaUrl: videoUrl, mediaType: 'video' },
+            { accountId: clientAccountId, attachment: { type: 'video', url: videoUrl } },
             { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
           )
-          console.log(`[Zernio][${orgId}] Video enviado como media: ${videoUrl} | response: ${JSON.stringify(videoResp.data)}`)
+          console.log(`[Zernio][${orgId}] Video enviado como attachment: ${videoUrl} | response: ${JSON.stringify(videoResp.data)}`)
         } catch (e) {
-          console.error(`[Zernio][${orgId}] Error enviando video — status: ${e.response?.status} | data: ${JSON.stringify(e.response?.data)} | msg: ${e.message}`)
+          console.error(`[Zernio][${orgId}] Error attachment video — status: ${e.response?.status} | data: ${JSON.stringify(e.response?.data)}`)
           // Fallback: enviar como texto con el link
           await axios.post(
             `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-            { accountId: clientAccountId, message: `🎥 Video: ${videoUrl}` },
+            { accountId: clientAccountId, message: `🎥 ${videoUrl}` },
             { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
           ).catch(e2 => console.error(`[Zernio][${orgId}] Error fallback video texto:`, e2.message))
           console.log(`[Zernio][${orgId}] Video enviado como texto (fallback): ${videoUrl}`)
