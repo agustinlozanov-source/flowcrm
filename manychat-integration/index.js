@@ -991,12 +991,31 @@ async function processZernioMessage(body, orgId) {
         }
       }
 
-      // Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
-      const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
-      if (meetingMatch) {
+      // Detectar MEETING_SCHEDULED — puede venir dentro del JSON o fuera como texto
+      let meetingData = null
+      // 1) Buscar dentro del JSON parseado
+      try {
+        const jsonStr = extractFirstJson(rawReply)
+        if (jsonStr) {
+          const parsedFull = JSON.parse(jsonStr)
+          if (parsedFull.MEETING_SCHEDULED) meetingData = parsedFull.MEETING_SCHEDULED
+          else if (parsedFull.meeting_scheduled) meetingData = parsedFull.meeting_scheduled
+        }
+      } catch {}
+      // 2) Buscar fuera del JSON como texto
+      if (!meetingData) {
+        const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})\s*(?:\n|$)/m)
+        if (meetingMatch) {
+          try { meetingData = JSON.parse(meetingMatch[1]) } catch {}
+        }
+      }
+      console.log(`[Zernio][${orgId}] MEETING_SCHEDULED detectado: ${!!meetingData}${meetingData ? ` | scheduledAt: ${meetingData.scheduledAt}` : ''}`)
+      if (!meetingData) {
+        // Log primeros 500 chars del rawReply para diagnóstico
+        console.log(`[Zernio][${orgId}] rawReply preview: ${rawReply.slice(0, 500)}`)
+      }
+      if (meetingData) {
         try {
-          const meetingData = JSON.parse(meetingMatch[1])
-
           // Crear appointment en Firestore
           const apptRef = await orgRef.collection('appointments').add({
             leadId: leadDocId,
@@ -1011,11 +1030,13 @@ async function processZernioMessage(body, orgId) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdBy: 'agent',
           })
+          console.log(`[Zernio][${orgId}] Appointment creado: ${apptRef.id}`)
 
           // Crear evento en Google Calendar y obtener link de Meet
           try {
             const integSnap = await orgRef.collection('settings').doc('integrations').get()
             const tokens = integSnap.data()?.googleCalendar
+            console.log(`[Zernio][${orgId}] Google Calendar connected: ${!!tokens?.connected} | hasAccessToken: ${!!tokens?.accessToken}`)
             if (tokens?.connected) {
               const apptOAuth = new google.auth.OAuth2(
                 process.env.GOOGLE_CLIENT_ID,
@@ -1048,6 +1069,7 @@ async function processZernioMessage(body, orgId) {
                   conferenceData: { createRequest: { requestId: `flowcrm-${apptRef.id}` } },
                 }
               })
+              console.log(`[Zernio][${orgId}] Google Calendar event creado: ${event.data.id}`)
 
               // A veces Google tarda en generar el conferenceData — reintentar hasta 3 veces
               let meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri || ''
@@ -1056,21 +1078,28 @@ async function processZernioMessage(body, orgId) {
                   await new Promise(r => setTimeout(r, 2000))
                   const ev2 = await calendar.events.get({ calendarId: 'primary', eventId: event.data.id })
                   meetLink = ev2.data.conferenceData?.entryPoints?.[0]?.uri || ''
+                  console.log(`[Zernio][${orgId}] Meet link intento ${attempt + 1}: ${meetLink || 'vacío'}`)
                   if (meetLink) break
                 }
               }
 
               if (meetLink) {
                 await apptRef.update({ link: meetLink, googleEventId: event.data.id })
-                // Se enviará como mensaje separado después del reply principal
                 meetLinkToSend = meetLink
                 console.log(`[Zernio][${orgId}] Meet link generado: ${meetLink}`)
               } else {
                 console.warn(`[Zernio][${orgId}] Meet link no disponible después de reintentos`)
+                // Fallback: enviar mensaje indicando que el equipo enviará el enlace
+                meetLinkToSend = '__NO_LINK__'
               }
+            } else {
+              console.warn(`[Zernio][${orgId}] Google Calendar NO conectado — no se puede generar Meet link`)
+              // Fallback: avisar al lead que el equipo le enviará el enlace
+              meetLinkToSend = '__NO_LINK__'
             }
           } catch (calErr) {
             console.error(`[Zernio][${orgId}] Error Google Calendar:`, calErr.message)
+            meetLinkToSend = '__NO_LINK__'
           }
 
           console.log(`[Zernio][${orgId}] Meeting agendado para ${senderName}`)
@@ -1156,13 +1185,16 @@ async function processZernioMessage(body, orgId) {
 
       // Enviar meet link como mensaje separado si fue agendado
       if (meetLinkToSend) {
-        await new Promise(r => setTimeout(r, 800)) // pequeña pausa para que llegue en orden
+        await new Promise(r => setTimeout(r, 800))
+        const meetMessage = meetLinkToSend === '__NO_LINK__'
+          ? '✅ Tu reunión quedó agendada. En breve te enviaremos el enlace para conectarte.'
+          : `🔗 Enlace para tu videollamada:\n${meetLinkToSend}`
         await axios.post(
           `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-          { accountId: clientAccountId, message: `🔗 Enlace para tu videollamada:\n${meetLinkToSend}` },
+          { accountId: clientAccountId, message: meetMessage },
           { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
         ).catch(e => console.error(`[Zernio][${orgId}] Error enviando meet link separado:`, e.message))
-        console.log(`[Zernio][${orgId}] Meet link enviado como mensaje separado`)
+        console.log(`[Zernio][${orgId}] Meet link enviado como mensaje separado: ${meetLinkToSend}`)
       }
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 8 (Zernio API):`, err.response?.data || err.message)
