@@ -255,10 +255,19 @@ ${scoringKeys}
           const delta = Object.values(parsed.scoring).reduce((sum, s) => sum + (s.delta || 0), 0)
           if (delta !== 0) {
             const newScore = Math.max(0, Math.min(100, (lead.score || 0) + delta))
-            await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id).update({
+            const leadDocRef = db.collection('organizations').doc(orgId).collection('leads').doc(lead.id)
+            await leadDocRef.update({
               score: newScore,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             })
+            await leadDocRef.collection('score_events').add({
+              prevScore: lead.score || 0,
+              newScore,
+              delta,
+              categories: parsed.scoring,
+              source: 'meta',
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(() => {})
           }
         }
       }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { doc, collection, addDoc, onSnapshot, serverTimestamp, orderBy, query } from 'firebase/firestore'
+import { doc, collection, addDoc, onSnapshot, serverTimestamp, orderBy, query, limit } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { normalizePhone } from '@/lib/utils'
@@ -13,7 +13,7 @@ import clsx from 'clsx'
 import {
   Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar,
   Package, ChevronDown, Search, Plus, Star, AlertTriangle, Clock,
-  CheckCircle2, XCircle, ArrowRight, Video
+  CheckCircle2, XCircle, ArrowRight, Video, TrendingUp
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -35,11 +35,18 @@ const INTERACTION_TYPES = [
 ]
 
 // ── ScoreRing ────────────────────────────────────────────────────
-function ScoreRing({ score }) {
+function ScoreRing({ score, onClick, hasHistory }) {
   const r = 28, circ = 2 * Math.PI * r, pct = (score || 0) / 100
   const color = score >= 80 ? '#00c853' : score >= 50 ? '#f59e0b' : '#6e6e73'
   return (
-    <div className="relative flex items-center justify-center w-20 h-20">
+    <div
+      className={clsx(
+        'relative flex items-center justify-center w-20 h-20 flex-shrink-0',
+        onClick && 'cursor-pointer'
+      )}
+      onClick={onClick}
+      title={onClick ? 'Ver historial de score' : undefined}
+    >
       <svg width="80" height="80" className="-rotate-90">
         <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="6" />
         <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="6"
@@ -50,6 +57,101 @@ function ScoreRing({ score }) {
         <span className="font-display font-bold text-xl leading-none" style={{ color }}>{score || 0}</span>
         <span className="text-[9px] text-tertiary font-semibold uppercase tracking-wide">score</span>
       </div>
+      {hasHistory && (
+        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-blue flex items-center justify-center">
+          <TrendingUp size={9} className="text-white" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ScoreHistoryPopover ──────────────────────────────────────────
+function ScoreHistoryPopover({ events, onClose }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  const initialScore = events.length > 0 ? events[events.length - 1].prevScore : 0
+
+  return (
+    <div
+      ref={ref}
+      className="absolute left-0 top-24 z-50 w-72 bg-white rounded-2xl border border-black/[0.08] overflow-hidden"
+      style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}
+    >
+      <div className="px-4 py-3 border-b border-black/[0.06] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={14} className="text-accent-blue" />
+          <span className="text-[12px] font-semibold text-primary">Historial de Score</span>
+        </div>
+        <button onClick={onClose} className="text-tertiary hover:text-primary transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+      <div className="max-h-72 overflow-y-auto">
+        {events.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-[12px] text-tertiary">Sin cambios de score registrados</p>
+            <p className="text-[11px] text-tertiary mt-1">Los cambios futuros aparecerán aquí</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-black/[0.05]">
+            {events.map((ev, i) => {
+              const date = ev.createdAt?.toDate
+                ? format(ev.createdAt.toDate(), "d MMM · HH:mm", { locale: es })
+                : ''
+              const isUp = ev.delta > 0
+              const isDown = ev.delta < 0
+              const cats = Object.entries(ev.categories || {})
+                .filter(([, v]) => v.delta !== 0 && v.reason)
+              return (
+                <div key={i} className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={clsx(
+                        'text-[13px] font-bold',
+                        isUp ? 'text-green-600' : isDown ? 'text-red-500' : 'text-tertiary'
+                      )}>
+                        {isUp ? '+' : ''}{ev.delta}
+                      </span>
+                      <span className="text-[11px] text-tertiary">
+                        {ev.prevScore} → {ev.newScore}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-tertiary">{date}</span>
+                  </div>
+                  {cats.length > 0 && (
+                    <div className="space-y-0.5 mt-1">
+                      {cats.map(([catId, v]) => (
+                        <div key={catId} className="flex items-start gap-1">
+                          <span className={clsx(
+                            'text-[10px] font-semibold mt-0.5 flex-shrink-0',
+                            v.delta > 0 ? 'text-green-500' : 'text-red-400'
+                          )}>
+                            {v.delta > 0 ? '▲' : '▼'}
+                          </span>
+                          <span className="text-[11px] text-secondary leading-snug">{v.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      {events.length > 0 && (
+        <div className="px-4 py-2 bg-surface-2 border-t border-black/[0.05]">
+          <p className="text-[11px] text-tertiary">
+            Score inicial: <span className="font-semibold text-secondary">{initialScore}</span>
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -714,6 +816,8 @@ export default function LeadDrawer({ lead, onClose }) {
   const [showDiscard, setShowDiscard] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [scoreEvents, setScoreEvents] = useState([])
+  const [showScoreHistory, setShowScoreHistory] = useState(false)
   const [editForm, setEditForm] = useState({
     name: lead.name || '',
     company: lead.company || '',
@@ -738,6 +842,19 @@ export default function LeadDrawer({ lead, onClose }) {
     )
     const unsub = onSnapshot(q, snap => {
       setInteractions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsub()
+  }, [org?.id, lead.id])
+
+  useEffect(() => {
+    if (!org?.id || !lead.id) return
+    const q = query(
+      collection(db, 'organizations', org.id, 'leads', lead.id, 'score_events'),
+      orderBy('createdAt', 'desc'),
+      limit(30)
+    )
+    const unsub = onSnapshot(q, snap => {
+      setScoreEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
     return () => unsub()
   }, [org?.id, lead.id])
@@ -859,8 +976,18 @@ export default function LeadDrawer({ lead, onClose }) {
         <div className="flex-1 overflow-y-auto">
 
           {/* SCORE + META */}
-          <div className="flex items-center gap-4 px-6 py-4 border-b border-black/[0.06]">
-            <ScoreRing score={lead.score} />
+          <div className="relative flex items-center gap-4 px-6 py-4 border-b border-black/[0.06]">
+            <ScoreRing
+              score={lead.score}
+              hasHistory={scoreEvents.length > 0}
+              onClick={() => setShowScoreHistory(v => !v)}
+            />
+            {showScoreHistory && (
+              <ScoreHistoryPopover
+                events={scoreEvents}
+                onClose={() => setShowScoreHistory(false)}
+              />
+            )}
             <div className="flex-1 flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Fuente</span>

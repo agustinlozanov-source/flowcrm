@@ -334,6 +334,16 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }).catch(() => {})
 
+          // Save score event
+          await orgRef.collection('leads').doc(lead.id).collection('score_events').add({
+            prevScore: lead.score || 0,
+            newScore,
+            delta,
+            categories: parsed.scoring,
+            source: 'whatsapp',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+
           // Mover lead a la etapa correcta según score
           if (lead.pipelineId) {
             try {

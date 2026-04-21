@@ -251,6 +251,21 @@ async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentSco
   }
 
   await leadRef.update(updateData)
+
+  // ── Save score event for history ──
+  const scoringDeltas = parsedResponse.scoring || {}
+  const totalDelta = newScore - currentScore
+  if (totalDelta !== 0 || Object.keys(scoringDeltas).length > 0) {
+    await leadRef.collection('score_events').add({
+      prevScore: currentScore,
+      newScore,
+      delta: totalDelta,
+      categories: scoringDeltas,
+      source: 'agent',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => {})
+  }
+
   return newScore
 }
 
