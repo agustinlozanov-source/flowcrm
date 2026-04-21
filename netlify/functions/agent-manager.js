@@ -75,8 +75,10 @@ ${leadContext.productId ? `- Producto de interés: ${leadContext.productName || 
 
   // Resources available for sharing
   const resourcesSection = resources?.length > 0
-    ? `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nPuedes compartir estos recursos con el lead cuando sea relevante. Incluye la URL directamente en tu respuesta.\n${resources.map(r =>
-        `- [${r.type.toUpperCase()}] "${r.name}": ${r.url}`
+    ? `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue la instrucción de cuándo hacerlo. Incluye la URL directamente en tu respuesta cuando aplique.\n${resources.map(r =>
+        r.whenToShare
+          ? `- [${r.type.toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
+          : `- [${r.type.toUpperCase()}] "${r.name}": ${r.url}`
       ).join('\n')}`
     : ''
 

@@ -1265,7 +1265,7 @@ function ResourcesTab({ orgId }) {
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', type: 'video', url: '' })
+  const [form, setForm] = useState({ name: '', type: 'video', url: '', whenToShare: '' })
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -1282,7 +1282,7 @@ function ResourcesTab({ orgId }) {
     return unsub
   }, [orgId])
 
-  const resetForm = () => { setForm({ name: '', type: 'video', url: '' }); setFile(null); setShowForm(false); setProgress(0) }
+  const resetForm = () => { setForm({ name: '', type: 'video', url: '', whenToShare: '' }); setFile(null); setShowForm(false); setProgress(0) }
 
   const activeType = RESOURCE_TYPES.find(t => t.value === form.type)
   const isLink = form.type === 'enlace'
@@ -1315,6 +1315,7 @@ function ResourcesTab({ orgId }) {
         name: form.name.trim(),
         type: form.type,
         url,
+        whenToShare: form.whenToShare.trim() || null,
         fileName: fileName || null,
         fileSize: fileSize || null,
         storagePath: (!isLink && file) ? `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}` : null,
@@ -1360,7 +1361,7 @@ function ResourcesTab({ orgId }) {
         <div>
           <p className="text-[12.5px] text-amber-800 font-semibold mb-0.5">Recursos para el Agente</p>
           <p className="text-[11.5px] text-amber-700 leading-relaxed">
-            Agrega videos, imágenes, enlaces y archivos. El agente conoce todos estos recursos y puede compartirlos con el lead cuando el prompt de entrenamiento lo indique.
+            Agrega videos, imágenes, enlaces y archivos. Define cuándo compartir cada uno — el agente seguirá esa instrucción durante la conversación.
           </p>
         </div>
       </div>
@@ -1402,7 +1403,20 @@ function ResourcesTab({ orgId }) {
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder={`Ej: Video de presentación del producto, Catálogo ${new Date().getFullYear()}...`}
               className="input text-[13px] py-2" />
-            <p className="text-[10.5px] text-tertiary mt-1">Usa un nombre descriptivo — el agente lo usará para decidir cuándo compartirlo</p>
+            <p className="text-[10.5px] text-tertiary mt-1">Usa un nombre descriptivo para identificar el recurso</p>
+          </div>
+
+          {/* When to share */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">¿Cuándo compartirlo? <span className="normal-case font-normal text-tertiary/70">(recomendado)</span></label>
+            <textarea
+              value={form.whenToShare}
+              onChange={e => setForm(f => ({ ...f, whenToShare: e.target.value }))}
+              placeholder="Ej: Cuando el lead pida ver cómo funciona el producto o solicite una demostración"
+              rows={2}
+              className="input text-[12.5px] leading-relaxed resize-none"
+            />
+            <p className="text-[10.5px] text-tertiary mt-1">El agente compartirá este recurso exactamente cuando se cumpla esta condición</p>
           </div>
 
           {/* URL input (for links) or file upload */}
@@ -1496,6 +1510,11 @@ function ResourcesTab({ orgId }) {
                     {r.fileName && <span className="text-[10.5px] text-tertiary truncate">{r.fileName}</span>}
                     {r.fileSize && <span className="text-[10px] text-tertiary flex-shrink-0">{fmt(r.fileSize)}</span>}
                   </div>
+                  {r.whenToShare && (
+                    <p className="text-[10.5px] text-tertiary mt-1 line-clamp-1" title={r.whenToShare}>
+                      Compartir: {r.whenToShare}
+                    </p>
+                  )}
                 </div>
                 <a href={r.url} target="_blank" rel="noopener noreferrer"
                   className="p-1.5 rounded-[6px] text-tertiary hover:text-accent-blue hover:bg-blue-50 transition-colors flex-shrink-0">
