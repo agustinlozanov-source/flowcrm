@@ -958,6 +958,7 @@ async function processZernioMessage(body, orgId) {
       systemPrompt = built.systemPrompt
       scoringConfig = built.scoringConfig
       agentResources = built.agentResources || []
+      orgTimezone = built.orgTimezone || 'America/Mexico_City'
       console.log(`[Zernio][${orgId}] System prompt construido — ${systemPrompt.length} chars`)
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 6 (buildPrompt):`, err.message)
@@ -968,6 +969,7 @@ async function processZernioMessage(body, orgId) {
     let reply = null
     let videoUrlsToSend = []
     let meetLinkToSend = null
+    let orgTimezone = 'America/Mexico_City'
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
@@ -1064,8 +1066,8 @@ async function processZernioMessage(body, orgId) {
                 conferenceDataVersion: 1,
                 requestBody: {
                   summary: `Reunión con ${senderName}`,
-                  start: { dateTime: start.toISOString(), timeZone: tz || 'America/Mexico_City' },
-                  end: { dateTime: end.toISOString(), timeZone: tz || 'America/Mexico_City' },
+                  start: { dateTime: start.toISOString(), timeZone: orgTimezone },
+                  end: { dateTime: end.toISOString(), timeZone: orgTimezone },
                   conferenceData: { createRequest: { requestId: `flowcrm-${apptRef.id}` } },
                 }
               })
