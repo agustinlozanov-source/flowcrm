@@ -124,6 +124,20 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
       .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
   } catch {}
 
+  // Resources available for sharing
+  let resourcesSection = ''
+  try {
+    const resourcesSnap = await orgRef.collection('agent_resources').orderBy('createdAt', 'desc').get()
+    const resources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
+    if (resources.length) {
+      resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo. Nunca inventes URLs — usa EXACTAMENTE las que están aquí.\n${resources.map(r =>
+        r.whenToShare
+          ? `- [${(r.type || '').toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
+          : `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
+      ).join('\n')}`
+    }
+  } catch {}
+
   // Scoring config for this lead's pipeline
   let scoringConfig = null
   if (pipelineId && agentConfig.scoring?.[pipelineId]) {
@@ -182,6 +196,7 @@ ${scoringSection}
 
 CONTEXTO DEL LEAD:
 - Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
+${resourcesSection}
 
 BASE DE CONOCIMIENTO:
 ${ragContent || 'No hay documentos cargados aún.'}

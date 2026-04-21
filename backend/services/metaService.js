@@ -180,8 +180,10 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     try {
       const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources').get()
       const resources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
-      if (resources.length) resourcesSection = `\nRECURSOS DISPONIBLES:\n${resources.map(r =>
-        `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
+      if (resources.length) resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo. Nunca inventes URLs — usa EXACTAMENTE las que están aquí.\n${resources.map(r =>
+        r.whenToShare
+          ? `- [${(r.type || '').toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
+          : `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
       ).join('\n')}`
     } catch {}
 
