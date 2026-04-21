@@ -131,6 +131,21 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
       .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
   } catch {}
 
+  // Check if lead already has a scheduled meeting
+  let existingMeeting = null
+  try {
+    const apptSnap = await orgRef.collection('appointments')
+      .where('leadId', '==', lead.id)
+      .orderBy('scheduledAt', 'desc').limit(1).get()
+    if (!apptSnap.empty) {
+      const appt = apptSnap.docs[0].data()
+      existingMeeting = {
+        scheduledAt: appt.scheduledAt?.toDate?.() || appt.scheduledAt,
+        link: appt.link || '',
+      }
+    }
+  } catch {}
+
   // Resources available for sharing
   let resourcesSection = ''
   let agentResources = []
@@ -219,6 +234,7 @@ ${scoringSection}
 
 CONTEXTO DEL LEAD:
 - Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
+${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''} — NO emitas MEETING_SCHEDULED de nuevo para esta reunión` : '- Sin reunión agendada aún'}
 ${resourcesSection}
 
 BASE DE CONOCIMIENTO:
@@ -1192,16 +1208,28 @@ async function processZernioMessage(body, orgId) {
       console.log(`[Zernio][${orgId}] Videos a enviar: ${videoUrlsToSend.length}`)
       for (const videoUrl of videoUrlsToSend) {
         await new Promise(r => setTimeout(r, 600))
-        try {
-          const videoResp = await axios.post(
-            `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-            { accountId: clientAccountId, attachment: { type: 'video', url: videoUrl } },
-            { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
-          )
-          console.log(`[Zernio][${orgId}] Video enviado como attachment: ${videoUrl} | response: ${JSON.stringify(videoResp.data)}`)
-        } catch (e) {
-          console.error(`[Zernio][${orgId}] Error attachment video — status: ${e.response?.status} | data: ${JSON.stringify(e.response?.data)}`)
-          // Fallback: enviar como texto con el link
+        // Intentar con attachments (array), luego attachment (objeto), luego texto
+        let videoSent = false
+        for (const body of [
+          { accountId: clientAccountId, attachments: [{ type: 'video', url: videoUrl }] },
+          { accountId: clientAccountId, attachments: [{ type: 'video', payload: { url: videoUrl } }] },
+          { accountId: clientAccountId, attachment: { type: 'video', payload: { url: videoUrl } } },
+        ]) {
+          try {
+            const videoResp = await axios.post(
+              `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
+              body,
+              { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+            )
+            console.log(`[Zernio][${orgId}] Video enviado OK con body keys [${Object.keys(body).join(',')}]: ${JSON.stringify(videoResp.data)}`)
+            videoSent = true
+            break
+          } catch (e) {
+            console.log(`[Zernio][${orgId}] Intento fallido [${Object.keys(body).join(',')}] — ${e.response?.status}: ${JSON.stringify(e.response?.data)}`)
+          }
+        }
+        if (!videoSent) {
+          // Fallback final: enviar como mensaje de texto con el link
           await axios.post(
             `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
             { accountId: clientAccountId, message: `🎥 ${videoUrl}` },
