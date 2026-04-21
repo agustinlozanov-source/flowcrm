@@ -890,6 +890,24 @@ export default function LeadDrawer({ lead, onClose }) {
                   <span className="text-[12.5px] text-primary truncate">{lead.email}</span>
                 </div>
               )}
+              {phoneStr && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-tertiary uppercase tracking-wide w-16">Teléfono</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {(lead.channel === 'whatsapp' || lead.source === 'whatsapp') && (
+                      <MessageCircle size={11} className="text-green-500 flex-shrink-0" />
+                    )}
+                    <a href={`tel:${phoneStr}`}
+                      className="text-[12.5px] font-semibold text-primary hover:text-accent-blue transition-colors truncate">
+                      {phoneStr}
+                    </a>
+                    <a href={`https://wa.me/${phoneStr.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                      className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full hover:bg-green-100 transition-colors flex-shrink-0">
+                      WA
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
