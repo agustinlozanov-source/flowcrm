@@ -1720,13 +1720,21 @@ function registerChannelOAuth(app, platform) {
     try {
       const integSnap = await db.collection('organizations').doc(orgId)
         .collection('settings').doc('integrations').get()
-      const profileId = integSnap.data()?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+      const integData = integSnap.data() || {}
+      const profileId = integData?.zernio?.profileId || process.env.ZERNIO_PROFILE_ID
+
+      // Si es WhatsApp y hay número pre-asignado, pasarlo a Zernio para que Meta lo muestre
+      const params = {
+        profileId,
+        redirect_url: `${RAILWAY_URL}/${platform}/callback?orgId=${orgId}`
+      }
+      if (platform === 'whatsapp' && integData?.whatsapp?.metaPreverifiedId) {
+        params.phone_number_id = integData.whatsapp.metaPreverifiedId
+        console.log(`[WhatsApp Connect] Pasando phone_number_id: ${params.phone_number_id} para org ${orgId}`)
+      }
 
       const response = await axios.get(`https://zernio.com/api/v1/connect/${platform}`, {
-        params: {
-          profileId,
-          redirect_url: `${RAILWAY_URL}/${platform}/callback?orgId=${orgId}`
-        },
+        params,
         headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
       })
       res.redirect(response.data.authUrl)
