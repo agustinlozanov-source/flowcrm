@@ -956,6 +956,7 @@ async function processZernioMessage(body, orgId) {
     // 7. Claude responde
     let reply = null
     let videoUrlsToSend = []
+    let meetLinkToSend = null
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
@@ -980,7 +981,6 @@ async function processZernioMessage(body, orgId) {
       }
 
       // Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
-      let meetLinkToSend = null
       const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
       if (meetingMatch) {
         try {
