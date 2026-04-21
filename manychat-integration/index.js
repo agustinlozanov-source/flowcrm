@@ -255,12 +255,23 @@ ${availablePipelines.map(p => `  · "${p.id}" → ${p.name} (${p.purpose || 'adq
 INSTRUCCIONES PARA AGENDAR REUNIONES:
 Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
 1. En tu respuesta confírmale la reunión y dile que recibirá el enlace en un momento
-2. Al FINAL de tu JSON, después del campo "detectedPipelineId", agrega EXACTAMENTE esto en una línea separada:
-MEETING_SCHEDULED: {"scheduledAt": "2026-04-16T18:00:00${tzOffset}", "duration": 30, "notes": "Demo Flow Hub"}
+2. DESPUÉS de cerrar el JSON (después del "}" final), en una línea nueva y separada, agrega EXACTAMENTE esto:
+MEETING_SCHEDULED: {"scheduledAt": "FECHA_ISO_CONFIRMADA${tzOffset}", "duration": 30, "notes": "Demo Flow Hub"}
+
+Ejemplo de cómo debe quedar la respuesta completa:
+{
+  "response": "¡Perfecto! Tu reunión queda agendada para el martes a las 3pm. En un momento recibirás el enlace.",
+  "scoring": {...},
+  "suggestHandoff": true,
+  "detectedProductId": null,
+  "detectedPipelineId": null
+}
+MEETING_SCHEDULED: {"scheduledAt": "2026-04-22T15:00:00${tzOffset}", "duration": 30, "notes": "Demo Flow Hub"}
 
 IMPORTANTE:
-- Usa la fecha y hora que el lead confirmó
+- Usa la fecha y hora que el lead confirmó (no uses fechas de ejemplo)
 - El formato de scheduledAt es ISO 8601 con offset ${tzOffset} (zona horaria de la org) — SIEMPRE incluye el offset
+- MEETING_SCHEDULED va FUERA del JSON, en una línea separada después del "}" de cierre
 - NO incluyas el enlace de Meet en tu respuesta — se enviará automáticamente como mensaje separado
 - Solo emite MEETING_SCHEDULED cuando el lead haya confirmado fecha Y hora específicas
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
