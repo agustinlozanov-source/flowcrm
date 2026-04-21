@@ -231,14 +231,14 @@ ${availablePipelines.map(p => `  · "${p.id}" → ${p.name} (${p.purpose || 'adq
 
 INSTRUCCIONES PARA AGENDAR REUNIONES:
 Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
-1. En tu respuesta dile que le estás enviando el link ahora mismo
+1. En tu respuesta confírmale la reunión y dile que recibirá el enlace en un momento
 2. Al FINAL de tu JSON, después del campo "detectedPipelineId", agrega EXACTAMENTE esto en una línea separada:
 MEETING_SCHEDULED: {"scheduledAt": "2026-04-16T18:00:00", "duration": 30, "notes": "Demo Flow Hub"}
 
 IMPORTANTE:
 - Usa la fecha y hora que el lead confirmó
 - El formato de scheduledAt es ISO 8601 en hora local México (UTC-6)
-- NO prometas que "alguien más" enviará el link — TÚ lo envías automáticamente
+- NO incluyas el enlace de Meet en tu respuesta — se enviará automáticamente como mensaje separado
 - Solo emite MEETING_SCHEDULED cuando el lead haya confirmado fecha Y hora específicas
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
@@ -934,6 +934,7 @@ async function processZernioMessage(body, orgId) {
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
 
       // Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
+      let meetLinkToSend = null
       const meetingMatch = rawReply.match(/MEETING_SCHEDULED:\s*({[\s\S]*?})/m)
       if (meetingMatch) {
         try {
@@ -1004,7 +1005,8 @@ async function processZernioMessage(body, orgId) {
 
               if (meetLink) {
                 await apptRef.update({ link: meetLink, googleEventId: event.data.id })
-                reply = reply + `\n\nEnlace para tu videollamada: ${meetLink}`
+                // Se enviará como mensaje separado después del reply principal
+                meetLinkToSend = meetLink
                 console.log(`[Zernio][${orgId}] Meet link generado: ${meetLink}`)
               } else {
                 console.warn(`[Zernio][${orgId}] Meet link no disponible después de reintentos`)
@@ -1083,6 +1085,17 @@ async function processZernioMessage(body, orgId) {
         }
       )
       console.log(`[Zernio][${orgId}] Zernio API response:`, JSON.stringify(zernioResponse.data))
+
+      // Enviar meet link como mensaje separado si fue agendado
+      if (meetLinkToSend) {
+        await new Promise(r => setTimeout(r, 800)) // pequeña pausa para que llegue en orden
+        await axios.post(
+          `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
+          { accountId: clientAccountId, message: `🔗 Enlace para tu videollamada:\n${meetLinkToSend}` },
+          { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+        ).catch(e => console.error(`[Zernio][${orgId}] Error enviando meet link separado:`, e.message))
+        console.log(`[Zernio][${orgId}] Meet link enviado como mensaje separado`)
+      }
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 8 (Zernio API):`, err.response?.data || err.message)
     }
