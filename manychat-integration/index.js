@@ -133,9 +133,11 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
 
   // Resources available for sharing
   let resourcesSection = ''
+  let agentResources = []
   try {
     const resourcesSnap = await orgRef.collection('agent_resources').orderBy('createdAt', 'desc').get()
-    const resources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
+    agentResources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
+    const resources = agentResources
     if (resources.length) {
       resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo. Nunca inventes URLs — usa EXACTAMENTE las que están aquí.\n${resources.map(r =>
         r.whenToShare
@@ -264,7 +266,7 @@ IMPORTANTE:
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
 
-  return { systemPrompt, scoringConfig, pipelineId, orgTimezone }
+  return { systemPrompt, scoringConfig, pipelineId, orgTimezone, agentResources }
 }
 
 // ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
@@ -914,6 +916,7 @@ async function processZernioMessage(body, orgId) {
 
     // 4. Config del agente
     let agentConfig = {}
+    let agentResources = []
     try {
       const agentSnap = await orgRef.collection('settings').doc('agent').get()
       agentConfig = agentSnap.exists ? agentSnap.data() : {}
@@ -943,6 +946,7 @@ async function processZernioMessage(body, orgId) {
       const built = await buildModernSystemPrompt(orgRef, agentConfig, leadData, platform || 'whatsapp')
       systemPrompt = built.systemPrompt
       scoringConfig = built.scoringConfig
+      agentResources = built.agentResources || []
       console.log(`[Zernio][${orgId}] System prompt construido — ${systemPrompt.length} chars`)
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 6 (buildPrompt):`, err.message)
@@ -963,6 +967,17 @@ async function processZernioMessage(body, orgId) {
       const { visibleReply, detectedPipelineId } = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
       reply = visibleReply
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
+
+      // Detectar URLs de videos en la respuesta y separarlas para enviarlas como media
+      let videoUrlsToSend = []
+      if (agentResources.length && reply) {
+        for (const resource of agentResources) {
+          if ((resource.type === 'video') && resource.url && reply.includes(resource.url)) {
+            videoUrlsToSend.push(resource.url)
+            reply = reply.replace(resource.url, '').replace(/\s{2,}/g, ' ').trim()
+          }
+        }
+      }
 
       // Detectar MEETING_SCHEDULED + crear Google Calendar event + enviar link al lead
       let meetLinkToSend = null
@@ -1116,6 +1131,17 @@ async function processZernioMessage(body, orgId) {
         }
       )
       console.log(`[Zernio][${orgId}] Zernio API response:`, JSON.stringify(zernioResponse.data))
+
+      // Enviar videos como mensajes de media separados
+      for (const videoUrl of videoUrlsToSend) {
+        await new Promise(r => setTimeout(r, 600))
+        await axios.post(
+          `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
+          { accountId: clientAccountId, mediaUrl: videoUrl, mediaType: 'video' },
+          { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+        ).catch(e => console.error(`[Zernio][${orgId}] Error enviando video:`, e.message))
+        console.log(`[Zernio][${orgId}] Video enviado como media: ${videoUrl}`)
+      }
 
       // Enviar meet link como mensaje separado si fue agendado
       if (meetLinkToSend) {
