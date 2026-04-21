@@ -914,19 +914,23 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, dist
     }
   }, [pipelines])
 
-  // Load files for the active pipeline
+  // Load files for the active pipeline (including files with no pipelineId = global)
   useEffect(() => {
     if (!orgId || !activeId) return
     const q = query(
       collection(db, 'organizations', orgId, 'agent_files'),
-      where('pipelineId', '==', activeId),
       orderBy('createdAt', 'desc')
     )
-    const unsub = onSnapshot(q, snap => setFiles(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+    const unsub = onSnapshot(q, snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // Show files for this pipeline OR files with no pipeline assigned
+      setFiles(all.filter(f => f.pipelineId === activeId || !f.pipelineId))
+    })
     return unsub
   }, [orgId, activeId])
 
   const handleUpload = async (file) => {
+    if (!activeId) { toast.error('Selecciona un pipeline primero'); return }
     if (!ACCEPTED_TYPES_KB.includes(file.type)) { toast.error('Solo PDF, Word o TXT'); return }
     if (file.size > 10 * 1024 * 1024) { toast.error('Máximo 10MB'); return }
     setUploadingFile(true)
@@ -1412,7 +1416,15 @@ function ResourcesTab({ orgId }) {
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">Archivo</label>
               <input ref={fileInputRef} type="file" accept={activeType?.accept} className="hidden"
-                onChange={e => setFile(e.target.files[0] || null)} />
+                onChange={e => {
+                  const f = e.target.files[0] || null
+                  setFile(f)
+                  // Auto-rellenar nombre con el nombre del archivo si está vacío
+                  if (f && !form.name.trim()) {
+                    const nameWithoutExt = f.name.replace(/\.[^/.]+$/, '')
+                    setForm(prev => ({ ...prev, name: nameWithoutExt }))
+                  }
+                }} />
               {file ? (
                 <div className="flex items-center gap-2 p-3 bg-surface-2 rounded-[8px] border border-black/[0.08]">
                   <activeType.icon size={14} style={{ color: activeType.color }} className="flex-shrink-0" />
