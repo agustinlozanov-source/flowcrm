@@ -217,7 +217,7 @@ export default function Settings() {
   ]
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 max-w-2xl mx-auto h-full overflow-y-auto">
       <div className="mb-8">
         <h1 className="text-xl font-semibold text-gray-900">Configuración</h1>
         <p className="text-sm text-gray-500 mt-1">Gestiona tus canales, integraciones y cuenta</p>
