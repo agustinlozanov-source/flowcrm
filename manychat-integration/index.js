@@ -108,6 +108,13 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   const agentName = agentConfig.agentName || 'Asistente'
   const pipelineId = lead.pipelineId || null
 
+  // Read org timezone
+  let orgTimezone = 'America/Mexico_City'
+  try {
+    const orgSnap = await orgRef.get()
+    orgTimezone = orgSnap.data()?.timezone || 'America/Mexico_City'
+  } catch {}
+
   // Load available pipelines for detectedPipelineId hint
   let availablePipelines = []
   try {
@@ -174,12 +181,26 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   const now = new Date()
   const fechaActual = now.toLocaleDateString('es-MX', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    timeZone: 'America/Monterrey',
+    timeZone: orgTimezone,
   })
   const horaActual = now.toLocaleTimeString('es-MX', {
     hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/Monterrey',
+    timeZone: orgTimezone,
   })
+
+  // Get UTC offset string for the org timezone (e.g. "-06:00")
+  const tzOffset = (() => {
+    try {
+      const parts = new Intl.DateTimeFormat('en', { timeZone: orgTimezone, timeZoneName: 'shortOffset' })
+        .formatToParts(now)
+      const off = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT-6'
+      // Convert "GMT-6" or "GMT+5:30" to "-06:00" or "+05:30"
+      const m = off.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/)
+      if (!m) return '-06:00'
+      const sign = m[1], h = m[2].padStart(2, '0'), min = (m[3] || '00')
+      return `${sign}${h}:${min}`
+    } catch { return '-06:00' }
+  })()
 
   const systemPrompt = `Eres ${agentName}, un agente de ventas especializado.
 
@@ -233,17 +254,17 @@ INSTRUCCIONES PARA AGENDAR REUNIONES:
 Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
 1. En tu respuesta confírmale la reunión y dile que recibirá el enlace en un momento
 2. Al FINAL de tu JSON, después del campo "detectedPipelineId", agrega EXACTAMENTE esto en una línea separada:
-MEETING_SCHEDULED: {"scheduledAt": "2026-04-16T18:00:00", "duration": 30, "notes": "Demo Flow Hub"}
+MEETING_SCHEDULED: {"scheduledAt": "2026-04-16T18:00:00${tzOffset}", "duration": 30, "notes": "Demo Flow Hub"}
 
 IMPORTANTE:
 - Usa la fecha y hora que el lead confirmó
-- El formato de scheduledAt es ISO 8601 en hora local México (UTC-6)
+- El formato de scheduledAt es ISO 8601 con offset ${tzOffset} (zona horaria de la org) — SIEMPRE incluye el offset
 - NO incluyas el enlace de Meet en tu respuesta — se enviará automáticamente como mensaje separado
 - Solo emite MEETING_SCHEDULED cuando el lead haya confirmado fecha Y hora específicas
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
 
-  return { systemPrompt, scoringConfig, pipelineId }
+  return { systemPrompt, scoringConfig, pipelineId, orgTimezone }
 }
 
 // ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
@@ -624,7 +645,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       // 5b. Build modern system prompt
       const existingSnap2 = await leadRef.get()
       const leadData = { id: subscriber_id, ...(existingSnap2.exists ? existingSnap2.data() : {}), name }
-      const { systemPrompt, scoringConfig } = await buildModernSystemPrompt(orgRef, agentConfig, leadData, channel)
+      const { systemPrompt, scoringConfig, orgTimezone: tz } = await buildModernSystemPrompt(orgRef, agentConfig, leadData, channel)
       console.log(`[${orgId}] System prompt construido — ${systemPrompt.length} chars`)
 
       // 5. Claude responde
@@ -986,8 +1007,8 @@ async function processZernioMessage(body, orgId) {
                 conferenceDataVersion: 1,
                 requestBody: {
                   summary: `Reunión con ${senderName}`,
-                  start: { dateTime: start.toISOString() },
-                  end: { dateTime: end.toISOString() },
+                  start: { dateTime: start.toISOString(), timeZone: tz || 'America/Mexico_City' },
+                  end: { dateTime: end.toISOString(), timeZone: tz || 'America/Mexico_City' },
                   conferenceData: { createRequest: { requestId: `flowcrm-${apptRef.id}` } },
                 }
               })

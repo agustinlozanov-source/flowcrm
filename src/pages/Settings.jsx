@@ -73,6 +73,8 @@ export default function Settings() {
   const [whatsappStep, setWhatsappStep] = useState('options')
   const [purchasedNumber, setPurchasedNumber] = useState(null)
   const [assignedNumber, setAssignedNumber] = useState(null) // { phoneNumber, metaPreverifiedId }
+  const [timezone, setTimezone] = useState(org?.timezone || 'America/Mexico_City')
+  const [savingTimezone, setSavingTimezone] = useState(false)
 
   const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
@@ -554,6 +556,62 @@ export default function Settings() {
           <div className="flex justify-between items-center">
             <span className="text-xs text-gray-500">Email</span>
             <span className="text-sm text-gray-700">{user?.email || '—'}</span>
+          </div>
+          <div className="border-t border-gray-50" />
+          <div className="flex justify-between items-center gap-3">
+            <div>
+              <span className="text-xs text-gray-500 block">Zona horaria</span>
+              <span className="text-[11px] text-gray-400">Se usa para agendar videollamadas correctamente</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <select
+                value={timezone}
+                onChange={e => setTimezone(e.target.value)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              >
+                <optgroup label="México">
+                  <option value="America/Mexico_City">México Centro (UTC-6)</option>
+                  <option value="America/Monterrey">Monterrey / NL (UTC-6)</option>
+                  <option value="America/Mazatlan">Mazatlán / Noroeste (UTC-7)</option>
+                  <option value="America/Tijuana">Tijuana / Pacifico (UTC-8)</option>
+                </optgroup>
+                <optgroup label="Latinoamérica">
+                  <option value="America/Bogota">Colombia (UTC-5)</option>
+                  <option value="America/Lima">Perú (UTC-5)</option>
+                  <option value="America/Santiago">Chile (UTC-4)</option>
+                  <option value="America/Argentina/Buenos_Aires">Argentina (UTC-3)</option>
+                  <option value="America/Sao_Paulo">Brasil (UTC-3)</option>
+                  <option value="America/Caracas">Venezuela (UTC-4)</option>
+                  <option value="America/Guayaquil">Ecuador (UTC-5)</option>
+                  <option value="America/La_Paz">Bolivia (UTC-4)</option>
+                  <option value="America/Asuncion">Paraguay (UTC-4)</option>
+                  <option value="America/Montevideo">Uruguay (UTC-3)</option>
+                </optgroup>
+                <optgroup label="América del Norte">
+                  <option value="America/New_York">Este EE.UU. (UTC-5)</option>
+                  <option value="America/Chicago">Centro EE.UU. (UTC-6)</option>
+                  <option value="America/Denver">Montaña EE.UU. (UTC-7)</option>
+                  <option value="America/Los_Angeles">Pacífico EE.UU. (UTC-8)</option>
+                </optgroup>
+                <optgroup label="España">
+                  <option value="Europe/Madrid">España (UTC+1)</option>
+                </optgroup>
+              </select>
+              <button
+                onClick={async () => {
+                  setSavingTimezone(true)
+                  try {
+                    await setDoc(doc(db, 'organizations', orgId), { timezone }, { merge: true })
+                    toast.success('Zona horaria guardada')
+                  } catch { toast.error('Error al guardar') }
+                  finally { setSavingTimezone(false) }
+                }}
+                disabled={savingTimezone || timezone === (org?.timezone || 'America/Mexico_City')}
+                className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+              >
+                {savingTimezone ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
           </div>
         </div>
       </Section>
