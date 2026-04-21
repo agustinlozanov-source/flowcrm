@@ -139,7 +139,7 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     agentResources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
     const resources = agentResources
     if (resources.length) {
-      resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo. Nunca inventes URLs — usa EXACTAMENTE las que están aquí.\n${resources.map(r =>
+      resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo.\nIMPORTANTE: cuando compartas un video, escribe la URL COMPLETA Y EXACTA en tu respuesta — NUNCA uses placeholders como [VIDEO], [ENLACE] o similares. El sistema detectará la URL y la enviará automáticamente como video.\n${resources.map(r =>
         r.whenToShare
           ? `- [${(r.type || '').toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
           : `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
@@ -985,16 +985,25 @@ async function processZernioMessage(body, orgId) {
 
       // Detectar URLs de videos en la respuesta y separarlas para enviarlas como media
       if (agentResources.length && reply) {
-        for (const resource of agentResources) {
-          if ((resource.type === 'video') && resource.url && reply.includes(resource.url)) {
+        const videoResources = agentResources.filter(r => r.type === 'video' && r.url)
+        for (const resource of videoResources) {
+          const mentionedByUrl = reply.includes(resource.url)
+          const mentionedByName = resource.name && reply.toLowerCase().includes(resource.name.toLowerCase())
+          const hasVideoPlaceholder = /\[VIDEO\]/i.test(reply)
+          if (mentionedByUrl || mentionedByName || hasVideoPlaceholder) {
             videoUrlsToSend.push(resource.url)
-            reply = reply.replace(resource.url, '').replace(/\s{2,}/g, ' ').trim()
-            console.log(`[Zernio][${orgId}] Video detectado en respuesta: ${resource.url}`)
+            // Limpiar URL, nombre y placeholder del reply
+            reply = reply
+              .replace(resource.url, '')
+              .replace(new RegExp(resource.name ? resource.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '__NOMATCH__', 'gi'), '')
+              .replace(/\[VIDEO\]/gi, '')
+              .replace(/\s{2,}/g, ' ').trim()
+            console.log(`[Zernio][${orgId}] Video detectado — url:${mentionedByUrl} nombre:${mentionedByName} placeholder:${hasVideoPlaceholder} → ${resource.url}`)
+            break // enviar solo el primer video detectado
           }
         }
-        if (videoUrlsToSend.length === 0) {
-          const videoResources = agentResources.filter(r => r.type === 'video')
-          if (videoResources.length) console.log(`[Zernio][${orgId}] Hay ${videoResources.length} recursos video pero ninguno aparece en el reply`)
+        if (videoUrlsToSend.length === 0 && videoResources.length) {
+          console.log(`[Zernio][${orgId}] Hay ${videoResources.length} recursos video pero ninguno mencionado en reply`)
         }
       }
 
