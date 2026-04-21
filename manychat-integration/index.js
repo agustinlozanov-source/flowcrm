@@ -955,6 +955,7 @@ async function processZernioMessage(body, orgId) {
 
     // 7. Claude responde
     let reply = null
+    let videoUrlsToSend = []
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
@@ -969,7 +970,6 @@ async function processZernioMessage(body, orgId) {
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
 
       // Detectar URLs de videos en la respuesta y separarlas para enviarlas como media
-      let videoUrlsToSend = []
       if (agentResources.length && reply) {
         for (const resource of agentResources) {
           if ((resource.type === 'video') && resource.url && reply.includes(resource.url)) {
