@@ -1208,34 +1208,15 @@ async function processZernioMessage(body, orgId) {
       console.log(`[Zernio][${orgId}] Videos a enviar: ${videoUrlsToSend.length}`)
       for (const videoUrl of videoUrlsToSend) {
         await new Promise(r => setTimeout(r, 600))
-        // Intentar con attachments (array), luego attachment (objeto), luego texto
-        let videoSent = false
-        for (const body of [
-          { accountId: clientAccountId, attachments: [{ type: 'video', url: videoUrl }] },
-          { accountId: clientAccountId, attachments: [{ type: 'video', payload: { url: videoUrl } }] },
-          { accountId: clientAccountId, attachment: { type: 'video', payload: { url: videoUrl } } },
-        ]) {
-          try {
-            const videoResp = await axios.post(
-              `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-              body,
-              { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
-            )
-            console.log(`[Zernio][${orgId}] Video enviado OK con body keys [${Object.keys(body).join(',')}]: ${JSON.stringify(videoResp.data)}`)
-            videoSent = true
-            break
-          } catch (e) {
-            console.log(`[Zernio][${orgId}] Intento fallido [${Object.keys(body).join(',')}] — ${e.response?.status}: ${JSON.stringify(e.response?.data)}`)
-          }
-        }
-        if (!videoSent) {
-          // Fallback final: enviar como mensaje de texto con el link
-          await axios.post(
+        try {
+          const videoResp = await axios.post(
             `https://zernio.com/api/v1/inbox/conversations/${conversationId}/messages`,
-            { accountId: clientAccountId, message: `🎥 ${videoUrl}` },
+            { accountId: clientAccountId, attachmentUrl: videoUrl, attachmentType: 'video' },
             { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
-          ).catch(e2 => console.error(`[Zernio][${orgId}] Error fallback video texto:`, e2.message))
-          console.log(`[Zernio][${orgId}] Video enviado como texto (fallback): ${videoUrl}`)
+          )
+          console.log(`[Zernio][${orgId}] Video enviado OK: ${JSON.stringify(videoResp.data)}`)
+        } catch (e) {
+          console.error(`[Zernio][${orgId}] Error enviando video — ${e.response?.status}: ${JSON.stringify(e.response?.data)}`)
         }
       }
 
