@@ -951,6 +951,7 @@ async function processZernioMessage(body, orgId) {
     // 6. Build modern system prompt
     let systemPrompt = ''
     let scoringConfig = null
+    let orgTimezone = 'America/Mexico_City'
     const leadSnap2 = await leadRef.get()
     const leadData = { id: leadDocId, ...(leadSnap2.exists ? leadSnap2.data() : {}), name: senderName || 'Sin nombre' }
     try {
@@ -969,7 +970,6 @@ async function processZernioMessage(body, orgId) {
     let reply = null
     let videoUrlsToSend = []
     let meetLinkToSend = null
-    let orgTimezone = 'America/Mexico_City'
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
