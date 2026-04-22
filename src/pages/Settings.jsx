@@ -252,7 +252,11 @@ export default function Settings() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">Recibe y responde mensajes de WhatsApp automáticamente</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {whatsappConnected && integrations?.whatsapp?.assignedNumber
+                    ? integrations.whatsapp.assignedNumber
+                    : 'Recibe y responde mensajes de WhatsApp automáticamente'}
+                </p>
               </div>
             </div>
             {whatsappConnected ? (
@@ -340,56 +344,32 @@ export default function Settings() {
                 </div>
               )}
 
-              {/* ESTADO: número asignado por admin — listo para conectar via Zernio */}
+              {/* ESTADO: número asignado por admin — ya conectado automáticamente */}
               {whatsappStep === 'assigned' && assignedNumber && (
                 <div>
                   <div style={{ padding: '14px 16px', background: 'rgba(37,211,102,0.08)',
                     border: '1px solid rgba(37,211,102,0.25)', borderRadius: 10, marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 13, color: '#1a7f37', marginBottom: 4 }}>
                       <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-                      Número reservado para ti
+                      Tu número de WhatsApp Business
                     </div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#070708' }}>
                       {assignedNumber.phoneNumber}
                     </div>
                     <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
-                      Verificado · Sin OTP · Solo necesitas tu cuenta de Facebook Business
+                      Número verificado · Listo para usar
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Qué va a pasar:</div>
-                    {[
-                      'Te redirigimos a la página de conexión de Meta',
-                      'Inicia sesión con tu cuenta de Facebook Business',
-                      'Selecciona o crea tu cuenta de WhatsApp Business',
-                      `El número ${assignedNumber.phoneNumber} aparece pre-seleccionado — sin OTP`,
-                      'Acepta permisos — vuelves automáticamente a Flow Hub',
-                    ].map((s, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#25d366',
-                          color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {i + 1}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s}</div>
-                      </div>
-                    ))}
+                  <div style={{ padding: '12px 16px', background: 'rgba(255,149,0,0.07)',
+                    border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10, marginBottom: 16,
+                    fontSize: 13, color: '#7a4f00' }}>
+                    ⚠️ Tu número está asignado pero aún no conectado a la API de WhatsApp. Contacta a soporte para completar la configuración.
                   </div>
 
-                  <button onClick={connectEmbedded}
-                    style={{ width: '100%', padding: '14px 20px', background: '#25d366',
-                      color: 'white', border: 'none', borderRadius: 10,
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-                    Conectar WhatsApp →
-                  </button>
-
-                  <button onClick={() => setWhatsappStep('options')}
-                    style={{ marginTop: 8, width: '100%', padding: '10px',
-                      background: 'transparent', border: 'none',
-                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
-                    Volver
-                  </button>
+                  <button onClick={() => setShowWhatsAppOptions(false)}
+                    style={{ marginTop: 4, background: 'none', border: 'none',
+                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>Cerrar</button>
                 </div>
               )}
 

@@ -3456,8 +3456,11 @@ function ChannelsPanel({ orgs }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
-      setDone({ ok: true, msg: `Número ${selectedAcc.label} asignado a ${selectedOrg?.name || orgId}. El cliente ya puede conectarlo desde Settings.` })
-      toast.success('Número asignado correctamente')
+      const connectedMsg = data.connected
+        ? `✅ Número ${selectedAcc.label} asignado y conectado automáticamente a ${selectedOrg?.name || orgId}.`
+        : `⚠️ Número ${selectedAcc.label} asignado a ${selectedOrg?.name || orgId} pero NO conectado. ${data.warning || ''}`
+      setDone({ ok: true, msg: connectedMsg, connected: data.connected, accountId: data.accountId })
+      toast.success(data.connected ? 'Número asignado y conectado ✅' : 'Número asignado (sin conectar)')
       setSelectedAcc(null)
       setZAccounts([])
     } catch (err) {
@@ -3465,6 +3468,31 @@ function ChannelsPanel({ orgs }) {
       toast.error(err.message)
     } finally {
       setAssigning(false)
+    }
+  }
+
+  const [reconnecting, setReconnecting] = useState(false)
+
+  const handleReconnect = async () => {
+    if (!secret || !orgId) return toast.error('Ingresa Secret y Org')
+    setReconnecting(true)
+    setDone(null)
+    try {
+      const res = await fetch(`${RAILWAY}/admin/connect-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, orgId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      const selectedOrg = orgs.find(o => o.id === orgId)
+      setDone({ ok: true, msg: `✅ WhatsApp conectado para ${selectedOrg?.name || orgId}. accountId: ${data.accountId}`, connected: true })
+      toast.success('WhatsApp conectado ✅')
+    } catch (err) {
+      setDone({ ok: false, msg: err.message })
+      toast.error(err.message)
+    } finally {
+      setReconnecting(false)
     }
   }
 
@@ -3602,6 +3630,15 @@ function ChannelsPanel({ orgs }) {
               {assigning ? 'Asignando...' : selectedAcc ? `Asignar ${selectedAcc.label} a ${selectedOrg?.name || 'org'}` : 'Asignar número a org'}
             </button>
 
+            <button
+              className="sa-btn"
+              onClick={handleReconnect}
+              disabled={reconnecting || !secret || !orgId}
+              style={{ width: '100%', marginTop: 8, background: '#25d366', color: 'white', border: 'none' }}
+            >
+              {reconnecting ? 'Conectando...' : '🔌 Reconectar WhatsApp (ya asignado)'}
+            </button>
+
             {done && (
               <div style={{
                 marginTop: 14, padding: '12px 14px', borderRadius: 10,
@@ -3629,8 +3666,8 @@ function ChannelsPanel({ orgs }) {
                 { num: '1', text: 'Ingresa el Admin Secret y selecciona la organización del cliente' },
                 { num: '2', text: 'Carga los números disponibles del pool de Zernio' },
                 { num: '3', text: 'Selecciona el número que quieres asignarle' },
-                { num: '4', text: 'Pulsa "Asignar" — el número queda reservado pero no conectado' },
-                { num: '5', text: 'El cliente entra a Settings y ve el número listo para conectar con un clic, sin OTP' },
+                { num: '4', text: 'Pulsa "Asignar" — el número se asigna y conecta automáticamente vía Zernio' },
+                { num: '5', text: 'El cliente ve en Settings el número conectado, listo para usar' },
               ].map(s => (
                 <div key={s.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
                   <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0066ff', color: 'white', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.num}</div>
