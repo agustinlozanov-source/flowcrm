@@ -1551,13 +1551,14 @@ app.post('/admin/map-account', async (req, res) => {
   }
 })
 
-// POST /admin/assign-number — admin pre-asigna un número a una org para el embedded signup
+// POST /admin/assign-number — asigna un número a una org y lo conecta automáticamente vía Zernio credentials
 // Body: { secret, orgId, phoneNumber, metaPreverifiedId }
 app.post('/admin/assign-number', async (req, res) => {
   const { secret, orgId, phoneNumber, metaPreverifiedId } = req.body
   if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
   if (!orgId || !phoneNumber || !metaPreverifiedId) return res.status(400).json({ error: 'Missing orgId, phoneNumber or metaPreverifiedId' })
   try {
+    // 1. Save assigned number to Firestore (pending)
     await db.collection('organizations').doc(orgId)
       .collection('settings').doc('integrations').set({
         whatsapp: {
@@ -1569,10 +1570,53 @@ app.post('/admin/assign-number', async (req, res) => {
         }
       }, { merge: true })
     console.log(`[Admin] Número ${phoneNumber} asignado a org ${orgId}`)
-    res.json({ success: true, orgId, phoneNumber, metaPreverifiedId })
+
+    // 2. Get org's Zernio profileId
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const profileId = integSnap.data()?.zernio?.profileId
+    if (!profileId) {
+      console.warn(`[Admin assign-number] No Zernio profileId found for org ${orgId} — skipping auto-connect`)
+      return res.json({ success: true, orgId, phoneNumber, metaPreverifiedId, connected: false, warning: 'No Zernio profile found. Connect manually from Settings.' })
+    }
+
+    // 3. Call Zernio credentials endpoint to auto-connect the number
+    const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
+    const META_WABA_ID = process.env.META_WABA_ID
+    if (!META_SYSTEM_TOKEN || !META_WABA_ID) {
+      console.warn('[Admin assign-number] META_SYSTEM_TOKEN or META_WABA_ID not set — skipping auto-connect')
+      return res.json({ success: true, orgId, phoneNumber, metaPreverifiedId, connected: false, warning: 'META credentials not configured in Railway.' })
+    }
+
+    const zernioRes = await axios.post(
+      'https://zernio.com/api/v1/connect/whatsapp/credentials',
+      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId: metaPreverifiedId },
+      { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+    )
+    const accountId = zernioRes.data?.account?._id || zernioRes.data?.accountId || zernioRes.data?._id
+
+    // 4. Update Firestore — mark connected + save accountId
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: {
+          status: 'active',
+          connected: true,
+          accountId: accountId || null,
+          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      }, { merge: true })
+
+    // 5. Save accountId in global map
+    if (accountId) {
+      await db.collection('_zernio_account_map').doc(accountId).set({ orgId, phoneNumber, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+    }
+
+    console.log(`[Admin assign-number] ✅ Número ${phoneNumber} conectado para org ${orgId} — accountId: ${accountId}`)
+    res.json({ success: true, orgId, phoneNumber, metaPreverifiedId, connected: true, accountId })
   } catch (err) {
-    console.error('[Admin assign-number] Error:', err.message)
-    res.status(500).json({ error: err.message })
+    const detail = err.response?.data || err.message
+    console.error('[Admin assign-number] Error:', detail)
+    res.status(500).json({ error: err.message, detail })
   }
 })
 
