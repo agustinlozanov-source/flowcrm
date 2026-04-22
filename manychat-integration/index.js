@@ -2300,6 +2300,80 @@ app.get('/telnyx/otp/:phoneNumber', async (req, res) => {
   }
 })
 
+// POST /webhook/telnyx/voice — maneja llamadas entrantes de Telnyx (OTPs de Meta por voz)
+app.post('/webhook/telnyx/voice', async (req, res) => {
+  res.sendStatus(200) // siempre 200 inmediato
+  const event = req.body
+  const eventType = event?.data?.event_type
+  const payload = event?.data?.payload
+  const callControlId = payload?.call_control_id
+  const toNumber = payload?.to
+  console.log(`[Telnyx Voice] event_type: ${eventType} | call_control_id: ${callControlId} | to: ${toNumber}`)
+
+  const telnyxHeaders = {
+    Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+    'Content-Type': 'application/json',
+  }
+
+  if (eventType === 'call.initiated') {
+    try {
+      await axios.post(`https://api.telnyx.com/v2/calls/${callControlId}/actions/answer`, {}, { headers: telnyxHeaders })
+      console.log(`[Telnyx Voice] Llamada contestada — ${callControlId}`)
+    } catch (err) {
+      console.error('[Telnyx Voice] Error al contestar:', err.response?.data || err.message)
+    }
+
+  } else if (eventType === 'call.answered') {
+    try {
+      await axios.post(`https://api.telnyx.com/v2/calls/${callControlId}/actions/transcription_start`, {
+        language: 'en',
+        transcription_engine: 'B',
+        transcription_tracks: 'inbound',
+      }, { headers: telnyxHeaders })
+      console.log(`[Telnyx Voice] Transcripción iniciada — ${callControlId}`)
+    } catch (err) {
+      console.error('[Telnyx Voice] Error al iniciar transcripción:', err.response?.data || err.message)
+    }
+
+  } else if (eventType === 'call.transcription') {
+    const transcript = payload?.transcription_data?.transcript || ''
+    console.log(`[Telnyx Voice] Transcript recibido: "${transcript}"`)
+
+    // Extraer OTP: primero buscar 6 dígitos juntos, luego dígitos separados
+    let otp = null
+    const directMatch = transcript.match(/\b(\d{6})\b/)
+    if (directMatch) {
+      otp = directMatch[1]
+    } else {
+      const digitsOnly = transcript.replace(/\D/g, '')
+      if (digitsOnly.length >= 6) otp = digitsOnly.slice(0, 6)
+    }
+
+    console.log(`[Telnyx Voice] OTP extraído: ${otp}`)
+    if (otp && toNumber) {
+      try {
+        const docId = toNumber.replace(/\D/g, '')
+        await db.collection('telnyx_otps').doc(docId).set({
+          phoneNumber: toNumber,
+          otp,
+          rawMessage: transcript,
+          receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+          consumed: false,
+          source: 'voice',
+        })
+        console.log(`[Telnyx Voice] OTP guardado en Firestore — docId: ${docId}`)
+      } catch (err) {
+        console.error('[Telnyx Voice] Error guardando OTP:', err.message)
+      }
+    }
+
+  } else if (eventType === 'call.hangup') {
+    console.log(`[Telnyx Voice] Llamada terminada — ${callControlId}`)
+  } else {
+    console.log(`[Telnyx Voice] Evento no manejado: ${eventType}`)
+  }
+})
+
 // POST /meta/register-number — agrega un número Telnyx a la WABA de Meta y dispara el OTP
 // Body: { phoneNumber, verifiedName, codeMethod }
 app.post('/meta/register-number', async (req, res) => {
