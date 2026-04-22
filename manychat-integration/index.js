@@ -1620,6 +1620,52 @@ app.post('/admin/assign-number', async (req, res) => {
   }
 })
 
+// POST /admin/connect-whatsapp — conecta via Zernio una org que ya tiene número asignado en Firestore
+// Body: { secret, orgId }
+app.post('/admin/connect-whatsapp', async (req, res) => {
+  const { secret, orgId } = req.body
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  if (!orgId) return res.status(400).json({ error: 'Missing orgId' })
+  try {
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const data = integSnap.exists ? integSnap.data() : {}
+    const phoneNumber = data?.whatsapp?.assignedNumber
+    const metaPreverifiedId = data?.whatsapp?.metaPreverifiedId
+    const profileId = data?.zernio?.profileId
+
+    if (!phoneNumber || !metaPreverifiedId) return res.status(400).json({ error: 'Org no tiene número asignado en Firestore' })
+    if (!profileId) return res.status(400).json({ error: 'Org no tiene Zernio profileId — crea el perfil primero' })
+
+    const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
+    const META_WABA_ID = process.env.META_WABA_ID
+    if (!META_SYSTEM_TOKEN || !META_WABA_ID) return res.status(500).json({ error: 'META_SYSTEM_TOKEN o META_WABA_ID no configurados en Railway' })
+
+    const zernioRes = await axios.post(
+      'https://zernio.com/api/v1/connect/whatsapp/credentials',
+      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId: metaPreverifiedId },
+      { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
+    )
+    const accountId = zernioRes.data?.account?._id || zernioRes.data?.accountId || zernioRes.data?._id
+
+    await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').set({
+        whatsapp: { status: 'active', connected: true, accountId: accountId || null, connectedAt: admin.firestore.FieldValue.serverTimestamp() }
+      }, { merge: true })
+
+    if (accountId) {
+      await db.collection('_zernio_account_map').doc(accountId).set({ orgId, phoneNumber, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+    }
+
+    console.log(`[Admin connect-whatsapp] ✅ Org ${orgId} conectada — accountId: ${accountId}`)
+    res.json({ success: true, orgId, phoneNumber, accountId })
+  } catch (err) {
+    const detail = err.response?.data || err.message
+    console.error('[Admin connect-whatsapp] Error:', detail)
+    res.status(500).json({ error: err.message, detail })
+  }
+})
+
 // GET /whatsapp/sdk-config?orgId=xxx — devuelve appId, configId y metaPreverifiedId al frontend
 app.get('/whatsapp/sdk-config', async (req, res) => {
   const { orgId } = req.query
