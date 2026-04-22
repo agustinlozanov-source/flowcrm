@@ -744,6 +744,65 @@ app.post('/webhook/zernio', (req, res) => {
 
   console.log(`[Zernio/global] HIT — event: ${event} | account.id: ${incomingAccountId} | account keys: ${Object.keys(account || {}).join(',')} | body keys: ${Object.keys(req.body || {}).join(',')}`)
 
+  // ── Cuenta conectada desde Zernio dashboard (cliente conectó desde su perfil) ──
+  if (event === 'account.connected' && incomingAccountId) {
+    setImmediate(async () => {
+      try {
+        const platform = (account?.platform || '').toLowerCase().includes('whatsapp') ? 'whatsapp'
+          : (account?.platform || '').toLowerCase().includes('instagram') ? 'instagram' : 'facebook'
+
+        // Buscar org cuyo profileId de Zernio coincide con el profileId del account
+        const profileId = req.body.profileId || req.body.profile?.id || null
+        let orgId = null
+
+        if (profileId) {
+          const orgsSnap = await db.collection('organizations').get()
+          for (const orgDoc of orgsSnap.docs) {
+            const integSnap = await orgDoc.ref.collection('settings').doc('integrations').get().catch(() => null)
+            if (integSnap?.data()?.zernio?.profileId === profileId) {
+              orgId = orgDoc.id
+              break
+            }
+          }
+        }
+
+        if (!orgId) {
+          console.log(`[Zernio/global account.connected] No se encontró org para profileId: ${profileId} — guardando en pending_connections`)
+          await db.collection('_zernio_pending_connections').doc(incomingAccountId).set({
+            accountId: incomingAccountId,
+            platform,
+            profileId,
+            username: account?.username || null,
+            displayName: account?.displayName || null,
+            connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          return
+        }
+
+        // Mapear accountId → org
+        await db.collection('_zernio_account_map').doc(incomingAccountId).set({
+          orgId, platform, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true })
+
+        // Marcar como conectado en la org
+        await db.collection('organizations').doc(orgId)
+          .collection('settings').doc('integrations').set({
+            [platform]: {
+              accountId: incomingAccountId,
+              connected: true,
+              username: account?.username || null,
+              connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }
+          }, { merge: true })
+
+        console.log(`[Zernio/global account.connected] ✅ Org ${orgId} conectada en ${platform} — accountId: ${incomingAccountId}`)
+      } catch (err) {
+        console.error('[Zernio/global account.connected] Error:', err.message)
+      }
+    })
+    return
+  }
+
   if (event !== 'message.received' || !msgText) return
   if (!incomingAccountId) {
     console.log(`[Zernio/global] Sin account.id — account completo:`, JSON.stringify(account))
