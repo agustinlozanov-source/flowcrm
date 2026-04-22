@@ -3519,6 +3519,28 @@ function ChannelsPanel({ orgs }) {
   }
 
   const [reconnecting, setReconnecting] = useState(false)
+  const [markingConnected, setMarkingConnected] = useState(false)
+
+  const handleMarkConnected = async () => {
+    if (!orgId) return toast.error('Selecciona una org primero')
+    setMarkingConnected(true)
+    setDone(null)
+    try {
+      await setDoc(
+        doc(db, 'organizations', orgId, 'settings', 'integrations'),
+        { whatsapp: { connected: true, connectedAt: serverTimestamp() } },
+        { merge: true }
+      )
+      const org = orgs.find(o => o.id === orgId)
+      setDone({ ok: true, msg: `✅ WhatsApp marcado como conectado para ${org?.name || orgId}` })
+      toast.success('WhatsApp marcado como conectado ✅')
+    } catch (err) {
+      setDone({ ok: false, msg: err.message })
+      toast.error(err.message)
+    } finally {
+      setMarkingConnected(false)
+    }
+  }
 
   const handleReconnect = async () => {
     if (!secret || !orgId) return toast.error('Ingresa Secret y Org')
@@ -3684,6 +3706,15 @@ function ChannelsPanel({ orgs }) {
               style={{ width: '100%', marginTop: 8, background: '#25d366', color: 'white', border: 'none' }}
             >
               {reconnecting ? 'Conectando...' : '🔌 Reconectar WhatsApp (ya asignado)'}
+            </button>
+
+            <button
+              className="sa-btn"
+              onClick={handleMarkConnected}
+              disabled={markingConnected || !orgId}
+              style={{ width: '100%', marginTop: 8, background: '#6c757d', color: 'white', border: 'none' }}
+            >
+              {markingConnected ? 'Guardando...' : '✔️ Marcar WhatsApp como Conectado (manual)'}
             </button>
 
             {done && (
