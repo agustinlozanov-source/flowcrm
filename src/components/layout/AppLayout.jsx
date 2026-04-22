@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { useAuthStore } from '@/store/authStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/hooks/useLang'
@@ -109,6 +110,7 @@ const NAV_SECTIONS = [
         to: '/import',
         moduleId: 'import',
         labelKey: 'nav.import',
+        featureFlag: 'import',
         permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
@@ -145,6 +147,7 @@ const NAV_SECTIONS = [
         to: '/landing',
         moduleId: 'landing',
         labelKey: 'nav.landing',
+        featureFlag: 'landing',
         permission: null,
         icon: (
           <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
@@ -157,6 +160,7 @@ const NAV_SECTIONS = [
         to: '/referrals',
         moduleId: 'referrals',
         labelKey: 'nav.referrals',
+        featureFlag: 'referrals',
         badge: null,
         permission: null,
         icon: (
@@ -199,7 +203,16 @@ export default function AppLayout() {
   const { can, isAdmin } = usePermissions()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
+  const [featureFlags, setFeatureFlags] = useState({})
   const { lang, toggleLang, t } = useLang()
+
+  useEffect(() => {
+    const ref = doc(db, '_global_config', 'feature_flags')
+    const unsub = onSnapshot(ref, snap => {
+      if (snap.exists()) setFeatureFlags(snap.data())
+    })
+    return unsub
+  }, [])
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -218,6 +231,8 @@ export default function AppLayout() {
   const visibleSections = NAV_SECTIONS.map(section => ({
     ...section,
     items: section.items.filter(item => {
+      // Feature flag gate: if flag exists and is false, hide
+      if (item.featureFlag && featureFlags[item.featureFlag] === false) return false
       // Module gate: if org has a modules list, only show items in that list
       if (orgModules?.length > 0 && item.moduleId && !orgModules.includes(item.moduleId)) return false
       // Permission gate

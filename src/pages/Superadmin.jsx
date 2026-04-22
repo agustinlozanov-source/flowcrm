@@ -3799,6 +3799,99 @@ function ChannelsPanel({ orgs }) {
   )
 }
 
+// ─── FEATURE FLAGS ───
+function FeatureFlags() {
+  const FLAGS = [
+    { id: 'landing', label: 'Páginas de aterrizaje', description: 'Sección "Páginas" en el sidebar (Landing Pages)', icon: <Globe size={16} /> },
+    { id: 'referrals', label: 'Referidos', description: 'Sección "Referidos" en el sidebar', icon: <Gift size={16} /> },
+    { id: 'import', label: 'Importar', description: 'Sección "Importar" en el sidebar', icon: <Download size={16} /> },
+  ]
+
+  const [flags, setFlags] = useState({})
+  const [saving, setSaving] = useState(null)
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, '_global_config', 'feature_flags'), snap => {
+      if (snap.exists()) setFlags(snap.data())
+      else setFlags({})
+    })
+    return unsub
+  }, [])
+
+  const toggle = async (id) => {
+    const newVal = flags[id] === false ? true : false
+    setSaving(id)
+    try {
+      await setDoc(doc(db, '_global_config', 'feature_flags'), { [id]: newVal }, { merge: true })
+      toast.success(newVal ? `"${id}" activado` : `"${id}" desactivado`)
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const isOn = (id) => flags[id] !== false
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div className="sa-card">
+        <div className="sa-card-header">
+          <div className="sa-card-title">🚩 Feature Flags — Visibilidad del sidebar</div>
+        </div>
+        <div style={{ padding: '8px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 8 }}>
+            Activa o desactiva secciones del sidebar para <strong>todos los usuarios</strong> en tiempo real.
+            Si está desactivado, el ítem no aparece en la navegación.
+          </div>
+          {FLAGS.map(f => {
+            const on = isOn(f.id)
+            return (
+              <div key={f.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 16px', borderRadius: 12,
+                border: `1.5px solid ${on ? 'rgba(52,199,89,0.3)' : 'rgba(0,0,0,0.1)'}`,
+                background: on ? 'rgba(52,199,89,0.04)' : 'rgba(0,0,0,0.02)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 10,
+                    background: on ? 'rgba(52,199,89,0.12)' : 'rgba(0,0,0,0.06)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: on ? '#1a7f37' : '#8e8e93',
+                  }}>{f.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#070708' }}>{f.label}</div>
+                    <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 1 }}>{f.description}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggle(f.id)}
+                  disabled={saving === f.id}
+                  style={{
+                    width: 50, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: on ? '#34c759' : '#d1d1d6',
+                    position: 'relative', transition: 'background 0.2s',
+                    flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', background: 'white',
+                    position: 'absolute', top: 3,
+                    left: on ? 25 : 3,
+                    transition: 'left 0.2s',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  }} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN SUPERADMIN ───
 export default function Superadmin() {
   const [authed, setAuthed] = useState(false)
@@ -3857,9 +3950,10 @@ export default function Superadmin() {
     { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
     { id: 'channels', icon: <Smartphone size={16} />, label: 'Canales' },
+    { id: 'feature_flags', icon: <Zap size={16} />, label: 'Feature Flags' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags' }
 
   if (!authed) {
     return (
@@ -3927,6 +4021,7 @@ export default function Superadmin() {
           {activeTab === 'distribuidores' && <DistribuidoresPanel />}
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
           {activeTab === 'channels' && <ChannelsPanel orgs={orgs} />}
+          {activeTab === 'feature_flags' && <FeatureFlags />}
         </div>
       </div>
     </div>
