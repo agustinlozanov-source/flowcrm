@@ -1491,7 +1491,7 @@ app.get('/admin/zernio-accounts', async (req, res) => {
       })
       accounts = (r.data.numbers || r.data.phoneNumbers || []).map(n => ({
         id: n._id || n.id,                          // Zernio internal ID
-        metaPhoneNumberId: n.metaPhoneNumberId || n.phoneNumberId || null,  // Meta Phone Number ID
+        metaPhoneNumberId: n.metaPreverifiedId || n.metaPhoneNumberId || n.phoneNumberId || null,  // Meta Phone Number ID
         label: n.phoneNumber || n.displayPhoneNumber || n.name || n._id,
         status: n.metaVerificationStatus || n.status || '',
         extra: n.profileName || '',
@@ -1644,7 +1644,7 @@ app.post('/admin/connect-whatsapp', async (req, res) => {
     const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
     const META_WABA_ID = process.env.META_WABA_ID
     // Use metaPhoneNumberId stored per-org in Firestore, fallback to env var
-    const phoneNumberId = data?.whatsapp?.metaPhoneNumberId || process.env.META_PHONE_NUMBER_ID
+    const phoneNumberId = data?.whatsapp?.metaPhoneNumberId || data?.whatsapp?.metaPreverifiedId || process.env.META_PHONE_NUMBER_ID
     if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) return res.status(500).json({ error: 'META_SYSTEM_TOKEN, META_WABA_ID o phoneNumberId no configurados' })
 
     const zernioRes = await axios.post(
