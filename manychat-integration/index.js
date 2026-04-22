@@ -1490,8 +1490,9 @@ app.get('/admin/zernio-accounts', async (req, res) => {
         headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
       })
       accounts = (r.data.numbers || r.data.phoneNumbers || []).map(n => ({
-        id: n._id || n.id,
-        label: n.phoneNumber || n.name || n._id,
+        id: n._id || n.id,                          // Zernio internal ID
+        metaPhoneNumberId: n.metaPhoneNumberId || n.phoneNumberId || null,  // Meta Phone Number ID
+        label: n.phoneNumber || n.displayPhoneNumber || n.name || n._id,
         status: n.metaVerificationStatus || n.status || '',
         extra: n.profileName || '',
       }))
@@ -1552,9 +1553,9 @@ app.post('/admin/map-account', async (req, res) => {
 })
 
 // POST /admin/assign-number — asigna un número a una org y lo conecta automáticamente vía Zernio credentials
-// Body: { secret, orgId, phoneNumber, metaPreverifiedId }
+// Body: { secret, orgId, phoneNumber, metaPreverifiedId, metaPhoneNumberId }
 app.post('/admin/assign-number', async (req, res) => {
-  const { secret, orgId, phoneNumber, metaPreverifiedId } = req.body
+  const { secret, orgId, phoneNumber, metaPreverifiedId, metaPhoneNumberId } = req.body
   if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
   if (!orgId || !phoneNumber || !metaPreverifiedId) return res.status(400).json({ error: 'Missing orgId, phoneNumber or metaPreverifiedId' })
   try {
@@ -1564,6 +1565,7 @@ app.post('/admin/assign-number', async (req, res) => {
         whatsapp: {
           assignedNumber: phoneNumber,
           metaPreverifiedId,
+          metaPhoneNumberId: metaPhoneNumberId || null,
           status: 'assigned',
           connected: false,
           assignedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1583,9 +1585,10 @@ app.post('/admin/assign-number', async (req, res) => {
     // 3. Call Zernio credentials endpoint to auto-connect the number
     const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
     const META_WABA_ID = process.env.META_WABA_ID
-    const phoneNumberId = process.env.META_PHONE_NUMBER_ID
+    // Use metaPhoneNumberId from request (real Meta Phone Number ID), fallback to env var
+    const phoneNumberId = metaPhoneNumberId || process.env.META_PHONE_NUMBER_ID
     if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) {
-      console.warn('[Admin assign-number] META_SYSTEM_TOKEN, META_WABA_ID or META_PHONE_NUMBER_ID not set — skipping auto-connect')
+      console.warn('[Admin assign-number] META_SYSTEM_TOKEN, META_WABA_ID or phoneNumberId not set — skipping auto-connect')
       return res.json({ success: true, orgId, phoneNumber, metaPreverifiedId, connected: false, warning: 'META credentials not configured in Railway.' })
     }
 
@@ -1640,10 +1643,9 @@ app.post('/admin/connect-whatsapp', async (req, res) => {
 
     const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
     const META_WABA_ID = process.env.META_WABA_ID
-    // META_PHONE_NUMBER_ID: the real Meta Phone Number ID (e.g. 980270705178497)
-    // metaPreverifiedId from Firestore is a Zernio internal ID — NOT a Meta Phone Number ID
-    const phoneNumberId = process.env.META_PHONE_NUMBER_ID
-    if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) return res.status(500).json({ error: 'META_SYSTEM_TOKEN, META_WABA_ID o META_PHONE_NUMBER_ID no configurados en Railway' })
+    // Use metaPhoneNumberId stored per-org in Firestore, fallback to env var
+    const phoneNumberId = data?.whatsapp?.metaPhoneNumberId || process.env.META_PHONE_NUMBER_ID
+    if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) return res.status(500).json({ error: 'META_SYSTEM_TOKEN, META_WABA_ID o phoneNumberId no configurados' })
 
     const zernioRes = await axios.post(
       'https://zernio.com/api/v1/connect/whatsapp/credentials',
