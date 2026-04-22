@@ -2300,6 +2300,27 @@ app.get('/telnyx/otp/:phoneNumber', async (req, res) => {
   }
 })
 
+// POST /meta/request-code — re-solicita el OTP a Meta para un número ya registrado
+// Body: { phoneNumberId, codeMethod }
+app.post('/meta/request-code', async (req, res) => {
+  const { phoneNumberId, codeMethod = 'SMS' } = req.body
+  if (!phoneNumberId) return res.status(400).json({ success: false, error: 'Missing phoneNumberId' })
+  try {
+    console.log(`[Meta request-code] Solicitando OTP via ${codeMethod} para phoneNumberId: ${phoneNumberId}`)
+    const r = await axios.post(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/request_code`,
+      { code_method: codeMethod, language: 'en' },
+      { headers: { Authorization: `Bearer ${process.env.META_SYSTEM_TOKEN}`, 'Content-Type': 'application/json' } }
+    )
+    console.log(`[Meta request-code] Meta response:`, JSON.stringify(r.data))
+    res.json(r.data)
+  } catch (err) {
+    const detail = err.response?.data || err.message
+    console.error('[Meta request-code] Error:', detail)
+    res.status(500).json({ success: false, error: detail })
+  }
+})
+
 // Función compartida para verificar OTP con Meta
 async function verifyOtpWithMeta(phoneNumberId, otp) {
   const TOKEN = process.env.META_SYSTEM_TOKEN
