@@ -1583,14 +1583,15 @@ app.post('/admin/assign-number', async (req, res) => {
     // 3. Call Zernio credentials endpoint to auto-connect the number
     const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
     const META_WABA_ID = process.env.META_WABA_ID
-    if (!META_SYSTEM_TOKEN || !META_WABA_ID) {
-      console.warn('[Admin assign-number] META_SYSTEM_TOKEN or META_WABA_ID not set — skipping auto-connect')
+    const phoneNumberId = process.env.META_PHONE_NUMBER_ID
+    if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) {
+      console.warn('[Admin assign-number] META_SYSTEM_TOKEN, META_WABA_ID or META_PHONE_NUMBER_ID not set — skipping auto-connect')
       return res.json({ success: true, orgId, phoneNumber, metaPreverifiedId, connected: false, warning: 'META credentials not configured in Railway.' })
     }
 
     const zernioRes = await axios.post(
       'https://zernio.com/api/v1/connect/whatsapp/credentials',
-      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId: metaPreverifiedId },
+      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId },
       { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
     )
     const accountId = zernioRes.data?.account?._id || zernioRes.data?.accountId || zernioRes.data?._id
@@ -1639,11 +1640,14 @@ app.post('/admin/connect-whatsapp', async (req, res) => {
 
     const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN
     const META_WABA_ID = process.env.META_WABA_ID
-    if (!META_SYSTEM_TOKEN || !META_WABA_ID) return res.status(500).json({ error: 'META_SYSTEM_TOKEN o META_WABA_ID no configurados en Railway' })
+    // META_PHONE_NUMBER_ID: the real Meta Phone Number ID (e.g. 980270705178497)
+    // metaPreverifiedId from Firestore is a Zernio internal ID — NOT a Meta Phone Number ID
+    const phoneNumberId = process.env.META_PHONE_NUMBER_ID
+    if (!META_SYSTEM_TOKEN || !META_WABA_ID || !phoneNumberId) return res.status(500).json({ error: 'META_SYSTEM_TOKEN, META_WABA_ID o META_PHONE_NUMBER_ID no configurados en Railway' })
 
     const zernioRes = await axios.post(
       'https://zernio.com/api/v1/connect/whatsapp/credentials',
-      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId: metaPreverifiedId },
+      { profileId, accessToken: META_SYSTEM_TOKEN, wabaId: META_WABA_ID, phoneNumberId },
       { headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`, 'Content-Type': 'application/json' } }
     )
     const accountId = zernioRes.data?.account?._id || zernioRes.data?.accountId || zernioRes.data?._id
