@@ -103,6 +103,8 @@ export default function Settings() {
           phoneNumber: data.whatsapp.assignedNumber,
           metaPreverifiedId: data.whatsapp.metaPreverifiedId,
         })
+      } else if (data?.whatsapp?.connected) {
+        setAssignedNumber(null) // limpiar si ya está conectado
       }
     })
     return unsub

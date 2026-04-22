@@ -3408,6 +3408,52 @@ function ChannelsPanel({ orgs }) {
   const [loadingZ, setLoadingZ]     = useState(false)
   const [selectedAcc, setSelectedAcc] = useState(null)
   const [assigning, setAssigning]   = useState(false)
+
+  // Pending connections
+  const [pendingConns, setPendingConns] = useState([])
+  const [pendingOrgMap, setPendingOrgMap] = useState({}) // accountId → orgId
+  const [mappingPending, setMappingPending] = useState(null)
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, '_zernio_pending_connections'), snap => {
+      setPendingConns(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return unsub
+  }, [])
+
+  const handleMapPending = async (conn) => {
+    const targetOrgId = pendingOrgMap[conn.id]
+    if (!targetOrgId) return toast.error('Selecciona una org primero')
+    setMappingPending(conn.id)
+    try {
+      // 1. Escribir en _zernio_account_map
+      await setDoc(doc(db, '_zernio_account_map', conn.id), {
+        orgId: targetOrgId,
+        platform: conn.platform || 'whatsapp',
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+      // 2. Marcar como conectado en la org
+      await setDoc(
+        doc(db, 'organizations', targetOrgId, 'settings', 'integrations'),
+        {
+          [conn.platform || 'whatsapp']: {
+            accountId: conn.id,
+            connected: true,
+            username: conn.username || null,
+            connectedAt: conn.connectedAt || serverTimestamp(),
+          }
+        },
+        { merge: true }
+      )
+      // 3. Borrar de pending
+      await deleteDoc(doc(db, '_zernio_pending_connections', conn.id))
+      toast.success('✅ Conexión mapeada correctamente')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setMappingPending(null)
+    }
+  }
   const [done, setDone]             = useState(null)
 
   // Facebook/Instagram map-account state
@@ -3793,6 +3839,62 @@ function ChannelsPanel({ orgs }) {
             </div>
           </div>
         </div>
+
+        {/* ── Conexiones pendientes (account.connected sin org mapeada) ── */}
+        {pendingConns.length > 0 && (
+          <div className="sa-card" style={{ gridColumn: '1 / -1', maxWidth: 960 }}>
+            <div className="sa-card-header">
+              <div className="sa-card-title">⚠️ Conexiones pendientes de Zernio ({pendingConns.length})</div>
+            </div>
+            <div style={{ padding: '12px 20px 20px' }}>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 14, lineHeight: 1.5 }}>
+                Estos accounts se conectaron en Zernio pero no se pudo identificar la org automáticamente.
+                Asígnales una org para activar el routing de mensajes.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {pendingConns.map(conn => (
+                  <div key={conn.id} style={{
+                    padding: '14px 16px', borderRadius: 12,
+                    border: '1.5px solid rgba(255,149,0,0.3)',
+                    background: 'rgba(255,149,0,0.04)',
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#070708' }}>
+                        {conn.displayName || conn.username || conn.id}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontFamily: 'monospace', marginTop: 2 }}>
+                        ID: {conn.id}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 1 }}>
+                        Plataforma: {conn.platform || 'whatsapp'} · profileId: {conn.profileId || '—'}
+                      </div>
+                    </div>
+                    <select
+                      className="sa-form-input"
+                      style={{ minWidth: 200, maxWidth: 260, fontSize: 12 }}
+                      value={pendingOrgMap[conn.id] || ''}
+                      onChange={e => setPendingOrgMap(prev => ({ ...prev, [conn.id]: e.target.value }))}
+                    >
+                      <option value="">— Seleccionar org —</option>
+                      {orgs.map(o => (
+                        <option key={o.id} value={o.id}>{o.name || o.id}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="sa-btn sa-btn-blue"
+                      onClick={() => handleMapPending(conn)}
+                      disabled={mappingPending === conn.id || !pendingOrgMap[conn.id]}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {mappingPending === conn.id ? 'Mapeando...' : '✅ Mapear y activar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
