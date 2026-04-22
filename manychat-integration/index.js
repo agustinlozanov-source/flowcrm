@@ -2300,6 +2300,74 @@ app.get('/telnyx/otp/:phoneNumber', async (req, res) => {
   }
 })
 
+// POST /meta/register-number — agrega un número Telnyx a la WABA de Meta y dispara el OTP
+// Body: { phoneNumber, verifiedName, codeMethod }
+app.post('/meta/register-number', async (req, res) => {
+  const { phoneNumber, verifiedName = 'Flow Hub CRM', codeMethod = 'SMS' } = req.body
+  if (!phoneNumber) return res.status(400).json({ success: false, error: 'Missing phoneNumber' })
+
+  const WABA_ID = process.env.META_WABA_ID
+  const TOKEN = process.env.META_SYSTEM_TOKEN
+  if (!WABA_ID || !TOKEN) return res.status(500).json({ success: false, error: 'META_WABA_ID o META_SYSTEM_TOKEN no configurados' })
+
+  const metaHeaders = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }
+  // Separar country code y número local (asumiendo US +1)
+  const cleaned = phoneNumber.replace(/\D/g, '') // ej: 13369518788
+  const cc = '1'
+  const localNumber = cleaned.startsWith('1') ? cleaned.slice(1) : cleaned // ej: 3369518788
+
+  let phoneNumberId = null
+
+  // Paso 1: Agregar número a la WABA
+  try {
+    console.log(`[Meta Register] Paso 1 — Agregando ${phoneNumber} a WABA ${WABA_ID}`)
+    const addRes = await axios.post(
+      `https://graph.facebook.com/v21.0/${WABA_ID}/phone_numbers`,
+      { cc, phone_number: localNumber, verified_name: verifiedName },
+      { headers: metaHeaders }
+    )
+    phoneNumberId = addRes.data?.id
+    console.log(`[Meta Register] Paso 1 OK — phoneNumberId: ${phoneNumberId}`)
+  } catch (err) {
+    console.error('[Meta Register] Paso 1 FAIL:', err.response?.data || err.message)
+    return res.status(500).json({ success: false, error: err.response?.data || err.message, step: 'add_number' })
+  }
+
+  // Paso 2: Solicitar código de verificación (OTP)
+  try {
+    console.log(`[Meta Register] Paso 2 — Solicitando OTP via ${codeMethod} para ${phoneNumberId}`)
+    await axios.post(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/request_code`,
+      { code_method: codeMethod, language: 'en' },
+      { headers: metaHeaders }
+    )
+    console.log(`[Meta Register] Paso 2 OK — OTP enviado`)
+  } catch (err) {
+    console.error('[Meta Register] Paso 2 FAIL:', err.response?.data || err.message)
+    return res.status(500).json({ success: false, error: err.response?.data || err.message, step: 'request_code', phoneNumberId })
+  }
+
+  // Paso 3: Guardar en Firestore
+  try {
+    const docId = cleaned
+    await db.collection('meta_registrations').doc(docId).set({
+      phoneNumber,
+      metaPhoneNumberId: phoneNumberId,
+      wabaId: WABA_ID,
+      status: 'pending_verification',
+      verifiedName,
+      codeMethod,
+      requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    console.log(`[Meta Register] Paso 3 OK — guardado en Firestore docId: ${docId}`)
+  } catch (err) {
+    console.error('[Meta Register] Paso 3 FAIL:', err.message)
+    return res.status(500).json({ success: false, error: err.message, step: 'firestore', phoneNumberId })
+  }
+
+  res.json({ success: true, phoneNumberId, message: 'OTP sent. Waiting for code from Telnyx webhook.' })
+})
+
 // ───────────────────────────────────────────────────────────────────────────
 
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
