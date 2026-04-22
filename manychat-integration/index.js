@@ -2183,4 +2183,123 @@ setInterval(runFollowUpCron, 5 * 60 * 1000)
 // Primera ejecución al arrancar (con delay de 1 min para dar tiempo al init)
 setTimeout(runFollowUpCron, 60 * 1000)
 
+// ─── TELNYX ────────────────────────────────────────────────────────────────
+
+// POST /webhook/telnyx/sms — recibe SMS entrantes de Telnyx (OTPs de Meta)
+app.post('/webhook/telnyx/sms', async (req, res) => {
+  res.sendStatus(200) // responder inmediatamente a Telnyx
+  try {
+    const event = req.body
+    const eventType = event?.data?.event_type
+    console.log(`[Telnyx SMS] event_type: ${eventType}`)
+    if (eventType !== 'message.received') return
+
+    const payload = event.data.payload
+    const toNumber = payload?.to?.[0]?.phone_number || payload?.to
+    const text = payload?.text || ''
+    console.log(`[Telnyx SMS] to: ${toNumber} | text: ${text}`)
+
+    // Extraer OTP de 6 dígitos del texto
+    const otpMatch = text.match(/\b(\d{6})\b/)
+    const otp = otpMatch ? otpMatch[1] : null
+    console.log(`[Telnyx SMS] OTP extraído: ${otp}`)
+
+    // Guardar en Firestore — docId = número sin el +
+    const docId = toNumber.replace(/\D/g, '')
+    await db.collection('telnyx_otps').doc(docId).set({
+      phoneNumber: toNumber,
+      otp,
+      rawMessage: text,
+      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      consumed: false,
+    })
+    console.log(`[Telnyx SMS] OTP guardado en Firestore — docId: ${docId}`)
+  } catch (err) {
+    console.error('[Telnyx SMS] Error:', err.message)
+  }
+})
+
+// POST /telnyx/buy-number — compra un número en Telnyx y lo asigna a la org
+// Body: { orgId, areaCode? }
+app.post('/telnyx/buy-number', async (req, res) => {
+  const { orgId, areaCode = '336' } = req.body
+  if (!orgId) return res.status(400).json({ success: false, error: 'Missing orgId' })
+  try {
+    const headers = {
+      Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+      'Content-Type': 'application/json',
+    }
+
+    // 1. Buscar número disponible
+    const searchParams = {
+      'filter[country_code]': 'US',
+      'filter[features][]': ['sms', 'voice'],
+      'filter[limit]': 1,
+    }
+    if (areaCode) searchParams['filter[national_destination_code]'] = areaCode
+
+    const searchRes = await axios.get('https://api.telnyx.com/v2/available_phone_numbers', {
+      params: searchParams,
+      headers,
+    })
+    const available = searchRes.data?.data
+    if (!available?.length) return res.status(404).json({ success: false, error: 'No hay números disponibles para ese área' })
+    const phoneNumber = available[0].phone_number
+    console.log(`[Telnyx] Número encontrado: ${phoneNumber}`)
+
+    // 2. Comprar número
+    const orderRes = await axios.post('https://api.telnyx.com/v2/number_orders', {
+      phone_numbers: [{ phone_number: phoneNumber }],
+    }, { headers })
+    const telnyxId = orderRes.data?.data?.phone_numbers?.[0]?.id
+    console.log(`[Telnyx] Número comprado: ${phoneNumber} | telnyxId: ${telnyxId}`)
+
+    // 3. Esperar activación
+    await new Promise(r => setTimeout(r, 15000))
+
+    // 4. Asignar al Messaging Profile
+    await axios.patch(`https://api.telnyx.com/v2/phone_numbers/${telnyxId}`, {
+      messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID,
+    }, { headers })
+    console.log(`[Telnyx] Número asignado al Messaging Profile`)
+
+    // 5. Guardar en Firestore
+    await db.collection('telnyx_numbers').doc(telnyxId).set({
+      phoneNumber,
+      orgId,
+      telnyxId,
+      purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: 'active',
+    })
+
+    console.log(`[Telnyx] ✅ Número ${phoneNumber} listo para org ${orgId}`)
+    res.json({ success: true, phoneNumber, telnyxId })
+  } catch (err) {
+    const detail = err.response?.data || err.message
+    console.error('[Telnyx buy-number] Error:', detail)
+    res.status(500).json({ success: false, error: err.message, detail })
+  }
+})
+
+// GET /telnyx/otp/:phoneNumber — consulta si ya llegó el OTP para un número
+app.get('/telnyx/otp/:phoneNumber', async (req, res) => {
+  try {
+    const docId = req.params.phoneNumber.replace(/\D/g, '')
+    const snap = await db.collection('telnyx_otps').doc(docId).get()
+    if (!snap.exists || snap.data()?.consumed) {
+      return res.json({ success: false, message: 'waiting' })
+    }
+    const { otp, receivedAt } = snap.data()
+    // Marcar como consumido
+    await db.collection('telnyx_otps').doc(docId).update({ consumed: true })
+    console.log(`[Telnyx OTP] Entregado para ${docId}: ${otp}`)
+    res.json({ success: true, otp, receivedAt })
+  } catch (err) {
+    console.error('[Telnyx OTP] Error:', err.message)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// ───────────────────────────────────────────────────────────────────────────
+
 app.listen(process.env.PORT || 3000, () => console.log('ManyChat integration running'))
