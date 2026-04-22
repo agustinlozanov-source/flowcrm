@@ -3452,6 +3452,7 @@ function ChannelsPanel({ orgs }) {
           orgId,
           phoneNumber: selectedAcc.label,
           metaPreverifiedId: selectedAcc.id,
+          metaPhoneNumberId: selectedAcc.metaPhoneNumberId || null,
         }),
       })
       const data = await res.json()
