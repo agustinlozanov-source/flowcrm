@@ -2300,6 +2300,72 @@ app.get('/telnyx/otp/:phoneNumber', async (req, res) => {
   }
 })
 
+// Función compartida para verificar OTP con Meta
+async function verifyOtpWithMeta(phoneNumberId, otp) {
+  const TOKEN = process.env.META_SYSTEM_TOKEN
+  console.log(`[Meta Verify] Enviando OTP a Meta para phoneNumberId: ${phoneNumberId}`)
+  const res = await axios.post(
+    `https://graph.facebook.com/v21.0/${phoneNumberId}/verify_code`,
+    { code: otp },
+    { headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' } }
+  )
+  console.log(`[Meta Verify] Meta response:`, JSON.stringify(res.data))
+  return res.data
+}
+
+// POST /meta/verify-otp — envía el OTP a Meta para completar la verificación
+// Body: { phoneNumberId, otp }
+app.post('/meta/verify-otp', async (req, res) => {
+  const { phoneNumberId, otp } = req.body
+  if (!phoneNumberId || !otp) return res.status(400).json({ success: false, error: 'Missing phoneNumberId or otp' })
+  try {
+    await verifyOtpWithMeta(phoneNumberId, otp)
+    // Actualizar meta_registrations si existe
+    const snap = await db.collection('meta_registrations').where('metaPhoneNumberId', '==', phoneNumberId).limit(1).get()
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({ status: 'verified', verifiedAt: admin.firestore.FieldValue.serverTimestamp() })
+    }
+    res.json({ success: true, message: 'Number verified in Meta' })
+  } catch (err) {
+    const detail = err.response?.data?.error?.message || err.message
+    console.error('[Meta verify-otp] Error:', detail)
+    res.status(500).json({ success: false, error: detail })
+  }
+})
+
+// POST /meta/auto-verify — busca el OTP en Firestore y lo verifica con Meta en un solo paso
+// Body: { phoneNumber, phoneNumberId }
+app.post('/meta/auto-verify', async (req, res) => {
+  const { phoneNumber, phoneNumberId } = req.body
+  if (!phoneNumber || !phoneNumberId) return res.status(400).json({ success: false, error: 'Missing phoneNumber or phoneNumberId' })
+
+  const docId = phoneNumber.replace(/\D/g, '')
+  const otpSnap = await db.collection('telnyx_otps').doc(docId).get()
+
+  if (!otpSnap.exists) return res.json({ success: false, error: 'OTP not received yet' })
+  if (otpSnap.data()?.consumed) return res.json({ success: false, error: 'OTP already used' })
+
+  const otp = otpSnap.data()?.otp
+  if (!otp) return res.json({ success: false, error: 'OTP value empty in Firestore' })
+
+  try {
+    await verifyOtpWithMeta(phoneNumberId, otp)
+    // Marcar OTP como consumido
+    await db.collection('telnyx_otps').doc(docId).update({ consumed: true })
+    // Actualizar meta_registrations
+    const regSnap = await db.collection('meta_registrations').doc(docId).get()
+    if (regSnap.exists) {
+      await db.collection('meta_registrations').doc(docId).update({ status: 'verified', verifiedAt: admin.firestore.FieldValue.serverTimestamp() })
+    }
+    console.log(`[Meta auto-verify] ✅ ${phoneNumber} verificado con OTP ${otp}`)
+    res.json({ success: true, message: 'Verified', otp })
+  } catch (err) {
+    const detail = err.response?.data?.error?.message || err.message
+    console.error('[Meta auto-verify] Error:', detail)
+    res.status(500).json({ success: false, error: detail })
+  }
+})
+
 // POST /webhook/telnyx/voice — maneja llamadas entrantes de Telnyx (OTPs de Meta por voz)
 app.post('/webhook/telnyx/voice', async (req, res) => {
   res.sendStatus(200) // siempre 200 inmediato
