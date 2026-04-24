@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
@@ -4102,6 +4102,275 @@ function FeatureFlags() {
   )
 }
 
+// ─── DOCUMENTS LIBRARY ───
+const DOC_CATEGORIES = [
+  { id: 'manual', label: 'Manuales de usuario', icon: <BookOpen size={14} /> },
+  { id: 'legal', label: 'Documentos legales', icon: <Shield size={14} /> },
+  { id: 'onboarding', label: 'Onboarding / Capacitación', icon: <FileCheck size={14} /> },
+  { id: 'soporte', label: 'Base de conocimiento (Soporte)', icon: <MessageSquare size={14} /> },
+  { id: 'interno', label: 'Documentos internos', icon: <FolderOpen size={14} /> },
+  { id: 'otro', label: 'Otros', icon: <FileText size={14} /> },
+]
+
+function DocumentsLibrary() {
+  const [docs, setDocs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editDoc, setEditDoc] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    category: 'manual',
+    url: '',
+    version: '1.0',
+    visible_to: 'interno', // interno | equipo | usuarios
+    tags: '',
+  })
+
+  useEffect(() => {
+    const q = query(collection(db, 'flowhub_documents'), orderBy('createdAt', 'desc'))
+    const unsub = onSnapshot(q, snap => {
+      setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setLoading(false)
+    })
+    return unsub
+  }, [])
+
+  const openNew = () => {
+    setEditDoc(null)
+    setForm({ title: '', description: '', category: 'manual', url: '', version: '1.0', visible_to: 'interno', tags: '' })
+    setShowForm(true)
+  }
+
+  const openEdit = (doc) => {
+    setEditDoc(doc)
+    setForm({
+      title: doc.title || '',
+      description: doc.description || '',
+      category: doc.category || 'manual',
+      url: doc.url || '',
+      version: doc.version || '1.0',
+      visible_to: doc.visible_to || 'interno',
+      tags: (doc.tags || []).join(', '),
+    })
+    setShowForm(true)
+  }
+
+  const save = async () => {
+    if (!form.title.trim()) return toast.error('El título es requerido')
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        updatedAt: serverTimestamp(),
+      }
+      if (editDoc) {
+        await updateDoc(doc(db, 'flowhub_documents', editDoc.id), payload)
+        toast.success('Documento actualizado')
+      } else {
+        await addDoc(collection(db, 'flowhub_documents'), { ...payload, createdAt: serverTimestamp() })
+        toast.success('Documento agregado')
+      }
+      setShowForm(false)
+    } catch (err) {
+      toast.error('Error al guardar: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async (id) => {
+    if (!confirm('¿Eliminar este documento?')) return
+    await deleteDoc(doc(db, 'flowhub_documents', id))
+    toast.success('Eliminado')
+  }
+
+  const filtered = docs.filter(d => {
+    const matchCat = filter === 'all' || d.category === filter
+    const matchSearch = !search || d.title?.toLowerCase().includes(search.toLowerCase()) || d.description?.toLowerCase().includes(search.toLowerCase()) || (d.tags || []).some(t => t.toLowerCase().includes(search.toLowerCase()))
+    return matchCat && matchSearch
+  })
+
+  const VISIBLE_LABELS = { interno: 'Solo interno', equipo: 'Equipo', usuarios: 'Usuarios' }
+  const VISIBLE_COLORS = { interno: '#6b7280', equipo: '#2563eb', usuarios: '#16a34a' }
+  const catMap = Object.fromEntries(DOC_CATEGORIES.map(c => [c.id, c]))
+
+  return (
+    <div style={{ padding: '24px', maxWidth: 960 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: 'var(--gray-1)' }}>Biblioteca de documentos</div>
+          <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 3 }}>Manuales, legales, capacitación y base de conocimiento del equipo de soporte</div>
+        </div>
+        <button className="sa-btn-primary" onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Plus size={15} /> Agregar documento
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 280 }}>
+          <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-4)' }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar documentos…"
+            className="sa-input"
+            style={{ paddingLeft: 30, margin: 0 }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[{ id: 'all', label: 'Todos' }, ...DOC_CATEGORIES].map(c => (
+            <button
+              key={c.id}
+              onClick={() => setFilter(c.id)}
+              style={{
+                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'all .15s',
+                background: filter === c.id ? 'linear-gradient(135deg, #1aab99, #3533cd)' : 'var(--surface-2)',
+                color: filter === c.id ? 'white' : 'var(--gray-3)',
+              }}
+            >{c.label || 'Todos'}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {!loading && filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--gray-4)' }}>
+          <FileText size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
+          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
+            {docs.length === 0 ? 'Aún no hay documentos' : 'Sin resultados'}
+          </div>
+          <div style={{ fontSize: 13 }}>
+            {docs.length === 0 ? 'Agrega el primer manual, aviso de privacidad o documento interno.' : 'Prueba con otro filtro o búsqueda.'}
+          </div>
+        </div>
+      )}
+
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+        {filtered.map(d => {
+          const cat = catMap[d.category] || catMap.otro
+          return (
+            <div key={d.id} className="sa-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, rgba(26,171,153,0.12), rgba(53,51,205,0.12))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#1aab99' }}>
+                    {cat.icon}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-1)', lineHeight: 1.3 }}>{d.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 1 }}>{cat.label}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {d.url && (
+                    <a href={d.url} target="_blank" rel="noreferrer"
+                      style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-3)', textDecoration: 'none' }}
+                      title="Abrir documento">
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                  <button onClick={() => openEdit(d)} style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--surface-2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-3)' }} title="Editar">
+                    <Edit2 size={12} />
+                  </button>
+                  <button onClick={() => remove(d.id)} style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--surface-2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }} title="Eliminar">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {d.description && (
+                <p style={{ fontSize: 12, color: 'var(--gray-3)', lineHeight: 1.5, margin: 0 }}>{d.description}</p>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 'auto' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, border: '1px solid', borderColor: VISIBLE_COLORS[d.visible_to] + '44', color: VISIBLE_COLORS[d.visible_to], background: VISIBLE_COLORS[d.visible_to] + '12' }}>
+                  {VISIBLE_LABELS[d.visible_to] || d.visible_to}
+                </span>
+                {d.version && (
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--gray-4)' }}>v{d.version}</span>
+                )}
+                {(d.tags || []).map(tag => (
+                  <span key={tag} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: 'rgba(26,171,153,0.1)', color: '#1aab99' }}>#{tag}</span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Modal */}
+      {showForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="sa-card" style={{ width: '100%', maxWidth: 520, padding: 28, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+            <button onClick={() => setShowForm(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-4)' }}>
+              <X size={18} />
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 20 }}>
+              {editDoc ? 'Editar documento' : 'Agregar documento'}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Título *</label>
+                <input className="sa-input" style={{ margin: 0 }} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ej: Manual de usuario — Pipeline" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Descripción</label>
+                <textarea className="sa-input" style={{ margin: 0, resize: 'vertical', minHeight: 72 }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Breve descripción del contenido…" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Categoría</label>
+                  <select className="sa-input" style={{ margin: 0 }} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                    {DOC_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Visible para</label>
+                  <select className="sa-input" style={{ margin: 0 }} value={form.visible_to} onChange={e => setForm(f => ({ ...f, visible_to: e.target.value }))}>
+                    <option value="interno">Solo interno (Superadmin)</option>
+                    <option value="equipo">Equipo de la org</option>
+                    <option value="usuarios">Todos los usuarios</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>URL del documento</label>
+                <input className="sa-input" style={{ margin: 0 }} value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://drive.google.com/… o cualquier enlace" />
+                <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 4 }}>Pega el link de Google Drive, Notion, PDF, etc.</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Versión</label>
+                  <input className="sa-input" style={{ margin: 0 }} value={form.version} onChange={e => setForm(f => ({ ...f, version: e.target.value }))} placeholder="1.0" />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Tags (separados por coma)</label>
+                  <input className="sa-input" style={{ margin: 0 }} value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="whatsapp, pipeline, admin" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+              <button className="sa-btn" onClick={() => setShowForm(false)}>Cancelar</button>
+              <button className="sa-btn-primary" onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)', border: 'none' }}>
+                {saving ? 'Guardando…' : editDoc ? 'Guardar cambios' : 'Agregar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── MAIN SUPERADMIN ───
 export default function Superadmin() {
   const [authed, setAuthed] = useState(false)
@@ -4161,9 +4430,10 @@ export default function Superadmin() {
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
     { id: 'channels', icon: <Smartphone size={16} />, label: 'Canales' },
     { id: 'feature_flags', icon: <Zap size={16} />, label: 'Feature Flags' },
+    { id: 'documents', icon: <BookOpen size={16} />, label: 'Documentos' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos' }
 
   if (!authed) {
     return (
@@ -4232,6 +4502,7 @@ export default function Superadmin() {
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
           {activeTab === 'channels' && <ChannelsPanel orgs={orgs} />}
           {activeTab === 'feature_flags' && <FeatureFlags />}
+          {activeTab === 'documents' && <DocumentsLibrary />}
         </div>
       </div>
     </div>

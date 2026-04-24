@@ -26,7 +26,7 @@ function ChatMessage({ msg }) {
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end`}>
       {!isUser && (
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 mb-0.5">
+        <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5" style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="4" r="2.5" fill="white" />
             <path d="M1 11c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
@@ -49,7 +49,7 @@ function ChatMessage({ msg }) {
 function TypingIndicator() {
   return (
     <div className="flex gap-2 items-end">
-      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <circle cx="6" cy="4" r="2.5" fill="white" />
           <path d="M1 11c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
@@ -162,9 +162,9 @@ export default function SupportChat() {
           width: 52,
           height: 52,
           background: open
-            ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-            : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-          boxShadow: '0 4px 24px rgba(99,102,241,0.45)',
+            ? 'linear-gradient(135deg, #158f80, #2a28a8)'
+            : 'linear-gradient(135deg, #1aab99, #3533cd)',
+          boxShadow: '0 4px 24px rgba(26,171,153,0.45)',
         }}
         title="Soporte técnico"
       >
@@ -200,9 +200,9 @@ export default function SupportChat() {
           {/* Header */}
           <div
             className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+            style={{ background: 'linear-gradient(135deg, #1aab99, #3533cd)' }}
           >
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <circle cx="8" cy="5.5" r="3" fill="white" />
                 <path d="M2 15c0-3.31 2.69-6 6-6s6 2.69 6 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
@@ -265,7 +265,7 @@ export default function SupportChat() {
                       setLoading(false)
                     }
                   }}
-                  className="text-left text-[12px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
+                  className="text-left text-[12px] px-3 py-1.5 rounded-xl transition-colors font-medium" style={{ color: '#1aab99', background: 'rgba(26,171,153,0.08)' }}
                 >
                   {q}
                 </button>
@@ -292,7 +292,7 @@ export default function SupportChat() {
               className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-150"
               style={{
                 background: input.trim() && !loading
-                  ? 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+                  ? 'linear-gradient(135deg, #1aab99, #3533cd)'
                   : '#e5e7eb',
               }}
             >
