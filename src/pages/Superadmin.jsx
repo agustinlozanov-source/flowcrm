@@ -754,6 +754,46 @@ function Organizations({ orgs, resellers, onRefresh }) {
     onRefresh()
   }
 
+  const resendAccess = async (org) => {
+    const newPass = window.prompt(
+      `Reenviar acceso a ${org.ownerEmail}\n\nEscribe una nueva contraseña (mín. 6 caracteres):\n(Si la dejas en blanco solo se reenvía el correo con la contraseña que elijas)`
+    )
+    if (newPass === null) return
+    if (newPass && newPass.length < 6) { toast.error('Mínimo 6 caracteres'); return }
+    try {
+      // Si se dio nueva contraseña, actualizarla vía la función existente
+      if (newPass) {
+        const res = await fetch('/.netlify/functions/create-org-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: org.ownerEmail, password: newPass, existingOrgId: org.id }),
+        })
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.error || 'Error actualizando contraseña')
+      }
+      // Enviar correo
+      const passToSend = newPass || '(La contraseña no fue cambiada — usa tu contraseña actual)'
+      await fetch('/.netlify/functions/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: newPass ? 'reset_password' : 'welcome_org',
+          to: org.ownerEmail,
+          data: {
+            nombre: org.ownerNombre || org.ownerEmail.split('@')[0],
+            orgName: org.name,
+            email: org.ownerEmail,
+            password: passToSend,
+            newPassword: passToSend,
+          },
+        }),
+      })
+      toast.success(`Correo enviado a ${org.ownerEmail}`)
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
   return (
     <div className="sa-content">
       <div className="sa-card">
@@ -795,6 +835,9 @@ function Organizations({ orgs, resellers, onRefresh }) {
                 <td>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Btn sm variant="ghost" onClick={() => openEdit(org)}>Editar</Btn>
+                    <Btn sm variant="ghost" onClick={() => resendAccess(org)} title="Enviar correo de acceso al administrador">
+                      📧
+                    </Btn>
                     {!org.ownerId && (
                       <Btn sm variant="ghost" onClick={() => repairAuth(org)} disabled={repairing === org.id}
                         title="La org no tiene usuario en Firebase Auth. Haz clic para crearlo.">
@@ -2336,6 +2379,21 @@ function DistribuidoresPanel() {
         })
       }
 
+      // Enviar correo de aprobación al distribuidor
+      try {
+        await fetch('/.netlify/functions/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'distributor_approved',
+            to: application.email,
+            data: { nombre: application.nombre, apellido: application.apellido_paterno },
+          }),
+        })
+      } catch (emailErr) {
+        console.warn('[email] Error enviando correo de aprobación:', emailErr)
+      }
+
       toast.success(`✓ ${application.nombre} ${application.apellido_paterno} aprobado como distribuidor`)
     } catch (err) {
       console.error(err)
@@ -2351,6 +2409,25 @@ function DistribuidoresPanel() {
       await updateDoc(doc(db, 'distributorApplications', applicationId), {
         status: 'rejected', rejectedAt: serverTimestamp(),
       })
+
+      // Enviar correo de rechazo al solicitante
+      const application = applications.find(a => a.id === applicationId)
+      if (application?.email) {
+        try {
+          await fetch('/.netlify/functions/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'distributor_rejected',
+              to: application.email,
+              data: { nombre: application.nombre, apellido: application.apellido_paterno },
+            }),
+          })
+        } catch (emailErr) {
+          console.warn('[email] Error enviando correo de rechazo:', emailErr)
+        }
+      }
+
       toast.success('Solicitud rechazada')
     } catch (err) {
       toast.error(err.message)

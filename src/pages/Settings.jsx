@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { auth } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import toast from 'react-hot-toast'
 
 // ── Channel card ──────────────────────────────────────────────────────────────
@@ -75,6 +77,11 @@ export default function Settings() {
   const [assignedNumber, setAssignedNumber] = useState(null) // { phoneNumber, metaPreverifiedId }
   const [timezone, setTimezone] = useState(org?.timezone || 'America/Mexico_City')
   const [savingTimezone, setSavingTimezone] = useState(false)
+
+  // Password change state
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [savingPw, setSavingPw] = useState(false)
+  const [showPwForm, setShowPwForm] = useState(false)
 
   const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
 
@@ -197,6 +204,57 @@ export default function Settings() {
       toast.error('Error al desconectar')
     } finally {
       setLoadingChannel(null)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!pwForm.current) { toast.error('Ingresa tu contraseña actual'); return }
+    if (pwForm.next.length < 6) { toast.error('La nueva contraseña debe tener mínimo 6 caracteres'); return }
+    if (pwForm.next !== pwForm.confirm) { toast.error('Las contraseñas no coinciden'); return }
+    setSavingPw(true)
+    try {
+      const currentUser = auth.currentUser
+      if (!currentUser) throw new Error('Sesión expirada. Recarga la página.')
+
+      // Re-autenticar antes de cambiar contraseña (requerido por Firebase)
+      const credential = EmailAuthProvider.credential(currentUser.email, pwForm.current)
+      await reauthenticateWithCredential(currentUser, credential)
+
+      // Cambiar contraseña
+      await updatePassword(currentUser, pwForm.next)
+
+      // Enviar correo de notificación
+      try {
+        await fetch('/.netlify/functions/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'reset_password',
+            to: currentUser.email,
+            data: {
+              nombre: user?.nombre || currentUser.email.split('@')[0],
+              email: currentUser.email,
+              newPassword: '•••••••• (contraseña actualizada — no se muestra por seguridad)',
+            },
+          }),
+        })
+      } catch (emailErr) {
+        console.warn('[email] No se pudo enviar notificación:', emailErr)
+      }
+
+      toast.success('Contraseña actualizada correctamente')
+      setPwForm({ current: '', next: '', confirm: '' })
+      setShowPwForm(false)
+    } catch (e) {
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+        toast.error('Contraseña actual incorrecta')
+      } else if (e.code === 'auth/weak-password') {
+        toast.error('La contraseña es demasiado débil')
+      } else {
+        toast.error(e.message)
+      }
+    } finally {
+      setSavingPw(false)
     }
   }
 
@@ -618,6 +676,76 @@ export default function Settings() {
               </button>
             </div>
           </div>
+        </div>
+      </Section>
+
+      {/* ── Seguridad ── */}
+      <Section title="Seguridad" description="Administra el acceso y la seguridad de tu cuenta">
+        <div className="p-4 rounded-xl border border-gray-100 bg-white space-y-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-sm font-medium text-gray-900">Contraseña</span>
+              <p className="text-xs text-gray-500 mt-0.5">Cambia tu contraseña de acceso</p>
+            </div>
+            <button
+              onClick={() => { setShowPwForm(f => !f); setPwForm({ current: '', next: '', confirm: '' }) }}
+              className="text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {showPwForm ? 'Cancelar' : 'Cambiar'}
+            </button>
+          </div>
+
+          {showPwForm && (
+            <>
+              <div className="border-t border-gray-50" />
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Contraseña actual</label>
+                  <input
+                    type="password"
+                    value={pwForm.current}
+                    onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                    placeholder="••••••••"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Nueva contraseña</label>
+                  <input
+                    type="password"
+                    value={pwForm.next}
+                    onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Confirmar nueva contraseña</label>
+                  <input
+                    type="password"
+                    value={pwForm.confirm}
+                    onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+                    placeholder="Repite la nueva contraseña"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    onKeyDown={e => e.key === 'Enter' && handleChangePassword()}
+                  />
+                </div>
+                {pwForm.next && pwForm.next.length < 6 && (
+                  <p className="text-xs text-red-500">Mínimo 6 caracteres</p>
+                )}
+                {pwForm.next && pwForm.confirm && pwForm.next !== pwForm.confirm && (
+                  <p className="text-xs text-red-500">Las contraseñas no coinciden</p>
+                )}
+                <button
+                  onClick={handleChangePassword}
+                  disabled={savingPw || !pwForm.current || pwForm.next.length < 6 || pwForm.next !== pwForm.confirm}
+                  className="w-full text-sm font-medium text-white bg-gray-900 hover:bg-gray-700 px-4 py-2.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {savingPw ? 'Actualizando...' : 'Guardar nueva contraseña'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Section>
     </div>

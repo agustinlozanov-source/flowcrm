@@ -1,5 +1,23 @@
 const admin = require('firebase-admin')
 
+// ── Email helper ──────────────────────────────────────────────────────────
+async function sendEmail(type, to, data) {
+  try {
+    const baseUrl = process.env.URL || 'https://app.flowhubcrm.app'
+    const res = await fetch(`${baseUrl}/.netlify/functions/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, to, data }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error('[send-email] error:', err)
+    }
+  } catch (e) {
+    console.error('[send-email] fetch failed:', e.message)
+  }
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -80,6 +98,17 @@ exports.handler = async (event) => {
         stats: { activeLeads: 0, closedThisMonth: 0, closedTotal: 0, conversionRate: 0, lastUpdated: null },
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // Enviar correo de bienvenida al nuevo miembro
+      const orgSnap = await db.collection('organizations').doc(orgId).get()
+      const orgName = orgSnap.exists ? (orgSnap.data().name || 'tu organización') : 'tu organización'
+      await sendEmail('welcome_member', email, {
+        nombre: memberData.nombre || nombre || email.split('@')[0],
+        orgName,
+        email,
+        password: memberData.initialPassword || '(La contraseña fue configurada por tu administrador)',
+        role: memberData.role || 'seller',
       })
 
     } else if (existingOrgId) {
@@ -168,6 +197,14 @@ exports.handler = async (event) => {
         stats: { activeLeads: 0, closedThisMonth: 0, closedTotal: 0, conversionRate: 0, lastUpdated: null },
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // Enviar correo de bienvenida al admin de la nueva org
+      await sendEmail('welcome_org', email, {
+        nombre: nombre || email.split('@')[0],
+        orgName: orgData.name || 'tu organización',
+        email,
+        password,
       })
     }
 
