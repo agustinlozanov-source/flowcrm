@@ -8,6 +8,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/hooks/useLang'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import SupportChat from './SupportChat'
 
 const NAV_SECTIONS = [
   {
@@ -344,6 +345,9 @@ export default function AppLayout() {
       <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
+
+      {/* SUPPORT CHAT */}
+      <SupportChat />
 
     </div>
   )

@@ -256,7 +256,7 @@ const css = `
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
 
-  .sa-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .sa-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 
   .sa-nav-item {
     display: flex; align-items: center; gap: 9px;
