@@ -314,7 +314,7 @@ function cleanRawReply(text) {
       else if (ch === '}') { depth--; if (depth === 0) { clean = (clean.slice(0, start) + clean.slice(i + 1)).trim(); break } }
     }
   }
-  return clean || text
+  return clean  // Si queda vacío, devolver vacío — nunca el JSON original
 }
 
 // ── EXTRACT FIRST JSON OBJECT (brace-counting, handles nested objects) ──
@@ -351,7 +351,7 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
       const parsed = JSON.parse(jsonStr)
 
       // Solo el campo response va al lead — nunca el JSON completo
-      if (parsed.response) visibleReply = parsed.response
+      if (parsed.response != null) visibleReply = parsed.response
 
       // ── Scoring + mover etapa ──
       if (parsed.scoring && lead.id) {
@@ -438,6 +438,9 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
     }
   } catch (err) {
     console.error('JSON parse error:', err.message)
+  }
+  if (!visibleReply) {
+    console.warn('[parseAndUpdateScore] visibleReply vacío — rawReply:', rawReply.slice(0, 200))
   }
   return { visibleReply, detectedPipelineId }
 }
