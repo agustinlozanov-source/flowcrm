@@ -45,11 +45,9 @@ exports.handler = async (event) => {
       let sub = null
 
       if (orgData.stripeSubscriptionId) {
-        // Ya tenemos el subscription ID, usarlo directamente
-        sub = await stripe.subscriptions.retrieve(orgData.stripeSubscriptionId)
+        sub = await stripe.subscriptions.retrieve(orgData.stripeSubscriptionId, { expand: ['latest_invoice'] })
       } else if (orgData.stripeCustomerId) {
-        // No hay subscription ID en Firestore — buscar por customer
-        const subs = await stripe.subscriptions.list({ customer: orgData.stripeCustomerId, limit: 1, status: 'all' })
+        const subs = await stripe.subscriptions.list({ customer: orgData.stripeCustomerId, limit: 1, status: 'all', expand: ['data.latest_invoice'] })
         sub = subs.data[0] || null
       }
 
@@ -57,12 +55,38 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ status: 'no_subscription' }) }
       }
 
+      const invoice = sub.latest_invoice
+      const periodEnd = sub.current_period_end
+      const lastPayment = invoice?.status === 'paid' ? new Date(invoice.created * 1000).toISOString() : null
+
       await orgRef.update({
         stripeSubscriptionId: sub.id,
         stripeSubscriptionStatus: sub.status,
         billingStatus: sub.status === 'active' ? 'paid' : sub.status,
-        ...(sub.current_period_end ? { nextBillingDate: new Date(sub.current_period_end * 1000).toISOString() } : {}),
+        ...(periodEnd ? { nextBillingDate: new Date(periodEnd * 1000).toISOString() } : {}),
+        ...(lastPayment ? { lastPaymentDate: lastPayment } : {}),
       })
+
+      // Guardar recibo si existe una invoice pagada y no está ya registrada
+      if (invoice?.status === 'paid' && invoice?.id) {
+        const existingReceipt = await db.collection('organizations').doc(orgId)
+          .collection('billing_receipts').where('invoiceId', '==', invoice.id).limit(1).get()
+        if (existingReceipt.empty) {
+          const periodEndInv = invoice.lines?.data?.[0]?.period?.end
+          await db.collection('organizations').doc(orgId).collection('billing_receipts').add({
+            invoiceId: invoice.id,
+            amountPaid: (invoice.amount_paid || 0) / 100,
+            currency: (invoice.currency || 'usd').toUpperCase(),
+            periodStart: invoice.lines?.data?.[0]?.period?.start ? new Date(invoice.lines.data[0].period.start * 1000).toISOString() : null,
+            periodEnd: periodEndInv ? new Date(periodEndInv * 1000).toISOString() : null,
+            pdfUrl: invoice.invoice_pdf || null,
+            hostedUrl: invoice.hosted_invoice_url || null,
+            status: 'paid',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+        }
+      }
+
       return { statusCode: 200, body: JSON.stringify({ status: sub.status, subscriptionId: sub.id }) }
     }
 
