@@ -61,7 +61,7 @@ exports.handler = async (event) => {
         stripeSubscriptionId: sub.id,
         stripeSubscriptionStatus: sub.status,
         billingStatus: sub.status === 'active' ? 'paid' : sub.status,
-        nextBillingDate: new Date(sub.current_period_end * 1000).toISOString(),
+        ...(sub.current_period_end ? { nextBillingDate: new Date(sub.current_period_end * 1000).toISOString() } : {}),
       })
       return { statusCode: 200, body: JSON.stringify({ status: sub.status, subscriptionId: sub.id }) }
     }
