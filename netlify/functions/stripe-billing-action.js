@@ -42,16 +42,28 @@ exports.handler = async (event) => {
 
     // ── Sync status from Stripe ────────────────────────────────────────────
     if (action === 'sync') {
-      if (!orgData.stripeSubscriptionId) {
+      let sub = null
+
+      if (orgData.stripeSubscriptionId) {
+        // Ya tenemos el subscription ID, usarlo directamente
+        sub = await stripe.subscriptions.retrieve(orgData.stripeSubscriptionId)
+      } else if (orgData.stripeCustomerId) {
+        // No hay subscription ID en Firestore — buscar por customer
+        const subs = await stripe.subscriptions.list({ customer: orgData.stripeCustomerId, limit: 1, status: 'all' })
+        sub = subs.data[0] || null
+      }
+
+      if (!sub) {
         return { statusCode: 200, body: JSON.stringify({ status: 'no_subscription' }) }
       }
-      const sub = await stripe.subscriptions.retrieve(orgData.stripeSubscriptionId)
+
       await orgRef.update({
+        stripeSubscriptionId: sub.id,
         stripeSubscriptionStatus: sub.status,
         billingStatus: sub.status === 'active' ? 'paid' : sub.status,
         nextBillingDate: new Date(sub.current_period_end * 1000).toISOString(),
       })
-      return { statusCode: 200, body: JSON.stringify({ status: sub.status }) }
+      return { statusCode: 200, body: JSON.stringify({ status: sub.status, subscriptionId: sub.id }) }
     }
 
     // ── Record manual payment (cash / transfer / etc.) ────────────────────
