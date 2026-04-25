@@ -1811,6 +1811,34 @@ app.post('/whatsapp/embedded-signup', async (req, res) => {
 })
 
 // POST /zernio/create-profile
+app.put('/zernio/update-profile', async (req, res) => {
+  const { orgId, orgName } = req.body
+  if (!orgId || !orgName) return res.status(400).json({ error: 'Missing orgId or orgName' })
+  try {
+    // Leer profileId guardado en Firestore
+    const integSnap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('integrations').get()
+    const profileId = integSnap.exists ? integSnap.data()?.zernio?.profileId : null
+    if (!profileId) return res.status(404).json({ error: 'No Zernio profileId found for this org' })
+
+    // Actualizar nombre del perfil en Zernio
+    await axios.put(`https://zernio.com/api/v1/profiles/${profileId}`, {
+      name: orgName,
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    })
+
+    console.log(`[Zernio] Perfil actualizado para org ${orgId} (${profileId}): "${orgName}"`)
+    res.json({ success: true, profileId, orgName })
+  } catch (err) {
+    console.error('[Zernio] Error actualizando perfil:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.post('/zernio/create-profile', async (req, res) => {
   const { orgId, orgName } = req.body
   if (!orgId || !orgName) return res.status(400).json({ error: 'Missing orgId or orgName' })
