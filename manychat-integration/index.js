@@ -1856,8 +1856,9 @@ app.put('/zernio/update-profile', async (req, res) => {
     console.log(`[Zernio] Perfil ACTUALIZADO para org ${orgId} (${profileId}): "${orgName}"`)
     res.json({ success: true, action: 'updated', profileId, orgName })
   } catch (err) {
-    console.error('[Zernio] Error en upsert perfil:', err.response?.data || err.message)
-    res.status(500).json({ error: err.message })
+    const zernioError = err.response?.data || err.message
+    console.error('[Zernio] Error en upsert perfil:', zernioError)
+    res.status(500).json({ error: err.message, zernioDetail: zernioError })
   }
 })
 
