@@ -4154,10 +4154,15 @@ function BillingPanel({ orgs }) {
   }, [])
 
   const loadReceipts = async (org) => {
-    setSelected(org)
     setReceipts([])
     setLoadingReceipts(true)
     try {
+      // Leer org fresca de Firestore para tener datos actualizados
+      const { getDoc, doc: fsDoc } = await import('firebase/firestore')
+      const freshSnap = await getDoc(fsDoc(db, 'organizations', org.id))
+      if (freshSnap.exists()) setSelected({ id: freshSnap.id, ...freshSnap.data() })
+      else setSelected(org)
+
       const res = await fetch('/.netlify/functions/stripe-billing-action', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get_receipts', orgId: org.id }),
@@ -4176,6 +4181,8 @@ function BillingPanel({ orgs }) {
       })
       const data = await res.json()
       toast.success(`Estado sincronizado: ${data.status}`)
+      // Recargar org seleccionada y recibos para reflejar cambios
+      await loadReceipts(org)
     } catch { toast.error('Error al sincronizar') }
   }
 
