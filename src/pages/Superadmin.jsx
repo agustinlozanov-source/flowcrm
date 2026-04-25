@@ -665,6 +665,25 @@ function Organizations({ orgs, resellers, onRefresh }) {
 
       if (editOrg) {
         await updateDoc(doc(db, 'organizations', editOrg.id), orgData)
+
+        // Sincronizar con Zernio siempre (upsert: crea si no existe, actualiza si existe)
+        try {
+          const zRes = await fetch('https://flowcrm-production-6d63.up.railway.app/zernio/update-profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orgId: editOrg.id, orgName: form.name }),
+          })
+          if (!zRes.ok) {
+            const zErr = await zRes.json()
+            console.warn('[Zernio] No se pudo sincronizar el perfil:', zErr.error)
+          } else {
+            const zData = await zRes.json()
+            console.log(`[Zernio] Perfil ${zData.action} para:`, form.name)
+          }
+        } catch (err) {
+          console.error('[Zernio] Error al sincronizar perfil:', err)
+        }
+
         toast.success('Organización actualizada')
       } else {
         // Use backend function — Admin SDK creates the user without affecting the
