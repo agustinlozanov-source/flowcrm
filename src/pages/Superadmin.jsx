@@ -4104,18 +4104,18 @@ function FeatureFlags() {
 
 // ─── BILLING PANEL ───
 const BILLING_STATUS_CFG = {
-  paid:       { label: 'Al corriente',  color: '#00c853' },
-  active:     { label: 'Activo',        color: '#00c853' },
-  past_due:   { label: 'Vencido',       color: '#ff9500' },
-  cancelled:  { label: 'Cancelado',     color: '#ff3b30' },
-  trialing:   { label: 'Trial',         color: '#0066ff' },
-  incomplete: { label: 'Incompleto',    color: '#ff9500' },
-  none:       { label: 'Sin suscripción', color: '#8e8e93' },
+  paid:       { label: 'Al corriente',    color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.25)' },
+  active:     { label: 'Activo',          color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.25)' },
+  past_due:   { label: 'Vencido',         color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.25)' },
+  cancelled:  { label: 'Cancelado',       color: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)' },
+  trialing:   { label: 'Trial',           color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.25)' },
+  incomplete: { label: 'Incompleto',      color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.25)' },
+  none:       { label: 'Sin suscripción', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  border: 'rgba(148,163,184,0.2)' },
 }
 
 function BillingPanel({ orgs }) {
   const [plans, setPlans] = useState([])
-  const [selected, setSelected] = useState(null)          // org seleccionada
+  const [selected, setSelected] = useState(null)
   const [receipts, setReceipts] = useState([])
   const [loadingReceipts, setLoadingReceipts] = useState(false)
   const [showSetupModal, setShowSetupModal] = useState(false)
@@ -4139,8 +4139,7 @@ function BillingPanel({ orgs }) {
     setLoadingReceipts(true)
     try {
       const res = await fetch('/.netlify/functions/stripe-billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get_receipts', orgId: org.id }),
       })
       const data = await res.json()
@@ -4152,8 +4151,7 @@ function BillingPanel({ orgs }) {
   const syncStatus = async (org) => {
     try {
       const res = await fetch('/.netlify/functions/stripe-billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'sync', orgId: org.id }),
       })
       const data = await res.json()
@@ -4162,12 +4160,11 @@ function BillingPanel({ orgs }) {
   }
 
   const cancelSub = async (org) => {
-    if (!confirm(`¿Cancelar la suscripción de ${org.name}? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Cancelar la suscripción de ${org.name}?`)) return
     setSaving(true)
     try {
       await fetch('/.netlify/functions/stripe-billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cancel', orgId: org.id }),
       })
       toast.success('Suscripción cancelada')
@@ -4176,24 +4173,17 @@ function BillingPanel({ orgs }) {
   }
 
   const createSubscription = async () => {
-    if (!setupForm.stripePriceId) return toast.error('Selecciona un plan con Price ID de Stripe')
-    if (!setupForm.ownerEmail) return toast.error('Email del cliente requerido')
+    if (!setupForm.stripePriceId) return toast.error('Ingresa el Stripe Price ID')
+    if (!setupForm.ownerEmail) return toast.error('Email requerido')
     setSaving(true)
     try {
       const res = await fetch('/.netlify/functions/stripe-create-customer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orgId: selected.id,
-          orgName: selected.name,
-          ownerEmail: setupForm.ownerEmail,
-          stripePriceId: setupForm.stripePriceId,
-          billingCycle: setupForm.billingCycle,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail, stripePriceId: setupForm.stripePriceId, billingCycle: setupForm.billingCycle }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      toast.success('Suscripción creada en Stripe ✓')
+      toast.success('Suscripción creada ✓')
       setShowSetupModal(false)
     } catch (err) { toast.error(err.message) }
     setSaving(false)
@@ -4204,15 +4194,8 @@ function BillingPanel({ orgs }) {
     setSaving(true)
     try {
       await fetch('/.netlify/functions/stripe-billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'manual_payment',
-          orgId: selected.id,
-          amount: parseFloat(manualForm.amount),
-          currency: manualForm.currency,
-          note: manualForm.note,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'manual_payment', orgId: selected.id, amount: parseFloat(manualForm.amount), currency: manualForm.currency, note: manualForm.note }),
       })
       toast.success('Pago registrado ✓')
       setShowManualModal(false)
@@ -4228,15 +4211,12 @@ function BillingPanel({ orgs }) {
     return matchSearch && matchStatus
   })
 
-  // Billing summary metrics
   const totalActive = orgs.filter(o => ['paid', 'active'].includes(o.billingStatus || o.stripeSubscriptionStatus)).length
-  const totalPastDue = orgs.filter(o => ['past_due'].includes(o.billingStatus || o.stripeSubscriptionStatus)).length
+  const totalPastDue = orgs.filter(o => o.billingStatus === 'past_due' || o.stripeSubscriptionStatus === 'past_due').length
   const totalNoSub = orgs.filter(o => !o.stripeSubscriptionId && !o.billingStatus).length
   const mrrApprox = orgs.reduce((acc, o) => {
     const plan = plans.find(p => p.id === o.planId)
-    if (['paid', 'active'].includes(o.billingStatus || o.stripeSubscriptionStatus) && plan?.monthlyUSD) {
-      return acc + plan.monthlyUSD
-    }
+    if (['paid', 'active'].includes(o.billingStatus || o.stripeSubscriptionStatus) && plan?.monthlyUSD) return acc + plan.monthlyUSD
     return acc
   }, 0)
 
@@ -4246,51 +4226,92 @@ function BillingPanel({ orgs }) {
     catch { return d }
   }
 
+  const StatusBadge = ({ status }) => {
+    const cfg = BILLING_STATUS_CFG[status] || BILLING_STATUS_CFG.none
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999,
+        background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, letterSpacing: '.01em', whiteSpace: 'nowrap' }}>
+        {cfg.label}
+      </span>
+    )
+  }
+
+  const BtnAction = ({ onClick, disabled, icon, children, variant = 'ghost' }) => {
+    const styles = {
+      ghost:   { background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' },
+      primary: { background: 'linear-gradient(135deg,#1aab99,#3533cd)', color: '#fff', border: 'none' },
+      danger:  { background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' },
+    }
+    return (
+      <button onClick={onClick} disabled={disabled}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8,
+          fontSize: 12, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
+          transition: 'all .15s', ...styles[variant] }}>
+        {icon}{children}
+      </button>
+    )
+  }
+
+  const selectedStatus = selected ? (selected.billingStatus || selected.stripeSubscriptionStatus || 'none') : 'none'
+  const selectedCfg = BILLING_STATUS_CFG[selectedStatus] || BILLING_STATUS_CFG.none
+  const selectedPlan = selected ? plans.find(p => p.id === selected.planId) : null
+
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: '#0d0d10' }}>
 
-      {/* LEFT: Org list */}
-      <div style={{ width: 340, flexShrink: 0, borderRight: '1px solid var(--gray-5)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── LEFT COLUMN ── */}
+      <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Summary cards */}
-        <div style={{ padding: '20px 16px 12px', borderBottom: '1px solid var(--gray-5)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Resumen MRR</div>
+        {/* MRR Summary */}
+        <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>Vista general</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
-              { label: 'MRR estimado', value: `$${mrrApprox.toLocaleString()} USD`, color: '#1aab99' },
-              { label: 'Activos', value: totalActive, color: '#00c853' },
-              { label: 'Vencidos', value: totalPastDue, color: '#ff9500' },
-              { label: 'Sin suscripción', value: totalNoSub, color: '#8e8e93' },
+              { label: 'MRR estimado', value: `$${mrrApprox.toLocaleString()}`, sub: 'USD / mes', accent: '#1aab99' },
+              { label: 'Activos',       value: totalActive,    sub: 'organizaciones', accent: '#34d399' },
+              { label: 'Vencidos',      value: totalPastDue,   sub: 'requieren atención', accent: '#fb923c' },
+              { label: 'Sin plan',      value: totalNoSub,     sub: 'sin suscripción', accent: '#64748b' },
             ].map(s => (
-              <div key={s.label} style={{ background: 'var(--gray-6)', borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: s.color, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 2 }}>{s.label}</div>
+              <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '11px 13px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: s.accent, fontFamily: "'Plus Jakarta Sans',sans-serif", lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontWeight: 500 }}>{s.label}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Filters */}
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--gray-5)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Search + filter */}
+        <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ position: 'relative' }}>
-            <Search size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-4)' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cliente…"
-              className="sa-input" style={{ paddingLeft: 26, margin: 0, fontSize: 12 }} />
+            <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar organización…"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8,
+                color: '#e2e8f0', fontSize: 12, padding: '7px 10px 7px 28px', outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {['all', 'paid', 'past_due', 'cancelled', 'none'].map(s => (
-              <button key={s} onClick={() => setFilterStatus(s)}
-                style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                  background: filterStatus === s ? 'linear-gradient(135deg,#1aab99,#3533cd)' : 'var(--gray-5)',
-                  color: filterStatus === s ? 'white' : 'var(--gray-4)' }}>
-                {s === 'all' ? 'Todos' : BILLING_STATUS_CFG[s]?.label || s}
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'paid', label: 'Al corriente' },
+              { id: 'past_due', label: 'Vencidos' },
+              { id: 'cancelled', label: 'Cancelados' },
+              { id: 'none', label: 'Sin plan' },
+            ].map(s => (
+              <button key={s.id} onClick={() => setFilterStatus(s.id)}
+                style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
+                  background: filterStatus === s.id ? 'linear-gradient(135deg,#1aab99,#3533cd)' : 'rgba(255,255,255,0.05)',
+                  color: filterStatus === s.id ? '#fff' : '#94a3b8',
+                  border: filterStatus === s.id ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                {s.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Org rows */}
+        {/* Org list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
+          {filteredOrgs.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: '#475569', fontSize: 13 }}>Sin resultados</div>
+          )}
           {filteredOrgs.map(org => {
             const status = org.billingStatus || org.stripeSubscriptionStatus || 'none'
             const cfg = BILLING_STATUS_CFG[status] || BILLING_STATUS_CFG.none
@@ -4298,126 +4319,165 @@ function BillingPanel({ orgs }) {
             const isActive = selected?.id === org.id
             return (
               <div key={org.id} onClick={() => loadReceipts(org)}
-                style={{ padding: '12px 14px', borderBottom: '1px solid var(--gray-6)', cursor: 'pointer',
-                  background: isActive ? 'rgba(26,171,153,0.08)' : 'transparent',
-                  borderLeft: isActive ? '3px solid #1aab99' : '3px solid transparent',
-                  transition: 'all .15s' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--gray-1)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{org.name}</div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: cfg.color + '22', color: cfg.color, flexShrink: 0 }}>{cfg.label}</span>
+                style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
+                  background: isActive ? 'rgba(26,171,153,0.07)' : 'transparent',
+                  borderLeft: `3px solid ${isActive ? '#1aab99' : 'transparent'}`,
+                  transition: 'background .15s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#f1f5f9', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {org.name}
+                  </div>
+                  <StatusBadge status={status} />
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3, display: 'flex', gap: 8 }}>
-                  <span>{plan?.name || '—'} · ${plan?.monthlyUSD || '?'}/mo</span>
-                  {org.nextBillingDate && <span>Próx: {fmt(org.nextBillingDate)}</span>}
+                <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 10 }}>
+                  <span style={{ color: '#94a3b8' }}>{plan?.name || 'Sin plan'} · ${plan?.monthlyUSD || '?'}/mo</span>
+                  {org.nextBillingDate && <span>📅 {fmt(org.nextBillingDate)}</span>}
                 </div>
               </div>
             )
           })}
-          {filteredOrgs.length === 0 && (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--gray-4)', fontSize: 13 }}>Sin resultados</div>
-          )}
         </div>
       </div>
 
-      {/* RIGHT: Detail */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* ── RIGHT DETAIL ── */}
+      <div style={{ flex: 1, overflow: 'auto', background: '#0a0a0d' }}>
         {!selected ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-4)', gap: 12 }}>
-            <CreditCard size={40} style={{ opacity: 0.25 }} />
-            <div style={{ fontSize: 14, fontWeight: 600 }}>Selecciona una organización</div>
-            <div style={{ fontSize: 13 }}>para ver su historial de pagos y gestionar su suscripción</div>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#334155' }}>
+            <CreditCard size={48} strokeWidth={1} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#475569' }}>Selecciona una organización</div>
+            <div style={{ fontSize: 13, color: '#334155' }}>para gestionar su suscripción e historial de pagos</div>
           </div>
         ) : (
-          <div style={{ padding: '24px 28px' }}>
+          <div style={{ padding: '28px 32px', maxWidth: 860 }}>
 
-            {/* Org header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 28 }}>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: 'var(--gray-1)' }}>{selected.name}</div>
-                <div style={{ fontSize: 13, color: 'var(--gray-4)', marginTop: 2 }}>{selected.ownerEmail}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: '#f8fafc' }}>{selected.name}</div>
+                  <StatusBadge status={selectedStatus} />
+                </div>
+                <div style={{ fontSize: 13, color: '#64748b' }}>{selected.ownerEmail}</div>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="sa-btn" onClick={() => syncStatus(selected)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <RefreshCw size={13} /> Sincronizar
-                </button>
-                <button className="sa-btn" onClick={() => {
-                  setManualForm({ amount: '', currency: 'USD', note: '' })
-                  setShowManualModal(true)
-                }} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Plus size={13} /> Pago manual
-                </button>
-                <button className="sa-btn-primary" onClick={() => {
-                  setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '' })
-                  setShowSetupModal(true)
-                }} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none' }}>
-                  <CreditCard size={13} /> {selected.stripeSubscriptionId ? 'Cambiar plan' : 'Crear suscripción'}
-                </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                <BtnAction onClick={() => syncStatus(selected)} icon={<RefreshCw size={13} />}>Sincronizar</BtnAction>
+                <BtnAction onClick={() => { setManualForm({ amount: '', currency: 'USD', note: '' }); setShowManualModal(true) }} icon={<Plus size={13} />}>Pago manual</BtnAction>
+                <BtnAction variant="primary" onClick={() => { setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '' }); setShowSetupModal(true) }} icon={<CreditCard size={13} />}>
+                  {selected.stripeSubscriptionId ? 'Cambiar plan' : 'Crear suscripción'}
+                </BtnAction>
                 {selected.stripeSubscriptionId && (
-                  <button onClick={() => cancelSub(selected)} disabled={saving}
-                    style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #ff3b3044', background: '#ff3b3011', color: '#ff3b30', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <X size={13} /> Cancelar
-                  </button>
+                  <BtnAction variant="danger" onClick={() => cancelSub(selected)} disabled={saving} icon={<X size={13} />}>Cancelar</BtnAction>
                 )}
               </div>
             </div>
 
-            {/* Status cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: 12, marginBottom: 28 }}>
+            {/* Info cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
               {[
-                { label: 'Estado', value: BILLING_STATUS_CFG[selected.billingStatus || selected.stripeSubscriptionStatus || 'none']?.label || '—',
-                  color: BILLING_STATUS_CFG[selected.billingStatus || selected.stripeSubscriptionStatus || 'none']?.color || '#8e8e93' },
-                { label: 'Plan', value: plans.find(p => p.id === selected.planId)?.name || '—', color: '#0066ff' },
-                { label: 'Próximo cobro', value: fmt(selected.nextBillingDate), color: 'var(--gray-1)' },
-                { label: 'Último pago', value: fmt(selected.lastPaymentDate), color: 'var(--gray-1)' },
-                { label: 'Customer ID', value: selected.stripeCustomerId ? selected.stripeCustomerId.slice(0, 18) + '…' : 'Sin vincular', color: selected.stripeCustomerId ? '#1aab99' : '#8e8e93' },
-                { label: 'Ciclo', value: selected.billingCycle === 'annual' ? 'Anual' : selected.billingCycle === 'monthly' ? 'Mensual' : '—', color: 'var(--gray-1)' },
+                {
+                  label: 'Estado de pago',
+                  value: selectedCfg.label,
+                  valueColor: selectedCfg.color,
+                  icon: <CreditCard size={16} style={{ color: selectedCfg.color }} />,
+                },
+                {
+                  label: 'Plan activo',
+                  value: selectedPlan?.name || '—',
+                  sub: selectedPlan ? `$${selectedPlan.monthlyUSD} USD / mes` : null,
+                  valueColor: '#60a5fa',
+                  icon: <Package size={16} style={{ color: '#60a5fa' }} />,
+                },
+                {
+                  label: 'Ciclo de cobro',
+                  value: selected.billingCycle === 'annual' ? 'Anual' : selected.billingCycle === 'monthly' ? 'Mensual' : '—',
+                  valueColor: '#e2e8f0',
+                  icon: <Calendar size={16} style={{ color: '#94a3b8' }} />,
+                },
+                {
+                  label: 'Próximo cobro',
+                  value: fmt(selected.nextBillingDate),
+                  valueColor: selected.nextBillingDate ? '#fb923c' : '#475569',
+                  icon: <Hourglass size={16} style={{ color: '#fb923c' }} />,
+                },
+                {
+                  label: 'Último pago',
+                  value: fmt(selected.lastPaymentDate),
+                  valueColor: '#e2e8f0',
+                  icon: <Check size={16} style={{ color: '#34d399' }} />,
+                },
+                {
+                  label: 'Customer ID',
+                  value: selected.stripeCustomerId ? selected.stripeCustomerId.slice(0, 20) + '…' : 'Sin vincular',
+                  valueColor: selected.stripeCustomerId ? '#1aab99' : '#475569',
+                  icon: <Key size={16} style={{ color: '#1aab99' }} />,
+                  link: selected.stripeCustomerId ? `https://dashboard.stripe.com/customers/${selected.stripeCustomerId}` : null,
+                },
               ].map(c => (
-                <div key={c.label} style={{ background: 'var(--gray-6)', borderRadius: 12, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--gray-4)', marginBottom: 5 }}>{c.label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: c.color }}>{c.value}</div>
+                <div key={c.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                    {c.icon}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>{c.label}</span>
+                  </div>
+                  {c.link ? (
+                    <a href={c.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 700, color: c.valueColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {c.value} <ExternalLink size={11} />
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: 14, fontWeight: 700, color: c.valueColor }}>{c.value}</div>
+                  )}
+                  {c.sub && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{c.sub}</div>}
                 </div>
               ))}
             </div>
 
             {/* Receipts */}
-            <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14, color: 'var(--gray-1)' }}>
-              Historial de pagos
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: '#f1f5f9' }}>
+                Historial de pagos
+              </div>
+              {receipts.length > 0 && <span style={{ fontSize: 12, color: '#64748b' }}>{receipts.length} registros</span>}
             </div>
 
             {loadingReceipts ? (
-              <div style={{ color: 'var(--gray-4)', fontSize: 13, padding: '20px 0' }}>Cargando recibos…</div>
+              <div style={{ padding: '24px 0', textAlign: 'center', color: '#475569', fontSize: 13 }}>Cargando recibos…</div>
             ) : receipts.length === 0 ? (
-              <div style={{ background: 'var(--gray-6)', borderRadius: 12, padding: '32px 24px', textAlign: 'center', color: 'var(--gray-4)' }}>
-                <FileText size={28} style={{ opacity: 0.3, marginBottom: 10 }} />
-                <div style={{ fontSize: 13 }}>Sin pagos registrados aún</div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+                <FileText size={32} style={{ color: '#1e293b', marginBottom: 10 }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Sin pagos registrados</div>
+                <div style={{ fontSize: 12, color: '#334155' }}>Los pagos procesados por Stripe aparecerán aquí automáticamente</div>
               </div>
             ) : (
-              <div className="sa-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <table className="sa-table">
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Monto</th>
-                      <th>Período</th>
-                      <th>Estado</th>
-                      <th>Tipo</th>
-                      <th></th>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                      {['Fecha', 'Monto', 'Descripción', 'Tipo', ''].map(h => (
+                        <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ fontSize: 12 }}>{fmt(r.createdAt)}</td>
-                        <td style={{ fontWeight: 700, color: '#00c853' }}>${r.amountPaid?.toLocaleString()} {r.currency}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-4)' }}>
+                    {receipts.map((r, i) => (
+                      <tr key={r.id} style={{ borderBottom: i < receipts.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>{fmt(r.createdAt)}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 800, fontSize: 14, color: '#34d399', fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: 'nowrap' }}>
+                          ${r.amountPaid?.toLocaleString()} <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}>{r.currency}</span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b', maxWidth: 220 }}>
                           {r.periodStart ? `${fmt(r.periodStart)} → ${fmt(r.periodEnd)}` : r.note || '—'}
                         </td>
-                        <td><Badge color="green">Pagado</Badge></td>
-                        <td><Badge color={r.manual ? 'amber' : 'blue'}>{r.manual ? 'Manual' : 'Stripe'}</Badge></td>
-                        <td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999,
+                            background: r.manual ? 'rgba(251,146,60,0.12)' : 'rgba(96,165,250,0.12)',
+                            color: r.manual ? '#fb923c' : '#60a5fa',
+                            border: `1px solid ${r.manual ? 'rgba(251,146,60,0.25)' : 'rgba(96,165,250,0.25)'}` }}>
+                            {r.manual ? 'Manual' : 'Stripe'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
                           {r.pdfUrl && (
                             <a href={r.pdfUrl} target="_blank" rel="noreferrer"
-                              style={{ fontSize: 12, color: '#1aab99', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              style={{ fontSize: 12, color: '#1aab99', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
                               <Download size={12} /> PDF
                             </a>
                           )}
@@ -4428,62 +4488,53 @@ function BillingPanel({ orgs }) {
                 </table>
               </div>
             )}
-
-            {/* Stripe link */}
-            {selected.stripeCustomerId && (
-              <div style={{ marginTop: 16 }}>
-                <a href={`https://dashboard.stripe.com/customers/${selected.stripeCustomerId}`}
-                  target="_blank" rel="noreferrer"
-                  style={{ fontSize: 12, color: '#1aab99', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <ExternalLink size={12} /> Ver en Stripe Dashboard
-                </a>
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      {/* Modal: Create subscription */}
+      {/* ── MODAL: Crear suscripción ── */}
       {showSetupModal && selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="sa-card" style={{ width: '100%', maxWidth: 460, padding: 28, position: 'relative' }}>
-            <button onClick={() => setShowSetupModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-4)' }}><X size={18} /></button>
-            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 6 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 460, background: '#13131a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setShowSetupModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#94a3b8', padding: 6, display: 'flex' }}><X size={16} /></button>
+            <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: '#f8fafc', marginBottom: 4 }}>
               {selected.stripeSubscriptionId ? 'Cambiar suscripción' : 'Crear suscripción'}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--gray-4)', marginBottom: 22 }}>{selected.name}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 24 }}>{selected.name}</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {[
+                { label: 'Email del cliente *', key: 'ownerEmail', placeholder: 'cliente@empresa.com', type: 'text' },
+                { label: 'Stripe Price ID *', key: 'stripePriceId', placeholder: 'price_1AbCdEfGhIjKlMnO…', type: 'text', hint: 'Stripe Dashboard → Products → tu plan → Price ID' },
+              ].map(field => (
+                <div key={field.key}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>{field.label}</label>
+                  <input type={field.type} value={setupForm[field.key]} onChange={e => setSetupForm(f => ({ ...f, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
+                  {field.hint && <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>{field.hint}</div>}
+                </div>
+              ))}
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Email del cliente *</label>
-                <input className="sa-input" style={{ margin: 0 }} value={setupForm.ownerEmail}
-                  onChange={e => setSetupForm(f => ({ ...f, ownerEmail: e.target.value }))} placeholder="cliente@empresa.com" />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>
-                  Stripe Price ID *
-                  <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--gray-4)', marginLeft: 6 }}>dashboard.stripe.com → Products → Plan → Price ID</span>
-                </label>
-                <input className="sa-input" style={{ margin: 0 }} value={setupForm.stripePriceId}
-                  onChange={e => setSetupForm(f => ({ ...f, stripePriceId: e.target.value }))} placeholder="price_1AbCdEfGhIjKlMnO…" />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Ciclo de facturación</label>
-                <select className="sa-input" style={{ margin: 0 }} value={setupForm.billingCycle}
-                  onChange={e => setSetupForm(f => ({ ...f, billingCycle: e.target.value }))}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Ciclo de facturación</label>
+                <select value={setupForm.billingCycle} onChange={e => setSetupForm(f => ({ ...f, billingCycle: e.target.value }))}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
                   <option value="monthly">Mensual</option>
                   <option value="annual">Anual</option>
                 </select>
               </div>
-              <div style={{ background: 'rgba(26,171,153,0.08)', border: '1px solid rgba(26,171,153,0.2)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: 'var(--gray-3)', lineHeight: 1.6 }}>
-                ℹ️ El Price ID lo creas directamente en tu Stripe Dashboard. Crea el producto con precio recurrente en USD y copia el ID que empieza con <strong>price_</strong>
+              <div style={{ background: 'rgba(26,171,153,0.07)', border: '1px solid rgba(26,171,153,0.18)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+                ℹ️ El Price ID lo obtienes en Stripe Dashboard → Products → tu plan → sección Pricing.
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-              <button className="sa-btn" onClick={() => setShowSetupModal(false)}>Cancelar</button>
-              <button className="sa-btn-primary" onClick={createSubscription} disabled={saving}
-                style={{ background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => setShowSetupModal(false)}
+                style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={createSubscription} disabled={saving}
+                style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: saving ? 0.7 : 1 }}>
                 <CreditCard size={14} /> {saving ? 'Procesando…' : 'Crear suscripción'}
               </button>
             </div>
@@ -4491,41 +4542,46 @@ function BillingPanel({ orgs }) {
         </div>
       )}
 
-      {/* Modal: Manual payment */}
+      {/* ── MODAL: Pago manual ── */}
       {showManualModal && selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="sa-card" style={{ width: '100%', maxWidth: 400, padding: 28, position: 'relative' }}>
-            <button onClick={() => setShowManualModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-4)' }}><X size={18} /></button>
-            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 6 }}>Registrar pago manual</div>
-            <div style={{ fontSize: 12, color: 'var(--gray-4)', marginBottom: 22 }}>{selected.name}</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 400, background: '#13131a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setShowManualModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#94a3b8', padding: 6, display: 'flex' }}><X size={16} /></button>
+            <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: '#f8fafc', marginBottom: 4 }}>Registrar pago manual</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 24 }}>{selected.name}</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Monto *</label>
-                  <input className="sa-input" style={{ margin: 0 }} type="number" value={manualForm.amount}
-                    onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))} placeholder="149.00" />
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Monto *</label>
+                  <input type="number" value={manualForm.amount} onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="149.00"
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Moneda</label>
-                  <select className="sa-input" style={{ margin: 0 }} value={manualForm.currency}
-                    onChange={e => setManualForm(f => ({ ...f, currency: e.target.value }))}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Moneda</label>
+                  <select value={manualForm.currency} onChange={e => setManualForm(f => ({ ...f, currency: e.target.value }))}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
                     <option value="USD">USD</option>
                     <option value="MXN">MXN</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-3)', display: 'block', marginBottom: 5 }}>Nota</label>
-                <input className="sa-input" style={{ margin: 0 }} value={manualForm.note}
-                  onChange={e => setManualForm(f => ({ ...f, note: e.target.value }))} placeholder="Transferencia bancaria, OXXO, etc." />
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Nota</label>
+                <input type="text" value={manualForm.note} onChange={e => setManualForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="Ej: Transferencia SPEI, OXXO, efectivo…"
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-              <button className="sa-btn" onClick={() => setShowManualModal(false)}>Cancelar</button>
-              <button className="sa-btn-primary" onClick={saveManualPayment} disabled={saving}
-                style={{ background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none' }}>
+              <button onClick={() => setShowManualModal(false)}
+                style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={saveManualPayment} disabled={saving}
+                style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Guardando…' : 'Registrar pago'}
               </button>
             </div>
@@ -4535,6 +4591,8 @@ function BillingPanel({ orgs }) {
     </div>
   )
 }
+
+
 
 // ─── DOCUMENTS LIBRARY ───
 const DOC_CATEGORIES = [
