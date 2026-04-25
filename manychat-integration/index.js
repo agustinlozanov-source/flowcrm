@@ -1510,6 +1510,24 @@ const RAILWAY_URL = 'https://flowcrm-production-6d63.up.railway.app'
 
 // POST /admin/backfill-account-map?secret=xxx
 // Lee todas las orgs con canales conectados y escribe _zernio_account_map sin que el cliente reconecte
+app.post('/admin/clear-stripe-customer', async (req, res) => {
+  const { secret } = req.query
+  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
+  const { orgId } = req.body
+  if (!orgId) return res.status(400).json({ error: 'Missing orgId' })
+  try {
+    await db.collection('organizations').doc(orgId).update({
+      stripeCustomerId: admin.firestore.FieldValue.delete(),
+      stripeCheckoutSessionId: admin.firestore.FieldValue.delete(),
+      billingStatus: admin.firestore.FieldValue.delete(),
+    })
+    console.log(`[Admin] stripeCustomerId limpiado para org ${orgId}`)
+    res.json({ success: true, orgId })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.post('/admin/backfill-account-map', async (req, res) => {
   const { secret } = req.query
   if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' })
