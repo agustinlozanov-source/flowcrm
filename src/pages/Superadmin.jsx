@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck, Link } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
@@ -4123,6 +4123,7 @@ function BillingPanel({ orgs }) {
   const [setupForm, setSetupForm] = useState({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: '' })
   const [manualForm, setManualForm] = useState({ amount: '', currency: 'USD', note: '' })
   const [saving, setSaving] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
 
@@ -4189,8 +4190,26 @@ function BillingPanel({ orgs }) {
     setSaving(false)
   }
 
-  const saveManualPayment = async () => {
-    if (!manualForm.amount || isNaN(parseFloat(manualForm.amount))) return toast.error('Ingresa un monto válido')
+  const generateCheckoutLink = async () => {
+    if (!selected) return
+    if (!setupForm.stripePriceId) return toast.error('Ingresa el Stripe Price ID primero')
+    if (!setupForm.ownerEmail) return toast.error('Email requerido')
+    setCheckoutLoading(true)
+    try {
+      const res = await fetch('/.netlify/functions/stripe-create-checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail, stripePriceId: setupForm.stripePriceId }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      await navigator.clipboard.writeText(data.url)
+      toast.success('¡Link copiado al portapapeles! Envíaselo al cliente.')
+      setShowSetupModal(false)
+    } catch (err) { toast.error(err.message) }
+    setCheckoutLoading(false)
+  }
+
+  const saveManualPayment = async () => {    if (!manualForm.amount || isNaN(parseFloat(manualForm.amount))) return toast.error('Ingresa un monto válido')
     setSaving(true)
     try {
       await fetch('/.netlify/functions/stripe-billing-action', {
@@ -4533,9 +4552,9 @@ function BillingPanel({ orgs }) {
                 style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={createSubscription} disabled={saving}
-                style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: saving ? 0.7 : 1 }}>
-                <CreditCard size={14} /> {saving ? 'Procesando…' : 'Crear suscripción'}
+              <button onClick={generateCheckoutLink} disabled={checkoutLoading}
+                style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: checkoutLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: checkoutLoading ? 0.7 : 1 }}>
+                <Link size={14} /> {checkoutLoading ? 'Generando…' : 'Generar link de pago'}
               </button>
             </div>
           </div>

@@ -111,6 +111,29 @@ exports.handler = async (event) => {
         break
       }
 
+      // ── Checkout completed → suscripción activa ───────────────────────────
+      case 'checkout.session.completed': {
+        const orgId = data.metadata?.orgId
+        if (!orgId) break
+
+        const subscriptionId = data.subscription
+        let nextBillingDate = null
+
+        if (subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId)
+          nextBillingDate = new Date(sub.current_period_end * 1000).toISOString()
+
+          await db.collection('organizations').doc(orgId).update({
+            stripeSubscriptionId: subscriptionId,
+            stripeSubscriptionStatus: 'active',
+            billingStatus: 'paid',
+            nextBillingDate,
+            stripeCheckoutSessionId: data.id,
+          })
+        }
+        break
+      }
+
       // ── Subscription updated (plan change) ────────────────────────────────
       case 'customer.subscription.updated': {
         const customerId = data.customer
