@@ -1818,10 +1818,32 @@ app.put('/zernio/update-profile', async (req, res) => {
     // Leer profileId guardado en Firestore
     const integSnap = await db.collection('organizations').doc(orgId)
       .collection('settings').doc('integrations').get()
-    const profileId = integSnap.exists ? integSnap.data()?.zernio?.profileId : null
-    if (!profileId) return res.status(404).json({ error: 'No Zernio profileId found for this org' })
+    let profileId = integSnap.exists ? integSnap.data()?.zernio?.profileId : null
 
-    // Actualizar nombre del perfil en Zernio
+    if (!profileId) {
+      // No existe perfil → crear uno nuevo en Zernio
+      const createRes = await axios.post('https://zernio.com/api/v1/profiles', {
+        name: orgName,
+        description: 'Flow Hub CRM',
+      }, {
+        headers: {
+          Authorization: `Bearer ${process.env.ZERNIO_API_KEY}`,
+          'Content-Type': 'application/json',
+        }
+      })
+      profileId = createRes.data.profile._id
+      await db.collection('organizations').doc(orgId)
+        .collection('settings').doc('integrations').set({
+          zernio: {
+            profileId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }
+        }, { merge: true })
+      console.log(`[Zernio] Perfil CREADO para org ${orgId} (${profileId}): "${orgName}"`)
+      return res.json({ success: true, action: 'created', profileId, orgName })
+    }
+
+    // Existe → actualizar nombre del perfil en Zernio
     await axios.put(`https://zernio.com/api/v1/profiles/${profileId}`, {
       name: orgName,
     }, {
@@ -1831,10 +1853,10 @@ app.put('/zernio/update-profile', async (req, res) => {
       }
     })
 
-    console.log(`[Zernio] Perfil actualizado para org ${orgId} (${profileId}): "${orgName}"`)
-    res.json({ success: true, profileId, orgName })
+    console.log(`[Zernio] Perfil ACTUALIZADO para org ${orgId} (${profileId}): "${orgName}"`)
+    res.json({ success: true, action: 'updated', profileId, orgName })
   } catch (err) {
-    console.error('[Zernio] Error actualizando perfil:', err.response?.data || err.message)
+    console.error('[Zernio] Error en upsert perfil:', err.response?.data || err.message)
     res.status(500).json({ error: err.message })
   }
 })
