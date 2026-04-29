@@ -1,10 +1,12 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { normalizePhone } from '@/lib/utils'
 import { usePipeline, SYSTEM_STAGES, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { db } from '@/lib/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
 import {
   Search, Users, MousePointerClick, Instagram, MessageCircle,
   Linkedin, Globe, Star, PenTool, Archive, Filter,
@@ -195,6 +197,14 @@ export default function Contacts() {
   const [viewMode, setViewMode] = useState('active')
   const [showImport, setShowImport] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [featureFlags, setFeatureFlags] = useState({})
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, '_global_config', 'feature_flags'), snap => {
+      if (snap.exists()) setFeatureFlags(snap.data())
+    })
+    return unsub
+  }, [])
 
   const handleClearAllLeads = async () => {
     const total = leads.length + systemLeads.length + discardedLeads.length
@@ -322,10 +332,12 @@ export default function Contacts() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
-            <button onClick={handleClearAllLeads} disabled={clearing}
-              className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5 text-red-500 hover:bg-red-50 border-red-200">
-              <Trash2 size={13} /> {clearing ? 'Borrando...' : 'Limpiar leads'}
-            </button>
+            {featureFlags.clear_leads === true && (
+              <button onClick={handleClearAllLeads} disabled={clearing}
+                className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5 text-red-500 hover:bg-red-50 border-red-200">
+                <Trash2 size={13} /> {clearing ? 'Borrando...' : 'Limpiar leads'}
+              </button>
+            )}
             <button onClick={() => setShowImport(true)}
               className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
               <Upload size={13} /> Importar

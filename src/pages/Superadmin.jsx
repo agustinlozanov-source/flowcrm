@@ -4035,6 +4035,7 @@ function FeatureFlags() {
     { id: 'referrals', label: 'Referidos', description: 'Sección "Referidos" en el sidebar', icon: <Gift size={16} /> },
     { id: 'import', label: 'Importar', description: 'Sección "Importar" en el sidebar', icon: <Download size={16} /> },
     { id: 'followup', label: 'Follow-up automático', description: 'Sección de follow-up en la configuración del Agente IA (módulo de pago)', icon: <Zap size={16} /> },
+    { id: 'clear_leads', label: 'Limpiar leads', description: 'Botón "Limpiar leads" en Contactos — borra TODOS los leads de la org. Mantén desactivado en producción.', icon: <Trash2 size={16} /> },
   ]
 
   const [flags, setFlags] = useState({})
