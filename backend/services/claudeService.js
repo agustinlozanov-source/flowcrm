@@ -10,7 +10,7 @@ const anthropic = new Anthropic({ apiKey: process.env.VITE_ANTHROPIC_KEY })
  */
 async function chat({ system, messages, maxTokens = 500 }) {
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: maxTokens,
     system,
     messages,

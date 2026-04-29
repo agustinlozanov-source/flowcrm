@@ -1635,6 +1635,14 @@ export default function Agent() {
   const { org } = useAuthStore()
   const [activeTab, setActiveTab] = useState('identity')
   const [saving, setSaving] = useState(false)
+  const [featureFlags, setFeatureFlags] = useState({})
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, '_global_config', 'feature_flags'), snap => {
+      if (snap.exists()) setFeatureFlags(snap.data())
+    })
+    return unsub
+  }, [])
   const [syncing, setSyncing] = useState(false)
   const [files, setFiles] = useState([])
   const [pipelines, setPipelines] = useState([])
@@ -1649,6 +1657,7 @@ export default function Agent() {
     customInstructions: {},
     enabledProductIds: [],
     scoring: {},
+    meetingBuffer: 30,
     followUp: {
       enabled: false,
       delayMinutes: 60,
@@ -1685,6 +1694,7 @@ export default function Agent() {
             : c.customInstructions,
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
           scoring: data.scoring ?? c.scoring,
+          meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
         }))
@@ -1793,7 +1803,26 @@ export default function Agent() {
                     placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
                 </Section>
 
-                <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
+                <Section title="Buffer entre reuniones" desc="Tiempo mínimo entre citas — el agente no propondrá horarios que se empalmen">
+                  <div className="flex flex-wrap gap-2">
+                    {[0, 15, 30, 45, 60].map(min => (
+                      <button
+                        key={min}
+                        onClick={() => set('meetingBuffer', min)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          config.meetingBuffer === min
+                            ? 'bg-accent-blue text-white border-accent-blue'
+                            : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+                        }`}
+                      >
+                        {min === 0 ? 'Sin buffer' : `${min} min`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-tertiary mt-2">El agente conoce los horarios ya ocupados y no ofrecerá slots que se empalmen con otras reuniones.</p>
+                </Section>
+
+                {featureFlags.followup !== false && <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
                   <div className="flex items-center gap-3 mb-3">
                     <button
                       onClick={() => set('followUp', { ...config.followUp, enabled: !config.followUp?.enabled })}
@@ -1860,7 +1889,7 @@ export default function Agent() {
                       </div>
                     </div>
                   )}
-                </Section>
+                </Section>}
 
                 <Section title="Delay de respuesta"
                   desc={`El agente espera ${config.responseDelay}s antes de responder — simula conversación humana`}>

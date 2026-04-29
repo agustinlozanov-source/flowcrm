@@ -139,7 +139,7 @@ exports.handler = async (event) => {
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 600,
       system: SYSTEM_PROMPT,
       messages: messages.slice(-10), // últimos 10 mensajes para contexto

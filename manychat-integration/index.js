@@ -146,6 +146,26 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     }
   } catch {}
 
+  // Load all upcoming appointments (for overlap prevention)
+  const meetingBuffer = agentConfig.meetingBuffer ?? 30
+  let occupiedSlots = []
+  try {
+    const now = new Date()
+    const futureAppts = await orgRef.collection('appointments')
+      .where('scheduledAt', '>=', now)
+      .orderBy('scheduledAt', 'asc').get()
+    occupiedSlots = futureAppts.docs.map(d => {
+      const data = d.data()
+      const start = data.scheduledAt?.toDate?.() || new Date(data.scheduledAt)
+      const duration = data.duration || 30
+      const bufferEnd = new Date(start.getTime() + (duration + meetingBuffer) * 60000)
+      return {
+        start: start.toLocaleString('es-MX', { timeZone: orgTimezone, weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        end: bufferEnd.toLocaleString('es-MX', { timeZone: orgTimezone, hour: '2-digit', minute: '2-digit' }),
+      }
+    })
+  } catch {}
+
   // Resources available for sharing
   let resourcesSection = ''
   let agentResources = []
@@ -234,7 +254,9 @@ ${scoringSection}
 
 CONTEXTO DEL LEAD:
 - Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
+- Teléfono: ${lead.phone || 'No capturado aún'}
 ${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''} — NO emitas MEETING_SCHEDULED de nuevo para esta reunión` : '- Sin reunión agendada aún'}
+${occupiedSlots.length > 0 ? `- HORARIOS OCUPADOS (incluyendo buffer de ${meetingBuffer} min):\n${occupiedSlots.map(s => `  · ${s.start} — hasta ${s.end} (libre después)`).join('\n')}\n  NO propongas ni aceptes horarios que caigan dentro de estos rangos.` : ''}
 ${resourcesSection}
 
 BASE DE CONOCIMIENTO:
@@ -251,7 +273,8 @@ ${scoringKeys}
   },
   "suggestHandoff": false,
   "detectedProductId": null,
-  "detectedPipelineId": null
+  "detectedPipelineId": null,
+  "capturedPhone": null
 }
 
 REGLAS PARA suggestHandoff:
@@ -267,6 +290,13 @@ REGLAS PARA detectedPipelineId:
 - Si no hay suficiente contexto todavía → deja null
 - Los pipelines disponibles son:
 ${availablePipelines.map(p => `  · "${p.id}" → ${p.name} (${p.purpose || 'adquisicion'})`).join('\n')}
+
+REGLAS PARA capturedPhone:
+- Si en el mensaje del lead aparece un número telefónico (WhatsApp, celular, fijo) → pon el número en capturedPhone
+- Solo captura si el lead lo comparte explícitamente en la conversación y el lead NO viene de WhatsApp (canal: ${channel})
+- Si el canal ya es whatsapp, deja capturedPhone en null (ya tenemos el teléfono)
+- Formato: solo dígitos y el signo +, ejemplo: "+5215512345678" o "5512345678"
+- Si no hay teléfono en el mensaje, deja null
 
 INSTRUCCIONES PARA AGENDAR REUNIONES:
 Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
@@ -417,6 +447,19 @@ async function parseAndUpdateScore(orgRef, lead, rawReply, scoringConfig) {
 
       // ── Asignar pipeline si el lead no tiene uno ──
       detectedPipelineId = parsed.detectedPipelineId || null
+
+      // ── Capturar teléfono si el lead no tiene uno ──
+      if (parsed.capturedPhone && !lead.phone && lead.id) {
+        const cleanPhone = String(parsed.capturedPhone).replace(/[^\d+]/g, '')
+        if (cleanPhone.length >= 8) {
+          await orgRef.collection('leads').doc(lead.id).update({
+            phone: cleanPhone,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).catch(() => {})
+          lead.phone = cleanPhone
+          console.log(`[Phone] Teléfono capturado para ${lead.name}: ${cleanPhone}`)
+        }
+      }
       if (detectedPipelineId && !lead.pipelineId) {
         try {
           const stagesSnap = await orgRef.collection('pipeline_stages')
@@ -692,7 +735,7 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
 
       // 5. Claude responde
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         system: systemPrompt,
         messages
@@ -1051,7 +1094,7 @@ async function processZernioMessage(body, orgId) {
     try {
       console.log(`[Zernio][${orgId}] Llamando a Claude...`)
       const response = await callClaudeWithRetry({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         system: systemPrompt,
         messages,
@@ -1350,7 +1393,7 @@ app.post('/content/generate-image', async (req, res) => {
   try {
     // 1. Claude genera el prompt para FLUX
     const promptResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -1425,7 +1468,7 @@ app.post('/calls/outbound', async (req, res) => {
         assistantOverrides: {
           model: {
             provider: 'anthropic',
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             messages: [{ role: 'system', content: systemPrompt }],
           },
           firstMessage: `Hola ${leadName}, ¿cómo estás? Te llamo de Flow Hub.`,
@@ -2255,7 +2298,7 @@ async function runFollowUpCron() {
           if (!systemPrompt) continue
 
           const response = await callClaudeWithRetry({
-            model: 'claude-opus-4-5',
+            model: 'claude-sonnet-4-6',
             max_tokens: 300,
             system: systemPrompt + '\n\nIMPORTANTE: El lead no ha respondido en un tiempo. Genera un mensaje de seguimiento breve, natural y contextual basado en la conversación anterior. No seas insistente. Máximo 2 oraciones.',
             messages,

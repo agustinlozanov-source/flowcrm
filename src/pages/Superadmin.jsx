@@ -2076,7 +2076,7 @@ resumen, fortalezas, oportunidades, recomendaciones, implementacion, mensaje`
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
       })
       const data = await res.json()
       const analysis = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
@@ -4034,6 +4034,7 @@ function FeatureFlags() {
     { id: 'landing', label: 'Páginas de aterrizaje', description: 'Sección "Páginas" en el sidebar (Landing Pages)', icon: <Globe size={16} /> },
     { id: 'referrals', label: 'Referidos', description: 'Sección "Referidos" en el sidebar', icon: <Gift size={16} /> },
     { id: 'import', label: 'Importar', description: 'Sección "Importar" en el sidebar', icon: <Download size={16} /> },
+    { id: 'followup', label: 'Follow-up automático', description: 'Sección de follow-up en la configuración del Agente IA (módulo de pago)', icon: <Zap size={16} /> },
   ]
 
   const [flags, setFlags] = useState({})
