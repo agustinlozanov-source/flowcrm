@@ -274,7 +274,8 @@ ${scoringKeys}
   "suggestHandoff": false,
   "detectedProductId": null,
   "detectedPipelineId": null,
-  "capturedPhone": null
+  "capturedPhone": null,
+  "reschedule": false
 }
 
 REGLAS PARA suggestHandoff:
@@ -297,6 +298,11 @@ REGLAS PARA capturedPhone:
 - Si el canal ya es whatsapp, deja capturedPhone en null (ya tenemos el teléfono)
 - Formato: solo dígitos y el signo +, ejemplo: "+5215512345678" o "5512345678"
 - Si no hay teléfono en el mensaje, deja null
+
+REGLAS PARA reschedule:
+- Ponlo en true SOLO cuando el lead pida explícitamente cambiar, mover o cancelar una reunión ya agendada
+- Ejemplos: "no puedo esa hora", "puedes cambiarla al jueves", "quiero reagendar"
+- En todos los demás casos (incluyendo confirmaciones como "gracias", "perfecto", "ok") deja false
 
 INSTRUCCIONES PARA AGENDAR REUNIONES:
 Cuando el lead confirme explícitamente una fecha Y hora para una reunión o videollamada:
@@ -1147,10 +1153,18 @@ async function processZernioMessage(body, orgId) {
           try { meetingData = JSON.parse(meetingMatch[1]) } catch {}
         }
       }
-      // Si el lead ya tenía una reunión agendada, ignorar cualquier MEETING_SCHEDULED nuevo
-      // (evita duplicados cuando el lead dice "Gracias" u otras confirmaciones)
-      if (meetingData && leadData.existingMeeting) {
-        console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — ya existe una reunión para este lead`)
+      // Si el lead ya tenía una reunión agendada, ignorar MEETING_SCHEDULED a menos que
+      // Claude lo haya marcado explícitamente como reagendado (reschedule: true)
+      let isReschedule = false
+      try {
+        const jsonStr = extractFirstJson(rawReply)
+        if (jsonStr) {
+          const parsed = JSON.parse(jsonStr)
+          isReschedule = parsed.reschedule === true
+        }
+      } catch {}
+      if (meetingData && leadData.existingMeeting && !isReschedule) {
+        console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — ya existe una reunión y no es reagendado`)
         meetingData = null
       }
       console.log(`[Zernio][${orgId}] MEETING_SCHEDULED detectado: ${!!meetingData}${meetingData ? ` | scheduledAt: ${meetingData.scheduledAt}` : ''}`)
