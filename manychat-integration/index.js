@@ -323,7 +323,7 @@ IMPORTANTE:
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
 
-  return { systemPrompt, scoringConfig, pipelineId, orgTimezone, agentResources }
+  return { systemPrompt, scoringConfig, pipelineId, orgTimezone, agentResources, existingMeeting }
 }
 
 // ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
@@ -1081,6 +1081,7 @@ async function processZernioMessage(body, orgId) {
       scoringConfig = built.scoringConfig
       agentResources = built.agentResources || []
       orgTimezone = built.orgTimezone || 'America/Mexico_City'
+      if (built.existingMeeting) leadData.existingMeeting = built.existingMeeting
       console.log(`[Zernio][${orgId}] System prompt construido — ${systemPrompt.length} chars`)
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 6 (buildPrompt):`, err.message)
@@ -1145,6 +1146,12 @@ async function processZernioMessage(body, orgId) {
         if (meetingMatch) {
           try { meetingData = JSON.parse(meetingMatch[1]) } catch {}
         }
+      }
+      // Si el lead ya tenía una reunión agendada, ignorar cualquier MEETING_SCHEDULED nuevo
+      // (evita duplicados cuando el lead dice "Gracias" u otras confirmaciones)
+      if (meetingData && leadData.existingMeeting) {
+        console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — ya existe una reunión para este lead`)
+        meetingData = null
       }
       console.log(`[Zernio][${orgId}] MEETING_SCHEDULED detectado: ${!!meetingData}${meetingData ? ` | scheduledAt: ${meetingData.scheduledAt}` : ''}`)
       if (!meetingData) {
