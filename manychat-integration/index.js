@@ -2510,10 +2510,10 @@ async function runFollowUpCron() {
   }
 }
 
-// Correr cada 5 minutos
-setInterval(runFollowUpCron, 5 * 60 * 1000)
-// Primera ejecución al arrancar (con delay de 1 min para dar tiempo al init)
-setTimeout(runFollowUpCron, 60 * 1000)
+// FOLLOW-UP CRON DESACTIVADO — suspendido por costo excesivo
+// setInterval(runFollowUpCron, 5 * 60 * 1000)
+// setTimeout(runFollowUpCron, 60 * 1000)
+console.log('[FollowUp Cron] DESACTIVADO')
 
 // ─── TELNYX ────────────────────────────────────────────────────────────────
 
