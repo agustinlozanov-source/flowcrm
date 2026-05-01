@@ -42,6 +42,12 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
+/* Scrollbar horizontal del Pipeline kanban — más grueso para fácil uso con mouse */
+.pipeline-scroll::-webkit-scrollbar { height: 10px; }
+.pipeline-scroll::-webkit-scrollbar-track { background: var(--bg-secondary, #f4f4f5); border-radius: 10px; }
+.pipeline-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; border: 2px solid var(--bg-secondary, #f4f4f5); }
+.pipeline-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
 /* Utility classes que usamos en toda la app */
 @layer components {
   .card {
