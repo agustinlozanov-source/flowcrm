@@ -125,7 +125,7 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   // RAG content
   let ragContent = ''
   try {
-    const filesSnap = await orgRef.collection('agent_files').where('status', '==', 'ready').get()
+    const filesSnap = await orgRef.collection('agent_files').where('status', '==', 'ready').orderBy('createdAt', 'asc').get()
     ragContent = filesSnap.docs
       .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
       .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
@@ -197,7 +197,7 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   // Product catalog
   let productsSection = ''
   try {
-    const productsSnap = await orgRef.collection('products').get()
+    const productsSnap = await orgRef.collection('products').orderBy('createdAt', 'asc').get()
     const products = productsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.name)
     if (products.length) {
       productsSection = `\nCATÁLOGO DE PRODUCTOS (PRECIOS OFICIALES):\nCUANDO EL LEAD PREGUNTE POR PRECIOS, usa ÚNICAMENTE los precios de este catálogo. NUNCA inventes ni estimes precios.\n${products.map(p =>
@@ -263,11 +263,11 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     } catch { return '-06:00' }
   })()
 
-  const systemPrompt = `Eres ${agentName}, un agente de ventas especializado.
-
-FECHA Y HORA ACTUAL: ${fechaActual}, ${horaActual} (hora de México)
-Usa esta fecha como referencia para calcular "mañana", "esta semana", etc.
-Cuando generes scheduledAt en MEETING_SCHEDULED usa el año y fecha correctos.
+  // ── BLOQUE 1: ESTÁTICO (cacheable) ──
+  // Contiene todo lo que NO cambia entre mensajes del mismo org:
+  // identidad del agente, instrucciones base, scoring rules, RAG, catálogo,
+  // pipelines, recursos, customInstructions, reglas de formato JSON, tzOffset.
+  const staticBlock = `Eres ${agentName}, un agente de ventas especializado.
 
 INSTRUCCIONES PRINCIPALES:
 - Responde siempre en español, de forma breve (máximo 3-4 oraciones)
@@ -275,13 +275,6 @@ INSTRUCCIONES PRINCIPALES:
 - Termina siempre con una pregunta o llamada a acción concreta
 - Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
 ${scoringSection}
-
-CONTEXTO DEL LEAD:
-- Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
-- Teléfono: ${lead.phone || 'No capturado aún'}
-${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''}
-  ⚠️ PROHIBIDO: NO emitas MEETING_SCHEDULED bajo ningún concepto. La reunión ya fue confirmada. Si el lead dice "hasta mañana", "buenas noches", o cualquier saludo, responde normalmente SIN emitir MEETING_SCHEDULED.` : '- Sin reunión agendada aún'}
-${occupiedSlots.length > 0 ? `- HORARIOS OCUPADOS (incluyendo buffer de ${meetingBuffer} min):\n${occupiedSlots.map(s => `  · ${s.start} — hasta ${s.end} (libre después)`).join('\n')}\n  NO propongas ni aceptes horarios que caigan dentro de estos rangos.` : ''}
 ${resourcesSection}
 
 BASE DE CONOCIMIENTO:
@@ -367,7 +360,38 @@ IMPORTANTE:
 - Si solo dice "mañana" sin hora → pregunta la hora antes de agendar
 `
 
-  return { systemPrompt, scoringConfig, pipelineId, orgTimezone, agentResources, existingMeeting }
+  // ── BLOQUE 2: DINÁMICO (no cacheable) ──
+  // Cambia en cada mensaje: fecha/hora actual, datos específicos del lead,
+  // reunión existente, horarios ocupados.
+  const dynamicBlock = `FECHA Y HORA ACTUAL: ${fechaActual}, ${horaActual} (hora de México)
+Usa esta fecha como referencia para calcular "mañana", "esta semana", etc.
+Cuando generes scheduledAt en MEETING_SCHEDULED usa el año y fecha correctos.
+
+CONTEXTO DEL LEAD:
+- Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
+- Teléfono: ${lead.phone || 'No capturado aún'}
+${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''}
+  ⚠️ PROHIBIDO: NO emitas MEETING_SCHEDULED bajo ningún concepto. La reunión ya fue confirmada. Si el lead dice "hasta mañana", "buenas noches", o cualquier saludo, responde normalmente SIN emitir MEETING_SCHEDULED.` : '- Sin reunión agendada aún'}
+${occupiedSlots.length > 0 ? `- HORARIOS OCUPADOS (incluyendo buffer de ${meetingBuffer} min):\n${occupiedSlots.map(s => `  · ${s.start} — hasta ${s.end} (libre después)`).join('\n')}\n  NO propongas ni aceptes horarios que caigan dentro de estos rangos.` : ''}`
+
+  // Array de bloques para prompt caching de Anthropic
+  // Bloque 1 marcado con cache_control para cachear el contenido estático (~90% de los tokens)
+  const systemPromptBlocks = [
+    {
+      type: 'text',
+      text: staticBlock,
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: dynamicBlock,
+    },
+  ]
+
+  // Mantener systemPrompt como string para compatibilidad con código legacy (cron, etc.)
+  const systemPrompt = staticBlock + '\n\n' + dynamicBlock
+
+  return { systemPrompt, systemPromptBlocks, scoringConfig, pipelineId, orgTimezone, agentResources, existingMeeting }
 }
 
 // ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
@@ -774,14 +798,14 @@ app.post('/webhook/manychat/:orgId', (req, res) => {
       // 5b. Build modern system prompt
       const existingSnap2 = await leadRef.get()
       const leadData = { id: subscriber_id, ...(existingSnap2.exists ? existingSnap2.data() : {}), name }
-      const { systemPrompt, scoringConfig, orgTimezone: tz } = await buildModernSystemPrompt(orgRef, agentConfig, leadData, channel)
+      const { systemPrompt, systemPromptBlocks, scoringConfig, orgTimezone: tz } = await buildModernSystemPrompt(orgRef, agentConfig, leadData, channel)
       console.log(`[${orgId}] System prompt construido — ${systemPrompt.length} chars`)
 
       // 5. Claude responde
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        system: systemPrompt,
+        system: systemPromptBlocks || systemPrompt,
         messages
       })
 
@@ -1115,6 +1139,7 @@ async function processZernioMessage(body, orgId) {
 
     // 6. Build modern system prompt
     let systemPrompt = ''
+    let systemPromptBlocks = null
     let scoringConfig = null
     let orgTimezone = 'America/Mexico_City'
     const leadSnap2 = await leadRef.get()
@@ -1122,6 +1147,7 @@ async function processZernioMessage(body, orgId) {
     try {
       const built = await buildModernSystemPrompt(orgRef, agentConfig, leadData, platform || 'whatsapp')
       systemPrompt = built.systemPrompt
+      systemPromptBlocks = built.systemPromptBlocks
       scoringConfig = built.scoringConfig
       agentResources = built.agentResources || []
       orgTimezone = built.orgTimezone || 'America/Mexico_City'
@@ -1141,8 +1167,15 @@ async function processZernioMessage(body, orgId) {
       const response = await callClaudeWithRetry({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        system: systemPrompt,
+        system: systemPromptBlocks || systemPrompt,
         messages,
+      })
+      // Log de uso de caché para verificar funcionamiento
+      console.log(`[Zernio][${orgId}][CACHE]`, {
+        cache_creation: response.usage?.cache_creation_input_tokens,
+        cache_read: response.usage?.cache_read_input_tokens,
+        input: response.usage?.input_tokens,
+        output: response.usage?.output_tokens,
       })
       const rawReply = response.content[0].text
       const { visibleReply, detectedPipelineId } = await parseAndUpdateScore(orgRef, leadData, rawReply, scoringConfig)
