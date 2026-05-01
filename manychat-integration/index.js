@@ -132,19 +132,31 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
   } catch {}
 
   // Check if lead already has a scheduled meeting
+  // NOTE: no usamos orderBy para evitar requerimiento de índice compuesto en Firestore
   let existingMeeting = null
   try {
     const apptSnap = await orgRef.collection('appointments')
-      .where('leadId', '==', lead.id)
-      .orderBy('scheduledAt', 'desc').limit(1).get()
+      .where('leadId', '==', lead.id).get()
     if (!apptSnap.empty) {
-      const appt = apptSnap.docs[0].data()
+      // Ordenar en JS por scheduledAt descendente
+      const sorted = apptSnap.docs
+        .map(d => d.data())
+        .sort((a, b) => {
+          const ta = a.scheduledAt?.toDate?.()?.getTime?.() || new Date(a.scheduledAt || 0).getTime()
+          const tb = b.scheduledAt?.toDate?.()?.getTime?.() || new Date(b.scheduledAt || 0).getTime()
+          return tb - ta
+        })
+      const appt = sorted[0]
       existingMeeting = {
         scheduledAt: appt.scheduledAt?.toDate?.() || appt.scheduledAt,
         link: appt.link || '',
+        id: apptSnap.docs[0].id,
       }
+      console.log(`[buildPrompt] existingMeeting encontrado para lead ${lead.id}: ${existingMeeting.scheduledAt}`)
     }
-  } catch {}
+  } catch (e) {
+    console.error('[buildPrompt] Error cargando existingMeeting:', e.message)
+  }
 
   // Load all upcoming appointments (for overlap prevention)
   const meetingBuffer = agentConfig.meetingBuffer ?? 30
@@ -267,7 +279,8 @@ ${scoringSection}
 CONTEXTO DEL LEAD:
 - Nombre: ${lead.name || 'Sin nombre'} | Score: ${lead.score || 0}/100 | Canal: ${channel}
 - Teléfono: ${lead.phone || 'No capturado aún'}
-${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''} — NO emitas MEETING_SCHEDULED de nuevo para esta reunión` : '- Sin reunión agendada aún'}
+${existingMeeting ? `- REUNIÓN YA AGENDADA: ${existingMeeting.scheduledAt ? new Date(existingMeeting.scheduledAt).toLocaleString('es-MX', { timeZone: orgTimezone }) : 'fecha pendiente'}${existingMeeting.link ? ` | Link: ${existingMeeting.link}` : ''}
+  ⚠️ PROHIBIDO: NO emitas MEETING_SCHEDULED bajo ningún concepto. La reunión ya fue confirmada. Si el lead dice "hasta mañana", "buenas noches", o cualquier saludo, responde normalmente SIN emitir MEETING_SCHEDULED.` : '- Sin reunión agendada aún'}
 ${occupiedSlots.length > 0 ? `- HORARIOS OCUPADOS (incluyendo buffer de ${meetingBuffer} min):\n${occupiedSlots.map(s => `  · ${s.start} — hasta ${s.end} (libre después)`).join('\n')}\n  NO propongas ni aceptes horarios que caigan dentro de estos rangos.` : ''}
 ${resourcesSection}
 
@@ -1209,9 +1222,22 @@ async function processZernioMessage(body, orgId) {
           isReschedule = parsed.reschedule === true
         }
       } catch {}
-      if (meetingData && leadData.existingMeeting && !isReschedule) {
-        console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — ya existe una reunión y no es reagendado`)
-        meetingData = null
+      // Double-check directo en Firestore (no depende solo de leadData.existingMeeting pre-cargado)
+      if (meetingData && !isReschedule) {
+        try {
+          const freshApptSnap = await orgRef.collection('appointments').where('leadId', '==', leadDocId).get()
+          if (!freshApptSnap.empty) {
+            console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — double-check Firestore: ya existen ${freshApptSnap.size} cita(s) para este lead`)
+            meetingData = null
+          }
+        } catch (e) {
+          console.error(`[Zernio][${orgId}] Error double-check appointments:`, e.message)
+          // Fallback: usar el pre-cargado
+          if (leadData.existingMeeting) {
+            console.log(`[Zernio][${orgId}] MEETING_SCHEDULED ignorado — ya existe una reunión (fallback pre-cargado)`)
+            meetingData = null
+          }
+        }
       }
       console.log(`[Zernio][${orgId}] MEETING_SCHEDULED detectado: ${!!meetingData}${meetingData ? ` | scheduledAt: ${meetingData.scheduledAt}` : ''}`)
       if (!meetingData) {
