@@ -1825,22 +1825,37 @@ app.post('/disconnect-channel', async (req, res) => {
     const integRef = db.collection('organizations').doc(orgId).collection('settings').doc('integrations')
     const integSnap = await integRef.get()
     const platformData = integSnap.data()?.[platform]
-    const accountId = platformData?.realAccountId || platformData?.accountId
-    console.log(`[disconnect-channel] orgId=${orgId} platform=${platform} accountId=${accountId} — data:`, JSON.stringify(platformData))
+    console.log(`[disconnect-channel] orgId=${orgId} platform=${platform} — stored data:`, JSON.stringify(platformData))
 
-    // 1. Llamar a Zernio DELETE /v1/accounts/{accountId} si existe
-    if (accountId) {
+    // 1. Buscar la cuenta ACTIVA en Zernio para este platform (más confiable que el ID en Firestore)
+    const platformFilter = platform === 'facebook' ? 'messenger' : platform
+    let accountIdsToDelete = []
+    try {
+      const r = await axios.get('https://zernio.com/api/v1/accounts', {
+        headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+      })
+      const all = r.data.accounts || r.data || []
+      const matches = all.filter(a => (a.platform || '').toLowerCase().includes(platformFilter))
+      accountIdsToDelete = matches.map(a => a._id || a.id).filter(Boolean)
+      console.log(`[disconnect-channel] Cuentas activas en Zernio para ${platform}:`, accountIdsToDelete)
+    } catch (listErr) {
+      console.warn(`[disconnect-channel] No se pudo listar accounts de Zernio:`, listErr.message)
+      // Fallback: usar IDs guardados en Firestore
+      const fallbackId = platformData?.realAccountId || platformData?.accountId
+      if (fallbackId) accountIdsToDelete = [fallbackId]
+    }
+
+    // 2. Eliminar todas las cuentas encontradas en Zernio
+    for (const accountId of accountIdsToDelete) {
       try {
         const zRes = await axios.delete(`https://zernio.com/api/v1/accounts/${accountId}`, {
           headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
         })
         console.log(`[disconnect-channel] ✅ Account ${accountId} eliminado en Zernio — status: ${zRes.status}`)
       } catch (zErr) {
-        // Si ya no existe en Zernio, continuamos igual
-        console.warn(`[disconnect-channel] Zernio DELETE falló — status: ${zErr.response?.status} — body:`, JSON.stringify(zErr.response?.data), '— msg:', zErr.message)
+        console.warn(`[disconnect-channel] Zernio DELETE ${accountId} falló — status: ${zErr.response?.status} — body:`, JSON.stringify(zErr.response?.data))
       }
-
-      // 2. Eliminar mapping en _zernio_account_map
+      // 3. Eliminar mapping en _zernio_account_map
       await db.collection('_zernio_account_map').doc(accountId).delete().catch(() => {})
     }
 
