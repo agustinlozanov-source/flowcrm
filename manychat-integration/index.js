@@ -1825,7 +1825,7 @@ app.post('/disconnect-channel', async (req, res) => {
     const integRef = db.collection('organizations').doc(orgId).collection('settings').doc('integrations')
     const integSnap = await integRef.get()
     const platformData = integSnap.data()?.[platform]
-    const accountId = platformData?.accountId
+    const accountId = platformData?.realAccountId || platformData?.accountId
     console.log(`[disconnect-channel] orgId=${orgId} platform=${platform} accountId=${accountId} — data:`, JSON.stringify(platformData))
 
     // 1. Llamar a Zernio DELETE /v1/accounts/{accountId} si existe
