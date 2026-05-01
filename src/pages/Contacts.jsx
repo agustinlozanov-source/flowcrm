@@ -15,6 +15,8 @@ import {
 
 const SOURCE_CONFIG = {
   meta_ads:  { icon: <MousePointerClick size={14} className="text-blue-500" />,  label: 'Meta Ads'  },
+  facebook:  { icon: <img src="/icons/Facebook Icon.png" style={{width:14,height:14,objectFit:'contain'}} alt="" />, label: 'Facebook' },
+  messenger: { icon: <img src="/icons/Facebook Icon.png" style={{width:14,height:14,objectFit:'contain'}} alt="" />, label: 'Facebook' },
   instagram: { icon: <Instagram size={14} className="text-pink-500" />,          label: 'Instagram' },
   whatsapp:  { icon: <MessageCircle size={14} className="text-green-500" />,     label: 'WhatsApp'  },
   linkedin:  { icon: <Linkedin size={14} className="text-blue-700" />,           label: 'LinkedIn'  },
@@ -251,7 +253,8 @@ export default function Contacts() {
     }
 
     if (sourceFilter !== 'all') {
-      result = result.filter(l => l.source === sourceFilter)
+      const matchSources = sourceFilter === 'facebook' ? ['facebook', 'messenger'] : [sourceFilter]
+      result = result.filter(l => matchSources.includes(l.source))
     }
 
     result.sort((a, b) => {
@@ -364,7 +367,7 @@ export default function Contacts() {
           <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
             className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
             <option value="all">Todas las fuentes</option>
-            {Object.entries(SOURCE_CONFIG).map(([v, c]) => (
+            {Object.entries(SOURCE_CONFIG).filter(([v]) => v !== 'messenger').map(([v, c]) => (
               <option key={v} value={v}>{c.label}</option>
             ))}
           </select>
