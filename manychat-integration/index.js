@@ -1836,6 +1836,7 @@ app.post('/disconnect-channel', async (req, res) => {
         headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
       })
       const all = r.data.accounts || r.data || []
+      console.log(`[disconnect-channel] Zernio accounts raw (${all.length}):`, JSON.stringify(all.slice(0, 5)))
       const matches = all.filter(a => {
         const platformMatch = (a.platform || '').toLowerCase().includes(platformFilter)
         // Filtrar por profileId del cliente para no tocar cuentas de otros clientes
