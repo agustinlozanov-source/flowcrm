@@ -789,7 +789,7 @@ function PipelineScoringEditor({ data, onChange }) {
                           <span className="text-[10px] text-tertiary">Tope</span>
                           <input type="number" min={1} max={100} value={sub.tope}
                             onChange={e => updSub(ci, si, 'tope', e.target.value)}
-                            className={clsx('w-12 input text-center text-[11px] py-0.5',
+                            className={clsx('w-14 input text-center text-[11px] py-0.5',
                               sub.tope > cat.tope ? 'border-red-400 text-red-600' : '')} />
                           <span className="text-[10px] text-tertiary">pts</span>
                         </div>
