@@ -1840,7 +1840,8 @@ app.post('/disconnect-channel', async (req, res) => {
       const matches = all.filter(a => {
         const platformMatch = (a.platform || '').toLowerCase().includes(platformFilter)
         // Filtrar por profileId del cliente para no tocar cuentas de otros clientes
-        const profileMatch = !clientProfileId || a.profileId === clientProfileId || a.profile?.id === clientProfileId
+        const accountProfileId = a.profileId?._id || a.profileId?.id || a.profileId
+        const profileMatch = !clientProfileId || accountProfileId === clientProfileId
         return platformMatch && profileMatch
       })
       accountIdsToDelete = matches.map(a => a._id || a.id).filter(Boolean)
