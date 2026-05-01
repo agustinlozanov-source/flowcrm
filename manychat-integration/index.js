@@ -1824,18 +1824,20 @@ app.post('/disconnect-channel', async (req, res) => {
   try {
     const integRef = db.collection('organizations').doc(orgId).collection('settings').doc('integrations')
     const integSnap = await integRef.get()
-    const accountId = integSnap.data()?.[platform]?.accountId
+    const platformData = integSnap.data()?.[platform]
+    const accountId = platformData?.accountId
+    console.log(`[disconnect-channel] orgId=${orgId} platform=${platform} accountId=${accountId} — data:`, JSON.stringify(platformData))
 
     // 1. Llamar a Zernio DELETE /v1/accounts/{accountId} si existe
     if (accountId) {
       try {
-        await axios.delete(`https://zernio.com/api/v1/accounts/${accountId}`, {
+        const zRes = await axios.delete(`https://zernio.com/api/v1/accounts/${accountId}`, {
           headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
         })
-        console.log(`[disconnect-channel] ✅ Account ${accountId} eliminado en Zernio`)
+        console.log(`[disconnect-channel] ✅ Account ${accountId} eliminado en Zernio — status: ${zRes.status}`)
       } catch (zErr) {
         // Si ya no existe en Zernio, continuamos igual
-        console.warn(`[disconnect-channel] Zernio DELETE falló (puede que ya no exista): ${zErr.response?.data?.message || zErr.message}`)
+        console.warn(`[disconnect-channel] Zernio DELETE falló — status: ${zErr.response?.status} — body:`, JSON.stringify(zErr.response?.data), '— msg:', zErr.message)
       }
 
       // 2. Eliminar mapping en _zernio_account_map
