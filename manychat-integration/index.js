@@ -182,6 +182,18 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     }
   } catch {}
 
+  // Product catalog
+  let productsSection = ''
+  try {
+    const productsSnap = await orgRef.collection('products').get()
+    const products = productsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.name)
+    if (products.length) {
+      productsSection = `\nCATÁLOGO DE PRODUCTOS (PRECIOS OFICIALES):\nCUANDO EL LEAD PREGUNTE POR PRECIOS, usa ÚNICAMENTE los precios de este catálogo. NUNCA inventes ni estimes precios.\n${products.map(p =>
+        `- [ID:${p.id}] ${p.name}${p.category ? ` (${p.category})` : ''}: ${p.currency || 'USD'} ${Number(p.price || 0).toLocaleString('es-MX')}${p.description ? ` — ${p.description}` : ''}`
+      ).join('\n')}`
+    }
+  } catch {}
+
   // Scoring config for this lead's pipeline
   let scoringConfig = null
   if (pipelineId && agentConfig.scoring?.[pipelineId]) {
@@ -261,6 +273,7 @@ ${resourcesSection}
 
 BASE DE CONOCIMIENTO:
 ${ragContent || 'No hay documentos cargados aún.'}
+${productsSection}
 
 ${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
 
@@ -283,6 +296,11 @@ REGLAS PARA suggestHandoff:
 - Ponlo en true cuando el lead pida hablar con un humano o vendedor
 - Ponlo en true cuando ya tienes suficiente información para que un vendedor cierre
 - En todos los demás casos déjalo en false
+
+REGLAS PARA detectedProductId:
+- Si el lead menciona o pregunta por un producto específico del catálogo → pon su ID en detectedProductId
+- Si el lead pregunta por precio de un producto → responde SIEMPRE con el precio exacto del catálogo, nunca inventes
+- Si no hay producto identificado → deja null
 
 REGLAS PARA detectedPipelineId:
 - Si el lead menciona un producto o servicio específico que reconoces → pon el pipelineId correspondiente
