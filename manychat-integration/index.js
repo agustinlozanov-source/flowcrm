@@ -174,10 +174,10 @@ async function buildModernSystemPrompt(orgRef, agentConfig, lead, channel) {
     agentResources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
     const resources = agentResources
     if (resources.length) {
-      resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo.\nIMPORTANTE: cuando compartas un video, escribe la URL COMPLETA Y EXACTA en tu respuesta — NUNCA uses placeholders como [VIDEO], [ENLACE] o similares. El sistema detectará la URL y la enviará automáticamente como video.\n${resources.map(r =>
+      resourcesSection = `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo.\nIMPORTANTE: cuando decidas compartir un recurso, pon su nombre EXACTO en el campo "sharedResource" del JSON. El sistema lo enviará automáticamente. NO incluyas URLs en tu respuesta.\n${resources.map(r =>
         r.whenToShare
-          ? `- [${(r.type || '').toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
-          : `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
+          ? `- [${(r.type || '').toUpperCase()}] Nombre: "${r.name}" → Compartir cuando: ${r.whenToShare}`
+          : `- [${(r.type || '').toUpperCase()}] Nombre: "${r.name}"`
       ).join('\n')}`
     }
   } catch {}
@@ -288,8 +288,15 @@ ${scoringKeys}
   "detectedProductId": null,
   "detectedPipelineId": null,
   "capturedPhone": null,
-  "reschedule": false
+  "reschedule": false,
+  "sharedResource": null
 }
+
+REGLAS PARA sharedResource:
+- Cuando decidas compartir un recurso (video, imagen, documento) de la lista de RECURSOS DISPONIBLES → pon EXACTAMENTE el nombre del recurso en sharedResource
+- En el campo "response" NO incluyas la URL — el sistema la enviará automáticamente como archivo adjunto
+- Ejemplo: si compartes "Testimonial Trifecta", pon "sharedResource": "Testimonial Trifecta" y en response solo menciona que le vas a compartir el video, sin URL
+- Si no compartes ningún recurso → deja null
 
 REGLAS PARA suggestHandoff:
 - Ponlo en true cuando el lead haya confirmado una cita/reunión (junto con MEETING_SCHEDULED)
@@ -1130,26 +1137,47 @@ async function processZernioMessage(body, orgId) {
       console.log(`[Zernio][${orgId}] Respuesta: "${reply}"`)
 
       // Detectar URLs de videos en la respuesta y separarlas para enviarlas como media
-      if (agentResources.length && reply) {
+      if (agentResources.length) {
         const videoResources = agentResources.filter(r => r.type === 'video' && r.url)
+
+        // 1. Extraer sharedResource del JSON de Claude (método más confiable)
+        let sharedResourceName = null
+        try {
+          const jsonStr = extractFirstJson(rawReply)
+          if (jsonStr) {
+            const parsed = JSON.parse(jsonStr)
+            sharedResourceName = (parsed.sharedResource || parsed.shared_resource || null)
+          }
+        } catch {}
+
         for (const resource of videoResources) {
-          const mentionedByUrl = reply.includes(resource.url)
-          const mentionedByName = resource.name && reply.toLowerCase().includes(resource.name.toLowerCase())
-          const hasVideoPlaceholder = /\[VIDEO\]/i.test(reply)
-          if (mentionedByUrl || mentionedByName || hasVideoPlaceholder) {
+          const urlInReply = rawReply.includes(resource.url)
+          // Match exacto por sharedResource
+          const exactSharedMatch = sharedResourceName &&
+            resource.name.toLowerCase() === sharedResourceName.toLowerCase()
+          // Match parcial por sharedResource (en caso de que Claude no sea exacto)
+          const partialSharedMatch = sharedResourceName &&
+            (resource.name.toLowerCase().includes(sharedResourceName.toLowerCase()) ||
+             sharedResourceName.toLowerCase().includes(resource.name.toLowerCase()))
+          // Match por nombre en el texto (fallback)
+          const textToSearch = (reply + '\n' + rawReply).toLowerCase()
+          const nameWords = (resource.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 3)
+          const nameMatch = nameWords.length > 0 && nameWords.every(w => textToSearch.includes(w))
+
+          if (urlInReply || exactSharedMatch || partialSharedMatch || nameMatch) {
             videoUrlsToSend.push(resource.url)
-            // Limpiar URL, nombre y placeholder del reply
+            // Limpiar cualquier URL de Firebase Storage del reply visible
             reply = reply
               .replace(resource.url, '')
-              .replace(new RegExp(resource.name ? resource.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '__NOMATCH__', 'gi'), '')
+              .replace(/https?:\/\/firebasestorage\S*/g, '')
               .replace(/\[VIDEO\]/gi, '')
               .replace(/\s{2,}/g, ' ').trim()
-            console.log(`[Zernio][${orgId}] Video detectado — url:${mentionedByUrl} nombre:${mentionedByName} placeholder:${hasVideoPlaceholder} → ${resource.url}`)
-            break // enviar solo el primer video detectado
+            console.log(`[Zernio][${orgId}] Video detectado — exactShared:${exactSharedMatch} partialShared:${partialSharedMatch} url:${urlInReply} nombre:${nameMatch} → "${resource.name}"`)
+            break
           }
         }
         if (videoUrlsToSend.length === 0 && videoResources.length) {
-          console.log(`[Zernio][${orgId}] Hay ${videoResources.length} recursos video pero ninguno mencionado en reply`)
+          console.log(`[Zernio][${orgId}] Hay ${videoResources.length} recursos video pero ninguno mencionado — sharedResource="${sharedResourceName}"`)
         }
       }
 
