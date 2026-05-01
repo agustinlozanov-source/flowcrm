@@ -196,9 +196,13 @@ export default function Settings() {
   const handleDisconnect = async (channel) => {
     setLoadingChannel(channel)
     try {
-      const ref = doc(db, 'organizations', orgId, 'settings', 'integrations')
-      await setDoc(ref, { [channel]: { connected: false } }, { merge: true })
-      setIntegrations(prev => ({ ...prev, [channel]: { ...prev[channel], connected: false } }))
+      const res = await fetch(`${RAILWAY}/disconnect-channel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, platform: channel }),
+      })
+      if (!res.ok) throw new Error('Error del servidor')
+      setIntegrations(prev => ({ ...prev, [channel]: { ...prev[channel], connected: false, accountId: null } }))
       toast.success('Canal desconectado')
     } catch {
       toast.error('Error al desconectar')

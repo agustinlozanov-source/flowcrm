@@ -1816,6 +1816,43 @@ app.post('/admin/connect-whatsapp', async (req, res) => {
   }
 })
 
+// POST /disconnect-channel — desconecta un canal en Zernio y limpia el mapping
+// Body: { orgId, platform }  (platform: 'whatsapp' | 'instagram' | 'facebook')
+app.post('/disconnect-channel', async (req, res) => {
+  const { orgId, platform } = req.body
+  if (!orgId || !platform) return res.status(400).json({ error: 'Missing orgId or platform' })
+  try {
+    const integRef = db.collection('organizations').doc(orgId).collection('settings').doc('integrations')
+    const integSnap = await integRef.get()
+    const accountId = integSnap.data()?.[platform]?.accountId
+
+    // 1. Llamar a Zernio DELETE /v1/accounts/{accountId} si existe
+    if (accountId) {
+      try {
+        await axios.delete(`https://zernio.com/api/v1/accounts/${accountId}`, {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
+        })
+        console.log(`[disconnect-channel] ✅ Account ${accountId} eliminado en Zernio`)
+      } catch (zErr) {
+        // Si ya no existe en Zernio, continuamos igual
+        console.warn(`[disconnect-channel] Zernio DELETE falló (puede que ya no exista): ${zErr.response?.data?.message || zErr.message}`)
+      }
+
+      // 2. Eliminar mapping en _zernio_account_map
+      await db.collection('_zernio_account_map').doc(accountId).delete().catch(() => {})
+    }
+
+    // 3. Marcar como desconectado en Firestore
+    await integRef.set({ [platform]: { connected: false, accountId: null } }, { merge: true })
+
+    console.log(`[disconnect-channel] Org ${orgId} — canal ${platform} desconectado`)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[disconnect-channel] Error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // GET /whatsapp/sdk-config?orgId=xxx — devuelve appId, configId y metaPreverifiedId al frontend
 app.get('/whatsapp/sdk-config', async (req, res) => {
   const { orgId } = req.query
