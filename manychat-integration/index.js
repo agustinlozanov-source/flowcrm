@@ -1827,17 +1827,23 @@ app.post('/disconnect-channel', async (req, res) => {
     const platformData = integSnap.data()?.[platform]
     console.log(`[disconnect-channel] orgId=${orgId} platform=${platform} — stored data:`, JSON.stringify(platformData))
 
-    // 1. Buscar la cuenta ACTIVA en Zernio para este platform (más confiable que el ID en Firestore)
+    // 1. Buscar la cuenta ACTIVA en Zernio para este platform + profileId del cliente
     const platformFilter = platform === 'facebook' ? 'messenger' : platform
+    const clientProfileId = integSnap.data()?.zernio?.profileId || platformData?.profileId
     let accountIdsToDelete = []
     try {
       const r = await axios.get('https://zernio.com/api/v1/accounts', {
         headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` }
       })
       const all = r.data.accounts || r.data || []
-      const matches = all.filter(a => (a.platform || '').toLowerCase().includes(platformFilter))
+      const matches = all.filter(a => {
+        const platformMatch = (a.platform || '').toLowerCase().includes(platformFilter)
+        // Filtrar por profileId del cliente para no tocar cuentas de otros clientes
+        const profileMatch = !clientProfileId || a.profileId === clientProfileId || a.profile?.id === clientProfileId
+        return platformMatch && profileMatch
+      })
       accountIdsToDelete = matches.map(a => a._id || a.id).filter(Boolean)
-      console.log(`[disconnect-channel] Cuentas activas en Zernio para ${platform}:`, accountIdsToDelete)
+      console.log(`[disconnect-channel] Cuentas activas en Zernio para ${platform} (profileId=${clientProfileId}):`, accountIdsToDelete)
     } catch (listErr) {
       console.warn(`[disconnect-channel] No se pudo listar accounts de Zernio:`, listErr.message)
       // Fallback: usar IDs guardados en Firestore
