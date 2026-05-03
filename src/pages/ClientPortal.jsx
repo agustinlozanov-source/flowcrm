@@ -522,18 +522,14 @@ INSTRUCCIONES:
 - Si necesita intervención humana de Qubit Corp (algo urgente, un error técnico, una decisión de negocio), díselo y pídele que use el botón "Enviar" para que el equipo lo vea
 - Máximo 3-4 oraciones. Sin listas largas. Tono profesional pero cercano.`
 
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const res = await fetch('/.netlify/functions/portal-chat', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 800,
-            messages: [{ role: 'user', content: prompt }]
+            messages: [{ role: 'user', content: prompt }],
+            implId: impl.id,
           })
         })
         const data = await res.json()
