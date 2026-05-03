@@ -2073,10 +2073,16 @@ Genera el reporte con tono humilde, profesional, directo. Sin drama. Máximo 3-4
 Responde SOLO con JSON válido, sin markdown ni backticks, con estas claves:
 resumen, fortalezas, oportunidades, recomendaciones, implementacion, mensaje`
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/.netlify/functions/diagnose-report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1500,
+          messages: [{ role: 'user', content: prompt }],
+          respId: resp.id,
+          respondentName: resp.respondentName,
+        })
       })
       const data = await res.json()
       const analysis = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
