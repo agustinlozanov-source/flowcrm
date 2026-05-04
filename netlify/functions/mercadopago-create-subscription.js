@@ -79,7 +79,6 @@ exports.handler = async (event) => {
     const mpPayload = {
       reason: `Flow Hub CRM — ${plan.name}`,
       external_reference: orgId,
-      payer_email: ownerEmail,
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',

@@ -4,8 +4,11 @@
 //
 // MP envía: POST /?id=<preapprovalId>&topic=preapproval
 // o en el body: { id, topic, type, data: { id } }
+//
+// Valida firma HMAC-SHA256 via header x-signature si MP_WEBHOOK_SECRET está configurado.
 
 const admin = require('firebase-admin')
+const crypto = require('crypto')
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -18,6 +21,47 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore()
+
+/**
+ * Valida la firma HMAC-SHA256 que MP incluye en x-signature.
+ * Formato del header: "ts=<timestamp>,v1=<hmac>"
+ * Manifest: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
+ * Ref: https://www.mercadopago.com.mx/developers/es/docs/your-integrations/notifications/webhooks
+ */
+function validateMpSignature(event, dataId) {
+  const secret = process.env.MP_WEBHOOK_SECRET
+  if (!secret) {
+    // Si no está configurado, loguear advertencia pero no bloquear
+    console.warn('[mp-webhook] MP_WEBHOOK_SECRET no configurado — validación de firma omitida')
+    return true
+  }
+
+  const xSignature  = event.headers?.['x-signature'] || event.headers?.['X-Signature'] || ''
+  const xRequestId  = event.headers?.['x-request-id'] || event.headers?.['X-Request-Id'] || ''
+
+  if (!xSignature) {
+    console.warn('[mp-webhook] Header x-signature ausente')
+    return false
+  }
+
+  // Extraer ts y v1 del header
+  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=')))
+  const ts = parts.ts
+  const v1 = parts.v1
+
+  if (!ts || !v1) {
+    console.warn('[mp-webhook] Header x-signature malformado:', xSignature)
+    return false
+  }
+
+  // Construir manifest según spec de MP
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`
+  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex')
+
+  const valid = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected))
+  if (!valid) console.warn('[mp-webhook] Firma inválida — posible request no autorizado')
+  return valid
+}
 
 // MP envía la notificación sin Content-Type JSON en algunos casos,
 // así que siempre devolvemos 200 inmediatamente (patrón recomendado por MP docs).
@@ -47,6 +91,12 @@ exports.handler = async (event) => {
     // Solo procesamos eventos de preapproval
     if (!preapprovalId || (topic && topic !== 'preapproval')) {
       console.log(`[mp-webhook] Evento ignorado — topic: ${topic}, id: ${preapprovalId}`)
+      return OK
+    }
+
+    // Validar firma HMAC-SHA256 de MP
+    if (!validateMpSignature(event, preapprovalId)) {
+      console.warn(`[mp-webhook] Firma inválida para preapprovalId: ${preapprovalId} — request ignorado`)
       return OK
     }
 
