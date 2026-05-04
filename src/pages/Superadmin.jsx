@@ -1082,7 +1082,7 @@ const COLOR_OPTIONS = ['#8e8e93','#0066ff','#7c3aed','#00c853','#ff9500','#ff3b3
 const MODULE_TAGS = ['CRM', 'Tools']
 
 const EMPTY_PLAN = {
-  name: '', color: '#0066ff', monthlyUSD: 49, annualUSD: 41,
+  name: '', color: '#0066ff', monthlyUSD: 49, annualUSD: 41, monthlyMXN: 0,
   maxUsers: 1, maxLeads: 500, features: [], status: 'active',
 }
 
@@ -1185,7 +1185,8 @@ function Plans() {
           <thead>
             <tr>
               <th>Plan</th>
-              <th>Mensual</th>
+              <th>Mensual USD</th>
+              <th>Mensual MXN</th>
               <th>Anual/mes</th>
               <th>Usuarios</th>
               <th>Leads</th>
@@ -1204,6 +1205,7 @@ function Plans() {
                   </div>
                 </td>
                 <td style={{ fontWeight: 700, color: '#0066ff' }}>${plan.monthlyUSD} USD</td>
+                <td style={{ fontWeight: 600, color: plan.monthlyMXN > 0 ? '#00b4d8' : '#334155' }}>{plan.monthlyMXN > 0 ? `$${plan.monthlyMXN?.toLocaleString()} MXN` : '—'}</td>
                 <td style={{ color: 'var(--gray-4)' }}>${plan.annualUSD || '—'} USD</td>
                 <td style={{ fontWeight: 600 }}>{plan.maxUsers === 999 || plan.maxUsers === 0 ? '∞' : plan.maxUsers}</td>
                 <td style={{ fontWeight: 600 }}>{plan.maxLeads === 999999 || plan.maxLeads === 0 ? '∞' : (plan.maxLeads || '—')?.toLocaleString?.()}</td>
@@ -1322,6 +1324,16 @@ function Plans() {
               <label className="sa-form-label">Precio anual / mes (USD)</label>
               <input className="sa-form-input" type="number" min="0" value={planForm.annualUSD} onChange={e => setPlanForm(f => ({ ...f, annualUSD: parseFloat(e.target.value) }))} />
             </div>
+          </div>
+          <div className="sa-form-row" style={{ marginBottom: 14 }}>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Precio mensual MXN <span style={{ fontWeight: 400, color: 'var(--gray-4)' }}>(opcional — Mercado Pago)</span></label>
+              <input className="sa-form-input" type="number" min="0" placeholder="0 = no disponible en MXN"
+                value={planForm.monthlyMXN || ''}
+                onChange={e => setPlanForm(f => ({ ...f, monthlyMXN: e.target.value ? parseFloat(e.target.value) : 0 }))} />
+              <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Deja en 0 si no se vende por Mercado Pago</div>
+            </div>
+            <div style={{ flex: 1 }} />
           </div>
 
           {/* Límites */}
@@ -4155,6 +4167,11 @@ function BillingPanel({ orgs }) {
   const [filterStatus, setFilterStatus] = useState('all')
   // Leads del mes — cache por orgId
   const [leadsCounts, setLeadsCounts] = useState({})   // { [orgId]: { leadsCount, totalMessages, lastUpdated } | 'loading' | 'error' }
+  // Mercado Pago
+  const [setupProvider, setSetupProvider] = useState('stripe')  // 'stripe' | 'mercadopago'
+  const [mpMode, setMpMode] = useState('test')                  // 'test' | 'prod'
+  const [mpPlanId, setMpPlanId] = useState('')
+  const [mpLoading, setMpLoading] = useState(false)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'plans'), snap => {
@@ -4264,6 +4281,30 @@ function BillingPanel({ orgs }) {
       setShowSetupModal(false)
     } catch (err) { toast.error(err.message) }
     setCheckoutLoading(false)
+  }
+
+  const createMpSubscription = async () => {
+    if (!mpPlanId) return toast.error('Selecciona un plan con precio MXN')
+    if (!setupForm.ownerEmail) return toast.error('Email del cliente requerido')
+    setMpLoading(true)
+    try {
+      const res = await fetch('/.netlify/functions/mercadopago-create-subscription', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgId: selected.id,
+          orgName: selected.name,
+          ownerEmail: setupForm.ownerEmail,
+          planId: mpPlanId,
+          mode: mpMode,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      await navigator.clipboard.writeText(data.initPoint)
+      toast.success('¡Link de Mercado Pago copiado! Envíaselo al cliente.')
+      setShowSetupModal(false)
+    } catch (err) { toast.error(err.message) }
+    setMpLoading(false)
   }
 
   const saveManualPayment = async () => {    if (!manualForm.amount || isNaN(parseFloat(manualForm.amount))) return toast.error('Ingresa un monto válido')
@@ -4447,7 +4488,7 @@ function BillingPanel({ orgs }) {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
                 <BtnAction onClick={() => syncStatus(selected)} icon={<RefreshCw size={13} />}>Sincronizar</BtnAction>
                 <BtnAction onClick={() => { setManualForm({ amount: '', currency: 'USD', note: '' }); setShowManualModal(true) }} icon={<Plus size={13} />}>Pago manual</BtnAction>
-                <BtnAction variant="primary" onClick={() => { setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '' }); setShowSetupModal(true) }} icon={<CreditCard size={13} />}>
+                <BtnAction variant="primary" onClick={() => { setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '' }); setSetupProvider('stripe'); setMpPlanId(''); setShowSetupModal(true) }} icon={<CreditCard size={13} />}>
                   {selected.stripeSubscriptionId ? 'Cambiar plan' : 'Crear suscripción'}
                 </BtnAction>
                 {selected.stripeSubscriptionId && (
@@ -4616,44 +4657,104 @@ function BillingPanel({ orgs }) {
             <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: '#f8fafc', marginBottom: 4 }}>
               {selected.stripeSubscriptionId ? 'Cambiar suscripción' : 'Crear suscripción'}
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 24 }}>{selected.name}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>{selected.name}</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[
-                { label: 'Email del cliente *', key: 'ownerEmail', placeholder: 'cliente@empresa.com', type: 'text' },
-                { label: 'Stripe Price ID *', key: 'stripePriceId', placeholder: 'price_1AbCdEfGhIjKlMnO…', type: 'text', hint: 'Stripe Dashboard → Products → tu plan → Price ID' },
-              ].map(field => (
-                <div key={field.key}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>{field.label}</label>
-                  <input type={field.type} value={setupForm[field.key]} onChange={e => setSetupForm(f => ({ ...f, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
-                  {field.hint && <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>{field.hint}</div>}
-                </div>
+            {/* Selector de proveedor */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 4 }}>
+              {[{ id: 'stripe', label: 'Stripe (USD)' }, { id: 'mercadopago', label: 'Mercado Pago (MXN)' }].map(p => (
+                <button key={p.id} onClick={() => setSetupProvider(p.id)}
+                  style={{ flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', transition: 'all .15s',
+                    background: setupProvider === p.id ? 'linear-gradient(135deg,#1aab99,#3533cd)' : 'transparent',
+                    color: setupProvider === p.id ? '#fff' : '#64748b' }}>
+                  {p.label}
+                </button>
               ))}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Ciclo de facturación</label>
-                <select value={setupForm.billingCycle} onChange={e => setSetupForm(f => ({ ...f, billingCycle: e.target.value }))}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
-                  <option value="monthly">Mensual</option>
-                  <option value="annual">Anual</option>
-                </select>
-              </div>
-              <div style={{ background: 'rgba(26,171,153,0.07)', border: '1px solid rgba(26,171,153,0.18)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
-                ℹ️ El Price ID lo obtienes en Stripe Dashboard → Products → tu plan → sección Pricing.
-              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-              <button onClick={() => setShowSetupModal(false)}
-                style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Cancelar
-              </button>
-              <button onClick={generateCheckoutLink} disabled={checkoutLoading}
-                style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: checkoutLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: checkoutLoading ? 0.7 : 1 }}>
-                <Link size={14} /> {checkoutLoading ? 'Generando…' : 'Generar link de pago'}
-              </button>
-            </div>
+            {/* ── STRIPE ── */}
+            {setupProvider === 'stripe' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[
+                  { label: 'Email del cliente *', key: 'ownerEmail', placeholder: 'cliente@empresa.com', type: 'text' },
+                  { label: 'Stripe Price ID *', key: 'stripePriceId', placeholder: 'price_1AbCdEfGhIjKlMnO…', type: 'text', hint: 'Stripe Dashboard → Products → tu plan → Price ID' },
+                ].map(field => (
+                  <div key={field.key}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>{field.label}</label>
+                    <input type={field.type} value={setupForm[field.key]} onChange={e => setSetupForm(f => ({ ...f, [field.key]: e.target.value }))}
+                      placeholder={field.placeholder}
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
+                    {field.hint && <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>{field.hint}</div>}
+                  </div>
+                ))}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Ciclo de facturación</label>
+                  <select value={setupForm.billingCycle} onChange={e => setSetupForm(f => ({ ...f, billingCycle: e.target.value }))}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
+                    <option value="monthly">Mensual</option>
+                    <option value="annual">Anual</option>
+                  </select>
+                </div>
+                <div style={{ background: 'rgba(26,171,153,0.07)', border: '1px solid rgba(26,171,153,0.18)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+                  ℹ️ El Price ID lo obtienes en Stripe Dashboard → Products → tu plan → sección Pricing.
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button onClick={() => setShowSetupModal(false)}
+                    style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={generateCheckoutLink} disabled={checkoutLoading}
+                    style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: checkoutLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: checkoutLoading ? 0.7 : 1 }}>
+                    <Link size={14} /> {checkoutLoading ? 'Generando…' : 'Generar link de pago'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── MERCADO PAGO ── */}
+            {setupProvider === 'mercadopago' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Email del cliente *</label>
+                  <input type="text" value={setupForm.ownerEmail} onChange={e => setSetupForm(f => ({ ...f, ownerEmail: e.target.value }))}
+                    placeholder="cliente@empresa.com"
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Plan (con precio MXN) *</label>
+                  <select value={mpPlanId} onChange={e => setMpPlanId(e.target.value)}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
+                    <option value="">Selecciona un plan…</option>
+                    {plans.filter(p => p.status === 'active' && p.monthlyMXN > 0).map(p => (
+                      <option key={p.id} value={p.id}>{p.name} — ${p.monthlyMXN?.toLocaleString()} MXN/mes</option>
+                    ))}
+                  </select>
+                  {plans.filter(p => p.status === 'active' && p.monthlyMXN > 0).length === 0 && (
+                    <div style={{ fontSize: 11, color: '#fb923c', marginTop: 5 }}>Ningún plan tiene precio MXN configurado. Agrégalo en la sección Planes.</div>
+                  )}
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Ambiente</label>
+                  <select value={mpMode} onChange={e => setMpMode(e.target.value)}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#f1f5f9', fontSize: 13, padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}>
+                    <option value="test">Test (sandbox)</option>
+                    <option value="prod">Producción</option>
+                  </select>
+                </div>
+                <div style={{ background: 'rgba(0,180,216,0.07)', border: '1px solid rgba(0,180,216,0.2)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+                  ℹ️ Se crea un preapproval mensual en MXN. El link se copia al portapapeles para enviarlo al cliente.
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button onClick={() => setShowSetupModal(false)}
+                    style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={createMpSubscription} disabled={mpLoading}
+                    style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg,#00b4d8,#0077b6)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: mpLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: mpLoading ? 0.7 : 1 }}>
+                    <Link size={14} /> {mpLoading ? 'Creando…' : 'Generar link MP'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
