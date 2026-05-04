@@ -5282,8 +5282,11 @@ function AnalyticsPanel({ orgs }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(range),
       })
-      const json = await res.json()
+      let json
+      try { json = await res.json() } catch (_) { json = {} }
+      if (!res.ok) throw new Error(json.error || `Error ${res.status} del servidor`)
       if (json.error) throw new Error(json.error)
+      if (!Array.isArray(json.orgs)) throw new Error('Respuesta inesperada — sin campo orgs')
       setData(json)
     } catch (err) {
       toast.error('Error cargando analíticas: ' + err.message)

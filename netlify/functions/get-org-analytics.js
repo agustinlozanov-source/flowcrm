@@ -1,5 +1,4 @@
 // netlify/functions/get-org-analytics.js
-// Calcula metricas de leads/conversaciones/appointments por organizacion.
 //
 // ESTRUCTURA REAL DE FIRESTORE (verificada 2026-05-04):
 //   organizations/{orgId}/leads/{leadId}
@@ -125,19 +124,26 @@ async function calcOrgMetrics(orgId, startTs, endTs) {
     }
 
     // 4. Mensajes por lead — conversations es SUBCOLLECCION de cada lead
-    const MAX_PARALLEL = 200
-    const leadsToQuery = leads.slice(0, MAX_PARALLEL)
+    //    Procesamos en batches de 50 para no saturar Firestore
+    const MAX_LEADS   = 200
+    const BATCH_SIZE  = 50
+    const leadsToQuery = leads.slice(0, MAX_LEADS)
 
-    const convResults = await Promise.all(
-      leadsToQuery.map(lead =>
-        orgRef.collection('leads').doc(lead.id)
-          .collection('conversations')
-          .where('role', '==', 'user')
-          .get()
-          .then(snap => ({ leadId: lead.id, count: snap.size }))
-          .catch(() => ({ leadId: lead.id, count: 0 }))
+    const convResults = []
+    for (let i = 0; i < leadsToQuery.length; i += BATCH_SIZE) {
+      const batch = leadsToQuery.slice(i, i + BATCH_SIZE)
+      const batchResults = await Promise.all(
+        batch.map(lead =>
+          orgRef.collection('leads').doc(lead.id)
+            .collection('conversations')
+            .where('role', '==', 'user')
+            .get()
+            .then(snap => ({ leadId: lead.id, count: snap.size }))
+            .catch(() => ({ leadId: lead.id, count: 0 }))
+        )
       )
-    )
+      convResults.push(...batchResults)
+    }
 
     let messagesIncoming = 0
     const msgsByLead = {}

@@ -5,6 +5,13 @@
 [build.environment]
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
+[functions]
+  node_bundler = "esbuild"
+
+[[functions]]
+  path = "/get-org-analytics"
+  timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
