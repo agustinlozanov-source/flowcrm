@@ -5295,11 +5295,11 @@ function AnalyticsPanel({ orgs }) {
   const globals = data ? data.orgs.reduce((acc, org) => {
     const t = org.totals || {}
     acc.leads    += t.leadsCount    || 0
-    acc.handoffs += t.handoffSuggested || 0
-    acc.meetings += t.meetingsScheduled || 0
-    acc.mrr      += (org.plan?.monthlyUSD || 0)
+    acc.withAppt += t.leadsWithAppointment || 0
+    acc.meetings  += t.meetingsScheduled || 0
+    acc.mrr       += (org.plan?.monthlyUSD || 0)
     return acc
-  }, { leads: 0, handoffs: 0, meetings: 0, mrr: 0 }) : null
+  }, { leads: 0, withAppt: 0, meetings: 0, mrr: 0 }) : null
 
   // ── Ordenamiento ──────────────────────────────────────────────────────────
   const sortedOrgs = data ? [...data.orgs].sort((a, b) => {
@@ -5316,15 +5316,15 @@ function AnalyticsPanel({ orgs }) {
   // ── Exportar CSV ──────────────────────────────────────────────────────────
   function exportCSV() {
     if (!data) return
-    const headers = ['Org','Plan','Leads','Mensajes','Avg Msgs/Lead','Handoffs','Handoff%','Reuniones','Reuniones%','Avg Score','Top Score','Cold','Warm','Qualified','Hot']
+    const headers = ['Org','Plan','Leads','Mensajes','Avg Msgs/Lead','Con cita','Cita%','Reuniones','Reuniones%','Avg Score','Top Score','Cold','Warm','Qualified','Hot']
     const rows = data.orgs.map(o => {
       const t = o.totals || {}
       return [
         o.orgName, o.plan?.name || '—',
         t.leadsCount || 0, t.messagesIncoming || 0,
         t.avgMessagesPerLead || 0,
-        t.handoffSuggested || 0,
-        t.leadsCount ? ((t.handoffRate || 0) * 100).toFixed(1) + '%' : '—',
+        t.leadsWithAppointment || 0,
+        t.leadsCount ? ((t.leadsWithAppointmentRate || 0) * 100).toFixed(1) + '%' : '—',
         t.meetingsScheduled || 0,
         t.leadsCount ? ((t.meetingsRate || 0) * 100).toFixed(1) + '%' : '—',
         t.avgScore || 0, t.topScore || 0,
@@ -5342,9 +5342,9 @@ function AnalyticsPanel({ orgs }) {
   }
 
   // ── Helpers de render ──────────────────────────────────────────────────────
-  function handoffColor(rate) {
-    if (rate >= 0.25) return '#22c55e'
-    if (rate >= 0.10) return '#f59e0b'
+  function apptColor(rate) {
+    if (rate >= 0.20) return '#22c55e'
+    if (rate >= 0.08) return '#f59e0b'
     return '#ef4444'
   }
 
@@ -5418,7 +5418,7 @@ function AnalyticsPanel({ orgs }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           {[
             { label: 'Leads totales', value: globals.leads, icon: <Users size={18} /> },
-            { label: 'Handoffs', value: `${globals.handoffs} (${globals.leads ? ((globals.handoffs/globals.leads)*100).toFixed(1) : 0}%)`, icon: <TrendingUp size={18} /> },
+            { label: 'Con cita', value: `${globals.withAppt} (${globals.leads ? ((globals.withAppt/globals.leads)*100).toFixed(1) : 0}%)`, icon: <TrendingUp size={18} /> },
             { label: 'Reuniones', value: globals.meetings, icon: <Calendar size={18} /> },
             { label: 'MRR (USD)', value: `$${globals.mrr.toLocaleString()}`, icon: <CreditCard size={18} /> },
           ].map(g => (
@@ -5473,9 +5473,9 @@ function AnalyticsPanel({ orgs }) {
                 )
               }
 
-              const hRate = t.handoffRate || 0
-              const dLeads    = p ? delta(t.leadsCount, p.leadsCount) : null
-              const dHandoff  = p ? delta(hRate, p.handoffRate) : null
+              const apptRate = t.leadsWithAppointmentRate || 0
+              const dLeads   = p ? delta(t.leadsCount, p.leadsCount) : null
+              const dAppt    = p ? delta(apptRate, p.leadsWithAppointmentRate) : null
 
               // Datos para mini gráfico
               const barData = [
@@ -5521,7 +5521,7 @@ function AnalyticsPanel({ orgs }) {
                   {/* Métricas fila */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
                     {[
-                      { label: 'Handoff', value: `${(hRate*100).toFixed(0)}%`, color: handoffColor(hRate) },
+                      { label: 'Con cita', value: `${(apptRate*100).toFixed(0)}%`, color: apptColor(apptRate) },
                       { label: 'Reuniones', value: `${(t.meetingsRate*100).toFixed(0)}%`, color: '#60a5fa' },
                       { label: 'Avg Score', value: t.avgScore, color: '#a78bfa' },
                     ].map(m => (
@@ -5565,7 +5565,7 @@ function AnalyticsPanel({ orgs }) {
                     ['Leads', 'leadsCount'],
                     ['Msgs', 'messagesIncoming'],
                     ['Avg Msgs', 'avgMessagesPerLead'],
-                    ['Handoff%', 'handoffRate'],
+                    ['Cita%', 'leadsWithAppointmentRate'],
                     ['Reuniones', 'meetingsScheduled'],
                     ['Avg Score', 'avgScore'],
                     ['Top Score', 'topScore'],
@@ -5593,8 +5593,8 @@ function AnalyticsPanel({ orgs }) {
                       <td style={{ padding: '8px 12px', color: '#fff' }}>{t?.leadsCount ?? '—'}</td>
                       <td style={{ padding: '8px 12px', color: '#aaa' }}>{t?.messagesIncoming ?? '—'}</td>
                       <td style={{ padding: '8px 12px', color: '#aaa' }}>{t?.avgMessagesPerLead ?? '—'}</td>
-                      <td style={{ padding: '8px 12px', color: t ? handoffColor(t.handoffRate) : '#888' }}>
-                        {t ? `${(t.handoffRate * 100).toFixed(1)}%` : '—'}
+                      <td style={{ padding: '8px 12px', color: t ? apptColor(t.leadsWithAppointmentRate) : '#888' }}>
+                        {t ? `${(t.leadsWithAppointmentRate * 100).toFixed(1)}%` : '—'}
                       </td>
                       <td style={{ padding: '8px 12px', color: '#60a5fa' }}>{t?.meetingsScheduled ?? '—'}</td>
                       <td style={{ padding: '8px 12px', color: '#a78bfa' }}>{t?.avgScore ?? '—'}</td>
@@ -5643,10 +5643,11 @@ function AnalyticsPanel({ orgs }) {
                 ['Leads totales', detailOrg.totals.leadsCount],
                 ['Mensajes entrantes', detailOrg.totals.messagesIncoming],
                 ['Avg msgs/lead', detailOrg.totals.avgMessagesPerLead],
-                ['Handoffs sugeridos', detailOrg.totals.handoffSuggested],
-                ['Tasa handoff', `${(detailOrg.totals.handoffRate * 100).toFixed(1)}%`],
+                ['Leads con cita', detailOrg.totals.leadsWithAppointment],
+                ['Tasa con cita', `${((detailOrg.totals.leadsWithAppointmentRate || 0) * 100).toFixed(1)}%`],
                 ['Reuniones agendadas', detailOrg.totals.meetingsScheduled],
-                ['Tasa reuniones', `${(detailOrg.totals.meetingsRate * 100).toFixed(1)}%`],
+                ['Reuniones completadas', detailOrg.totals.meetingsCompleted],
+                ['Reuniones convertidas', detailOrg.totals.meetingsConverted],
                 ['Score promedio', detailOrg.totals.avgScore],
                 ['Score máximo', detailOrg.totals.topScore],
                 ['Cold (1-3 msgs)', detailOrg.totals.leadsCold],
@@ -5668,7 +5669,7 @@ function AnalyticsPanel({ orgs }) {
                 <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                   {[
                     ['Leads', detailOrg.totals.leadsCount, detailOrg.previousPeriod.leadsCount],
-                    ['Handoff%', (detailOrg.totals.handoffRate * 100).toFixed(1), (detailOrg.previousPeriod.handoffRate * 100).toFixed(1)],
+                    ['Con cita%', ((detailOrg.totals.leadsWithAppointmentRate || 0) * 100).toFixed(1), ((detailOrg.previousPeriod.leadsWithAppointment || 0) / Math.max(detailOrg.previousPeriod.leadsCount, 1) * 100).toFixed(1)],
                     ['Avg msgs', detailOrg.totals.avgMessagesPerLead, detailOrg.previousPeriod.avgMessagesPerLead],
                   ].map(([label, curr, prev]) => {
                     const pct  = prev && prev > 0 ? (((curr - prev) / prev) * 100) : null

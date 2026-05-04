@@ -1,17 +1,29 @@
 // netlify/functions/get-org-analytics.js
-// Calcula métricas de leads/conversaciones por organización para un periodo dado.
-// Si no se mandan fechas, default = mes actual (UTC-6 México).
+// Calcula metricas de leads/conversaciones/appointments por organizacion.
 //
-// Body: { orgIds?: string[], periodStart?: ISO string, periodEnd?: ISO string }
-//   - Si orgIds está vacío o ausente → calcula TODAS las orgs activas.
-//   - periodStart/periodEnd → timestamps ISO del rango [start, end).
+// ESTRUCTURA REAL DE FIRESTORE (verificada 2026-05-04):
+//   organizations/{orgId}/leads/{leadId}
+//     campos: score (int), stageId (string), pipelineId, createdAt, channel, name, phone
+//     NO existe: existingMeeting, suggestedHandoff, pipelineStage
 //
-// Retorna: { period, orgs: [ { orgId, orgName, plan, totals, byStage, previousPeriod } ] }
+//   organizations/{orgId}/leads/{leadId}/conversations/{msgId}  <- SUBCOLLECCION del lead
+//     campos: role ('user'|'assistant'), content, createdAt, channel
+//     NO tiene leadId (subcollection, no necesita)
 //
-// Estructura Firestore esperada:
-//   organizations/{orgId}/leads/{leadId}   — campos: createdAt, score, stageId, suggestHandoff, existingMeeting
-//   organizations/{orgId}/conversations/{convId}  — campos: role ('user'|'assistant'), createdAt, leadId
-//   organizations/{orgId}/pipeline_stages/{stageId} — campo: name
+//   organizations/{orgId}/appointments/{apptId}
+//     campos: leadId, scheduledAt, status, outcome, paymentDate, type
+//
+//   organizations/{orgId}/pipeline_stages/{stageId}  <- coleccion FLAT
+//     campos: name, order
+//
+// CAMBIOS vs spec original:
+//   handoffSuggested / handoffRate -> REMOVIDOS (campo no existe en leads)
+//      Reemplazado por: leadsWithAppointment + leadsWithAppointmentRate
+//   meetingsScheduled -> desde /appointments filtrando scheduledAt en periodo
+//      Metricas adicionales: meetingsCompleted, meetingsConverted
+//   conversations -> subcollection de cada lead, consultadas en Promise.all
+//   byStage -> resuelve nombres desde /pipeline_stages (coleccion flat)
+//   score / avgScore / topScore -> sin cambios
 
 const admin = require('firebase-admin')
 
@@ -32,50 +44,37 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
-const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Retorna [startTs, endTs) del mes actual en UTC-6 como Timestamps de Firestore */
-function currentMonthRange() {
-  const now   = new Date()
+const JSON_HEADERS = { ...CORS, 'Conteconst JSON_HEADERS =onconst JSON_HEADERS = { ...CORS, 'Conteconst JSON_HEADERS =oncDate()
   const mxNow = new Date(now.getTime() - 6 * 60 * 60 * 1000)
   const y = mxNow.getUTCFullYear()
-  const m = mxNow.getUTCMonth() // 0-based
+  const m = mxNow.getUTCMonth()
   return [
     admin.firestore.Timestamp.fromDate(new Date(Date.UTC(y, m, 1))),
     admin.firestore.Timestamp.fromDate(new Date(Date.UTC(y, m + 1, 1))),
   ]
 }
 
-/** Retorna [startTs, endTs) del mes anterior */
 function previousMonthRange(startTs) {
   const d = startTs.toDate()
   const y = d.getUTCFullYear()
-  const m = d.getUTCMonth() // 0-based, es el mes actual
+  const m = d.getUTCMonth()
   return [
     admin.firestore.Timestamp.fromDate(new Date(Date.UTC(y, m - 1, 1))),
     admin.firestore.Timestamp.fromDate(new Date(Date.UTC(y, m, 1))),
   ]
 }
 
-/** Clasifica lead por nº de mensajes entrantes */
 function tempBucket(msgCount) {
   if (msgCount >= 16) return 'hot'
-  if (msgCount >= 8)  return 'qualified'
-  if (msgCount >= 4)  return 'warm'
+  if (msgCount >= 8)  return 'qualifi  if (msgCountount >= 4)  return 'warm'
   return 'cold'
 }
 
-/**
- * Calcula métricas para una sola org en un rango [startTs, endTs).
- * Retorna null si hay error (para que no rompa la respuesta completa).
- */
 async function calcOrgMetrics(orgId, startTs, endTs) {
   try {
     const orgRef = db.collection('organizations').doc(orgId)
 
-    // 1. Leads creados en el periodo
+    // 1. Leads del periodo
     const leadsSnap = await orgRef.collection('leads')
       .where('createdAt', '>=', startTs)
       .where('createdAt', '<',  endTs)
@@ -86,139 +85,87 @@ async function calcOrgMetrics(orgId, startTs, endTs) {
 
     if (leadsCount === 0) {
       return {
-        leadsCount: 0,
-        messagesIncoming: 0,
-        avgMessagesPerLead: 0,
-        handoffSuggested: 0,
-        handoffRate: 0,
-        meetingsScheduled: 0,
-        meetingsRate: 0,
-        avgScore: 0,
-        topScore: 0,
-        leadsCold: 0,
-        leadsWarm: 0,
-        leadsQualified: 0,
-        leadsHot: 0,
+        leadsCount: 0, messagesIncoming: 0, avgMessagesPerLead: 0,
+        leadsWithAppointment: 0, leadsWithAppointmentRate: 0,
+        meetingsScheduled: 0, meetingsCompleted: 0, meetingsConverted: 0,
+        meetingsR        meetingsR        mor        m     leadsCold: 0, leadsWarm: 0, leadsQualified: 0, leadsHot: 0,
         byStage: {},
       }
     }
 
-    // 2. Métricas básicas directas del documento de lead
-    let scoreSum   = 0
-    let topScore   = 0
-    let handoffs   = 0
-    let meetings   = 0
-    const stageCount = {}
-    const leadIds  = []
+    // 2. Score y stage
+    let scoreSum = 0, topS    let scoreSum = 0, topS    =     let scoreSum = 0, topS    let(leads.map(l => l.id))
 
     for (const lead of leads) {
-      leadIds.push(lead.id)
-      const s = typeof lead.score === 'number' ? lead.score : 0
-      scoreSum += s
+      const s = typeof lead.score === 'num      const s = typeof lead.score === 'nu
       if (s > topScore) topScore = s
-      if (lead.suggestHandoff === true) handoffs++
-      if (lead.existingMeeting) meetings++
-
-      // Agrupar por stage — usamos stageId como key, luego resolvemos nombres
       const sId = lead.stageId || '__sin_stage__'
       stageCount[sId] = (stageCount[sId] || 0) + 1
     }
 
-    // 3. Resolver nombres de stages
+    // 3. Resolver no    // 3. Resolver no    // 3. Resolvercoleccion flat)
     let stagesMap = {}
-    try {
-      const stagesSnap = await orgRef.collection('pipeline_stages').get()
-      stagesSnap.forEach(d => { stagesMap[d.id] = d.data().name || d.id })
-    } catch { /* si no hay pipeline_stages, usamos los ids como nombres */ }
-
-    const byStage = {}
-    for (const [sId, count] of Object.entries(stageCount)) {
-      const name = stagesMap[sId] || sId
-      byStage[name] = count
+                const stSnap = await orgRef.collection('pipeline_stages').get()
+      stSnap.forEach(d => { stagesMap[d.id] = d.data().name || d.id })
+    } catch (_)     } catch (_)     } catch (_)     } catch (_)     } catch (_)  entries(stageCount)) {
+      byStage[stagesMap[sId] || sId] = count
     }
 
-    // 4. Mensajes entrantes (role: 'user') para estos leads
-    // Firestore no tiene JOIN — debemos consultar conversations filtrando por leadId
-    // Para evitar 1 query por lead, consultamos conversations del periodo y filtramos por leadId en memoria.
-    // Si hay >100 leads, esto puede ser costoso → limitamos a 500 docs por lead en el rango.
+    // 4. Mensajes por lead — conversations es SUBCOLLECCION de cada lead
+    const MAX_PARALLEL = 200
+    const leadsToQuery = leads.slice(0, MAX_PARALLEL)
+
+    const convResults = await Promise.all(
+    coleadsToQuery.map(lead =>
+                                                                                                                        ser                              .then(snap => ({ leadId: lead.id, count: snap.size }))
+          .catch(() => ({ leadId: lead.id, count: 0 }))
+      )
+    )
+
     let messagesIncoming = 0
     const msgsByLead = {}
-
-    // Firestore 'in' acepta hasta 30 ids por query — particionamos
-    const CHUNK = 30
-    const leadIdSet = new Set(leadIds)
-
-    for (let i = 0; i < leadIds.length; i += CHUNK) {
-      const chunk = leadIds.slice(i, i + CHUNK)
-      try {
-        const convSnap = await orgRef.collection('conversations')
-          .where('leadId', 'in', chunk)
-          .where('role', '==', 'user')
-          .get()
-        convSnap.forEach(d => {
-          const lid = d.data().leadId
-          if (leadIdSet.has(lid)) {
-            msgsByLead[lid] = (msgsByLead[lid] || 0) + 1
-            messagesIncoming++
-          }
-        })
-      } catch { /* conversations puede no existir o no tener leadId — skip */ }
+    for (const { leadId, count } of convResults) {
+      msgsByLead[leadId] = count
+      messagesIncoming  += count
     }
 
-    // 5. Distribución cold/warm/qualified/hot
-    let cold = 0, warm = 0, qualified = 0, hot = 0
-    for (const lead of leads) {
-      const msgs = msgsByLead[lead.id] || 0
-      const bucket = tempBucket(msgs)
-      if (bucket === 'cold')      cold++
-      else if (bucket === 'warm') warm++
-      else if (bucket === 'qualified') qualified++
-      else hot++
-    }
+                    on co                    on co                    on co                    on co  for (const lead of leads) {
+      const b = tempBucket(msgsByLead[lead.id]      const b = tempBucket(msgsByLead[lead.id]      const b = tempBucket(msgsByLead[lead.id]    lse if (      const b = tempBucket(msgsByLea else                 const b = tempBucket(msgsByLead[lead.id]      const b = tempBucket(mti      const b = tempBucketCom      const b = tempBucket(msgsByLead[lead.id]      hAppt = new Set()
 
-    return {
-      leadsCount,
-      messagesIncoming,
-      avgMessagesPerLead: leadsCount > 0 ? Math.round((messagesIncoming / leadsCount) * 10) / 10 : 0,
-      handoffSuggested: handoffs,
-      handoffRate: leadsCount > 0 ? Math.round((handoffs / leadsCount) * 1000) / 1000 : 0,
-      meetingsScheduled: meetings,
-      meetingsRate: leadsCount > 0 ? Math.round((meetings / leadsCount) * 1000) / 1000 : 0,
-      avgScore: leadsCount > 0 ? Math.round((scoreSum / leadsCount) * 10) / 10 : 0,
+    try {
+      const apptSnap = await orgRef.collection('appointments')
+        .where('scheduledAt', '>=', startTs)
+        .where('scheduledAt', '<',  endTs)
+        .get()
+
+      apptSnap.forEach(d => {
+        const appt = d.data()
+        meetingsScheduled++
+        if (appt.status === 'completed') meetingsCompleted++
+        if (appt.paymentDate != null)          gsConverted++
+        if (appt.leadId && leadIdSet.has(appt.leadId)) leadsWithAppt.add(appt.leadId)
+                                 const lead                                 const lead                                 const lead                                 const leint                                 const lead                                 const lead                                 const lead                                 const leint                                 const lead                                 const lead                                 const lead                                 const leint               adsCount > 0
+            th.round((meetingsScheduled / leadsCount) * 1000) / 1000 : 0,
+                                              ro                                         0,
       topScore,
-      leadsCold: cold,
-      leadsWarm: warm,
-      leadsQualified: qualified,
-      leadsHot: hot,
-      byStage,
-    }
-  } catch (err) {
-    console.error(`[get-org-analytics] Error org ${orgId}:`, err.message)
-    return null
-  }
-}
-
-// ── Handler ───────────────────────────────────────────────────────────────────
-
-exports.handler = async (event) => {
+      leadsCold:      cold,
+      leadsWarm:      warm,
+      leadsQualified: qualified      leadsQualified: qualified      leadsQualified: qualif (      leadsQualified: qualified      leadsQualified: qualif o      leadsQualified: qualified      leadsQualified: qualified      leadsQualif => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' }
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Method not allowed' }) }
   }
 
   let body
-  try { body = JSON.parse(event.body || '{}') } catch {
+  try { body = JSON.parse(event.body || '{}') } catch (_) {
     return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Invalid JSON' }) }
   }
 
-  // ── Rango del periodo ─────────────────────────────────────────────────────
   let startTs, endTs
   if (body.periodStart && body.periodEnd) {
     try {
       startTs = admin.firestore.Timestamp.fromDate(new Date(body.periodStart))
-      endTs   = admin.firestore.Timestamp.fromDate(new Date(body.periodEnd))
-    } catch {
-      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'periodStart/periodEnd inválidos' }) }
+      endTs   = admin.firestore.Timestamp.fromDa      endTs   = admin.firestore.Timestamp.fromDa      endTs   = admin.firestore.Timestamp.ON      en, body: JSON.stringify({ error: 'periodStart/periodEnd invalidos' }) }
     }
   } else {
     ;[startTs, endTs] = currentMonthRange()
@@ -226,59 +173,20 @@ exports.handler = async (event) => {
 
   const [prevStartTs, prevEndTs] = previousMonthRange(startTs)
 
-  // ── Determinar orgs a calcular ────────────────────────────────────────────
   let orgIds = Array.isArray(body.orgIds) && body.orgIds.length > 0 ? body.orgIds : null
-  let orgMeta = {} // orgId → { name, planId, planName, monthlyUSD, monthlyMXN, leadsIncluidos }
+  const orgMeta = {}
 
   if (!orgIds) {
-    // Traer todas las orgs activas
-    const orgsSnap = await db.collection('organizations').get()
-    orgIds = []
-    orgsSnap.forEach(d => {
-      orgIds.push(d.id)
-      const data = d.data()
-      orgMeta[d.id] = {
-        name: data.name || data.orgName || d.id,
-        planId: data.planId || null,
-        planName: data.planName || null,
-        monthlyUSD: data.monthlyUSD || 0,
-        monthlyMXN: data.monthlyMXN || 0,
-        leadsIncluidos: data.leadsIncluidos || null,
+    const orgsSnap = await db.collection('organizations').get()    const orgsSnap = await db.collech    const orgsSnap = await db.collection('organizations').get()    const orgsSnap = await db.collech    con d  a.n    constta    const orgsSnap = await db.collection('organizations').    || null,
+        planName:       data.planName       || null,
+        monthlyUSD:     data.monthlyUSD             monthlyUSD:ly        monthlyUSD:     data.monthlyUSD    l   sIncluidos: data.leadsIncluidos || null,
       }
     })
   } else {
-    // Traer solo las orgs solicitadas
-    const orgSnaps = await Promise.all(orgIds.map(id => db.collection('organizations').doc(id).get()))
-    orgSnaps.forEach(d => {
-      if (d.exists) {
-        const data = d.data()
-        orgMeta[d.id] = {
-          name: data.name || data.orgName || d.id,
-          planId: data.planId || null,
-          planName: data.planName || null,
-          monthlyUSD: data.monthlyUSD || 0,
-          monthlyMXN: data.monthlyMXN || 0,
-          leadsIncluidos: data.leadsIncluidos || null,
-        }
-      }
-    })
-  }
-
-  // ── Calcular métricas actuales y del periodo anterior en paralelo ─────────
-  const [currentResults, prevResults] = await Promise.all([
-    Promise.all(orgIds.map(id => calcOrgMetrics(id, startTs, endTs))),
-    Promise.all(orgIds.map(id => calcOrgMetrics(id, prevStartTs, prevEndTs))),
-  ])
-
-  // ── Ensamblar respuesta ───────────────────────────────────────────────────
-  const orgs = orgIds.map((orgId, i) => {
-    const current = currentResults[i]
-    const prev    = prevResults[i]
-    const meta    = orgMeta[orgId] || { name: orgId }
-
-    return {
-      orgId,
-      orgName: meta.name,
+    const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     const orgSnaps     consata.name || data.orgName || d.id,
+          planId:         data.pla          planId:         data.pla          planId:         d             planId:         data.pla          planId:         data.pla          planId:              planId:    || 0,
+          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le          le    onst orgs = orgIds.map((orgId, i) => {
+    const current     const current     const current     const current     const current     const current     const current     const current     const current     coneta.name,
       plan: {
         id:             meta.planId,
         name:           meta.planName,
@@ -286,13 +194,13 @@ exports.handler = async (event) => {
         monthlyMXN:     meta.monthlyMXN,
         leadsIncluidos: meta.leadsIncluidos,
       },
-      totals: current,  // null si hubo error
+      totals: current,
       previousPeriod: prev ? {
-        leadsCount:          prev.leadsCount,
-        handoffRate:         prev.handoffRate,
-        avgMessagesPerLead:  prev.avgMessagesPerLead,
-        meetingsScheduled:   prev.meetingsScheduled,
-        avgScore:            prev.avgScore,
+        leadsCount:           prev.leadsCount,
+        avgMessagesPerLead:   prev.avgMessagesPerLead,
+        leadsWithAppointment: prev.leadsWithAppointment,
+        meetingsScheduled:    prev.meetingsScheduled,
+        avgScore:             prev.avgScore,
       } : null,
     }
   })
@@ -301,14 +209,8 @@ exports.handler = async (event) => {
     statusCode: 200,
     headers: JSON_HEADERS,
     body: JSON.stringify({
-      period: {
-        start: startTs.toDate().toISOString(),
-        end:   endTs.toDate().toISOString(),
-      },
-      previousPeriod: {
-        start: prevStartTs.toDate().toISOString(),
-        end:   prevEndTs.toDate().toISOString(),
-      },
+      period: { start: startTs.toDate().toISOString(), end: endTs.toDate().toISOString() },
+      previousPeriod: { start: prevStartTs.toDate().toISOString(), end: prevEndTs.toDate().toISOString() },
       orgs,
     }),
   }
