@@ -28,7 +28,7 @@ const CORS = {
 }
 const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' }
 
-const APP_URL = process.env.URL || 'https://app.flowhubcrm.app'
+const APP_URL = 'https://flowhubcrm.app'
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' }
