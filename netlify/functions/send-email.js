@@ -198,6 +198,36 @@ function tplCustom({ subject: subjectLine, bodyHtml, bodyText }) {
   }
 }
 
+// ── Template: Alerta de límite de leads ────────────────────────────────────
+function tplLeadLimitWarning({ orgName, leadsCount, leadsIncluidos, pct }) {
+  const reached = pct >= 100
+  const accentColor = reached ? '#ef4444' : '#f97316'
+  const subject = reached
+    ? `⚠️ ${orgName} alcanzó su límite de leads del mes`
+    : `Aviso: ${orgName} está al ${pct}% de su límite de leads`
+  const headline = reached
+    ? '¡Límite de leads alcanzado!'
+    : `Vas al ${pct}% de tu límite mensual`
+  const message = reached
+    ? `Tu organización <strong>${orgName}</strong> ha llegado a su límite de <strong>${leadsIncluidos} leads</strong> para este mes. Los nuevos leads seguirán registrándose, pero considera actualizar tu plan.`
+    : `Tu organización <strong>${orgName}</strong> lleva <strong>${leadsCount} de ${leadsIncluidos} leads</strong> este mes. Tienes solo <strong>${leadsIncluidos - leadsCount} leads restantes</strong> en tu plan actual.`
+
+  const content = `
+    ${heading(headline)}
+    ${sub(message)}
+    ${divider()}
+    <table cellpadding="0" cellspacing="0" style="width:100%;background:#f9f9f9;border-radius:10px;margin:4px 0 20px;">
+      <tr>${infoRow('Organización', orgName)}</tr>
+      <tr>${infoRow('Leads este mes', `${leadsCount} / ${leadsIncluidos}`)}</tr>
+      <tr>${infoRow('Uso', `<span style="color:${accentColor};font-weight:800;">${pct}%</span>`)}</tr>
+    </table>
+    ${btn(reached ? 'Ver planes disponibles' : 'Ver mi panel de billing', `${APP_URL}`, accentColor)}
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#8e8e93;">Este aviso se envía automáticamente al 80% y al 100% de tu límite mensual de leads.</p>
+  `
+  return { subject, html: baseLayout(content, subject) }
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────
 
 exports.handler = async (event) => {
@@ -234,6 +264,7 @@ exports.handler = async (event) => {
       case 'distributor_approved': emailTemplate = tplDistributorApproved(data); break
       case 'distributor_rejected': emailTemplate = tplDistributorRejected(data); break
       case 'custom':             emailTemplate = tplCustom(data);              break
+      case 'lead_limit_warning': emailTemplate = tplLeadLimitWarning(data);   break
       default:
         return { statusCode: 400, headers, body: JSON.stringify({ error: `Unknown email type: ${type}` }) }
     }

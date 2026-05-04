@@ -4153,6 +4153,8 @@ function BillingPanel({ orgs }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  // Leads del mes — cache por orgId
+  const [leadsCounts, setLeadsCounts] = useState({})   // { [orgId]: { leadsCount, totalMessages, lastUpdated } | 'loading' | 'error' }
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'plans'), snap => {
@@ -4160,6 +4162,27 @@ function BillingPanel({ orgs }) {
     })
     return unsub
   }, [])
+
+  const fetchLeadsCount = async (orgId, force = false) => {
+    if (!force && leadsCounts[orgId] && leadsCounts[orgId] !== 'error') return  // ya cacheado
+    setLeadsCounts(prev => ({ ...prev, [orgId]: 'loading' }))
+    try {
+      const res = await fetch('/.netlify/functions/get-monthly-leads-count', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setLeadsCounts(prev => ({ ...prev, [orgId]: data }))
+    } catch {
+      setLeadsCounts(prev => ({ ...prev, [orgId]: 'error' }))
+    }
+  }
+
+  // Auto-fetch cuando se selecciona una org
+  useEffect(() => {
+    if (selected?.id) fetchLeadsCount(selected.id)
+  }, [selected?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadReceipts = async (org) => {
     setReceipts([])
@@ -4308,6 +4331,15 @@ function BillingPanel({ orgs }) {
   const selectedStatus = selected ? (selected.billingStatus || selected.stripeSubscriptionStatus || 'none') : 'none'
   const selectedCfg = BILLING_STATUS_CFG[selectedStatus] || BILLING_STATUS_CFG.none
   const selectedPlan = selected ? plans.find(p => p.id === selected.planId) : null
+
+  // ── Leads del mes ──────────────────────────────────────────────────────────
+  const leadsData    = selected ? leadsCounts[selected.id] : undefined
+  const leadsLoading = leadsData === 'loading'
+  const leadsError   = leadsData === 'error'
+  const leadsObj     = (leadsData && leadsData !== 'loading' && leadsData !== 'error') ? leadsData : null
+  const pct          = leadsObj?.pct ?? null      // null si el plan no tiene leadsIncluidos
+  const overLimit    = pct !== null && pct >= 100
+  const nearLimit    = pct !== null && pct >= 80 && pct < 100
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: '#0d0d10' }}>
@@ -4481,6 +4513,37 @@ function BillingPanel({ orgs }) {
                   {c.sub && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{c.sub}</div>}
                 </div>
               ))}
+
+                {/* ── Tarjeta: Leads del mes ── */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${overLimit ? 'rgba(239,68,68,0.4)' : nearLimit ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <Users size={16} style={{ color: overLimit ? '#ef4444' : nearLimit ? '#f97316' : '#a78bfa' }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>Leads del mes</span>
+                    </div>
+                    <button onClick={() => fetchLeadsCount(selected.id, true)} disabled={leadsLoading} title="Refrescar"
+                      style={{ background: 'none', border: 'none', cursor: leadsLoading ? 'not-allowed' : 'pointer', color: '#475569', padding: 2, display: 'flex', opacity: leadsLoading ? 0.4 : 1 }}>
+                      <RefreshCw size={11} />
+                    </button>
+                  </div>
+
+                  {leadsLoading && <div style={{ fontSize: 13, color: '#475569' }}>Cargando…</div>}
+                  {leadsError   && <div style={{ fontSize: 14, fontWeight: 700, color: '#475569' }}>—</div>}
+                  {leadsObj && (
+                    <>
+                      <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: overLimit ? '#ef4444' : nearLimit ? '#f97316' : '#a78bfa', lineHeight: 1 }}>
+                        {leadsObj.leadsIncluidos !== null
+                          ? `${leadsObj.leadsCount.toLocaleString()} / ${leadsObj.leadsIncluidos.toLocaleString()}`
+                          : leadsObj.leadsCount.toLocaleString()}
+                      </div>
+                      {pct !== null && (
+                        <div style={{ fontSize: 11, color: overLimit ? '#ef4444' : nearLimit ? '#f97316' : '#64748b', marginTop: 4, fontWeight: overLimit || nearLimit ? 700 : 400 }}>
+                          {overLimit ? '⚠️ Límite alcanzado' : nearLimit ? `⚠️ ${pct}% del límite` : `${pct}% del límite`}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
             </div>
 
             {/* Receipts */}
