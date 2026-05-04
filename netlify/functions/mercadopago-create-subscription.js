@@ -86,6 +86,7 @@ exports.handler = async (event) => {
         currency_id: 'MXN',
       },
       back_url: `${APP_URL}/?mp_result=success`,
+      payer_email: ownerEmail,
     }
 
     const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
