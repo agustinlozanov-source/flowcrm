@@ -12,6 +12,7 @@ import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
 import PipelineBuilder from './PipelineBuilder'
+import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 // ─── DIAGNOSTICO CONFIG ───
 const DEFAULT_DIAG_CATEGORIES = [
@@ -5138,12 +5139,13 @@ export default function Superadmin() {
     { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
     { id: 'billing', icon: <CreditCard size={16} />, label: 'Cobranza' },
+    { id: 'sa_analytics', icon: <BarChart size={16} />, label: 'Analíticas' },
     { id: 'channels', icon: <Smartphone size={16} />, label: 'Canales' },
     { id: 'feature_flags', icon: <Zap size={16} />, label: 'Feature Flags' },
     { id: 'documents', icon: <BookOpen size={16} />, label: 'Documentos' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones', sa_analytics: 'Analíticas de Orgs' }
 
   if (!authed) {
     return (
@@ -5212,10 +5214,483 @@ export default function Superadmin() {
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
           {activeTab === 'channels' && <ChannelsPanel orgs={orgs} />}
           {activeTab === 'billing' && <BillingPanel orgs={orgs} />}
+          {activeTab === 'sa_analytics' && <AnalyticsPanel orgs={orgs} />}
           {activeTab === 'feature_flags' && <FeatureFlags />}
           {activeTab === 'documents' && <DocumentsLibrary />}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS PANEL — Solo visible para superadmin
+// ─────────────────────────────────────────────────────────────────────────────
+function AnalyticsPanel({ orgs }) {
+  const PERIOD_OPTIONS = [
+    { id: 'current', label: 'Mes actual' },
+    { id: 'previous', label: 'Mes anterior' },
+    { id: 'custom', label: 'Personalizado' },
+  ]
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [periodMode, setPeriodMode]     = useState('current')
+  const [customStart, setCustomStart]   = useState('')
+  const [customEnd, setCustomEnd]       = useState('')
+  const [loading, setLoading]           = useState(false)
+  const [data, setData]                 = useState(null)   // respuesta de la function
+  const [sortKey, setSortKey]           = useState('leadsCount')
+  const [sortDir, setSortDir]           = useState('desc')
+  const [detailOrg, setDetailOrg]       = useState(null)   // org seleccionada para modal
+
+  // ── Calcular rango según modo ──────────────────────────────────────────────
+  function getPeriodRange() {
+    const now   = new Date()
+    const mxNow = new Date(now.getTime() - 6 * 60 * 60 * 1000)
+    const y = mxNow.getUTCFullYear()
+    const m = mxNow.getUTCMonth()
+
+    if (periodMode === 'current') {
+      return {
+        periodStart: new Date(Date.UTC(y, m, 1)).toISOString(),
+        periodEnd:   new Date(Date.UTC(y, m + 1, 1)).toISOString(),
+      }
+    }
+    if (periodMode === 'previous') {
+      return {
+        periodStart: new Date(Date.UTC(y, m - 1, 1)).toISOString(),
+        periodEnd:   new Date(Date.UTC(y, m, 1)).toISOString(),
+      }
+    }
+    // custom
+    if (!customStart || !customEnd) return null
+    return {
+      periodStart: new Date(customStart).toISOString(),
+      periodEnd:   new Date(customEnd + 'T23:59:59Z').toISOString(),
+    }
+  }
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  async function fetchAnalytics() {
+    const range = getPeriodRange()
+    if (!range) return toast.error('Selecciona un rango válido')
+    setLoading(true)
+    setData(null)
+    try {
+      const res  = await fetch('/.netlify/functions/get-org-analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(range),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setData(json)
+    } catch (err) {
+      toast.error('Error cargando analíticas: ' + err.message)
+    }
+    setLoading(false)
+  }
+
+  // ── Totales globales ───────────────────────────────────────────────────────
+  const globals = data ? data.orgs.reduce((acc, org) => {
+    const t = org.totals || {}
+    acc.leads    += t.leadsCount    || 0
+    acc.handoffs += t.handoffSuggested || 0
+    acc.meetings += t.meetingsScheduled || 0
+    acc.mrr      += (org.plan?.monthlyUSD || 0)
+    return acc
+  }, { leads: 0, handoffs: 0, meetings: 0, mrr: 0 }) : null
+
+  // ── Ordenamiento ──────────────────────────────────────────────────────────
+  const sortedOrgs = data ? [...data.orgs].sort((a, b) => {
+    const aVal = a.totals?.[sortKey] ?? -1
+    const bVal = b.totals?.[sortKey] ?? -1
+    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
+  }) : []
+
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  // ── Exportar CSV ──────────────────────────────────────────────────────────
+  function exportCSV() {
+    if (!data) return
+    const headers = ['Org','Plan','Leads','Mensajes','Avg Msgs/Lead','Handoffs','Handoff%','Reuniones','Reuniones%','Avg Score','Top Score','Cold','Warm','Qualified','Hot']
+    const rows = data.orgs.map(o => {
+      const t = o.totals || {}
+      return [
+        o.orgName, o.plan?.name || '—',
+        t.leadsCount || 0, t.messagesIncoming || 0,
+        t.avgMessagesPerLead || 0,
+        t.handoffSuggested || 0,
+        t.leadsCount ? ((t.handoffRate || 0) * 100).toFixed(1) + '%' : '—',
+        t.meetingsScheduled || 0,
+        t.leadsCount ? ((t.meetingsRate || 0) * 100).toFixed(1) + '%' : '—',
+        t.avgScore || 0, t.topScore || 0,
+        t.leadsCold || 0, t.leadsWarm || 0, t.leadsQualified || 0, t.leadsHot || 0,
+      ].join(',')
+    })
+    const csv  = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `flowhub-analytics-${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Helpers de render ──────────────────────────────────────────────────────
+  function handoffColor(rate) {
+    if (rate >= 0.25) return '#22c55e'
+    if (rate >= 0.10) return '#f59e0b'
+    return '#ef4444'
+  }
+
+  function delta(current, prev) {
+    if (!prev || prev === 0) return null
+    const pct = ((current - prev) / prev) * 100
+    return { pct: Math.abs(pct).toFixed(1), up: pct >= 0 }
+  }
+
+  // ── Skeleton ───────────────────────────────────────────────────────────────
+  function Skeleton() {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16, marginTop: 24 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="sa-card" style={{ height: 200, background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s infinite' }} />
+        ))}
+      </div>
+    )
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div>
+      {/* ── Controles de periodo ── */}
+      <div className="sa-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {PERIOD_OPTIONS.map(opt => (
+              <button key={opt.id}
+                className={clsx('sa-btn-sm', periodMode === opt.id ? 'sa-btn-primary' : 'sa-btn-ghost')}
+                onClick={() => setPeriodMode(opt.id)}
+                style={{ padding: '6px 14px', fontSize: 13, borderRadius: 8,
+                  background: periodMode === opt.id ? 'linear-gradient(90deg,#1aab99,#3533cd)' : 'rgba(255,255,255,0.06)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontWeight: periodMode === opt.id ? 600 : 400 }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {periodMode === 'custom' && (
+            <>
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                className="sa-input" style={{ width: 150, padding: '6px 10px', fontSize: 13 }} />
+              <span style={{ color: '#888' }}>→</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                className="sa-input" style={{ width: 150, padding: '6px 10px', fontSize: 13 }} />
+            </>
+          )}
+
+          <button onClick={fetchAnalytics} disabled={loading}
+            style={{ marginLeft: 'auto', padding: '7px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: 'linear-gradient(90deg,#1aab99,#3533cd)', color: '#fff', border: 'none', cursor: 'pointer',
+              opacity: loading ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            {loading ? 'Calculando...' : 'Calcular'}
+          </button>
+
+          {data && (
+            <button onClick={exportCSV}
+              style={{ padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: 'rgba(255,255,255,0.06)', color: '#aaa', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download size={13} /> Exportar CSV
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Totales globales ── */}
+      {globals && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+          {[
+            { label: 'Leads totales', value: globals.leads, icon: <Users size={18} /> },
+            { label: 'Handoffs', value: `${globals.handoffs} (${globals.leads ? ((globals.handoffs/globals.leads)*100).toFixed(1) : 0}%)`, icon: <TrendingUp size={18} /> },
+            { label: 'Reuniones', value: globals.meetings, icon: <Calendar size={18} /> },
+            { label: 'MRR (USD)', value: `$${globals.mrr.toLocaleString()}`, icon: <CreditCard size={18} /> },
+          ].map(g => (
+            <div key={g.label} className="sa-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ color: '#1aab99', opacity: 0.8 }}>{g.icon}</div>
+              <div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{g.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{g.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Loading ── */}
+      {loading && <Skeleton />}
+
+      {/* ── Estado inicial (sin datos) ── */}
+      {!loading && !data && (
+        <div className="sa-card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <BarChart size={40} strokeWidth={1.2} style={{ color: '#444', margin: '0 auto 12px' }} />
+          <div style={{ color: '#888', fontSize: 14 }}>Selecciona un periodo y presiona Calcular</div>
+        </div>
+      )}
+
+      {/* ── Tarjetas por org ── */}
+      {!loading && data && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16, marginBottom: 32 }}>
+            {sortedOrgs.map(org => {
+              const t   = org.totals
+              const p   = org.previousPeriod
+              const lim = org.plan?.leadsIncluidos
+              const pct = lim && t?.leadsCount ? Math.min((t.leadsCount / lim) * 100, 100) : null
+
+              if (!t) {
+                return (
+                  <div key={org.orgId} className="sa-card" style={{ opacity: 0.5 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{org.orgName}</div>
+                    <div style={{ color: '#ef4444', fontSize: 13 }}>Error al cargar métricas</div>
+                  </div>
+                )
+              }
+
+              if (t.leadsCount === 0) {
+                return (
+                  <div key={org.orgId} className="sa-card">
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{org.orgName}</div>
+                    <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>{org.plan?.name || '—'}</div>
+                    <div style={{ color: '#555', fontSize: 13 }}>Sin leads en el periodo</div>
+                  </div>
+                )
+              }
+
+              const hRate = t.handoffRate || 0
+              const dLeads    = p ? delta(t.leadsCount, p.leadsCount) : null
+              const dHandoff  = p ? delta(hRate, p.handoffRate) : null
+
+              // Datos para mini gráfico
+              const barData = [
+                { name: 'Cold',  value: t.leadsCold,      fill: '#64748b' },
+                { name: 'Warm',  value: t.leadsWarm,      fill: '#f59e0b' },
+                { name: 'Qual',  value: t.leadsQualified, fill: '#3b82f6' },
+                { name: 'Hot',   value: t.leadsHot,       fill: '#ef4444' },
+              ]
+
+              return (
+                <div key={org.orgId} className="sa-card" style={{ position: 'relative' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{org.orgName}</div>
+                      <div style={{ fontSize: 11, color: '#666' }}>{org.plan?.name || '—'} {org.plan?.monthlyUSD ? `· $${org.plan.monthlyUSD}/mo` : ''}</div>
+                    </div>
+                    <button onClick={() => setDetailOrg(org)}
+                      style={{ fontSize: 11, color: '#1aab99', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: 6, background: 'rgba(26,171,153,0.1)' }}>
+                      Ver detalle
+                    </button>
+                  </div>
+
+                  {/* Leads / límite */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, color: '#aaa' }}>Leads</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+                      {t.leadsCount}{lim ? ` / ${lim}` : ''}
+                      {dLeads && (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: dLeads.up ? '#22c55e' : '#ef4444' }}>
+                          {dLeads.up ? '↑' : '↓'}{dLeads.pct}%
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {pct !== null && (
+                    <div style={{ height: 4, borderRadius: 4, background: '#2a2a2a', marginBottom: 10 }}>
+                      <div style={{ height: '100%', borderRadius: 4, width: `${pct}%`,
+                        background: pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#1aab99' }} />
+                    </div>
+                  )}
+
+                  {/* Métricas fila */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                    {[
+                      { label: 'Handoff', value: `${(hRate*100).toFixed(0)}%`, color: handoffColor(hRate) },
+                      { label: 'Reuniones', value: `${(t.meetingsRate*100).toFixed(0)}%`, color: '#60a5fa' },
+                      { label: 'Avg Score', value: t.avgScore, color: '#a78bfa' },
+                    ].map(m => (
+                      <div key={m.label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{m.label}</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: m.color }}>{m.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Mini gráfico cold/warm/qualified/hot */}
+                  <div style={{ height: 60 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ReBarChart data={barData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={36} tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 6, fontSize: 12 }}
+                          cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                        />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                          {barData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+                        </Bar>
+                      </ReBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Tabla comparativa ── */}
+          <div className="sa-card" style={{ marginBottom: 24, overflowX: 'auto' }}>
+            <div className="sa-card-title" style={{ marginBottom: 12 }}>Tabla comparativa</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #2a2a2a' }}>
+                  {[
+                    ['Org', 'orgName'],
+                    ['Plan', 'plan'],
+                    ['Leads', 'leadsCount'],
+                    ['Msgs', 'messagesIncoming'],
+                    ['Avg Msgs', 'avgMessagesPerLead'],
+                    ['Handoff%', 'handoffRate'],
+                    ['Reuniones', 'meetingsScheduled'],
+                    ['Avg Score', 'avgScore'],
+                    ['Top Score', 'topScore'],
+                  ].map(([label, key]) => (
+                    <th key={key}
+                      onClick={() => key !== 'orgName' && key !== 'plan' && toggleSort(key)}
+                      style={{ padding: '8px 12px', textAlign: 'left', color: '#888', fontWeight: 500,
+                        cursor: key !== 'orgName' && key !== 'plan' ? 'pointer' : 'default',
+                        color: sortKey === key ? '#1aab99' : '#888',
+                        whiteSpace: 'nowrap' }}>
+                      {label} {sortKey === key ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedOrgs.map(org => {
+                  const t = org.totals
+                  return (
+                    <tr key={org.orgId} style={{ borderBottom: '1px solid #1a1a1a' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: '#ddd' }}>{org.orgName}</td>
+                      <td style={{ padding: '8px 12px', color: '#888' }}>{org.plan?.name || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#fff' }}>{t?.leadsCount ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#aaa' }}>{t?.messagesIncoming ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#aaa' }}>{t?.avgMessagesPerLead ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: t ? handoffColor(t.handoffRate) : '#888' }}>
+                        {t ? `${(t.handoffRate * 100).toFixed(1)}%` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: '#60a5fa' }}>{t?.meetingsScheduled ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#a78bfa' }}>{t?.avgScore ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#fbbf24' }}>{t?.topScore ?? '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* ── Modal detalle ── */}
+      {detailOrg && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="sa-card" style={{ maxWidth: 600, width: '100%', maxHeight: '80vh', overflowY: 'auto', position: 'relative' }}>
+            <button onClick={() => setDetailOrg(null)}
+              style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}>
+              <X size={18} />
+            </button>
+
+            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{detailOrg.orgName}</div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 20 }}>{detailOrg.plan?.name || '—'}</div>
+
+            {/* Por Stage */}
+            {detailOrg.totals?.byStage && Object.keys(detailOrg.totals.byStage).length > 0 && (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#aaa', marginBottom: 10 }}>Distribución por etapa</div>
+                <div style={{ height: 160, marginBottom: 20 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ReBarChart data={Object.entries(detailOrg.totals.byStage).map(([name, value]) => ({ name, value }))} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
+                      <Bar dataKey="value" fill="#1aab99" radius={[4, 4, 0, 0]} />
+                    </ReBarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
+
+            {/* Métricas detalladas */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              {detailOrg.totals && [
+                ['Leads totales', detailOrg.totals.leadsCount],
+                ['Mensajes entrantes', detailOrg.totals.messagesIncoming],
+                ['Avg msgs/lead', detailOrg.totals.avgMessagesPerLead],
+                ['Handoffs sugeridos', detailOrg.totals.handoffSuggested],
+                ['Tasa handoff', `${(detailOrg.totals.handoffRate * 100).toFixed(1)}%`],
+                ['Reuniones agendadas', detailOrg.totals.meetingsScheduled],
+                ['Tasa reuniones', `${(detailOrg.totals.meetingsRate * 100).toFixed(1)}%`],
+                ['Score promedio', detailOrg.totals.avgScore],
+                ['Score máximo', detailOrg.totals.topScore],
+                ['Cold (1-3 msgs)', detailOrg.totals.leadsCold],
+                ['Warm (4-7 msgs)', detailOrg.totals.leadsWarm],
+                ['Qualified (8-15)', detailOrg.totals.leadsQualified],
+                ['Hot (16+)', detailOrg.totals.leadsHot],
+              ].map(([label, value]) => (
+                <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>{value ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Comparativa vs mes anterior */}
+            {detailOrg.previousPeriod && (
+              <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#aaa', marginBottom: 10 }}>vs. periodo anterior</div>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                  {[
+                    ['Leads', detailOrg.totals.leadsCount, detailOrg.previousPeriod.leadsCount],
+                    ['Handoff%', (detailOrg.totals.handoffRate * 100).toFixed(1), (detailOrg.previousPeriod.handoffRate * 100).toFixed(1)],
+                    ['Avg msgs', detailOrg.totals.avgMessagesPerLead, detailOrg.previousPeriod.avgMessagesPerLead],
+                  ].map(([label, curr, prev]) => {
+                    const pct  = prev && prev > 0 ? (((curr - prev) / prev) * 100) : null
+                    const up   = pct >= 0
+                    return (
+                      <div key={label} style={{ minWidth: 80 }}>
+                        <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{curr}</div>
+                        {pct !== null && (
+                          <div style={{ fontSize: 11, color: up ? '#22c55e' : '#ef4444' }}>
+                            {up ? '↑' : '↓'}{Math.abs(pct).toFixed(1)}% vs ant.
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
