@@ -8,8 +8,7 @@
 [functions]
   node_bundler = "esbuild"
 
-[[functions]]
-  path = "/get-org-analytics"
+[functions."get-org-analytics"]
   timeout = 26
 
 [[redirects]]
