@@ -86,7 +86,6 @@ exports.handler = async (event) => {
         currency_id: 'MXN',
       },
       back_url: `${APP_URL}/?mp_result=success`,
-      status: 'pending',
     }
 
     const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
@@ -103,10 +102,12 @@ exports.handler = async (event) => {
 
     if (!mpRes.ok) {
       console.error('[mp-create-sub] Error MP API:', JSON.stringify(mpData))
+      const cause = mpData.cause?.[0]?.description || mpData.error || ''
+      const msg = [mpData.message, cause].filter(Boolean).join(' — ')
       return {
         statusCode: mpRes.status,
         headers: JSON_HEADERS,
-        body: JSON.stringify({ error: mpData.message || 'Error al crear suscripción en Mercado Pago', detail: mpData }),
+        body: JSON.stringify({ error: msg || 'Error al crear suscripción en Mercado Pago', detail: mpData }),
       }
     }
 
