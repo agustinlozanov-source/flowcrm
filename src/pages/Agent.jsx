@@ -1267,6 +1267,7 @@ function ResourcesTab({ orgId }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', type: 'video', url: '', whenToShare: '' })
   const [file, setFile] = useState(null)
+  const [sizeWarning, setSizeWarning] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [deletingId, setDeletingId] = useState(null)
@@ -1282,7 +1283,7 @@ function ResourcesTab({ orgId }) {
     return unsub
   }, [orgId])
 
-  const resetForm = () => { setForm({ name: '', type: 'video', url: '', whenToShare: '' }); setFile(null); setShowForm(false); setProgress(0) }
+  const resetForm = () => { setForm({ name: '', type: 'video', url: '', whenToShare: '' }); setFile(null); setSizeWarning(null); setShowForm(false); setProgress(0) }
 
   const activeType = RESOURCE_TYPES.find(t => t.value === form.type)
   const isLink = form.type === 'enlace'
@@ -1291,6 +1292,7 @@ function ResourcesTab({ orgId }) {
     if (!form.name.trim()) return toast.error('El nombre es obligatorio')
     if (isLink && !form.url.trim()) return toast.error('El enlace es obligatorio')
     if (!isLink && !file) return toast.error('Selecciona un archivo')
+    if (sizeWarning) return toast.error('Reduce el tamaño del video antes de subirlo')
     setUploading(true)
     try {
       let url = form.url.trim()
@@ -1384,7 +1386,7 @@ function ResourcesTab({ orgId }) {
             <label className="text-[10px] font-bold uppercase tracking-wide text-tertiary block mb-1.5">Tipo</label>
             <div className="flex gap-2">
               {RESOURCE_TYPES.map(t => (
-                <button key={t.value} onClick={() => { setForm(f => ({ ...f, type: t.value, url: '' })); setFile(null) }}
+                <button key={t.value} onClick={() => { setForm(f => ({ ...f, type: t.value, url: '' })); setFile(null); setSizeWarning(null) }}
                   className={clsx(
                     'flex-1 flex flex-col items-center gap-1 py-2.5 rounded-[10px] border-2 text-[11px] font-semibold transition-all',
                     form.type === t.value ? 'border-current' : 'border-transparent bg-surface-2 text-secondary hover:border-black/10'
@@ -1433,6 +1435,14 @@ function ResourcesTab({ orgId }) {
                 onChange={e => {
                   const f = e.target.files[0] || null
                   setFile(f)
+                  // Validar tamaño para videos
+                  if (f && form.type === 'video') {
+                    const mb = f.size / 1024 / 1024
+                    if (mb > 16) setSizeWarning(mb)
+                    else setSizeWarning(null)
+                  } else {
+                    setSizeWarning(null)
+                  }
                   // Auto-rellenar nombre con el nombre del archivo si está vacío
                   if (f && !form.name.trim()) {
                     const nameWithoutExt = f.name.replace(/\.[^/.]+$/, '')
@@ -1440,18 +1450,38 @@ function ResourcesTab({ orgId }) {
                   }
                 }} />
               {file ? (
-                <div className="flex items-center gap-2 p-3 bg-surface-2 rounded-[8px] border border-black/[0.08]">
-                  <activeType.icon size={14} style={{ color: activeType.color }} className="flex-shrink-0" />
-                  <span className="text-[12px] text-primary flex-1 min-w-0 truncate">{file.name}</span>
-                  <span className="text-[10px] text-secondary flex-shrink-0">{fmt(file.size)}</span>
-                  <button onClick={() => { setFile(null); fileInputRef.current.value = '' }} className="text-tertiary hover:text-red-500 p-0.5">
-                    <X size={12} />
-                  </button>
+                <div className="flex flex-col gap-1.5">
+                  <div className={clsx(
+                    'flex items-center gap-2 p-3 rounded-[8px] border',
+                    sizeWarning ? 'bg-red-50 border-red-300' : 'bg-surface-2 border-black/[0.08]'
+                  )}>
+                    <activeType.icon size={14} style={{ color: sizeWarning ? '#ef4444' : activeType.color }} className="flex-shrink-0" />
+                    <span className="text-[12px] text-primary flex-1 min-w-0 truncate">{file.name}</span>
+                    <span className={clsx('text-[10px] flex-shrink-0 font-semibold', sizeWarning ? 'text-red-500' : 'text-secondary')}>{fmt(file.size)}</span>
+                    <button onClick={() => { setFile(null); setSizeWarning(null); fileInputRef.current.value = '' }} className="text-tertiary hover:text-red-500 p-0.5">
+                      <X size={12} />
+                    </button>
+                  </div>
+                  {sizeWarning && (
+                    <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-[8px]">
+                      <AlertTriangle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[11.5px] font-semibold text-red-700">Video demasiado grande ({sizeWarning.toFixed(1)} MB)</p>
+                        <p className="text-[11px] text-red-600 leading-relaxed mt-0.5">
+                          El límite recomendado es <strong>16 MB</strong> para garantizar entrega en WhatsApp, Messenger e Instagram.
+                          Comprime el video antes de subirlo — puedes usar <strong>HandBrake</strong> (gratis) o <strong>Clideo.com</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <button onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center gap-2 p-3 bg-surface-2 border-2 border-dashed border-black/[0.12] rounded-[8px] text-[12px] text-secondary hover:border-black/25 transition-all">
-                  <Upload size={14} /> Seleccionar archivo
+                  className="w-full flex flex-col items-center gap-1 p-3 bg-surface-2 border-2 border-dashed border-black/[0.12] rounded-[8px] text-[12px] text-secondary hover:border-black/25 transition-all">
+                  <span className="flex items-center gap-2"><Upload size={14} /> Seleccionar archivo</span>
+                  {form.type === 'video' && (
+                    <span className="text-[10.5px] text-tertiary">Máximo recomendado: 16 MB · MP4</span>
+                  )}
                 </button>
               )}
             </div>
@@ -1470,7 +1500,7 @@ function ResourcesTab({ orgId }) {
           {/* Actions */}
           <div className="flex gap-2 pt-1">
             <button onClick={resetForm} className="btn-secondary text-[12.5px] py-2 px-4">Cancelar</button>
-            <button onClick={handleAdd} disabled={uploading || !form.name.trim() || (isLink ? !form.url.trim() : !file)}
+            <button onClick={handleAdd} disabled={uploading || !form.name.trim() || (isLink ? !form.url.trim() : !file) || !!sizeWarning}
               className="btn-primary text-[12.5px] py-2 px-4 flex-1 flex items-center justify-center gap-1.5 disabled:opacity-40">
               {uploading
                 ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />{isLink ? 'Guardando...' : `Subiendo ${progress}%`}</>
