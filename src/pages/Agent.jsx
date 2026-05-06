@@ -1298,10 +1298,10 @@ function ResourcesTab({ orgId }) {
       let url = form.url.trim()
       let fileName = ''
       let fileSize = 0
+      let storagePath = null
       if (!isLink && file) {
-        const ext = file.name.split('.').pop()
-        const storePath = `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}`
-        const storageRef = ref(storage, storePath)
+        storagePath = `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}`
+        const storageRef = ref(storage, storagePath)
         await new Promise((resolve, reject) => {
           const task = uploadBytesResumable(storageRef, file, { contentType: file.type })
           task.on('state_changed',
@@ -1320,7 +1320,7 @@ function ResourcesTab({ orgId }) {
         whenToShare: form.whenToShare.trim() || null,
         fileName: fileName || null,
         fileSize: fileSize || null,
-        storagePath: (!isLink && file) ? `organizations/${orgId}/agent_resources/${Date.now()}_${file.name}` : null,
+        storagePath,
         createdAt: serverTimestamp(),
       })
       toast.success('Recurso agregado ✓')
