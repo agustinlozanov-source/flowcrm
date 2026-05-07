@@ -397,34 +397,11 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
     }
   }
 
-  // Load RAG files — filter by pipelineId (null = global, applies to all)
-  const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
-    .where('status', '==', 'ready').get()
-  const ragContent = filesSnap.docs
-    .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
-    .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
-
-  // Load enabled products
-  let products = []
-  if (agentConfig.enabledProductIds?.length) {
-    const productSnaps = await Promise.all(
-      agentConfig.enabledProductIds.map(id =>
-        db.collection('organizations').doc(orgId).collection('products').doc(id).get()
-      )
-    )
-    products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
-  }
-
-  // Load resources available for sharing
-  const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources')
-    .orderBy('createdAt', 'desc').get()
-  const resources = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-
-  // Load lead context (if real lead, not test)
+  // Load lead context (if real lead, not test) — debe ir ANTES del RAG filter
   let leadContext = null
   let currentScore = 0
   let scoringConfig = null
-  let pipelineId = null
+  let pipelineId = testPipelineId || null
 
   if (leadId !== 'test') {
     const leadSnap = await db.collection('organizations').doc(orgId).collection('leads').doc(leadId).get()
@@ -513,6 +490,29 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
     agentConfig = { ...agentConfig, customInstructions: resolved }
   }
   // (if already a string — legacy or distribuidor override — leave as-is)
+
+  // Load RAG files — filter by pipelineId (now resolved)
+  const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
+    .where('status', '==', 'ready').get()
+  const ragContent = filesSnap.docs
+    .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
+    .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
+
+  // Load enabled products
+  let products = []
+  if (agentConfig.enabledProductIds?.length) {
+    const productSnaps = await Promise.all(
+      agentConfig.enabledProductIds.map(id =>
+        db.collection('organizations').doc(orgId).collection('products').doc(id).get()
+      )
+    )
+    products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
+  }
+
+  // Load resources available for sharing
+  const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources')
+    .orderBy('createdAt', 'desc').get()
+  const resources = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
 
   const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId)
 

@@ -396,8 +396,10 @@ ${occupiedSlots.length > 0 ? `- HORARIOS OCUPADOS (incluyendo buffer de ${meetin
 
 // ── CLEAN RAW REPLY — quita el bloque JSON y MEETING_SCHEDULED del texto visible ──
 function cleanRawReply(text) {
+  // Quitar bloques de código markdown (```json ... ``` o ``` ... ```)
+  let clean = text.replace(/```[\w]*\n?/g, '').trim()
   // Quitar bloque MEETING_SCHEDULED
-  let clean = text.replace(/MEETING_SCHEDULED:\s*\{[\s\S]*?\}/m, '').trim()
+  clean = clean.replace(/MEETING_SCHEDULED:\s*\{[\s\S]*?\}/m, '').trim()
   // Quitar el primer objeto JSON completo (brace-counting)
   const start = clean.indexOf('{')
   if (start !== -1) {
@@ -1196,21 +1198,32 @@ async function processZernioMessage(body, orgId) {
           }
         } catch {}
 
+        // 2. Verificar qué recursos ya fueron enviados en este historial
+        const alreadySentUrls = new Set()
+        for (const msg of messages) {
+          for (const resource of videoResources) {
+            if (msg.content && msg.content.includes(resource.url)) {
+              alreadySentUrls.add(resource.url)
+            }
+          }
+        }
+
+        // 3. Verificar si el lead pidió explícitamente el recurso en su último mensaje
+        const lastUserMessage = (messages.filter(m => m.role === 'user').pop()?.content || '').toLowerCase()
+        const clientAskedForResource = /video|mándame|envíame|comparte|manda|envía|quiero ver|puedes mandar|puedes enviar/i.test(lastUserMessage)
+
         for (const resource of videoResources) {
           const urlInReply = rawReply.includes(resource.url)
-          // Match exacto por sharedResource
+          // Solo match exacto por sharedResource (Claude debe indicarlo explícitamente)
           const exactSharedMatch = sharedResourceName &&
             resource.name.toLowerCase() === sharedResourceName.toLowerCase()
-          // Match parcial por sharedResource (en caso de que Claude no sea exacto)
-          const partialSharedMatch = sharedResourceName &&
-            (resource.name.toLowerCase().includes(sharedResourceName.toLowerCase()) ||
-             sharedResourceName.toLowerCase().includes(resource.name.toLowerCase()))
-          // Match por nombre en el texto (fallback)
-          const textToSearch = (reply + '\n' + rawReply).toLowerCase()
-          const nameWords = (resource.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 3)
-          const nameMatch = nameWords.length > 0 && nameWords.every(w => textToSearch.includes(w))
 
-          if (urlInReply || exactSharedMatch || partialSharedMatch || nameMatch) {
+          if (urlInReply || exactSharedMatch) {
+            // No reenviar si ya fue enviado antes, a menos que el cliente lo haya pedido
+            if (alreadySentUrls.has(resource.url) && !clientAskedForResource) {
+              console.log(`[Zernio][${orgId}] Video "${resource.name}" ya enviado anteriormente — omitiendo reenvío`)
+              break
+            }
             videoUrlsToSend.push(resource.url)
             // Limpiar cualquier URL de Firebase Storage del reply visible
             reply = reply
@@ -1218,7 +1231,7 @@ async function processZernioMessage(body, orgId) {
               .replace(/https?:\/\/firebasestorage\S*/g, '')
               .replace(/\[VIDEO\]/gi, '')
               .replace(/\s{2,}/g, ' ').trim()
-            console.log(`[Zernio][${orgId}] Video detectado — exactShared:${exactSharedMatch} partialShared:${partialSharedMatch} url:${urlInReply} nombre:${nameMatch} → "${resource.name}"`)
+            console.log(`[Zernio][${orgId}] Video detectado — exactShared:${exactSharedMatch} url:${urlInReply} → "${resource.name}"`)
             break
           }
         }
