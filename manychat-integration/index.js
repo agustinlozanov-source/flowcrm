@@ -1198,15 +1198,9 @@ async function processZernioMessage(body, orgId) {
           }
         } catch {}
 
-        // 2. Verificar qué recursos ya fueron enviados en este historial
-        const alreadySentUrls = new Set()
-        for (const msg of messages) {
-          for (const resource of videoResources) {
-            if (msg.content && msg.content.includes(resource.url)) {
-              alreadySentUrls.add(resource.url)
-            }
-          }
-        }
+        // 2. Verificar qué recursos ya fueron enviados (guardados en el lead doc)
+        const leadDocForResources = await leadRef.get()
+        const alreadySentUrls = new Set(leadDocForResources.data()?.sentResources || [])
 
         // 3. Verificar si el lead pidió explícitamente el recurso en su último mensaje
         const lastUserMessage = (messages.filter(m => m.role === 'user').pop()?.content || '').toLowerCase()
@@ -1413,6 +1407,13 @@ async function processZernioMessage(body, orgId) {
         channel: platform || 'whatsapp',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
+      // Registrar recursos enviados en este mensaje
+      if (videoUrlsToSend.length > 0) {
+        await leadRef.update({
+          sentResources: admin.firestore.FieldValue.arrayUnion(...videoUrlsToSend),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {})
+      }
       console.log(`[Zernio][${orgId}] Respuesta guardada en conversations`)
     } catch (err) {
       console.error(`[Zernio][${orgId}] ERROR paso 7 (guardar respuesta):`, err.message)
