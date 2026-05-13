@@ -707,14 +707,6 @@ export default function Meetings() {
         </div>
       )}
 
-      {/* TODAY PANEL */}
-      <TodayPanel
-        appointments={appointments}
-        leads={leads}
-        onOpenCockpit={setCockpit}
-        onCancel={handleCancel}
-      />
-
       {/* CONTENT */}
       <div className="flex-1 overflow-hidden flex">
 
@@ -807,7 +799,14 @@ export default function Meetings() {
 
         {/* LIST VIEW */}
         {view === 'list' && (
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto">
+            <TodayPanel
+              appointments={appointments}
+              leads={leads}
+              onOpenCockpit={setCockpit}
+              onCancel={handleCancel}
+            />
+            <div className="p-5">
             {filteredAppointments.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <CalendarIcon size={32} className="text-tertiary" strokeWidth={1.5} />
@@ -828,6 +827,7 @@ export default function Meetings() {
                 ))}
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
