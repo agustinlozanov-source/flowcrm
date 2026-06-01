@@ -1123,7 +1123,31 @@ function Plans() {
     try {
       if (editPlan) {
         await updateDoc(doc(db, 'plans', editPlan.id), { ...planForm, updatedAt: serverTimestamp() })
-        toast.success('Plan actualizado')
+
+        // Propagar límites a todas las orgs que usan este plan
+        // (algunas orgs usan campo 'planId', otras usan 'plan')
+        const [snap1, snap2] = await Promise.all([
+          getDocs(query(collection(db, 'organizations'), where('planId', '==', editPlan.id))),
+          getDocs(query(collection(db, 'organizations'), where('plan', '==', editPlan.id))),
+        ])
+        const seen = new Set()
+        const allOrgDocs = [...snap1.docs, ...snap2.docs].filter(d => {
+          if (seen.has(d.id)) return false
+          seen.add(d.id)
+          return true
+        })
+        const updates = allOrgDocs.map(orgDoc =>
+          updateDoc(doc(db, 'organizations', orgDoc.id), {
+            maxUsers: planForm.maxUsers,
+            maxLeads: planForm.maxLeads,
+            modules: planForm.features || [],
+            planName: planForm.name,
+            updatedAt: serverTimestamp(),
+          })
+        )
+        await Promise.all(updates)
+        if (updates.length > 0) toast.success(`Plan actualizado — ${updates.length} org(s) sincronizadas`)
+        else toast.success('Plan actualizado')
       } else {
         await addDoc(collection(db, 'plans'), { ...planForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
         toast.success('Plan creado')
