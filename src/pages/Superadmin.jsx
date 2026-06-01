@@ -627,7 +627,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
   const [editOrg, setEditOrg] = useState(null)
   const [plans, setPlans] = useState([])
-  const [form, setForm] = useState({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: '', status: 'active' })
+  const [form, setForm] = useState({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: '', maxUsers: '', status: 'active' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [repairing, setRepairing] = useState(null)
@@ -639,10 +639,10 @@ function Organizations({ orgs, resellers, onRefresh }) {
     return unsub
   }, [])
 
-  const emptyForm = () => ({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: plans[0]?.id || '', status: 'active' })
+  const emptyForm = () => ({ ownerNombre: '', ownerApellido: '', name: '', ownerEmail: '', ownerPassword: '', planId: plans[0]?.id || '', maxUsers: '', status: 'active' })
 
   const openNew = () => { setEditOrg(null); setForm(emptyForm()); setShowModal(true) }
-  const openEdit = (org) => { setEditOrg(org); setForm({ ownerNombre: org.ownerNombre || '', ownerApellido: org.ownerApellido || '', name: org.name || '', ownerEmail: org.ownerEmail || '', ownerPassword: '', planId: org.planId || '', status: org.status || 'active' }); setShowModal(true) }
+  const openEdit = (org) => { setEditOrg(org); setForm({ ownerNombre: org.ownerNombre || '', ownerApellido: org.ownerApellido || '', name: org.name || '', ownerEmail: org.ownerEmail || '', ownerPassword: '', planId: org.planId || '', maxUsers: org.maxUsers ?? '', status: org.status || 'active' }); setShowModal(true) }
 
   const save = async () => {
     if (!form.name || !form.ownerEmail) { toast.error('Empresa y email son requeridos'); return }
@@ -658,7 +658,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
         planId: form.planId,
         planName: selectedPlan?.name || '',
         modules: selectedPlan?.features || [],
-        maxUsers: selectedPlan?.maxUsers ?? 1,
+        maxUsers: form.maxUsers !== '' ? parseInt(form.maxUsers) : (selectedPlan?.maxUsers ?? 1),
         mrr: selectedPlan?.monthlyUSD || 0,
         status: form.status,
         updatedAt: serverTimestamp(),
@@ -942,6 +942,11 @@ function Organizations({ orgs, resellers, onRefresh }) {
                 <option value="trial">Trial</option>
               </select>
             </div>
+          </div>
+          <div className="sa-form-group">
+            <label className="sa-form-label">Usuarios máximos (override)</label>
+            <input className="sa-form-input" type="number" min="1" value={form.maxUsers} onChange={e => setForm(f => ({ ...f, maxUsers: e.target.value }))} placeholder={`Del plan: ${plans.find(p => p.id === form.planId)?.maxUsers ?? '—'}`} />
+            <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Deja vacío para heredar del plan · 999 para ilimitado</div>
           </div>
         </Modal>
       )}
