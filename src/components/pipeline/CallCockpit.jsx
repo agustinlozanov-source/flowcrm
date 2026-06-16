@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAppointments, DISCARD_CATEGORIES_CALL } from '@/hooks/useAppointments'
+import { useAppointments } from '@/hooks/useAppointments'
 import { usePipeline, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
 import { format } from 'date-fns'
