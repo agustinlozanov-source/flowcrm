@@ -4,7 +4,7 @@
 // Si la org tiene leadsIncluidos en su plan, envía email de alerta al 80% y al 100%.
 //
 // Body  : { orgId: string, year?: number, month?: number }
-// Return: { orgId, year, month, leadsCount, leadsIncluidos, pct, lastUpdated }
+// Return: { orgId, year, month, leadsCount, prevYear, prevMonth, prevLeadsCount, leadsIncluidos, pct, lastUpdated }
 
 const admin = require('firebase-admin')
 
@@ -75,16 +75,24 @@ exports.handler = async (event) => {
   const start = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month - 1, 1)))
   const end   = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month, 1)))
 
+  // Mes anterior: [prevStart, start)
+  const prevMonth = month === 1 ? 12 : month - 1
+  const prevYear  = month === 1 ? year - 1 : year
+  const prevStart = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(prevYear, prevMonth - 1, 1)))
+
   try {
-    // ── 1. Una sola query: leads creados en el mes ────────────────────────────
-    const leadsSnap = await db
+    const leadsCol = db
       .collection('organizations').doc(orgId.trim())
       .collection('leads')
-      .where('createdAt', '>=', start)
-      .where('createdAt', '<',  end)
-      .get()
 
-    const leadsCount = leadsSnap.size
+    // ── 1. Leads creados en el mes actual y en el mes anterior ────────────────
+    const [leadsSnap, prevLeadsSnap] = await Promise.all([
+      leadsCol.where('createdAt', '>=', start).where('createdAt', '<', end).get(),
+      leadsCol.where('createdAt', '>=', prevStart).where('createdAt', '<', start).get(),
+    ])
+
+    const leadsCount     = leadsSnap.size
+    const prevLeadsCount = prevLeadsSnap.size
 
     // ── 2. Leer plan de la org para saber si hay límite ───────────────────────
     const orgSnap = await db.collection('organizations').doc(orgId.trim()).get()
@@ -128,6 +136,9 @@ exports.handler = async (event) => {
         year,
         month,
         leadsCount,
+        prevYear,
+        prevMonth,
+        prevLeadsCount,
         leadsIncluidos,
         pct,
         lastUpdated: new Date().toISOString(),

@@ -4612,6 +4612,12 @@ function BillingPanel({ orgs }) {
                           {overLimit ? '⚠️ Límite alcanzado' : nearLimit ? `⚠️ ${pct}% del límite` : `${pct}% del límite`}
                         </div>
                       )}
+                      {typeof leadsObj.prevLeadsCount === 'number' && (
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ color: '#475569' }}>Mes anterior:</span>
+                          <span style={{ fontWeight: 600, color: '#94a3b8' }}>{leadsObj.prevLeadsCount.toLocaleString()}</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
