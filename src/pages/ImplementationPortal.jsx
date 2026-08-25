@@ -456,7 +456,7 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
     try {
       await addDoc(collection(db, 'implementations', implId, 'taskComments'), {
         taskId: stageTask.id, text: msg.trim(),
-        author: 'Qubit Corp.', authorType: 'qubit',
+        author: 'Flow Hub', authorType: 'qubit',
         createdAt: serverTimestamp(),
       })
       setMsg('')
@@ -468,7 +468,7 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
       <div className="ip-modal">
         <div className="ip-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {stageTask.name}</div>
         <div style={{ fontSize: 17, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6 }}>
-          <span style={{ marginRight: 8 }}>Responsable: <strong style={{ color: 'white' }}>{stageTask.responsible === 'qubit' ? 'Qubit Corp.' : 'Cliente'}</strong></span>
+          <span style={{ marginRight: 8 }}>Responsable: <strong style={{ color: 'white' }}>{stageTask.responsible === 'qubit' ? 'Flow Hub' : 'Cliente'}</strong></span>
           <span>Cómo: {stageTask.how}</span>
         </div>
         <div className="ip-chat">
@@ -570,7 +570,7 @@ function ImplementationDetail({ impl, onUpdate }) {
     setSending(true)
     try {
       await addDoc(collection(db, 'implementations', implId, 'chat'), {
-        text: chatMsg.trim(), author: 'Qubit Corp.', authorType: 'qubit',
+        text: chatMsg.trim(), author: 'Flow Hub', authorType: 'qubit',
         createdAt: serverTimestamp(),
       })
       setChatMsg('')
@@ -709,7 +709,7 @@ function ImplementationDetail({ impl, onUpdate }) {
                             <div className="ip-task-how">{task.how}</div>
                             <div className="ip-task-meta" style={{ marginTop: 5 }}>
                               <span className={clsx('ip-badge', task.responsible === 'qubit' ? 'ip-badge-qubit' : 'ip-badge-client')}>
-                                {task.responsible === 'qubit' ? <><Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Qubit</> : <><User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Cliente</>}
+                                {task.responsible === 'qubit' ? <><Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Flow Hub</> : <><User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Cliente</>}
                               </span>
                               {task.requiresClient && <span className="ip-badge ip-badge-meeting"><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Requiere reunión</span>}
                               {isDoneTask && taskState?.doneAt && (
@@ -790,7 +790,7 @@ function ImplementationDetail({ impl, onUpdate }) {
                 // Store as metadata only (no actual upload in this version)
                 await addDoc(collection(db, 'implementations', implId, 'documents'), {
                   name: file.name, size: file.size, type: file.type,
-                  uploadedBy: 'Qubit Corp.', uploaderType: 'qubit',
+                  uploadedBy: 'Flow Hub', uploaderType: 'qubit',
                   createdAt: serverTimestamp(),
                 })
                 toast.success('Documento registrado')
@@ -807,7 +807,7 @@ function ImplementationDetail({ impl, onUpdate }) {
                   <div className="ip-doc-meta">{d.uploadedBy} · {fmtDate(d.createdAt)}</div>
                 </div>
                 <span className={clsx('ip-badge', d.uploaderType === 'qubit' ? 'ip-badge-qubit' : 'ip-badge-client')}>
-                  {d.uploaderType === 'qubit' ? 'Qubit' : 'Cliente'}
+                  {d.uploaderType === 'qubit' ? 'Flow Hub' : 'Cliente'}
                 </span>
               </div>
             ))}

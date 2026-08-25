@@ -1,4 +1,4 @@
-import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, ClipboardList, Wrench, Key as KeyIcon, BarChart3, Globe, Smartphone, Lightbulb, GraduationCap, Search, Sparkles, Calendar, MessageCircle, Folder, Link as LinkIcon, Pencil, FileText, Image as ImageIcon, Paperclip, Zap, User, LogOut, Info, Users } from 'lucide-react'
+import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, ClipboardList, Wrench, Key as KeyIcon, BarChart3, Globe, Smartphone, Lightbulb, GraduationCap, Search, Sparkles, Calendar, MessageCircle, Folder, Link as LinkIcon, Pencil, FileText, Image as ImageIcon, Paperclip, Zap, User, LogOut, Info, Users, Sun, Moon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc,
@@ -30,7 +30,7 @@ const TEMPLATE_STAGES = [
   {
     id: 'meta', name: 'Conexión de canales Meta', icon: 'message-square',
     tasks: [
-      { id: 't9', name: 'Compartir acceso admin a tu Página de Facebook', responsible: 'client', how: 'Agrega a Qubit Corp. como administrador', requiresClient: true },
+      { id: 't9', name: 'Compartir acceso admin a tu Página de Facebook', responsible: 'client', how: 'Agrega a Flow Hub como administrador', requiresClient: true },
       { id: 't10', name: 'Configurar app Meta y webhook', responsible: 'qubit', how: 'Configuración técnica completa', requiresClient: false },
       { id: 't11', name: 'Conectar Instagram Business', responsible: 'qubit', how: 'Vinculación al Business Manager', requiresClient: false },
       { id: 't12', name: 'Verificar flujo de mensajes', responsible: 'qubit', how: 'Prueba en vivo', requiresClient: false },
@@ -103,16 +103,73 @@ const StageIcon = ({ icon, size = 16 }) => {
   return map[icon] || <Sparkles size={size} />
 }
 
+const THEME_KEY = 'portal_theme'
+
+// Dark logo file carries the "flow" wordmark in white -> use it over dark backgrounds.
+const LOGO = { dark: '/flowhub-logo2.png', light: '/logo.png' }
+
+const getInitialTheme = () => {
+  try {
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch { /* storage bloqueado */ }
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light'
+  return 'dark'
+}
+
+const ThemeToggle = ({ theme, onToggle, className }) => (
+  <button
+    className={clsx('cp-theme-btn', className)}
+    onClick={onToggle}
+    title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+    aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+  >
+    {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+  </button>
+)
+
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
 
   .cp-root *, .cp-root *::before, .cp-root *::after { box-sizing: border-box; }
 
+  /* Dark is the default palette; .cp-root.light re-declares only the tokens. */
   .cp-root {
     font-family: 'Inter', sans-serif;
-    background: #070708;
-    color: white;
+    background: var(--cp-bg);
+    color: var(--cp-fg);
     min-height: 100vh;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    --cp-bg: #070708;
+    --cp-fg: #ffffff;
+    --cp-surface-1: rgba(255,255,255,0.02);
+    --cp-surface-2: rgba(255,255,255,0.03);
+    --cp-surface-3: rgba(255,255,255,0.05);
+    --cp-surface-4: rgba(255,255,255,0.06);
+    --cp-surface-hover: rgba(255,255,255,0.02);
+    --cp-surface-hover-strong: rgba(255,255,255,0.1);
+    --cp-border-faint: rgba(255,255,255,0.04);
+    --cp-border-hair: rgba(255,255,255,0.05);
+    --cp-border-soft: rgba(255,255,255,0.06);
+    --cp-border-1: rgba(255,255,255,0.07);
+    --cp-border-2: rgba(255,255,255,0.08);
+    --cp-border-3: rgba(255,255,255,0.1);
+    --cp-border-4: rgba(255,255,255,0.15);
+    --cp-track: rgba(255,255,255,0.08);
+    --cp-circle-inner: #070708;
+    --cp-modal-bg: #1c1c1e;
+    --cp-overlay: rgba(0,0,0,0.75);
+    --cp-btn-bg: #ffffff;
+    --cp-btn-bg-hover: #e8e8ed;
+    --cp-btn-fg: #070708;
+    --cp-shadow: 0 0 0 rgba(0,0,0,0);
+    --cp-glow-a: rgba(0,102,255,0.08);
+    --cp-glow-b: rgba(124,58,237,0.07);
+    --cp-blue-text: #4d9fff;
+    --cp-purple-text: #a78bfa;
+    --cp-danger: #ff6b6b;
+
     --black: #070708;
     --gray-4: #8e8e93;
     --gray-5: #3a3a3c;
@@ -122,6 +179,54 @@ const css = `
     --purple: #7c3aed;
     --amber: #ff9500;
   }
+
+  .cp-root.light {
+    --cp-bg: #f6f7f9;
+    --cp-fg: #0f1115;
+    --cp-surface-1: #ffffff;
+    --cp-surface-2: #ffffff;
+    --cp-surface-3: #ffffff;
+    --cp-surface-4: rgba(15,17,21,0.05);
+    --cp-surface-hover: rgba(15,17,21,0.03);
+    --cp-surface-hover-strong: rgba(15,17,21,0.09);
+    --cp-border-faint: rgba(15,17,21,0.07);
+    --cp-border-hair: rgba(15,17,21,0.08);
+    --cp-border-soft: rgba(15,17,21,0.09);
+    --cp-border-1: rgba(15,17,21,0.1);
+    --cp-border-2: rgba(15,17,21,0.12);
+    --cp-border-3: rgba(15,17,21,0.14);
+    --cp-border-4: rgba(15,17,21,0.22);
+    --cp-track: rgba(15,17,21,0.1);
+    --cp-circle-inner: #ffffff;
+    --cp-modal-bg: #ffffff;
+    --cp-overlay: rgba(15,17,21,0.4);
+    --cp-btn-bg: #0f1115;
+    --cp-btn-bg-hover: #2a2d34;
+    --cp-btn-fg: #ffffff;
+    --cp-shadow: 0 1px 3px rgba(15,17,21,0.06);
+    --cp-glow-a: rgba(0,102,255,0.07);
+    --cp-glow-b: rgba(124,58,237,0.06);
+    --cp-blue-text: #0052cc;
+    --cp-purple-text: #6d3fd4;
+    --cp-danger: #d92d20;
+
+    --gray-4: #6b7280;
+    --gray-5: #98a0ab;
+    --gray-6: #e9ebef;
+    --green: #00a844;
+    --amber: #b26a00;
+  }
+
+  /* THEME TOGGLE */
+  .cp-theme-btn {
+    width: 32px; height: 32px; flex-shrink: 0; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; cursor: pointer;
+    background: var(--cp-surface-4); border: 1px solid var(--cp-border-2);
+    color: var(--gray-4); transition: all 0.15s;
+  }
+  .cp-theme-btn:hover { color: var(--cp-fg); border-color: var(--cp-border-4); }
+  .cp-theme-float { position: absolute; top: 20px; right: 20px; z-index: 2; }
 
   /* LOGIN */
   .cp-login {
@@ -134,17 +239,18 @@ const css = `
     content: '';
     position: absolute; inset: 0;
     background:
-      radial-gradient(ellipse 50% 60% at 20% 50%, rgba(0,102,255,0.08) 0%, transparent 60%),
-      radial-gradient(ellipse 40% 50% at 80% 30%, rgba(124,58,237,0.07) 0%, transparent 60%);
+      radial-gradient(ellipse 50% 60% at 20% 50%, var(--cp-glow-a) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 50% at 80% 30%, var(--cp-glow-b) 0%, transparent 60%);
     pointer-events: none;
   }
 
   .cp-login-card {
     position: relative; z-index: 1;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: var(--cp-surface-2);
+    border: 1px solid var(--cp-border-2);
     border-radius: 20px; padding: 40px;
     width: 100%; max-width: 380px;
+    box-shadow: var(--cp-shadow);
   }
 
   .cp-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; justify-content: center; }
@@ -155,20 +261,20 @@ const css = `
   .cp-login-sub { font-size: 17px; color: var(--gray-4); text-align: center; margin-bottom: 28px; line-height: 1.6; }
 
   .cp-input {
-    width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 9px; padding: 11px 14px; font-size: 18px; color: white;
+    width: 100%; background: var(--cp-surface-3); border: 1px solid var(--cp-border-3);
+    border-radius: 9px; padding: 11px 14px; font-size: 18px; color: var(--cp-fg);
     font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.15s; margin-bottom: 10px;
   }
 
   .cp-input:focus { border-color: #0066ff; }
-  .cp-input::placeholder { color: #3a3a3c; }
+  .cp-input::placeholder { color: var(--gray-5); }
 
   .cp-btn-primary {
-    width: 100%; padding: 12px; background: white; color: #070708;
+    width: 100%; padding: 12px; background: var(--cp-btn-bg); color: var(--cp-btn-fg);
     border: none; border-radius: 9px; font-size: 18px; font-weight: 700;
     cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; margin-top: 6px;
   }
-  .cp-btn-primary:hover { background: #e8e8ed; }
+  .cp-btn-primary:hover { background: var(--cp-btn-bg-hover); }
   .cp-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* LAYOUT */
@@ -177,24 +283,28 @@ const css = `
   /* HEADER */
   .cp-header {
     padding: 28px 0 24px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid var(--cp-border-soft);
     margin-bottom: 28px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
   }
+
+  .cp-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cp-header-logo { height: 22px; width: auto; object-fit: contain; display: block; }
 
   .cp-welcome { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 600; color: var(--gray-4); margin-bottom: 2px; }
   .cp-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -0.3px; }
 
   .cp-logout { font-size: 17px; color: var(--gray-5); background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; padding: 6px 10px; border-radius: 6px; transition: all 0.15s; }
-  .cp-logout:hover { color: white; background: rgba(255,255,255,0.06); }
+  .cp-logout:hover { color: var(--cp-fg); background: var(--cp-surface-4); }
 
   /* PROGRESS HERO */
   .cp-progress-hero {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--cp-surface-1);
+    border: 1px solid var(--cp-border-1);
     border-radius: 16px; padding: 24px 28px;
     margin-bottom: 24px;
     display: flex; align-items: center; gap: 24px;
+    box-shadow: var(--cp-shadow);
   }
 
   .cp-progress-circle {
@@ -208,25 +318,26 @@ const css = `
   .cp-progress-info { flex: 1; }
   .cp-progress-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 4px; }
   .cp-progress-sub { font-size: 17px; color: var(--gray-4); line-height: 1.5; }
-  .cp-progress-track { height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .cp-progress-track { height: 5px; background: var(--cp-track); border-radius: 3px; margin-top: 10px; overflow: hidden; }
   .cp-progress-fill { height: 100%; border-radius: 3px; background: #0066ff; transition: width 0.5s; }
 
   /* TABS */
-  .cp-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px; }
+  .cp-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--cp-border-soft); margin-bottom: 20px; }
   .cp-tab {
     padding: 10px 16px; font-size: 18px; font-weight: 600; color: var(--gray-4);
     border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s;
     background: none; border-top: none; border-left: none; border-right: none;
     font-family: 'Inter', sans-serif;
   }
-  .cp-tab:hover { color: white; }
-  .cp-tab.active { color: white; border-bottom-color: #0066ff; }
+  .cp-tab:hover { color: var(--cp-fg); }
+  .cp-tab.active { color: var(--cp-fg); border-bottom-color: #0066ff; }
 
   /* STAGES */
   .cp-stage {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--cp-surface-1);
+    border: 1px solid var(--cp-border-1);
     border-radius: 12px; margin-bottom: 10px; overflow: hidden;
+    box-shadow: var(--cp-shadow);
   }
 
   .cp-stage.active { border-color: rgba(0,102,255,0.3); }
@@ -236,7 +347,7 @@ const css = `
     padding: 14px 18px; display: flex; align-items: center; gap: 10px;
     cursor: pointer; transition: background 0.15s;
   }
-  .cp-stage-header:hover { background: rgba(255,255,255,0.02); }
+  .cp-stage-header:hover { background: var(--cp-surface-hover); }
 
   .cp-stage-icon { font-size: 21px; }
   .cp-stage-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
@@ -244,27 +355,27 @@ const css = `
   .cp-stage-badge {
     font-size: 14px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
   }
-  .cp-chevron { font-size: 14px; color: #3a3a3c; transition: transform 0.2s; }
+  .cp-chevron { font-size: 14px; color: var(--gray-5); transition: transform 0.2s; }
   .cp-chevron.open { transform: rotate(90deg); }
 
   /* TASKS */
-  .cp-tasks { border-top: 1px solid rgba(255,255,255,0.05); }
+  .cp-tasks { border-top: 1px solid var(--cp-border-hair); }
 
   .cp-task {
     padding: 12px 18px 12px 42px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid var(--cp-border-faint);
     display: flex; align-items: flex-start; gap: 12px;
   }
   .cp-task:last-child { border-bottom: none; }
 
   .cp-task-dot {
     width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
-    border: 1.5px solid rgba(255,255,255,0.15);
+    border: 1.5px solid var(--cp-border-4);
     display: flex; align-items: center; justify-content: center; font-size: 8px;
   }
-  .cp-task-dot.done { background: #00c853; border-color: #00c853; color: white; }
+  .cp-task-dot.done { background: var(--green); border-color: var(--green); color: white; }
 
-  .cp-task-name { font-size: 17px; font-weight: 600; margin-bottom: 3px; color: white; }
+  .cp-task-name { font-size: 17px; font-weight: 600; margin-bottom: 3px; color: var(--cp-fg); }
   .cp-task-name.done { color: var(--gray-5); text-decoration: line-through; }
   .cp-task-how { font-size: 15px; color: var(--gray-4); line-height: 1.5; margin-bottom: 5px; }
 
@@ -273,23 +384,23 @@ const css = `
     font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
     display: inline-flex; align-items: center;
   }
-  .cp-badge-qubit { background: rgba(0,102,255,0.1); color: #4d9fff; border: 1px solid rgba(0,102,255,0.2); }
-  .cp-badge-client { background: rgba(0,200,83,0.1); color: #00c853; border: 1px solid rgba(0,200,83,0.2); }
-  .cp-badge-meeting { background: rgba(255,149,0,0.08); color: #ff9500; border: 1px solid rgba(255,149,0,0.2); }
+  .cp-badge-qubit { background: rgba(0,102,255,0.1); color: var(--cp-blue-text); border: 1px solid rgba(0,102,255,0.2); }
+  .cp-badge-client { background: rgba(0,200,83,0.1); color: var(--green); border: 1px solid rgba(0,200,83,0.2); }
+  .cp-badge-meeting { background: rgba(255,149,0,0.08); color: var(--amber); border: 1px solid rgba(255,149,0,0.2); }
 
   .cp-comment-btn {
     margin-left: auto; font-size: 14px; font-weight: 600; color: var(--gray-5);
-    background: none; border: 1px solid rgba(255,255,255,0.07); border-radius: 5px;
+    background: none; border: 1px solid var(--cp-border-1); border-radius: 5px;
     padding: 2px 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s;
   }
-  .cp-comment-btn:hover { color: white; border-color: rgba(255,255,255,0.15); }
+  .cp-comment-btn:hover { color: var(--cp-fg); border-color: var(--cp-border-4); }
 
   /* CHAT */
-  .cp-chat-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; }
-  .cp-chat-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px; }
+  .cp-chat-wrap { background: var(--cp-surface-1); border: 1px solid var(--cp-border-1); border-radius: 14px; overflow: hidden; box-shadow: var(--cp-shadow); }
+  .cp-chat-header { padding: 14px 18px; border-bottom: 1px solid var(--cp-border-soft); display: flex; align-items: center; gap: 8px; }
   .cp-chat-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; }
   .cp-chat-messages { height: 360px; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .cp-chat-input-row { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; }
+  .cp-chat-input-row { padding: 12px 16px; border-top: 1px solid var(--cp-border-soft); display: flex; gap: 8px; }
 
   .cp-msg { display: flex; gap: 8px; align-items: flex-end; }
   .cp-msg.mine { flex-direction: row-reverse; }
@@ -297,7 +408,7 @@ const css = `
   .cp-msg-avatar { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
 
   .cp-msg-bubble {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09);
+    background: var(--cp-surface-4); border: 1px solid var(--cp-border-2);
     border-radius: 4px 12px 12px 12px; padding: 8px 12px;
     font-size: 18px; line-height: 1.55; max-width: 72%;
   }
@@ -306,29 +417,29 @@ const css = `
     border-radius: 12px 4px 12px 12px;
   }
   .cp-msg-author { font-size: 14px; font-weight: 700; color: var(--gray-4); margin-bottom: 2px; }
-  .cp-msg-time { font-size: 14px; color: #3a3a3c; margin-top: 3px; }
+  .cp-msg-time { font-size: 14px; color: var(--gray-5); margin-top: 3px; }
 
   /* DOCS */
-  .cp-docs-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; }
-  .cp-docs-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; }
+  .cp-docs-wrap { background: var(--cp-surface-1); border: 1px solid var(--cp-border-1); border-radius: 14px; overflow: hidden; box-shadow: var(--cp-shadow); }
+  .cp-docs-header { padding: 14px 18px; border-bottom: 1px solid var(--cp-border-soft); display: flex; align-items: center; }
   .cp-docs-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
 
-  .cp-doc-item { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .cp-doc-item { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--cp-border-faint); }
   .cp-doc-item:last-child { border-bottom: none; }
   .cp-doc-icon { font-size: 24px; }
   .cp-doc-name { font-size: 18px; font-weight: 600; flex: 1; }
   .cp-doc-meta { font-size: 15px; color: var(--gray-4); }
 
-  .cp-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
-  .cp-upload-btn:hover { background: rgba(255,255,255,0.1); }
+  .cp-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; background: var(--cp-surface-4); border: 1px solid var(--cp-border-3); color: var(--cp-fg); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+  .cp-upload-btn:hover { background: var(--cp-surface-hover-strong); }
 
   /* MODAL */
-  .cp-modal-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .cp-modal { background: #1c1c1e; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
+  .cp-modal-overlay { position: fixed; inset: 0; z-index: 200; background: var(--cp-overlay); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .cp-modal { background: var(--cp-modal-bg); border: 1px solid var(--cp-border-3); border-radius: 16px; padding: 24px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
   .cp-modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 16px; }
 
-  .cp-empty { text-align: center; padding: 32px; color: #3a3a3c; font-size: 18px; }
-  .cp-error { color: #ff6b6b; font-size: 17px; margin-top: 6px; text-align: center; }
+  .cp-empty { text-align: center; padding: 32px; color: var(--gray-5); font-size: 18px; }
+  .cp-error { color: var(--cp-danger); font-size: 17px; margin-top: 6px; text-align: center; }
 
   /* SEND BTN */
   .cp-send-btn { background: #0066ff; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 17px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; transition: opacity 0.15s; flex-shrink: 0; }
@@ -370,7 +481,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
     <div className="cp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="cp-modal">
         <div className="cp-modal-title"><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> {task.name}</div>
-        <div style={{ fontSize: 17, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ fontSize: 17, color: 'var(--gray-4)', marginBottom: 16, lineHeight: 1.6, padding: '8px 12px', background: 'var(--cp-surface-4)', borderRadius: 8, border: '1px solid var(--cp-border-soft)' }}>
           {task.how}
         </div>
         <div style={{ height: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
@@ -378,7 +489,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
           {comments.map(c => (
             <div key={c.id} className={clsx('cp-msg', c.authorType === 'client' && 'mine')}>
               {c.authorType !== 'client' && (
-                <div className="cp-msg-avatar" style={{ background: 'rgba(0,102,255,0.15)', color: '#4d9fff' }}>Q</div>
+                <div className="cp-msg-avatar" style={{ background: 'rgba(0,102,255,0.15)', color: 'var(--cp-blue-text)' }}>F</div>
               )}
               <div>
                 <div className={clsx('cp-msg-bubble', c.authorType === 'client' && 'mine')}>
@@ -388,7 +499,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
                 </div>
               </div>
               {c.authorType === 'client' && (
-                <div className="cp-msg-avatar" style={{ background: 'rgba(0,200,83,0.15)', color: '#00c853' }}>{clientName?.[0]}</div>
+                <div className="cp-msg-avatar" style={{ background: 'rgba(0,200,83,0.15)', color: 'var(--green)' }}>{clientName?.[0]}</div>
               )}
             </div>
           ))}
@@ -399,7 +510,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
           <button className="cp-send-btn" onClick={send} disabled={sending}>Enviar</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 14px', color: '#8e8e93', cursor: 'pointer', fontSize: 17, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>Cerrar</button>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--cp-border-3)', borderRadius: 7, padding: '6px 14px', color: 'var(--gray-4)', cursor: 'pointer', fontSize: 17, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -421,7 +532,16 @@ export default function ClientPortal() {
   const [docs, setDocs] = useState([])
   const [sending, setSending] = useState(false)
   const [commentModal, setCommentModal] = useState(null)
+  const [theme, setTheme] = useState(getInitialTheme)
   const bottomRef = useRef(null)
+
+  useEffect(() => {
+    try { localStorage.setItem(THEME_KEY, theme) } catch { /* storage bloqueado */ }
+    document.body.style.background = theme === 'dark' ? '#070708' : '#f6f7f9'
+    return () => { document.body.style.background = '' }
+  }, [theme])
+
+  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
 
   const login = async () => {
     if (!emailInput || !passwordInput) { setLoginError('Ingresa tu email y contraseña'); return }
@@ -489,16 +609,16 @@ export default function ClientPortal() {
       if (askAI) {
         // Build context
         const historyText = chatMessages.slice(-8).map(m =>
-          `${m.authorType === 'client' ? impl.name : m.isAI ? 'Claude IA' : 'Qubit Corp'}: ${m.text}`
+          `${m.authorType === 'client' ? impl.name : m.isAI ? 'Claude IA' : 'Flow Hub'}: ${m.text}`
         ).join('\n')
 
         const pendingTasks = TEMPLATE_STAGES.flatMap(s => s.tasks)
           .filter(t => !impl?.tasks?.[t.id]?.done)
           .slice(0, 5)
-          .map(t => `- ${t.name} (responsable: ${t.responsible === 'qubit' ? 'Qubit Corp' : 'el cliente'})`)
+          .map(t => `- ${t.name} (responsable: ${t.responsible === 'qubit' ? 'Flow Hub' : 'el cliente'})`)
           .join('\n')
 
-        const prompt = `Eres el asistente de implementación de FlowCRM, desarrollado por Qubit Corp. Estás dentro del portal privado del cliente.
+        const prompt = `Eres el asistente de implementación de FlowCRM, desarrollado por Flow Hub. Estás dentro del portal privado del cliente.
 
 DATOS DEL CLIENTE:
 - Nombre: ${impl.name}
@@ -519,7 +639,7 @@ INSTRUCCIONES:
 - Responde directamente, de forma clara y concisa
 - Si la pregunta es sobre una tarea pendiente específica, explica qué se necesita y cómo avanzar
 - Si es una duda técnica del CRM, respóndela con contexto de FlowCRM
-- Si necesita intervención humana de Qubit Corp (algo urgente, un error técnico, una decisión de negocio), díselo y pídele que use el botón "Enviar" para que el equipo lo vea
+- Si necesita intervención humana de Flow Hub (algo urgente, un error técnico, una decisión de negocio), díselo y pídele que use el botón "Enviar" para que el equipo lo vea
 - Máximo 3-4 oraciones. Sin listas largas. Tono profesional pero cercano.`
 
         const res = await fetch('/.netlify/functions/portal-chat', {
@@ -563,12 +683,13 @@ INSTRUCCIONES:
   // LOGIN SCREEN
   if (!authed) {
     return (
-      <div className="cp-root">
+      <div className={clsx('cp-root', theme === 'light' && 'light')}>
         <style>{css}</style>
         <div className="cp-login">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} className="cp-theme-float" />
           <div className="cp-login-card">
             <div className="cp-logo">
-              <img src="/flowhub-logo2.png" alt="Flow Hub" style={{ height: 40, objectFit: "contain" }} />
+              <img src={LOGO[theme]} alt="Flow Hub" style={{ height: 40, objectFit: "contain" }} />
             </div>
             <div className="cp-login-title">Portal de implementación</div>
             <div className="cp-login-sub">Sigue el avance de tu proyecto en tiempo real, comunícate con el equipo y entrega los documentos necesarios.</div>
@@ -583,7 +704,7 @@ INSTRUCCIONES:
   }
 
   return (
-    <div className="cp-root">
+    <div className={clsx('cp-root', theme === 'light' && 'light')}>
       <style>{css}</style>
       <div className="cp-layout">
 
@@ -593,15 +714,19 @@ INSTRUCCIONES:
             <div className="cp-welcome">Bienvenido de nuevo,</div>
             <div className="cp-name">{impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 21 }}>· {impl.company}</span></div>
           </div>
-          <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}><LogOut size={14} style={{ marginRight: 6, display: "inline-block" }} /> Salir</button>
+          <div className="cp-header-actions">
+            <img src={LOGO[theme]} alt="Flow Hub" className="cp-header-logo" />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}><LogOut size={14} style={{ marginRight: 6, display: "inline-block" }} /> Salir</button>
+          </div>
         </div>
 
         {/* Progress hero */}
         <div className="cp-progress-hero">
           <div className="cp-progress-circle" style={{
-            background: `conic-gradient(#0066ff ${progress * 3.6}deg, rgba(255,255,255,0.06) 0deg)`
+            background: `conic-gradient(#0066ff ${progress * 3.6}deg, var(--cp-track) 0deg)`
           }}>
-            <div style={{ width: 54, height: 54, borderRadius: '50%', background: '#070708', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--cp-circle-inner)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span className="cp-progress-pct">{progress}%</span>
             </div>
           </div>
@@ -642,8 +767,8 @@ INSTRUCCIONES:
                     <span className="cp-stage-name">{stage.name}</span>
                     <span className="cp-stage-dates">{getStageDate(stage.id)}</span>
                     <span className="cp-stage-badge" style={{
-                      background: status === 'done' ? 'rgba(0,200,83,0.1)' : status === 'active' ? 'rgba(0,102,255,0.1)' : 'rgba(255,255,255,0.04)',
-                      color: status === 'done' ? '#00c853' : status === 'active' ? '#4d9fff' : '#3a3a3c',
+                      background: status === 'done' ? 'rgba(0,200,83,0.1)' : status === 'active' ? 'rgba(0,102,255,0.1)' : 'var(--cp-surface-4)',
+                      color: status === 'done' ? 'var(--green)' : status === 'active' ? 'var(--cp-blue-text)' : 'var(--gray-5)',
                     }}>
                       {status === 'done' ? '✓ Completada' : status === 'active' ? '● En curso' : `${doneCnt}/${stage.tasks.length}`}
                     </span>
@@ -662,7 +787,7 @@ INSTRUCCIONES:
                               <div className="cp-task-how">{task.how}</div>
                               <div className="cp-task-badges">
                                 <span className={clsx('cp-badge', task.responsible === 'qubit' ? 'cp-badge-qubit' : 'cp-badge-client')}>
-                                  {task.responsible === 'qubit' ? <><Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Qubit Corp.</> : <><User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Tú</>}
+                                  {task.responsible === 'qubit' ? <><Zap size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Flow Hub</> : <><User size={12} style={{ marginRight: 4, display: "inline-block", marginBottom: -1 }} /> Tú</>}
                                 </span>
                                 {task.requiresClient && <span className="cp-badge cp-badge-meeting"><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Requiere reunión</span>}
                                 <button className="cp-comment-btn" onClick={() => setCommentModal(task)}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Comentar</button>
@@ -684,18 +809,18 @@ INSTRUCCIONES:
           <div className="cp-chat-wrap">
             <div className="cp-chat-header">
               <span style={{ fontSize: 21 }}><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /></span>
-              <div className="cp-chat-title">Chat con Qubit Corp.</div>
+              <div className="cp-chat-title">Chat con Flow Hub</div>
             </div>
             <div className="cp-chat-messages">
-              {chatMessages.length === 0 && <div className="cp-empty">Sin mensajes — escribe al equipo de Qubit Corp.</div>}
+              {chatMessages.length === 0 && <div className="cp-empty">Sin mensajes — escribe al equipo de Flow Hub.</div>}
               {chatMessages.map(m => (
                 <div key={m.id} className={clsx('cp-msg', m.authorType === 'client' && 'mine')}>
                   {m.authorType !== 'client' && (
                     <div className="cp-msg-avatar" style={{
                       background: m.isAI ? 'rgba(124,58,237,0.2)' : 'rgba(0,102,255,0.15)',
-                      color: m.isAI ? '#a78bfa' : '#4d9fff'
+                      color: m.isAI ? 'var(--cp-purple-text)' : 'var(--cp-blue-text)'
                     }}>
-                      {m.isAI ? <Sparkles size={13} /> : 'Q'}
+                      {m.isAI ? <Sparkles size={13} /> : 'F'}
                     </div>
                   )}
                   <div>
@@ -706,7 +831,7 @@ INSTRUCCIONES:
                     </div>
                   </div>
                   {m.authorType === 'client' && (
-                    <div className="cp-msg-avatar" style={{ background: 'rgba(0,200,83,0.15)', color: '#00c853' }}>{impl.name?.[0]}</div>
+                    <div className="cp-msg-avatar" style={{ background: 'rgba(0,200,83,0.15)', color: 'var(--green)' }}>{impl.name?.[0]}</div>
                   )}
                 </div>
               ))}
@@ -721,7 +846,7 @@ INSTRUCCIONES:
                 placeholder="Escribe un mensaje al equipo o pregúntale a IA..."
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
               />
-              <button className="cp-send-btn" style={{ background: 'transparent', border: '1px solid rgba(0,102,255,0.4)', color: '#4d9fff' }} onClick={() => sendChat(true)} disabled={sending} title="Que Claude responda ahora mismo">
+              <button className="cp-send-btn" style={{ background: 'transparent', border: '1px solid rgba(0,102,255,0.4)', color: 'var(--cp-blue-text)' }} onClick={() => sendChat(true)} disabled={sending} title="Que Claude responda ahora mismo">
                 <Sparkles size={16} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> 
                 Preguntar a IA
               </button>
@@ -759,10 +884,10 @@ INSTRUCCIONES:
                 <span style={{
                   fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
                   background: d.uploaderType === 'qubit' ? 'rgba(0,102,255,0.1)' : 'rgba(0,200,83,0.1)',
-                  color: d.uploaderType === 'qubit' ? '#4d9fff' : '#00c853',
+                  color: d.uploaderType === 'qubit' ? 'var(--cp-blue-text)' : 'var(--green)',
                   border: `1px solid ${d.uploaderType === 'qubit' ? 'rgba(0,102,255,0.2)' : 'rgba(0,200,83,0.2)'}`,
                 }}>
-                  {d.uploaderType === 'qubit' ? 'Qubit' : 'Tú'}
+                  {d.uploaderType === 'qubit' ? 'Flow Hub' : 'Tú'}
                 </span>
               </div>
             ))}
