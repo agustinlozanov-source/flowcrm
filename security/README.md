@@ -2,16 +2,25 @@
 
 ## ⚠️ Léelo antes de tocar la consola
 
-Los dos archivos de esta carpeta son **fragmentos**, no reglas completas.
+`firestore-company-profiles.rules` es un **fragmento**, no las reglas completas.
+`storage-company-profiles.rules` sí es el archivo entero y ya trae integradas
+las reglas que había en producción (quedaron anotadas ahí por si hay que
+revertir).
 
 Las reglas que están hoy en producción viven en la consola de Firebase y **no
 están versionadas en este repo**. Si copias uno de estos archivos y lo pegas
 como el contenido completo de tus reglas, borras las de todo lo demás —
 `leads`, `pipelines`, `orgs`, `implementations`, todo — y rompes la app.
 
-Lo que hay que hacer es **insertar el bloque `match` dentro del
+Para Firestore, lo que hay que hacer es **insertar el bloque `match` dentro del
 `match /databases/{database}/documents { … }` que ya tienes**, junto a los demás,
 y agregar las funciones auxiliares si no existen ya con otro nombre.
+
+Un detalle que es fácil pasar por alto: **en las reglas de Firebase los permisos
+se suman.** Si queda un `match` amplio cubriendo las mismas rutas, cualquier
+bloque restrictivo que se agregue debajo no hace nada — el amplio sigue
+concediendo acceso. Por eso en Storage hubo que acotar el catch-all
+`{allPaths=**}` a `organizations/` en vez de solo agregar un bloque nuevo.
 
 Antes de publicar, usa el **Rules Playground** de la consola para comprobar que
 las reglas existentes siguen pasando.

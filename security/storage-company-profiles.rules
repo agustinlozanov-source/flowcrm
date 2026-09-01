@@ -1,37 +1,73 @@
-// FRAGMENTO — no publicar suelto. Ver security/README.md
+// Reglas de Storage — archivo COMPLETO, listo para pegar en la consola.
+// Ver security/README.md
 //
-// Inserta este bloque dentro del `match /b/{bucket}/o { … }` que ya existe en
-// las reglas de Storage de tu consola.
+// A diferencia del fragmento de Firestore, este sí es el archivo entero, porque
+// las reglas de Storage que había en producción eran cortas y ya están
+// integradas aquí.
 //
-// Hoy Storage rechaza toda escritura sin autenticar (403), que es justo lo que
-// impedía que el cliente del formulario subiera archivos. Este bloque le abre
-// exclusivamente su propia carpeta, apoyándose en el claim `profileId` del
-// custom token que emite profile-session.js.
+// Reglas anteriores (1 de septiembre de 2026), por si hay que revertir:
+//
+//   rules_version = '2';
+//   service firebase.storage {
+//     match /b/{bucket}/o {
+//       match /{allPaths=**} {
+//         allow read: if true;
+//         allow write: if request.auth != null;
+//       }
+//     }
+//   }
+//
+// Por qué se acotó el catch-all: en las reglas de Firebase los permisos se
+// suman. Con un `match /{allPaths=**}` cubriendo todo, cualquier bloque
+// restrictivo que se agregue debajo es decorativo — el catch-all sigue
+// concediendo acceso sobre esas mismas rutas. Para que el bloque de
+// company-profiles tenga efecto, el catch-all no puede cubrirlo.
+//
+// La app solo usa dos prefijos: `organizations/` (productos en useProducts,
+// logos y fuentes en useBrandKits, archivos en Agent.jsx) y `company-profiles/`.
 
-match /company-profiles/{profileId}/assets/{fileName} {
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
 
-  function ownsProfile() {
-    return request.auth != null && request.auth.token.profileId == profileId;
+    // ── App autenticada ───────────────────────────────────────────────────
+    // Mismo comportamiento que antes, con un solo cambio: se excluye a las
+    // sesiones del formulario de perfil. Esas sesiones ahora también están
+    // autenticadas, y sin este filtro podrían escribir aquí.
+    //
+    // PENDIENTE: `read: if true` deja todo el material de las organizaciones
+    // legible por cualquiera que conozca la ruta. Se dejó igual a propósito
+    // para no cambiar el comportamiento de lo existente en el mismo paso que
+    // desbloquea la subida del formulario. Merece su propia revisión.
+    match /organizations/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && !('profileId' in request.auth.token);
+    }
+
+    // ── Company Profile Builder ───────────────────────────────────────────
+    // El claim `profileId` lo pone profile-session.js al emitir el custom
+    // token: cada cliente solo alcanza su propia carpeta.
+    match /company-profiles/{profileId}/assets/{fileName} {
+
+      function ownsProfile() {
+        return request.auth != null && request.auth.token.profileId == profileId;
+      }
+
+      // `delete` va aparte de `create, update` porque en un borrado
+      // `request.resource` es null: validar su tamaño ahí haría fallar la regla
+      // y el cliente no podría eliminar ningún archivo.
+      allow read, delete: if ownsProfile();
+      allow create, update: if ownsProfile() && request.resource.size <= 25 * 1024 * 1024;
+
+      // Sin filtro por contentType a propósito: los navegadores reportan MIME
+      // vacío para .md y a veces para .doc, así que rechazaría archivos válidos
+      // con un error imposible de diagnosticar desde el formulario. El tope de
+      // tamaño y el alcance por dueño son la protección que importa.
+    }
+
+    // Nota: el superadmin no aparece aquí porque las reglas de Storage no
+    // pueden consultar Firestore para verificar el rol. El panel abre los
+    // archivos con la URL de getDownloadURL(), que lleva token de descarga y no
+    // pasa por reglas.
   }
-
-  // Límites espejo de los del formulario (§3.1 de la spec): si alguien salta la
-  // validación del browser, la regla la vuelve a aplicar.
-  function archivoAceptable() {
-    return request.resource.size <= 25 * 1024 * 1024
-      && request.resource.contentType.matches(
-           'application/pdf'
-           + '|application/msword'
-           + '|application/vnd\\.openxmlformats-officedocument\\..*'
-           + '|application/vnd\\.ms-(excel|powerpoint)'
-           + '|image/(jpeg|png|webp)'
-           + '|text/(plain|markdown|csv)'
-         );
-  }
-
-  allow read: if ownsProfile();
-  allow write: if ownsProfile() && archivoAceptable();
-
-  // Nota: el superadmin no aparece aquí porque las reglas de Storage no pueden
-  // consultar Firestore para verificar el rol. El panel abre los archivos con la
-  // URL de getDownloadURL(), que lleva token de descarga y no pasa por reglas.
 }
