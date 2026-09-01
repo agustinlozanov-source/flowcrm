@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 
 import {
-  SECTIONS, globalProgress, allMissingCritical, emptyProfile,
+  SECTIONS, WEEKDAYS, globalProgress, allMissingCritical, emptyProfile, isFieldFilled,
 } from '@/lib/companyProfileSchema'
 
 const genPassword = () => Math.random().toString(36).slice(2, 10).toUpperCase()
@@ -124,9 +124,17 @@ export default function CompanyProfilesPanel() {
   }
 
   const remove = async p => {
-    if (!window.confirm(`¿Eliminar el perfil de ${p.companyName}? Los archivos que subió no se borran de Storage.`)) return
-    await deleteDoc(doc(db, 'company_profiles', p.id))
-    toast.success('Perfil eliminado')
+    if (!window.confirm(`¿Eliminar el perfil de ${p.companyName}? Se borran también los envíos que haya hecho. Los archivos que subió quedan en Storage.`)) return
+    try {
+      // Firestore no borra subcolecciones en cascada: sin esto los snapshots
+      // de submissions quedan huérfanos y siguen ocupando la base.
+      const subs = await getDocs(collection(db, 'company_profiles', p.id, 'submissions'))
+      await Promise.all(subs.docs.map(d => deleteDoc(d.ref)))
+      await deleteDoc(doc(db, 'company_profiles', p.id))
+      toast.success('Perfil eliminado')
+    } catch {
+      toast.error('No se pudo eliminar por completo')
+    }
   }
 
   const reopen = async p => {
@@ -269,7 +277,7 @@ function ProfileReadout({ profile }) {
         const secData = data[s.key] || {}
         const rows = s.fields
           .map(f => [f, secData[f.id]])
-          .filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length))
+          .filter(([f, v]) => isFieldFilled(f, v, { skipped: secData._skipped }))
         if (!rows.length) return null
 
         return (
@@ -285,7 +293,9 @@ function ProfileReadout({ profile }) {
         )
       })}
 
-      {!Object.keys(data).some(k => Object.keys(data[k] || {}).length) && (
+      {!SECTIONS.some(s => s.fields?.some(f =>
+        isFieldFilled(f, (data[s.key] || {})[f.id], { skipped: (data[s.key] || {})._skipped })
+      )) && !materials.length && (
         <div className="cpp-nothing"><ClipboardList size={14} /> El cliente todavía no ha llenado nada.</div>
       )}
     </div>
@@ -328,7 +338,8 @@ function renderValue(field, v) {
         <ul className="cpp-list">
           {locs.map(l => {
             const days = Object.entries(v[l] || {}).filter(([, d]) => d?.open)
-            return <li key={l}><strong>{l}</strong> — {days.length ? days.map(([d, x]) => `${d} ${x.is24h ? '24h' : `${x.from || '?'}-${x.to || '?'}`}`).join(', ') : 'sin días'}</li>
+            const dayLabel = id => WEEKDAYS.find(w => w.id === id)?.short || id
+            return <li key={l}><strong>{l}</strong> — {days.length ? days.map(([d, x]) => `${dayLabel(d)} ${x.is24h ? '24h' : `${x.from || '?'}-${x.to || '?'}`}`).join(', ') : 'sin días'}</li>
           })}
         </ul>
       )

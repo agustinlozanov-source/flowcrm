@@ -142,7 +142,7 @@ export default function CompanyProfileForm() {
       setData({ ...emptyProfile(), ...(p.data || {}) })
       setMaterials(p.materials || [])
       setVisited(p.visited || {})
-      setStep(p.status === 'submitted' ? 'done' : (p.data ? 'form' : 'welcome'))
+      setStep(p.status === 'submitted' ? 'done' : (p.startedAt ? 'form' : 'welcome'))
       setAuthed(true)
     } catch {
       setLoginError('Error al entrar. Intenta de nuevo.')
@@ -246,6 +246,16 @@ export default function CompanyProfileForm() {
   }
 
   const saveDraft = async () => { await flush(); toast.success('Borrador guardado') }
+
+  // Marca que el cliente ya pasó la zona de carga, para no volver a mandarlo a
+  // la bienvenida cuando regrese en otra sesión.
+  const enterForm = async () => {
+    setStep('form')
+    if (profileId && !readOnly) {
+      try { await updateDoc(doc(db, 'company_profiles', profileId), { startedAt: serverTimestamp() }) } catch { /* el flush posterior lo reintenta */ }
+    }
+    flush()
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -360,10 +370,10 @@ export default function CompanyProfileForm() {
             </div>
 
             <div className="cpb-upload-actions">
-              <button className="cpb-btn-ghost" onClick={() => { flush(); setStep('form') }}>
+              <button className="cpb-btn-ghost" onClick={enterForm}>
                 {materials.length ? 'Continuar sin subir más' : 'No tengo archivos, arrancar sin nada'}
               </button>
-              <button className="cpb-btn-primary" onClick={() => { flush(); setStep('form') }} disabled={!materials.length}>
+              <button className="cpb-btn-primary" onClick={enterForm} disabled={!materials.length}>
                 Continuar <ArrowRight size={15} />
               </button>
             </div>
