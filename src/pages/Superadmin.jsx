@@ -12,6 +12,7 @@ import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
 import PipelineBuilder from './PipelineBuilder'
+import CompanyProfilesPanel from './CompanyProfilesPanel'
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 // ─── DIAGNOSTICO CONFIG ───
@@ -5170,6 +5171,7 @@ export default function Superadmin() {
     { id: 'onboarding', icon: <ClipboardList size={16} />, label: 'Formularios' },
     { id: 'diag_config', icon: <ClipboardList size={16} />, label: 'Diagnóstico' },
     { id: 'diag_resp', icon: <BarChart size={16} />, label: 'Respuestas Diag.' },
+    { id: 'company_profiles', icon: <Building2 size={16} />, label: 'Perfiles de empresa' },
     { id: 'pipelines', icon: <Target size={16} />, label: 'Pipeline Builder' },
     { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
@@ -5180,7 +5182,7 @@ export default function Superadmin() {
     { id: 'documents', icon: <BookOpen size={16} />, label: 'Documentos' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones', sa_analytics: 'Analíticas de Orgs' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', company_profiles: 'Perfiles de empresa', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones', sa_analytics: 'Analíticas de Orgs' }
 
   if (!authed) {
     return (
@@ -5244,6 +5246,7 @@ export default function Superadmin() {
           {activeTab === 'onboarding' && <OnboardingResponses />}
           {activeTab === 'diag_config' && <DiagnosticoConfig orgs={orgs} />}
           {activeTab === 'diag_resp' && <DiagnosticoResponses orgs={orgs} />}
+          {activeTab === 'company_profiles' && <CompanyProfilesPanel />}
           {activeTab === 'pipelines' && <PipelineBuilder orgs={orgs} />}
           {activeTab === 'distribuidores' && <DistribuidoresPanel />}
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
