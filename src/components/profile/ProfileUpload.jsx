@@ -7,7 +7,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
-import { storage } from '@/lib/firebase'
+import { profileStorage as storage } from '@/lib/firebaseProfile'
 import {
   UploadCloud, FileText, Image as ImageIcon, FileSpreadsheet, Presentation,
   File as FileIcon, Trash2, Download, Plus, AlertCircle,

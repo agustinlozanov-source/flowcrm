@@ -11,11 +11,9 @@
 // está lista para cuando se conecte.
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import {
-  doc, getDoc, updateDoc, collection, query, where, getDocs,
-  addDoc, serverTimestamp,
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { signInWithCustomToken } from 'firebase/auth'
+import { profileAuth, profileDb as db } from '@/lib/firebaseProfile'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import {
@@ -128,14 +126,32 @@ export default function CompanyProfileForm() {
     setLogging(true)
     setLoginError('')
     try {
-      const snap = await getDocs(query(
-        collection(db, 'company_profiles'),
-        where('clientEmail', '==', emailInput.trim().toLowerCase()),
-      ))
-      if (snap.empty) { setLoginError('No encontramos ese email'); return }
-      const d = snap.docs[0]
-      const p = { id: d.id, ...d.data() }
-      if (p.accessPassword !== passwordInput.trim()) { setLoginError('Código de acceso incorrecto'); return }
+      let res
+      try {
+        res = await fetch('/.netlify/functions/profile-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailInput.trim().toLowerCase(), code: passwordInput.trim() }),
+        })
+      } catch {
+        setLoginError('No pudimos conectar. Revisa tu conexión e intenta de nuevo.')
+        return
+      }
+
+      if (res.status === 404) {
+        // Pasa con `npm run dev`, que no levanta las Netlify functions.
+        setLoginError('El servicio de acceso no está disponible en este entorno.')
+        return
+      }
+
+      const out = await res.json().catch(() => ({}))
+      if (!res.ok) { setLoginError(out.error || 'No pudimos validar tu acceso'); return }
+
+      await signInWithCustomToken(profileAuth, out.token)
+
+      const snap = await getDoc(doc(db, 'company_profiles', out.profileId))
+      if (!snap.exists()) { setLoginError('No encontramos tu perfil'); return }
+      const p = { id: snap.id, ...snap.data() }
 
       setProfileId(p.id)
       setProfile(p)

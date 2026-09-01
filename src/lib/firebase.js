@@ -3,7 +3,7 @@ import { getAuth } from 'firebase/auth'
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyD-LPZYAMP8FS3IuoH5pzpG3jP659leKes",
   authDomain: "flowcrm-5cf0a.firebaseapp.com",
   projectId: "flowcrm-5cf0a",

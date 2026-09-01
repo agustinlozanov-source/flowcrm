@@ -1,0 +1,53 @@
+// FRAGMENTO — no publicar suelto. Ver security/README.md
+//
+// Inserta el bloque `match /company_profiles/{profileId}` dentro del
+// `match /databases/{database}/documents { … }` que ya existe en tu consola, y
+// agrega las dos funciones auxiliares si no tienes equivalentes.
+
+// ── Funciones auxiliares ────────────────────────────────────────────────────
+
+function isSuperadmin() {
+  return request.auth != null
+    && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+}
+
+// El claim lo pone profile-session.js al emitir el custom token.
+function ownsProfile(profileId) {
+  return request.auth != null && request.auth.token.profileId == profileId;
+}
+
+// Campos que el cliente nunca debe poder tocar: su propio código de acceso, la
+// identidad con la que se le creó el perfil, y los contadores del bloqueo por
+// intentos fallidos (los escribe el admin SDK, que se salta las reglas).
+function noTocaCamposProtegidos() {
+  return !request.resource.data.diff(resource.data).affectedKeys()
+    .hasAny(['accessPassword', 'clientEmail', 'companyName', 'failedAttempts', 'lockedUntil', 'lastAccessAt']);
+}
+
+// ── Perfiles de empresa ─────────────────────────────────────────────────────
+
+match /company_profiles/{profileId} {
+
+  // Solo el superadmin crea perfiles y genera códigos de acceso.
+  allow create, delete: if isSuperadmin();
+  allow read, update: if isSuperadmin();
+
+  // El cliente solo ve el suyo.
+  allow read: if ownsProfile(profileId);
+
+  // Y solo lo edita mientras siga en borrador. La única transición de estado
+  // que puede provocar es draft → submitted; reabrirlo es cosa del superadmin.
+  allow update: if ownsProfile(profileId)
+    && resource.data.status == 'draft'
+    && request.resource.data.status in ['draft', 'submitted']
+    && noTocaCamposProtegidos();
+
+  // Los snapshots de envío son inmutables: se crean una vez y no se tocan más.
+  match /submissions/{submissionId} {
+    allow read: if isSuperadmin();
+    allow create: if ownsProfile(profileId);
+    allow update: if false;
+    allow delete: if isSuperadmin();
+  }
+}
