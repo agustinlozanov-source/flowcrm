@@ -2,28 +2,20 @@
 
 ## ⚠️ Léelo antes de tocar la consola
 
-`firestore-company-profiles.rules` es un **fragmento**, no las reglas completas.
-`storage-company-profiles.rules` sí es el archivo entero y ya trae integradas
-las reglas que había en producción (quedaron anotadas ahí por si hay que
-revertir).
-
-Las reglas que están hoy en producción viven en la consola de Firebase y **no
-están versionadas en este repo**. Si copias uno de estos archivos y lo pegas
-como el contenido completo de tus reglas, borras las de todo lo demás —
-`leads`, `pipelines`, `orgs`, `implementations`, todo — y rompes la app.
-
-Para Firestore, lo que hay que hacer es **insertar el bloque `match` dentro del
-`match /databases/{database}/documents { … }` que ya tienes**, junto a los demás,
-y agregar las funciones auxiliares si no existen ya con otro nombre.
+Los dos archivos de esta carpeta son **archivos completos**, listos para pegar
+en la consola. Cada uno lleva anotadas arriba las reglas que había antes, por si
+hace falta revertir.
 
 Un detalle que es fácil pasar por alto: **en las reglas de Firebase los permisos
 se suman.** Si queda un `match` amplio cubriendo las mismas rutas, cualquier
 bloque restrictivo que se agregue debajo no hace nada — el amplio sigue
-concediendo acceso. Por eso en Storage hubo que acotar el catch-all
-`{allPaths=**}` a `organizations/` en vez de solo agregar un bloque nuevo.
+concediendo acceso. Por eso en ambos casos hubo que acotar el catch-all, no solo
+agregar un bloque nuevo.
 
-Antes de publicar, usa el **Rules Playground** de la consola para comprobar que
-las reglas existentes siguen pasando.
+Antes de publicar Firestore, usa el **Rules Playground**: simula una lectura de
+`/company_profiles/loquesea` autenticado con el uid del superadmin y confirma
+que da *allow*. Si diera *deny*, es que ese documento en `users/{uid}` no tiene
+`role: 'superadmin'` y se perdería el acceso al panel.
 
 ## Qué asumen estas reglas
 
@@ -37,17 +29,25 @@ publicas las reglas antes de que la function esté en producción, el formulario
 deja de funcionar para todos; si publicas la function y no las reglas, la
 colección sigue abierta como está hoy.
 
-## Estado actual, para que dimensiones
+## ⚠️ Lo que queda pendiente, y pesa más que todo lo anterior
 
-Verificado el 1 de septiembre de 2026 desde el navegador, sin autenticación,
-usando solo la API key pública que va en el bundle:
+Las reglas de Firestore que había en producción eran, literalmente:
 
-- Se puede **leer la colección `company_profiles` completa**, incluidos los
-  `accessPassword` de todos los clientes.
-- Se pueden **crear y borrar documentos** por REST.
+    match /{document=**} { allow read, write: if true; }
 
-Esto no es exclusivo de esta colección: es el estado general de la base.
-Estos fragmentos solo cierran la parte nueva. El resto merece la misma revisión.
+La base entera abierta a cualquiera, sin autenticación, para leer y escribir.
+Comprobado el 1 de septiembre de 2026 desde el navegador con solo la API key
+pública que va en el bundle: se leyó `company_profiles` completa —códigos de
+acceso incluidos— y se borró un documento por REST.
+
+El archivo de Firestore de esta carpeta **solo cierra `company_profiles`**. Las
+otras 18 colecciones siguen igual de abiertas, y ahí están los leads, los
+contactos y los datos de clientes reales.
+
+Se dejó así a propósito: cambiar los permisos de 19 colecciones en el mismo paso
+que se desbloquea un módulo nuevo deja a alguien sin acceso a su pipeline sin
+que nadie se entere. Pero es una pasada pendiente, y es la más importante de
+todas las que quedan.
 
 ## Una limitación que conviene tener presente
 

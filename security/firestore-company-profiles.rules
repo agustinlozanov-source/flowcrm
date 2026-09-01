@@ -1,53 +1,102 @@
-// FRAGMENTO — no publicar suelto. Ver security/README.md
+// Reglas de Firestore — archivo COMPLETO, listo para pegar en la consola.
+// Ver security/README.md
 //
-// Inserta el bloque `match /company_profiles/{profileId}` dentro del
-// `match /databases/{database}/documents { … }` que ya existe en tu consola, y
-// agrega las dos funciones auxiliares si no tienes equivalentes.
+// Reglas anteriores (1 de septiembre de 2026), por si hay que revertir:
+//
+//   rules_version = '2';
+//   service cloud.firestore {
+//     match /databases/{database}/documents {
+//       match /{document=**} {
+//         allow read, write: if true;
+//       }
+//     }
+//   }
+//
+// Es decir: la base entera estaba abierta a cualquiera, sin autenticación,
+// para leer y para escribir. Comprobado desde el navegador con solo la API key
+// pública: se leyó company_profiles completa (códigos de acceso incluidos) y se
+// borró un documento por REST.
+//
+// Este archivo NO arregla eso. Solo acota company_profiles y deja el resto
+// exactamente como estaba, a propósito: cambiar los permisos de 19 colecciones
+// en el mismo paso que se desbloquea un módulo nuevo es la receta para dejar a
+// un cliente sin acceso a su pipeline sin que nadie se dé cuenta.
+//
+// El truco para acotar una sola colección sin enumerar las demás está al final:
+// `match /{coleccion}/{documento=**}` captura el nombre de la colección raíz, y
+// eso permite excluir company_profiles del catch-all sin tocar nada más. Hace
+// falta porque en las reglas de Firebase los permisos se suman: mientras un
+// match amplio cubra la misma ruta, cualquier bloque restrictivo es decorativo.
 
-// ── Funciones auxiliares ────────────────────────────────────────────────────
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-function isSuperadmin() {
-  return request.auth != null
-    && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
-}
+    // ── Auxiliares ────────────────────────────────────────────────────────
 
-// El claim lo pone profile-session.js al emitir el custom token.
-function ownsProfile(profileId) {
-  return request.auth != null && request.auth.token.profileId == profileId;
-}
+    // Mismo criterio que usa el login del superadmin en Superadmin.jsx.
+    function isSuperadmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+    }
 
-// Campos que el cliente nunca debe poder tocar: su propio código de acceso, la
-// identidad con la que se le creó el perfil, y los contadores del bloqueo por
-// intentos fallidos (los escribe el admin SDK, que se salta las reglas).
-function noTocaCamposProtegidos() {
-  return !request.resource.data.diff(resource.data).affectedKeys()
-    .hasAny(['accessPassword', 'clientEmail', 'companyName', 'failedAttempts', 'lockedUntil', 'lastAccessAt']);
-}
+    // El claim lo pone profile-session.js al emitir el custom token.
+    function ownsProfile(profileId) {
+      return request.auth != null && request.auth.token.profileId == profileId;
+    }
 
-// ── Perfiles de empresa ─────────────────────────────────────────────────────
+    // El cliente no debe poder tocar su propio código de acceso, la identidad
+    // con la que se le creó el perfil, ni los contadores del bloqueo por
+    // intentos fallidos (los escribe el admin SDK, que se salta las reglas).
+    function noTocaCamposProtegidos() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['accessPassword', 'clientEmail', 'companyName',
+                 'failedAttempts', 'lockedUntil', 'lastAccessAt']);
+    }
 
-match /company_profiles/{profileId} {
+    // ── Perfiles de empresa ───────────────────────────────────────────────
 
-  // Solo el superadmin crea perfiles y genera códigos de acceso.
-  allow create, delete: if isSuperadmin();
-  allow read, update: if isSuperadmin();
+    match /company_profiles/{profileId} {
 
-  // El cliente solo ve el suyo.
-  allow read: if ownsProfile(profileId);
+      allow create, delete: if isSuperadmin();
+      allow read, update: if isSuperadmin();
 
-  // Y solo lo edita mientras siga en borrador. La única transición de estado
-  // que puede provocar es draft → submitted; reabrirlo es cosa del superadmin.
-  allow update: if ownsProfile(profileId)
-    && resource.data.status == 'draft'
-    && request.resource.data.status in ['draft', 'submitted']
-    && noTocaCamposProtegidos();
+      allow read: if ownsProfile(profileId);
 
-  // Los snapshots de envío son inmutables: se crean una vez y no se tocan más.
-  match /submissions/{submissionId} {
-    allow read: if isSuperadmin();
-    allow create: if ownsProfile(profileId);
-    allow update: if false;
-    allow delete: if isSuperadmin();
+      // Solo mientras siga en borrador, y la única transición de estado que
+      // puede provocar es draft → submitted. Reabrirlo es cosa del superadmin.
+      allow update: if ownsProfile(profileId)
+        && resource.data.status == 'draft'
+        && request.resource.data.status in ['draft', 'submitted']
+        && noTocaCamposProtegidos();
+
+      // Los snapshots de envío son inmutables: se crean una vez y no se tocan.
+      match /submissions/{submissionId} {
+        allow read: if isSuperadmin();
+        allow create: if ownsProfile(profileId);
+        allow update: if false;
+        allow delete: if isSuperadmin();
+      }
+    }
+
+    // ── ⚠️ TEMPORAL: todo lo demás ────────────────────────────────────────
+    //
+    // Igual de abierto que hoy. Está así para que este cambio no altere el
+    // comportamiento de ninguna otra colección.
+    //
+    // Colecciones raíz que quedan sin proteger, a la fecha:
+    //   organizations · implementations · flowhub_implementations · users
+    //   plans · resellers · diagnosticos · diagnostico_config · onboardingForms
+    //   distributorApplications · supportTickets · flowhub_documents
+    //   flowhub_config · pipeline_configs · config · _global_config
+    //   _zernio_account_map · _zernio_pending_connections
+    //
+    // Ahí están los leads, contactos y datos de clientes reales. Necesita su
+    // propia pasada: definir lectura y escritura por colección, probar cada una
+    // en el Rules Playground, y publicar.
+    match /{coleccion}/{documento=**} {
+      allow read, write: if coleccion != 'company_profiles';
+    }
   }
 }
