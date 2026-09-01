@@ -1,0 +1,157 @@
+// Reglas de Firestore — archivo COMPLETO, listo para pegar en la consola.
+//
+// Estado: cierra company_profiles (ya publicado), users y organizations.
+// El resto de las colecciones sigue abierto, marcado abajo como pendiente.
+//
+// ── Modelo de acceso, según el código ────────────────────────────────────────
+//
+//   users/{uid}.orgId                        → a qué organización pertenece
+//   organizations/{orgId}/members/{uid}      → pertenencia y rol (useAuth.js)
+//   users/{uid}.role == 'superadmin'         → acceso al panel (Superadmin.jsx)
+//
+// Debajo de organizations/{orgId} cuelgan 13 subcolecciones, incluida `leads`:
+//   agent_files · agent_resources · alerts · appointments · brandKits
+//   flowhub_goals · goals · invites · leads · members · pipeline_stages
+//   pipelines · products · settings
+//
+// ── Lo que obliga a hacer excepciones ────────────────────────────────────────
+//
+// JoinPage (/join) valida la invitación ANTES de que exista sesión: lee el
+// documento de la organización, lista las invitaciones filtrando por código,
+// marca como expirada la que venció, y lee el miembro que invitó para mostrar
+// su nombre. Si esas cuatro operaciones exigieran autenticación, nadie podría
+// volver a unirse a un equipo.
+//
+// Esas excepciones están acotadas lo más posible y marcadas con PENDIENTE. La
+// forma correcta de cerrarlas es mover la validación de invitaciones a una
+// function, igual que se hizo con el acceso del formulario de perfil en
+// netlify/functions/profile-session.js.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Auxiliares ────────────────────────────────────────────────────────
+
+    function isSuperadmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+    }
+
+    function esMiembro(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function ownsProfile(profileId) {
+      return request.auth != null && request.auth.token.profileId == profileId;
+    }
+
+    // ── users ─────────────────────────────────────────────────────────────
+    // Cada quien su propio documento. El superadmin ve todos.
+
+    match /users/{userId} {
+      allow get: if request.auth != null && (request.auth.uid == userId || isSuperadmin());
+      allow list: if isSuperadmin();
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (request.auth.uid == userId || isSuperadmin());
+      allow delete: if isSuperadmin();
+    }
+
+    // ── organizations ─────────────────────────────────────────────────────
+
+    match /organizations/{orgId} {
+
+      // PENDIENTE: lectura pública del documento de la organización. La usa
+      // /join para mostrar a qué empresa te invitaron. `list` sí queda cerrado,
+      // así que hay que conocer el orgId; no se pueden enumerar.
+      allow get: if true;
+      allow list: if isSuperadmin();
+
+      allow create: if request.auth != null;
+      allow update: if esMiembro(orgId) || isSuperadmin();
+      allow delete: if isSuperadmin();
+
+      // Invitaciones
+      match /invites/{inviteId} {
+        // PENDIENTE: /join necesita buscarlas por código sin sesión, y las
+        // reglas no pueden exigir que la consulta venga filtrada. Es decir:
+        // quien conozca el orgId puede listar las invitaciones pendientes.
+        allow read: if true;
+
+        // La única escritura sin sesión que hace /join es marcar como expirada
+        // una invitación vencida. Se permite exactamente eso y nada más.
+        allow update: if (esMiembro(orgId) || isSuperadmin())
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              && request.resource.data.status == 'expired');
+
+        allow create, delete: if esMiembro(orgId) || isSuperadmin();
+      }
+
+      // Miembros
+      match /members/{memberId} {
+        // PENDIENTE: /join lee el miembro que invitó para mostrar su nombre,
+        // sin sesión. Requiere conocer orgId y el id del miembro.
+        allow get: if true;
+        allow list: if esMiembro(orgId) || isSuperadmin();
+
+        // Alta propia: la hace JoinPage al unirse, y useAuth.js cuando el dueño
+        // de la organización entra y todavía no tiene documento de miembro.
+        allow create: if (request.auth != null && request.auth.uid == memberId)
+          || esMiembro(orgId) || isSuperadmin();
+
+        allow update, delete: if esMiembro(orgId) || isSuperadmin();
+      }
+
+      // Todo lo demás de la organización — aquí viven los leads.
+      match /{documento=**} {
+        allow read, write: if esMiembro(orgId) || isSuperadmin();
+      }
+    }
+
+    // ── company_profiles ──────────────────────────────────────────────────
+
+    match /company_profiles/{profileId} {
+
+      allow create, delete: if isSuperadmin();
+      allow read, update: if isSuperadmin();
+
+      allow read: if ownsProfile(profileId);
+
+      allow update: if ownsProfile(profileId)
+        && resource.data.status == 'draft'
+        && request.resource.data.status in ['draft', 'submitted']
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['accessPassword', 'clientEmail', 'companyName',
+                      'failedAttempts', 'lockedUntil', 'lastAccessAt']);
+
+      match /submissions/{submissionId} {
+        allow read: if isSuperadmin();
+        allow create: if ownsProfile(profileId);
+        allow update: if false;
+        allow delete: if isSuperadmin();
+      }
+    }
+
+    // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
+    //
+    // Siguen exactamente como estaban, para no cambiar su comportamiento en
+    // este paso:
+    //
+    //   implementations · flowhub_implementations · plans · resellers
+    //   diagnosticos · diagnostico_config · onboardingForms
+    //   distributorApplications · supportTickets · flowhub_documents
+    //   flowhub_config · pipeline_configs · config · _global_config
+    //   _zernio_account_map · _zernio_pending_connections
+    //
+    // `implementations` es la que más pesa de las que quedan: ClientPortal
+    // (/portal) valida email y contraseña en el navegador contra el propio
+    // documento, así que la colección tiene que ser listable sin sesión — el
+    // mismo problema que tenía company_profiles. Cerrarla requiere una function
+    // de sesión, no solo reglas.
+    match /{coleccion}/{documento=**} {
+      allow read, write: if !(coleccion in ['users', 'organizations', 'company_profiles']);
+    }
+  }
+}

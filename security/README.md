@@ -2,9 +2,13 @@
 
 ## ⚠️ Léelo antes de tocar la consola
 
-Los dos archivos de esta carpeta son **archivos completos**, listos para pegar
-en la consola. Cada uno lleva anotadas arriba las reglas que había antes, por si
-hace falta revertir.
+Los archivos de esta carpeta son **archivos completos**, listos para pegar en la
+consola:
+
+- `firestore.rules` — reglas de Firestore. Se va ampliando por grupos; cada
+  publicación deja anotado qué colecciones quedan pendientes.
+- `storage-company-profiles.rules` — reglas de Storage, con las anteriores
+  anotadas arriba por si hace falta revertir.
 
 Un detalle que es fácil pasar por alto: **en las reglas de Firebase los permisos
 se suman.** Si queda un `match` amplio cubriendo las mismas rutas, cualquier
