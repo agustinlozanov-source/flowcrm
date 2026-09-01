@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import {
   Plus, Package, Pencil, Trash2, X, Search,
   Upload, Tag, Clock, LayoutGrid, List,
-  Download, FileSpreadsheet, AlertTriangle, Check
+  Download, FileSpreadsheet, AlertTriangle, Check, ImagePlus
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -218,6 +218,34 @@ function ProductModal({ product, categories, onClose, onSave }) {
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(product?.imageUrl || '')
+  const [removeImage, setRemoveImage] = useState(false)
+  const imageInputRef = useRef(null)
+
+  // Las previews locales son blob: y hay que liberarlas, si no se acumulan en
+  // memoria cada vez que el usuario cambia de imagen sin guardar.
+  useEffect(() => () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+  }, [imagePreview])
+
+  const pickImage = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('El archivo debe ser una imagen'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('La imagen no debe pesar más de 5 MB'); return }
+    setImageFile(file)
+    setRemoveImage(false)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  const clearImage = () => {
+    setImageFile(null)
+    setImagePreview('')
+    setRemoveImage(true)
+  }
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
   const showDuration = HAS_DURATION.includes(form.type)
 
@@ -247,7 +275,10 @@ function ProductModal({ product, categories, onClose, onSave }) {
         status: form.status,
         durationDays: showDuration && form.durationDays ? Number(form.durationDays) : null,
         problemTags: form.problemTags,
-      })
+        // Solo se manda imageUrl cuando se quita la imagen: si se subió una
+        // nueva, la URL la resuelve el hook después de subirla.
+        ...(removeImage ? { imageUrl: '' } : {}),
+      }, imageFile)
     } finally { setSaving(false) }
   }
 
@@ -271,6 +302,33 @@ function ProductModal({ product, categories, onClose, onSave }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+
+          {/* Imagen */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">Imagen</label>
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 rounded-xl bg-surface-2 border border-black/[0.08] overflow-hidden flex items-center justify-center shrink-0">
+                {imagePreview
+                  ? <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                  : <Package size={22} className="text-tertiary" strokeWidth={1.5} />}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <button type="button" onClick={() => imageInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-black/[0.1] text-xs font-semibold hover:bg-surface-2">
+                  <ImagePlus size={13} strokeWidth={2.2} />
+                  {imagePreview ? 'Cambiar imagen' : 'Subir imagen'}
+                </button>
+                {imagePreview && (
+                  <button type="button" onClick={clearImage}
+                    className="text-xs text-tertiary hover:text-red-600 text-left px-1">
+                    Quitar
+                  </button>
+                )}
+                <span className="text-[11px] text-tertiary px-1">JPG o PNG, hasta 5 MB</span>
+              </div>
+              <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={pickImage} />
+            </div>
+          </div>
 
           {/* Nombre + SKU */}
           <div className="grid grid-cols-2 gap-3">
@@ -481,13 +539,13 @@ export default function ProductCatalog() {
   const openNew = () => { setEditProduct(null); setShowModal(true) }
   const openEdit = (product) => { setEditProduct(product); setShowModal(true) }
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, imageFile = null) => {
     try {
       if (editProduct) {
-        await updateProduct(editProduct.id, data)
+        await updateProduct(editProduct.id, data, imageFile)
         toast.success('Producto actualizado')
       } else {
-        await createProduct(data)
+        await createProduct(data, imageFile)
         toast.success('Producto creado')
       }
       setShowModal(false)
