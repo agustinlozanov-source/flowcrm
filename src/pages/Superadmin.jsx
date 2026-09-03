@@ -666,7 +666,28 @@ function Organizations({ orgs, resellers, onRefresh }) {
       }
 
       if (editOrg) {
-        await updateDoc(doc(db, 'organizations', editOrg.id), orgData)
+        const nuevoEmail = form.ownerEmail.trim().toLowerCase()
+        const emailAnterior = (editOrg.ownerEmail || '').toLowerCase()
+
+        // El correo del dueño vive en Auth y en tres documentos. Solo el Admin
+        // SDK puede tocar Auth, así que ese cambio va por la function; si falla,
+        // no se escribe nada más y el panel sigue reflejando la realidad.
+        if (nuevoEmail !== emailAnterior) {
+          const idToken = await auth.currentUser?.getIdToken()
+          const res = await fetch('/.netlify/functions/change-owner-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+            body: JSON.stringify({ orgId: editOrg.id, newEmail: nuevoEmail }),
+          })
+          const out = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            toast.error(out.error || 'No se pudo cambiar el correo')
+            return
+          }
+          toast.success(`Ahora entra con ${nuevoEmail}`)
+        }
+
+        await updateDoc(doc(db, 'organizations', editOrg.id), { ...orgData, ownerEmail: nuevoEmail })
 
         // Sincronizar con Zernio siempre (upsert: crea si no existe, actualiza si existe)
         try {
@@ -908,7 +929,13 @@ function Organizations({ orgs, resellers, onRefresh }) {
           <div className="sa-form-row">
             <div className="sa-form-group">
               <label className="sa-form-label">Email del administrador</label>
-              <input className="sa-form-input" type="email" value={form.ownerEmail} onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))} placeholder="carlos@aktivz.com" disabled={!!editOrg} />
+              <input className="sa-form-input" type="email" value={form.ownerEmail} onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))} placeholder="carlos@aktivz.com" />
+              {editOrg && form.ownerEmail.trim().toLowerCase() !== (editOrg.ownerEmail || '').toLowerCase() && (
+                <div style={{ fontSize: 12, color: '#b26a00', marginTop: 6, lineHeight: 1.5 }}>
+                  Esto también cambia la cuenta con la que entra a la app. A partir de entonces
+                  tendrá que iniciar sesión con <strong>{form.ownerEmail.trim()}</strong>; su contraseña no cambia.
+                </div>
+              )}
             </div>
             {!editOrg && (
               <div className="sa-form-group">
