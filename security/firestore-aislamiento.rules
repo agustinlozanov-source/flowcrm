@@ -1,0 +1,119 @@
+// ⚠️ NO PUBLICAR TODAVÍA — ver security/README.md
+//
+// Este archivo es el siguiente paso después de security/firestore.rules: agrega
+// el aislamiento entre organizaciones. Publicarlo antes de tiempo deja fuera a
+// todo el mundo.
+//
+// REQUISITO PREVIO
+//
+// Que sync-auth-claims esté desplegado y que los usuarios hayan iniciado sesión
+// al menos una vez con ese código, para que su token lleve el claim `orgId`.
+// Un usuario con sesión vieja queda sin acceso hasta que recargue — se arregla
+// solo al recargar, porque useAuth vuelve a sincronizar, pero conviene avisar.
+//
+// POR QUÉ POR CLAIMS Y NO POR CONSULTA
+//
+// Lo natural sería resolver la pertenencia dentro de la regla con
+// exists()/get() sobre users/{uid}. El motor devolvía "Function not found error:
+// Name: [exists]" en esta ruta, con argumento y sin él. Con el orgId dentro del
+// token la regla es una comparación directa: no consulta Firestore, no cuesta
+// lecturas y no depende de esa función.
+//
+// Las comparaciones van escritas a mano en cada allow, sin función auxiliar,
+// justamente para no volver a depender de nada que el motor pueda rechazar.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── users ─────────────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == userId || request.auth.token.superadmin == true);
+    }
+
+    // ── organizations ─────────────────────────────────────────────────────
+
+    match /organizations/{orgId} {
+
+      // PENDIENTE: /join muestra a qué empresa te invitaron antes de que haya
+      // sesión. `list` sí queda cerrado.
+      allow get: if true;
+      allow list: if request.auth != null && request.auth.token.superadmin == true;
+
+      allow create: if request.auth != null && !('profileId' in request.auth.token);
+      allow update: if request.auth != null
+        && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+      allow delete: if request.auth != null && request.auth.token.superadmin == true;
+
+      match /invites/{inviteId} {
+        // PENDIENTE: /join las busca por código sin sesión.
+        allow read: if true;
+
+        allow update: if (request.auth != null
+            && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              && request.resource.data.status == 'expired');
+
+        allow create, delete: if request.auth != null
+          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+      }
+
+      match /members/{memberId} {
+        // PENDIENTE: /join lee el nombre de quien invita, sin sesión.
+        allow get: if true;
+
+        // El alta propia la hace JoinPage justo después de crear la cuenta,
+        // cuando el token todavía no trae el claim.
+        allow create: if request.auth != null && request.auth.uid == memberId;
+
+        allow list, update, delete: if request.auth != null
+          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+      }
+
+      // Aquí viven los leads.
+      match /{documento=**} {
+        allow read, write: if request.auth != null
+          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+      }
+    }
+
+    // ── company_profiles ──────────────────────────────────────────────────
+    // Sin cambios respecto a lo publicado, salvo que el superadmin se resuelve
+    // por claim en vez de consultar users/{uid}.
+
+    match /company_profiles/{profileId} {
+
+      allow create, delete: if request.auth != null && request.auth.token.superadmin == true;
+      allow read, update: if request.auth != null && request.auth.token.superadmin == true;
+
+      allow read: if request.auth != null && request.auth.token.profileId == profileId;
+
+      allow update: if request.auth != null && request.auth.token.profileId == profileId
+        && resource.data.status == 'draft'
+        && request.resource.data.status in ['draft', 'submitted']
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['accessPassword', 'clientEmail', 'companyName',
+                      'failedAttempts', 'lockedUntil', 'lastAccessAt']);
+
+      match /submissions/{submissionId} {
+        allow read: if request.auth != null && request.auth.token.superadmin == true;
+        allow create: if request.auth != null && request.auth.token.profileId == profileId;
+        allow update: if false;
+        allow delete: if request.auth != null && request.auth.token.superadmin == true;
+      }
+    }
+
+    // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
+    //
+    //   implementations · flowhub_implementations · plans · resellers
+    //   diagnosticos · diagnostico_config · onboardingForms
+    //   distributorApplications · supportTickets · flowhub_documents
+    //   flowhub_config · pipeline_configs · config · _global_config
+    //   _zernio_account_map · _zernio_pending_connections
+    match /{coleccion}/{documento=**} {
+      allow read, write: if !(coleccion in ['users', 'organizations', 'company_profiles']);
+    }
+  }
+}

@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { DEFAULT_PERMISSIONS } from '@/hooks/usePermissions'
+import { syncAuthClaims } from '@/lib/authClaims'
 
 export function useAuth() {
   const {
@@ -47,6 +48,10 @@ export function useAuth() {
           setLoading(false)
           return
         }
+
+        // Va antes de leer la organización: las reglas comparan contra el claim
+        // del token, así que hay que tenerlo puesto antes de la primera lectura.
+        await syncAuthClaims(firebaseUser, userData)
 
         // 2. Load organization
         const orgDoc = await getDoc(doc(db, 'organizations', orgId))

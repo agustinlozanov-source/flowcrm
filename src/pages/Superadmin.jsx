@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
+import { syncAuthClaims } from '@/lib/authClaims'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck, Link } from 'lucide-react'
@@ -5164,6 +5165,7 @@ export default function Superadmin() {
         toast.error('Acceso denegado: no tienes permisos de superadmin')
         return
       }
+      await syncAuthClaims(cred.user, userSnap.data())
       setAuthed(true)
       toast.success('Bienvenido')
     } catch (err) {
