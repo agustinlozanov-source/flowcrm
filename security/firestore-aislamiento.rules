@@ -21,6 +21,11 @@
 //
 // Las comparaciones van escritas a mano en cada allow, sin función auxiliar,
 // justamente para no volver a depender de nada que el motor pueda rechazar.
+//
+// Se lee el token con .get(clave, valorPorDefecto) y no con notación de punto:
+// acceder a una propiedad que no existe LANZA "Property orgId is undefined on
+// object" en vez de devolver vacío, y eso rompería la regla para cualquiera con
+// una sesión anterior al despliegue de sync-auth-claims.
 
 rules_version = '2';
 service cloud.firestore {
@@ -30,7 +35,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read, write: if request.auth != null
-        && (request.auth.uid == userId || request.auth.token.superadmin == true);
+        && (request.auth.uid == userId || request.auth.token.get('superadmin', false) == true);
     }
 
     // ── organizations ─────────────────────────────────────────────────────
@@ -40,24 +45,24 @@ service cloud.firestore {
       // PENDIENTE: /join muestra a qué empresa te invitaron antes de que haya
       // sesión. `list` sí queda cerrado.
       allow get: if true;
-      allow list: if request.auth != null && request.auth.token.superadmin == true;
+      allow list: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
       allow create: if request.auth != null && !('profileId' in request.auth.token);
       allow update: if request.auth != null
-        && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
-      allow delete: if request.auth != null && request.auth.token.superadmin == true;
+        && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
+      allow delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
       match /invites/{inviteId} {
         // PENDIENTE: /join las busca por código sin sesión.
         allow read: if true;
 
         allow update: if (request.auth != null
-            && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true))
+            && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true))
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
               && request.resource.data.status == 'expired');
 
         allow create, delete: if request.auth != null
-          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
 
       match /members/{memberId} {
@@ -69,13 +74,13 @@ service cloud.firestore {
         allow create: if request.auth != null && request.auth.uid == memberId;
 
         allow list, update, delete: if request.auth != null
-          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
 
       // Aquí viven los leads.
       match /{documento=**} {
         allow read, write: if request.auth != null
-          && (request.auth.token.orgId == orgId || request.auth.token.superadmin == true);
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
     }
 
@@ -85,12 +90,12 @@ service cloud.firestore {
 
     match /company_profiles/{profileId} {
 
-      allow create, delete: if request.auth != null && request.auth.token.superadmin == true;
-      allow read, update: if request.auth != null && request.auth.token.superadmin == true;
+      allow create, delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+      allow read, update: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
-      allow read: if request.auth != null && request.auth.token.profileId == profileId;
+      allow read: if request.auth != null && request.auth.token.get('profileId', '') == profileId;
 
-      allow update: if request.auth != null && request.auth.token.profileId == profileId
+      allow update: if request.auth != null && request.auth.token.get('profileId', '') == profileId
         && resource.data.status == 'draft'
         && request.resource.data.status in ['draft', 'submitted']
         && !request.resource.data.diff(resource.data).affectedKeys()
@@ -98,10 +103,10 @@ service cloud.firestore {
                       'failedAttempts', 'lockedUntil', 'lastAccessAt']);
 
       match /submissions/{submissionId} {
-        allow read: if request.auth != null && request.auth.token.superadmin == true;
-        allow create: if request.auth != null && request.auth.token.profileId == profileId;
+        allow read: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+        allow create: if request.auth != null && request.auth.token.get('profileId', '') == profileId;
         allow update: if false;
-        allow delete: if request.auth != null && request.auth.token.superadmin == true;
+        allow delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
       }
     }
 
