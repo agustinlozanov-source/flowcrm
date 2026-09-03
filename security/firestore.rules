@@ -5,13 +5,11 @@
 //
 // ── Modelo de acceso, según el código ────────────────────────────────────────
 //
-//   users/{uid}.orgId                        → a qué organización pertenece
-//   users/{uid}.role == 'superadmin'         → acceso al panel (Superadmin.jsx)
-//
-// La pertenencia se resuelve por users/{uid}.orgId, que es lo que lee useAuth.js
-// (línea 44). Se probó primero con organizations/{orgId}/members/{uid}, pero eso
-// obligaba a interpolar un argumento dentro de exists() y el motor de reglas lo
-// rechazaba.
+// Este archivo cierra el acceso ANÓNIMO a users y organizations. La separación
+// entre organizaciones queda pendiente: se intentó resolver la pertenencia con
+// exists()/get() sobre users/{uid} y sobre organizations/{orgId}/members/{uid},
+// y el motor devolvió "Function not found error: Name: [exists]" en ambos casos,
+// sin causa clara. La vía que queda es un custom claim con el orgId.
 //
 // Debajo de organizations/{orgId} cuelgan 13 subcolecciones, incluida `leads`:
 //   agent_files · agent_resources · alerts · appointments · brandKits
@@ -43,85 +41,70 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
     }
 
-    // Sin parámetros, igual que isSuperadmin(). Una versión anterior recibía el
-    // orgId y lo interpolaba dentro de la ruta de exists(), y el simulador
-    // respondía "Function not found error: Name: [exists]". La comparación con
-    // el orgId se hace ahora en el punto de llamada, donde es una variable del
-    // match y no un argumento.
-    function tengoUsuario() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    // useAuth.js usa users/{uid}.orgId como fuente de verdad de a qué
-    // organización pertenece cada quien; las reglas siguen el mismo criterio.
-    function miOrgId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
-    }
-
     function ownsProfile(profileId) {
       return request.auth != null && request.auth.token.profileId == profileId;
     }
 
-    // ── users ─────────────────────────────────────────────────────────────
-    // Cada quien su propio documento. El superadmin ve todos.
+    // ── users y organizations ─────────────────────────────────────────────
+    //
+    // Sin get() ni exists(). El motor rechazaba esas llamadas en esta ruta con
+    // "Function not found error: Name: [exists]", tanto interpolando un
+    // argumento como sin él, y no encontré la causa. Estas reglas no dependen de
+    // esa función, así que no pueden fallar por lo mismo.
+    //
+    // QUÉ CIERRA: el acceso anónimo. Hoy cualquiera con la API key pública puede
+    // descargar o borrar los leads de todos los clientes desde internet; con
+    // esto hace falta una sesión.
+    //
+    // QUÉ NO CIERRA TODAVÍA: la separación entre organizaciones. Un usuario
+    // autenticado de una organización podría leer los datos de otra. Eso pide
+    // resolver la pertenencia dentro de las reglas, que es justo lo que no se
+    // pudo — la vía que queda es meter el orgId como custom claim del token al
+    // iniciar sesión, y entonces la regla se vuelve una comparación directa sin
+    // consultar Firestore.
 
-    match /users/{userId} {
-      allow get: if request.auth != null && (request.auth.uid == userId || isSuperadmin());
-      allow list: if isSuperadmin();
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && (request.auth.uid == userId || isSuperadmin());
-      allow delete: if isSuperadmin();
+    // Las sesiones del formulario de perfil también están autenticadas, pero no
+    // tienen nada que hacer aquí.
+    function esUsuarioDeLaApp() {
+      return request.auth != null && !('profileId' in request.auth.token);
     }
 
-    // ── organizations ─────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if esUsuarioDeLaApp();
+    }
 
     match /organizations/{orgId} {
 
-      // PENDIENTE: lectura pública del documento de la organización. La usa
-      // /join para mostrar a qué empresa te invitaron. `list` sí queda cerrado,
-      // así que hay que conocer el orgId; no se pueden enumerar.
+      // PENDIENTE: /join muestra a qué empresa te invitaron antes de que exista
+      // sesión. `list` queda cerrado, así que hay que conocer el orgId.
       allow get: if true;
-      allow list: if isSuperadmin();
+      allow list: if esUsuarioDeLaApp();
 
-      allow create: if request.auth != null;
-      allow update: if (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
-      allow delete: if isSuperadmin();
+      allow create, update, delete: if esUsuarioDeLaApp();
 
-      // Invitaciones
       match /invites/{inviteId} {
-        // PENDIENTE: /join necesita buscarlas por código sin sesión, y las
-        // reglas no pueden exigir que la consulta venga filtrada. Es decir:
-        // quien conozca el orgId puede listar las invitaciones pendientes.
+        // PENDIENTE: /join las busca por código sin sesión, y las reglas no
+        // pueden exigir que la consulta venga filtrada.
         allow read: if true;
 
-        // La única escritura sin sesión que hace /join es marcar como expirada
-        // una invitación vencida. Se permite exactamente eso y nada más.
-        allow update: if ((tengoUsuario() && miOrgId() == orgId) || isSuperadmin())
+        // La única escritura sin sesión de /join es marcar como expirada una
+        // invitación vencida. Se permite exactamente eso.
+        allow update: if esUsuarioDeLaApp()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
               && request.resource.data.status == 'expired');
 
-        allow create, delete: if (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
+        allow create, delete: if esUsuarioDeLaApp();
       }
 
-      // Miembros
       match /members/{memberId} {
-        // PENDIENTE: /join lee el miembro que invitó para mostrar su nombre,
-        // sin sesión. Requiere conocer orgId y el id del miembro.
+        // PENDIENTE: /join lee el nombre de quien invita, sin sesión.
         allow get: if true;
-        allow list: if (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
-
-        // Alta propia: la hace JoinPage al unirse, y useAuth.js cuando el dueño
-        // de la organización entra y todavía no tiene documento de miembro.
-        allow create: if (request.auth != null && request.auth.uid == memberId)
-          || (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
-
-        allow update, delete: if (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
+        allow list, create, update, delete: if esUsuarioDeLaApp();
       }
 
-      // Todo lo demás de la organización — aquí viven los leads.
+      // Todo lo demás — aquí viven los leads.
       match /{documento=**} {
-        allow read, write: if (tengoUsuario() && miOrgId() == orgId) || isSuperadmin();
+        allow read, write: if esUsuarioDeLaApp();
       }
     }
 
