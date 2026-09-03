@@ -218,18 +218,30 @@ const css = `
   .sa-login-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 900; text-align: center; margin-bottom: 4px; }
   .sa-login-sub { font-size: 14px; color: var(--gray-4); text-align: center; margin-bottom: 28px; }
 
+  /* Nació para el login, que es oscuro, pero hoy se usa sobre todo en paneles
+     claros — búsqueda de Documentos, formulario de documentos, filtros de
+     Analíticas, perfiles de empresa. Ahí un color blanco dejaba el texto
+     invisible mientras se escribía. El default pasa a ser claro y lo oscuro
+     queda acotado al login. */
   .sa-input {
     width: 100%;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: white;
+    border: 1px solid rgba(0,0,0,0.15);
     border-radius: 9px; padding: 11px 14px;
-    font-size: 15px; color: white;
+    font-size: 15px; color: #070708;
     font-family: 'Inter', sans-serif; outline: none;
     transition: border-color 0.15s; margin-bottom: 10px;
   }
 
   .sa-input:focus { border-color: #0066ff; }
-  .sa-input::placeholder { color: #c0c0c5; }
+  .sa-input::placeholder { color: #8e8e93; }
+
+  .sa-login .sa-input {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+    color: white;
+  }
+  .sa-login .sa-input::placeholder { color: #c0c0c5; }
 
   .sa-btn-primary {
     width: 100%; padding: 12px;
