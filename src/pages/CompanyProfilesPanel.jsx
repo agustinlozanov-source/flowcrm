@@ -12,8 +12,9 @@ import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import {
   Building2, Plus, Copy, Key as KeyIcon, Mail, Trash2, ChevronRight,
-  ExternalLink, ClipboardList, Send,
+  ExternalLink, ClipboardList, Send, FileText, ClipboardCopy,
 } from 'lucide-react'
+import { openProfileReport, buildProfileText } from '@/lib/companyProfileReport'
 
 import {
   SECTIONS, WEEKDAYS, globalProgress, allMissingCritical, emptyProfile, isFieldFilled,
@@ -137,6 +138,21 @@ export default function CompanyProfilesPanel() {
     }
   }
 
+  const verResumen = p => {
+    if (!openProfileReport(p)) {
+      toast.error('El navegador bloqueó la ventana. Permite las ventanas emergentes de este sitio.')
+    }
+  }
+
+  const copiarParaAgente = async p => {
+    try {
+      await navigator.clipboard.writeText(buildProfileText(p))
+      toast.success('Perfil copiado — pégalo como contexto del agente')
+    } catch {
+      toast.error('No se pudo copiar')
+    }
+  }
+
   const reopen = async p => {
     if (!window.confirm(`¿Reabrir el perfil de ${p.companyName} para que pueda editarlo de nuevo?`)) return
     await updateDoc(doc(db, 'company_profiles', p.id), { status: 'draft' })
@@ -224,6 +240,12 @@ export default function CompanyProfilesPanel() {
                       <a className="sa-btn sa-btn-ghost sa-btn-sm" href={portalUrl} target="_blank" rel="noreferrer">
                         <ExternalLink size={12} /> Abrir formulario
                       </a>
+                      <button className="sa-btn sa-btn-blue sa-btn-sm" onClick={() => verResumen(p)}>
+                        <FileText size={12} /> Ver resumen
+                      </button>
+                      <button className="sa-btn sa-btn-ghost sa-btn-sm" onClick={() => copiarParaAgente(p)}>
+                        <ClipboardCopy size={12} /> Copiar para el agente
+                      </button>
                       {submitted && (
                         <button className="sa-btn sa-btn-ghost sa-btn-sm" onClick={() => reopen(p)}>
                           <Send size={12} /> Reabrir para editar
