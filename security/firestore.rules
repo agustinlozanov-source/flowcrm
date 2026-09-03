@@ -1,123 +1,107 @@
 // Reglas de Firestore — archivo COMPLETO, listo para pegar en la consola.
+// Es lo que está publicado hoy (3 de septiembre de 2026).
 //
-// Estado: cierra company_profiles (ya publicado), users y organizations.
-// El resto de las colecciones sigue abierto, marcado abajo como pendiente.
+// ── Qué cierra ───────────────────────────────────────────────────────────────
 //
-// ── Modelo de acceso, según el código ────────────────────────────────────────
+// - Acceso anónimo a `users` y `organizations`. Antes las reglas eran
+//   `match /{document=**} { allow read, write: if true }`: la base entera
+//   abierta a cualquiera con la API key pública, que va en el bundle.
+// - Aislamiento entre organizaciones: cada quien solo alcanza la suya.
+// - `company_profiles`: cada cliente solo su perfil; el superadmin, todos.
 //
-// Este archivo cierra el acceso ANÓNIMO a users y organizations. La separación
-// entre organizaciones queda pendiente: se intentó resolver la pertenencia con
-// exists()/get() sobre users/{uid} y sobre organizations/{orgId}/members/{uid},
-// y el motor devolvió "Function not found error: Name: [exists]" en ambos casos,
-// sin causa clara. La vía que queda es un custom claim con el orgId.
+// ── Cómo sabe a qué organización perteneces ──────────────────────────────────
 //
-// Debajo de organizations/{orgId} cuelgan 13 subcolecciones, incluida `leads`:
-//   agent_files · agent_resources · alerts · appointments · brandKits
-//   flowhub_goals · goals · invites · leads · members · pipeline_stages
-//   pipelines · products · settings
+// Por el claim `orgId` del token, que pone netlify/functions/sync-auth-claims a
+// partir de users/{uid}, y que el cliente sincroniza al iniciar sesión desde
+// src/lib/authClaims.js.
 //
-// ── Lo que obliga a hacer excepciones ────────────────────────────────────────
+// Lo natural habría sido resolverlo dentro de la regla con exists()/get() sobre
+// users/{uid}. El motor devolvía "Function not found error: Name: [exists]" en
+// esta ruta, con argumento y sin él, sin causa clara. Con el orgId en el token
+// la regla es una comparación directa: no consulta Firestore, no cuesta lecturas
+// y no depende de esa función.
 //
-// JoinPage (/join) valida la invitación ANTES de que exista sesión: lee el
-// documento de la organización, lista las invitaciones filtrando por código,
-// marca como expirada la que venció, y lee el miembro que invitó para mostrar
-// su nombre. Si esas cuatro operaciones exigieran autenticación, nadie podría
-// volver a unirse a un equipo.
+// Dos detalles que costaron encontrar:
 //
-// Esas excepciones están acotadas lo más posible y marcadas con PENDIENTE. La
-// forma correcta de cerrarlas es mover la validación de invitaciones a una
-// function, igual que se hizo con el acceso del formulario de perfil en
-// netlify/functions/profile-session.js.
-
+// - Se lee el token con .get(clave, default), no con notación de punto: acceder
+//   a una propiedad inexistente LANZA "Property orgId is undefined on object" en
+//   vez de devolver vacío, y eso rompía la regla para cualquiera con una sesión
+//   anterior al despliegue de sync-auth-claims.
+// - Las comparaciones van escritas a mano en cada allow, sin función auxiliar,
+//   para no volver a depender de nada que el motor pueda rechazar.
+//
+// Quien tenga una sesión vieja queda sin acceso hasta que recargue. Se arregla
+// solo al recargar, porque useAuth vuelve a sincronizar.
+//
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Auxiliares ────────────────────────────────────────────────────────
-
-    function isSuperadmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
-    }
-
-    function ownsProfile(profileId) {
-      return request.auth != null && request.auth.token.profileId == profileId;
-    }
-
-    // ── users y organizations ─────────────────────────────────────────────
-    //
-    // Sin get() ni exists(). El motor rechazaba esas llamadas en esta ruta con
-    // "Function not found error: Name: [exists]", tanto interpolando un
-    // argumento como sin él, y no encontré la causa. Estas reglas no dependen de
-    // esa función, así que no pueden fallar por lo mismo.
-    //
-    // QUÉ CIERRA: el acceso anónimo. Hoy cualquiera con la API key pública puede
-    // descargar o borrar los leads de todos los clientes desde internet; con
-    // esto hace falta una sesión.
-    //
-    // QUÉ NO CIERRA TODAVÍA: la separación entre organizaciones. Un usuario
-    // autenticado de una organización podría leer los datos de otra. Eso pide
-    // resolver la pertenencia dentro de las reglas, que es justo lo que no se
-    // pudo — la vía que queda es meter el orgId como custom claim del token al
-    // iniciar sesión, y entonces la regla se vuelve una comparación directa sin
-    // consultar Firestore.
-
-    // Las sesiones del formulario de perfil también están autenticadas, pero no
-    // tienen nada que hacer aquí.
-    function esUsuarioDeLaApp() {
-      return request.auth != null && !('profileId' in request.auth.token);
-    }
+    // ── users ─────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      allow read, write: if esUsuarioDeLaApp();
+      allow read, write: if request.auth != null
+        && (request.auth.uid == userId || request.auth.token.get('superadmin', false) == true);
     }
+
+    // ── organizations ─────────────────────────────────────────────────────
 
     match /organizations/{orgId} {
 
-      // PENDIENTE: /join muestra a qué empresa te invitaron antes de que exista
-      // sesión. `list` queda cerrado, así que hay que conocer el orgId.
+      // PENDIENTE: /join muestra a qué empresa te invitaron antes de que haya
+      // sesión. `list` sí queda cerrado.
       allow get: if true;
-      allow list: if esUsuarioDeLaApp();
+      allow list: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
-      allow create, update, delete: if esUsuarioDeLaApp();
+      allow create: if request.auth != null && !('profileId' in request.auth.token);
+      allow update: if request.auth != null
+        && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
+      allow delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
       match /invites/{inviteId} {
-        // PENDIENTE: /join las busca por código sin sesión, y las reglas no
-        // pueden exigir que la consulta venga filtrada.
+        // PENDIENTE: /join las busca por código sin sesión.
         allow read: if true;
 
-        // La única escritura sin sesión de /join es marcar como expirada una
-        // invitación vencida. Se permite exactamente eso.
-        allow update: if esUsuarioDeLaApp()
+        allow update: if (request.auth != null
+            && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true))
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
               && request.resource.data.status == 'expired');
 
-        allow create, delete: if esUsuarioDeLaApp();
+        allow create, delete: if request.auth != null
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
 
       match /members/{memberId} {
         // PENDIENTE: /join lee el nombre de quien invita, sin sesión.
         allow get: if true;
-        allow list, create, update, delete: if esUsuarioDeLaApp();
+
+        // El alta propia la hace JoinPage justo después de crear la cuenta,
+        // cuando el token todavía no trae el claim.
+        allow create: if request.auth != null && request.auth.uid == memberId;
+
+        allow list, update, delete: if request.auth != null
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
 
-      // Todo lo demás — aquí viven los leads.
+      // Aquí viven los leads.
       match /{documento=**} {
-        allow read, write: if esUsuarioDeLaApp();
+        allow read, write: if request.auth != null
+          && (request.auth.token.get('orgId', '') == orgId || request.auth.token.get('superadmin', false) == true);
       }
     }
 
     // ── company_profiles ──────────────────────────────────────────────────
+    // Sin cambios respecto a lo publicado, salvo que el superadmin se resuelve
+    // por claim en vez de consultar users/{uid}.
 
     match /company_profiles/{profileId} {
 
-      allow create, delete: if isSuperadmin();
-      allow read, update: if isSuperadmin();
+      allow create, delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+      allow read, update: if request.auth != null && request.auth.token.get('superadmin', false) == true;
 
-      allow read: if ownsProfile(profileId);
+      allow read: if request.auth != null && request.auth.token.get('profileId', '') == profileId;
 
-      allow update: if ownsProfile(profileId)
+      allow update: if request.auth != null && request.auth.token.get('profileId', '') == profileId
         && resource.data.status == 'draft'
         && request.resource.data.status in ['draft', 'submitted']
         && !request.resource.data.diff(resource.data).affectedKeys()
@@ -125,29 +109,20 @@ service cloud.firestore {
                       'failedAttempts', 'lockedUntil', 'lastAccessAt']);
 
       match /submissions/{submissionId} {
-        allow read: if isSuperadmin();
-        allow create: if ownsProfile(profileId);
+        allow read: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+        allow create: if request.auth != null && request.auth.token.get('profileId', '') == profileId;
         allow update: if false;
-        allow delete: if isSuperadmin();
+        allow delete: if request.auth != null && request.auth.token.get('superadmin', false) == true;
       }
     }
 
     // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
-    //
-    // Siguen exactamente como estaban, para no cambiar su comportamiento en
-    // este paso:
     //
     //   implementations · flowhub_implementations · plans · resellers
     //   diagnosticos · diagnostico_config · onboardingForms
     //   distributorApplications · supportTickets · flowhub_documents
     //   flowhub_config · pipeline_configs · config · _global_config
     //   _zernio_account_map · _zernio_pending_connections
-    //
-    // `implementations` es la que más pesa de las que quedan: ClientPortal
-    // (/portal) valida email y contraseña en el navegador contra el propio
-    // documento, así que la colección tiene que ser listable sin sesión — el
-    // mismo problema que tenía company_profiles. Cerrarla requiere una function
-    // de sesión, no solo reglas.
     match /{coleccion}/{documento=**} {
       allow read, write: if !(coleccion in ['users', 'organizations', 'company_profiles']);
     }

@@ -5,12 +5,9 @@
 Los archivos de esta carpeta son **archivos completos**, listos para pegar en la
 consola:
 
-- `firestore.rules` — **lo que está publicado hoy**. Cierra el acceso anónimo a
-  `users` y `organizations`, y `company_profiles` por completo.
-- `firestore-aislamiento.rules` — **el siguiente paso, sin publicar**. Agrega el
-  aislamiento entre organizaciones vía custom claims. Requiere que
-  `sync-auth-claims` esté desplegado y que la gente haya iniciado sesión al menos
-  una vez con ese código; publicarlo antes deja a todos fuera.
+- `firestore.rules` — **lo que está publicado hoy**. Cierra el acceso anónimo,
+  aísla cada organización de las demás vía el claim `orgId`, y acota
+  `company_profiles`.
 - `storage-company-profiles.rules` — reglas de Storage, con las anteriores
   anotadas arriba por si hace falta revertir.
 
