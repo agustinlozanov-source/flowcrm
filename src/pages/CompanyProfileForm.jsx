@@ -19,7 +19,7 @@ import clsx from 'clsx'
 import {
   Building2, Heart, Package, Award, Users, Target, Folder,
   Check, AlertTriangle, Circle, Sun, Moon, Menu, X, ArrowLeft, ArrowRight,
-  Send, Save, Sparkles, ClipboardCheck, Loader2,
+  Send, Save, Sparkles, ClipboardCheck, Loader2, ShieldCheck,
 } from 'lucide-react'
 
 import {
@@ -28,6 +28,9 @@ import {
   missingOptional, buildSnapshot, FIELD_STATE,
 } from '@/lib/companyProfileSchema'
 import { FieldShell, FieldRenderer, useAutoSave } from '@/components/profile/ProfileFields'
+import {
+  NOTICE_VERSION, NOTICE_DATE, NOTICE_SUMMARY, NOTICE_SECTIONS, LEGAL_NAME,
+} from '@/lib/confidentialityNotice'
 import { UploadZone, MaterialsSection, deleteMaterialFile } from '@/components/profile/ProfileUpload'
 
 const THEME_KEY = 'cpb_theme'
@@ -73,6 +76,8 @@ export default function CompanyProfileForm() {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [interviewOpen, setInterviewOpen] = useState(false)
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const [noticeAccepted, setNoticeAccepted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const dataRef = useRef(data)
@@ -158,6 +163,7 @@ export default function CompanyProfileForm() {
       setData({ ...emptyProfile(), ...(p.data || {}) })
       setMaterials(p.materials || [])
       setVisited(p.visited || {})
+      setNoticeAccepted(p.confidentiality?.version === NOTICE_VERSION)
       setStep(p.status === 'submitted' ? 'done' : (p.startedAt ? 'form' : 'welcome'))
       setAuthed(true)
     } catch {
@@ -261,6 +267,24 @@ export default function CompanyProfileForm() {
     }
   }
 
+  // Se registra contra la versión leída: si el aviso cambia hay que volver a
+  // pedirlo, y sin la versión no habría forma de saber qué fue lo que aceptó.
+  const aceptarYEmpezar = async () => {
+    if (!noticeAccepted) return
+    setStep('upload')
+    if (!profileId) return
+    try {
+      await updateDoc(doc(db, 'company_profiles', profileId), {
+        confidentiality: {
+          version: NOTICE_VERSION,
+          acceptedAt: serverTimestamp(),
+          acceptedByEmail: profile?.clientEmail || '',
+          acceptedByName: profile?.clientName || '',
+        },
+      })
+    } catch { /* no bloquea al cliente */ }
+  }
+
   const saveDraft = async () => { await flush(); toast.success('Borrador guardado') }
 
   // Marca que el cliente ya pasó la zona de carga, para no volver a mandarlo a
@@ -344,11 +368,36 @@ export default function CompanyProfileForm() {
               Empieza subiendo el material institucional que tengas a la mano — catálogos, listas de precios,
               brochures. Nos ahorra que tengas que escribir de cero.
             </div>
-            <button className="cpb-btn-primary cpb-btn-wide" onClick={() => setStep('upload')}>
+
+            <div className="cpb-notice-card">
+              <div className="cpb-notice-head">
+                <ShieldCheck size={17} />
+                <strong>Cómo cuidamos tu información</strong>
+              </div>
+              <ul className="cpb-notice-summary">
+                {NOTICE_SUMMARY.map((linea, i) => <li key={i}>{linea}</li>)}
+              </ul>
+              <button type="button" className="cpb-notice-link" onClick={() => setNoticeOpen(true)}>
+                Leer el documento completo
+              </button>
+              <label className="cpb-notice-check">
+                <input type="checkbox" checked={noticeAccepted}
+                  onChange={e => setNoticeAccepted(e.target.checked)} />
+                <span>He leído y acepto cómo se trata mi información.</span>
+              </label>
+            </div>
+
+            <button
+              className="cpb-btn-primary cpb-btn-wide"
+              disabled={!noticeAccepted}
+              title={noticeAccepted ? '' : 'Necesitamos que aceptes el aviso para continuar'}
+              onClick={aceptarYEmpezar}
+            >
               Empezar <ArrowRight size={15} />
             </button>
           </div>
         </div>
+        {noticeOpen && <NoticeModal onClose={() => setNoticeOpen(false)} />}
       </div>
     )
   }
@@ -656,6 +705,8 @@ export default function CompanyProfileForm() {
         </main>
       </div>
 
+      {noticeOpen && <NoticeModal onClose={() => setNoticeOpen(false)} />}
+
       {interviewOpen && (
         <InterviewModal
           onClose={() => setInterviewOpen(false)}
@@ -705,6 +756,33 @@ function TopBar({ theme, themeBtn, title, saveState, progress, onMenu }) {
         </div>
       </div>
     </header>
+  )
+}
+
+function NoticeModal({ onClose }) {
+  return (
+    <div className="cpb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="cpb-modal cpb-modal-wide">
+        <div className="cpb-modal-head">
+          <span className="cpb-modal-step">Confidencialidad y tratamiento de datos</span>
+          <button onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
+        </div>
+        <div className="cpb-notice-body">
+          <p className="cpb-notice-intro">
+            Versión {NOTICE_VERSION} · {NOTICE_DATE} · {LEGAL_NAME}
+          </p>
+          {NOTICE_SECTIONS.map(sec => (
+            <section key={sec.title}>
+              <h3>{sec.title}</h3>
+              {sec.body.map((p, i) => <p key={i}>{p}</p>)}
+            </section>
+          ))}
+        </div>
+        <div className="cpb-modal-actions" style={{ justifyContent: 'flex-end' }}>
+          <button className="cpb-btn-primary" onClick={onClose}>Entendido</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1224,6 +1302,36 @@ const CSS = `
 .cpb-done .cpb-lead { margin-left: auto; margin-right: auto; }
 .cpb-done-note { font-size: 13px; color: var(--c-fg-40); margin-bottom: 22px; }
 .cpb-readonly-banner { padding: 12px 16px; border-radius: 9px; background: color-mix(in srgb, var(--c-warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--c-warn) 30%, transparent); color: var(--c-warn); font-size: 13px; margin-bottom: 22px; }
+
+/* AVISO DE CONFIDENCIALIDAD */
+.cpb-notice-card {
+  border: 1px solid color-mix(in srgb, var(--c-accent-2) 40%, transparent);
+  background: color-mix(in srgb, var(--c-accent-2) 8%, transparent);
+  border-radius: 12px; padding: 16px 18px; margin-bottom: 22px;
+}
+.cpb-notice-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; }
+.cpb-notice-head svg { color: var(--c-accent-2); flex-shrink: 0; }
+.cpb-notice-summary { margin: 0 0 12px; padding-left: 18px; font-size: 13.5px; color: var(--c-fg-60); line-height: 1.65; }
+.cpb-notice-summary li { margin-bottom: 4px; }
+.cpb-notice-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--c-accent); font-size: 13.5px; font-weight: 600;
+  font-family: 'Inter', sans-serif; text-decoration: underline;
+}
+.cpb-notice-check {
+  display: flex; align-items: flex-start; gap: 9px; margin-top: 14px;
+  font-size: 13.5px; color: var(--c-fg); cursor: pointer; line-height: 1.5;
+}
+.cpb-notice-check input { margin-top: 2px; accent-color: var(--c-accent); flex-shrink: 0; }
+.cpb-modal-wide { max-width: 640px; }
+.cpb-notice-body { max-height: 60vh; overflow-y: auto; padding-right: 6px; }
+.cpb-notice-intro { font-size: 12px; color: var(--c-fg-40); margin: 0 0 18px; }
+.cpb-notice-body section { margin-bottom: 20px; }
+.cpb-notice-body h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 800;
+  margin: 0 0 8px; color: var(--c-fg);
+}
+.cpb-notice-body p { font-size: 13.5px; color: var(--c-fg-60); line-height: 1.7; margin: 0 0 8px; }
 
 /* ENTREVISTA */
 .cpb-interview-cta {
