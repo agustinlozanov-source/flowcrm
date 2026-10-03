@@ -826,6 +826,15 @@ function Organizations({ orgs, resellers, onRefresh }) {
         const result = await res.json()
         if (!res.ok) throw new Error(result.error || 'Error actualizando contraseña')
       }
+      // El aviso al cliente es opcional: durante la configuración inicial
+      // conviene cambiar la contraseña sin que le llegue nada todavía.
+      if (newPass && !window.confirm(
+        `Contraseña actualizada a la que escribiste.\n\n¿Enviar también el correo con los accesos a ${org.ownerEmail}?\n\nCancelar = la contraseña queda cambiada pero el cliente no recibe ningún correo.`
+      )) {
+        toast.success('Contraseña actualizada — sin aviso al cliente')
+        return
+      }
+
       // Enviar correo
       const passToSend = newPass || '(La contraseña no fue cambiada — usa tu contraseña actual)'
       await fetch('/.netlify/functions/send-email', {
@@ -891,7 +900,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Btn sm variant="ghost" onClick={() => openEdit(org)}>Editar</Btn>
                     <Btn sm variant="ghost" onClick={() => resendAccess(org)} title="Enviar correo de acceso al administrador">
-                      📧
+                      📧 Reenviar acceso
                     </Btn>
                     {!org.ownerId && (
                       <Btn sm variant="ghost" onClick={() => repairAuth(org)} disabled={repairing === org.id}
