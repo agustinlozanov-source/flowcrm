@@ -39,7 +39,15 @@ async function zernioFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   })
-  if (!res.ok) throw new Error(`Zernio ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const text = await res.text()
+    let body = null
+    try { body = JSON.parse(text) } catch { /* Zernio no siempre responde JSON */ }
+    const err = new Error(`Zernio ${res.status}: ${text}`)
+    err.status = res.status
+    err.body = body
+    throw err
+  }
   return res.json()
 }
 
@@ -56,11 +64,33 @@ async function ensureProfile(db, orgId) {
   const org = snap.data()
   if (org.zernioProfileId) return org.zernioProfileId
 
-  const res = await zernioFetch('/profiles', {
-    method: 'POST',
-    body: JSON.stringify({ name: org.name || orgId, description: 'FlowHub CRM' }),
-  })
-  const profileId = res.profile?._id || res.profile?.id || res._id || res.id
+  let profileId
+  try {
+    const res = await zernioFetch('/profiles', {
+      method: 'POST',
+      body: JSON.stringify({ name: org.name || orgId, description: 'FlowHub CRM' }),
+    })
+    profileId = res.profile?._id || res.profile?.id || res._id || res.id
+  } catch (e) {
+    // Las orgs creadas cuando el backend viejo seguía vivo ya tienen perfil en
+    // Zernio. El 409 trae el id existente, así que lo adoptamos en vez de fallar.
+    const existing = e.status === 409 ? e.body?.details?.existingProfileId : null
+    if (!existing) throw e
+
+    // Zernio detecta el conflicto por NOMBRE. Si dos orgs se llaman igual,
+    // adoptar a ciegas cruzaría los canales de dos clientes distintos.
+    const dup = await db.collection('organizations')
+      .where('zernioProfileId', '==', existing).limit(1).get()
+    if (!dup.empty && dup.docs[0].id !== orgId) {
+      throw new Error(
+        `El perfil de Zernio "${org.name}" ya pertenece a otra organización ` +
+        `(${dup.docs[0].id}). Renombrá una de las dos antes de conectar.`
+      )
+    }
+
+    profileId = existing
+    console.log(`[zernio] perfil existente adoptado para org ${orgId}: ${existing}`)
+  }
   if (!profileId) throw new Error('Zernio no devolvió un profile válido')
 
   await orgRef.update({ zernioProfileId: profileId })
