@@ -20,11 +20,27 @@ exports.handler = async (event) => {
     const profileId = await ensureProfile(db, orgId)
     await ensureWebhook()
 
-    const redirectUrl = `${appUrl()}/.netlify/functions/zernio-callback?platform=${platform}`
-    const res = await zernioFetch(
-      `/connect/${platform}?profileId=${encodeURIComponent(profileId)}` +
-      `&redirect_url=${encodeURIComponent(redirectUrl)}`
-    )
+    // 'ch' y no 'platform': Zernio agrega su propio platform= al volver.
+    const redirectUrl = `${appUrl()}/.netlify/functions/zernio-callback?ch=${platform}`
+    const params = new URLSearchParams({ profileId, redirect_url: redirectUrl })
+
+    if (platform === 'whatsapp') {
+      // Sin onboarding, Meta muestra la pantalla de coexistencia (conectar una
+      // app de WhatsApp Business ya existente). Para un número de API hace
+      // falta 'api', que es la que muestra el selector de WABA y número.
+      params.set('onboarding', 'api')
+      // Página guiada de Zernio con nuestra marca en vez del popup crudo de
+      // Meta. Si el número ya está provisionado en el perfil, lo señala por
+      // nombre y avisa que no le van a pedir código.
+      params.set('signup', 'hosted')
+      params.set('brandName', 'Flow Hub')
+      params.set('primaryColor', '#3533cd')
+      params.set('language', 'es')
+    }
+    // Estos parámetros son exclusivos de WhatsApp: en otra plataforma Zernio
+    // los rechaza con 400 INVALID_FIELD_VALUE.
+
+    const res = await zernioFetch(`/connect/${platform}?${params}`)
     if (!res.authUrl) throw new Error('Zernio no devolvió un authUrl')
 
     return { statusCode: 200, headers, body: JSON.stringify({ authUrl: res.authUrl }) }

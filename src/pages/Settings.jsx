@@ -97,7 +97,10 @@ export default function Settings() {
     const labels = { whatsapp: 'WhatsApp', facebook: 'Facebook', instagram: 'Instagram' }
     channelKeys.forEach(ch => {
       if (params.get(ch) === 'connected') toast.success(`${labels[ch]} conectado ✓`)
-      if (params.get(ch) === 'error') toast.error(`Error al conectar ${labels[ch]}`)
+      if (params.get(ch) === 'error') {
+        const msg = params.get('msg')
+        toast.error(msg ? `${labels[ch]}: ${msg}` : `Error al conectar ${labels[ch]}`)
+      }
     })
     if (params.get('google') === 'connected') {
       toast.success('Google Calendar conectado ✓')
