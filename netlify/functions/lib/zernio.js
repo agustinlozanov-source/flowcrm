@@ -44,7 +44,7 @@ async function zernioFetch(path, options = {}) {
 }
 
 function appUrl() {
-  return process.env.URL || process.env.DEPLOY_URL || 'https://app.flowhubcrm.app'
+  return process.env.URL || process.env.DEPLOY_URL || 'https://flowhubcrm.app'
 }
 
 // Crea el perfil del cliente en Zernio una sola vez y lo guarda en la org.

@@ -6,7 +6,7 @@ exports.handler = async (event) => {
   const p = event.queryStringParameters || {}
   const platform = p.platform || 'whatsapp'
   const ok = p.connected === 'true' || p.connected === '1'
-  const base = process.env.URL || process.env.DEPLOY_URL || 'https://app.flowhubcrm.app'
+  const base = process.env.URL || process.env.DEPLOY_URL || 'https://flowhubcrm.app'
 
   return {
     statusCode: 302,
