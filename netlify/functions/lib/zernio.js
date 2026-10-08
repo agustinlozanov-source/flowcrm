@@ -2,7 +2,7 @@
 // Zernio es el proveedor que está entre FlowHub y Meta: él resuelve la compra
 // del número, el OTP del número propio y el Embedded Signup de WhatsApp.
 const crypto = require('crypto')
-const admin = require('firebase-admin')
+const { initDb } = require('./firebase')
 
 const ZERNIO_BASE = 'https://zernio.com/api/v1'
 
@@ -13,19 +13,6 @@ const WEBHOOK_EVENTS = [
   'account.disconnected',
   'whatsapp.number.activated',
 ]
-
-function initDb() {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    })
-  }
-  return admin.firestore()
-}
 
 async function zernioFetch(path, options = {}) {
   const apiKey = process.env.ZERNIO_API_KEY

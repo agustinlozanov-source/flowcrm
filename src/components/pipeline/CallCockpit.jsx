@@ -120,7 +120,7 @@ export default function CallCockpit({ appointment, lead, onClose, onCompleted })
         // Si es video Meet, generar nuevo link
         if (appointment.type === 'video' && appointment.platform === 'meet' && newId) {
           try {
-            const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+            const res = await fetch('/.netlify/functions/google-event', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

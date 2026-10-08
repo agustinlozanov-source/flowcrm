@@ -530,7 +530,7 @@ export default function Meetings() {
   }, [org?.id])
 
   const connectGoogle = () => {
-    window.location.href = `https://flowcrm-production-6d63.up.railway.app/meetings/auth/google?orgId=${org.id}`
+    window.location.href = `/.netlify/functions/google-auth?orgId=${org.id}`
   }
 
   // Calendar days
@@ -567,7 +567,7 @@ export default function Meetings() {
     if (data.type === 'video' && data.platform === 'meet' && googleConnected && appointmentId) {
       try {
         const lead = leads.find(l => l.id === data.leadId)
-        const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+        const res = await fetch('/.netlify/functions/google-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -605,10 +605,10 @@ export default function Meetings() {
     // Si tiene evento en Google Calendar, eliminarlo primero
     if (appointment.googleEventId) {
       try {
-        await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/delete', {
-          method: 'DELETE',
+        await fetch('/.netlify/functions/google-event', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orgId: org?.id, googleEventId: appointment.googleEventId }),
+          body: JSON.stringify({ action: 'delete', orgId: org?.id, googleEventId: appointment.googleEventId }),
         })
       } catch (err) {
         console.error('Error eliminando evento de Calendar:', err.message)

@@ -672,7 +672,7 @@ function ScheduleModal({ lead, onClose }) {
       // Si es videollamada de Meet, crear evento en Google Calendar
       if (form.type === 'video' && form.platform === 'meet' && appointmentId) {
         try {
-          const res = await fetch('https://flowcrm-production-6d63.up.railway.app/meetings/google/create', {
+          const res = await fetch('/.netlify/functions/google-event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
