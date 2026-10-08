@@ -12,7 +12,7 @@ exports.handler = async (event) => {
 
     const db = initDb()
     const profileId = await ensureProfile(db, orgId)
-    await ensureWebhook(db, orgId, profileId)
+    await ensureWebhook()
 
     return { statusCode: 200, headers, body: JSON.stringify({ profileId }) }
   } catch (e) {

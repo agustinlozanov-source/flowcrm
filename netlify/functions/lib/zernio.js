@@ -98,31 +98,24 @@ async function ensureProfile(db, orgId) {
   return profileId
 }
 
-// Registra el webhook de la org una sola vez. Usa el secret global para que la
-// verificación de firma no necesite leer Firestore antes de responder.
-async function ensureWebhook(db, orgId, profileId) {
-  const orgRef = db.collection('organizations').doc(orgId)
-  const existing = (await orgRef.get()).data()?.zernioWebhookId
-  if (existing) return existing
-
+// El webhook de Zernio es a nivel de CUENTA, no por perfil: el endpoint
+// /webhooks/settings no acepta profileId. Con uno solo alcanza para todas las
+// orgs, porque cada evento trae el profileId y con eso resolvemos de quién es.
+// Idempotente: lista los existentes y solo crea si no está el nuestro.
+async function ensureWebhook() {
   const secret = process.env.ZERNIO_WEBHOOK_SECRET
   if (!secret) throw new Error('ZERNIO_WEBHOOK_SECRET no está configurada en Netlify')
 
-  const res = await zernioFetch('/webhooks', {
-    method: 'POST',
-    body: JSON.stringify({
-      url: `${appUrl()}/.netlify/functions/zernio-webhook`,
-      events: WEBHOOK_EVENTS,
-      secret,
-      profileId,
-    }),
-  })
-  const webhookId = res.webhook?._id || res.webhook?.id || res._id || res.id
-  if (!webhookId) throw new Error('Zernio no devolvió un webhook válido')
+  const url = `${appUrl()}/.netlify/functions/zernio-webhook`
 
-  await orgRef.update({ zernioWebhookId: webhookId })
-  console.log(`[zernio] webhook registrado para org ${orgId}: ${webhookId}`)
-  return webhookId
+  const list = await zernioFetch('/webhooks/settings')
+  if ((list.webhooks || []).some(w => w.url === url)) return
+
+  const res = await zernioFetch('/webhooks/settings', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'FlowHub CRM', url, secret, events: WEBHOOK_EVENTS }),
+  })
+  console.log('[zernio] webhook global registrado:', url, res.webhook?._id || res.webhook?.id || '')
 }
 
 // A diferencia de la versión de phot8can, sin secret devolvemos false en vez de

@@ -18,7 +18,7 @@ exports.handler = async (event) => {
 
     const db = initDb()
     const profileId = await ensureProfile(db, orgId)
-    await ensureWebhook(db, orgId, profileId)
+    await ensureWebhook()
 
     const redirectUrl = `${appUrl()}/.netlify/functions/zernio-callback?platform=${platform}`
     const res = await zernioFetch(
