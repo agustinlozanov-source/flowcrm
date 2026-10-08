@@ -6,12 +6,11 @@ const { initDb } = require('./firebase')
 
 const ZERNIO_BASE = 'https://zernio.com/api/v1'
 
-// Solo los eventos de estado de conexión. Los de mensajería se agregan cuando
-// se migre el inbox; suscribirse ahora sería recibir eventos que nadie procesa.
 const WEBHOOK_EVENTS = [
   'account.connected',
   'account.disconnected',
   'whatsapp.number.activated',
+  'message.received',
 ]
 
 async function zernioFetch(path, options = {}) {
@@ -96,7 +95,24 @@ async function ensureWebhook() {
   const url = `${appUrl()}/.netlify/functions/zernio-webhook`
 
   const list = await zernioFetch('/webhooks/settings')
-  if ((list.webhooks || []).some(w => w.url === url)) return
+  const mine = (list.webhooks || []).find(w => w.url === url)
+
+  if (mine) {
+    // Puede haberse creado con una lista de eventos anterior: completarla.
+    const have = new Set(mine.events || [])
+    const missing = WEBHOOK_EVENTS.filter(e => !have.has(e))
+    if (missing.length) {
+      await zernioFetch('/webhooks/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          webhookId: mine.webhookId || mine._id || mine.id,
+          events: [...have, ...missing],
+        }),
+      })
+      console.log('[zernio] webhook actualizado con eventos:', missing.join(', '))
+    }
+    return
+  }
 
   const res = await zernioFetch('/webhooks/settings', {
     method: 'POST',
@@ -123,8 +139,16 @@ function verifyWebhookSignature(rawBody, signature) {
   }
 }
 
+// Responde dentro de una conversación existente del inbox de Zernio.
+async function sendMessage(conversationId, accountId, text) {
+  return zernioFetch(`/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ accountId, message: text }),
+  })
+}
+
 module.exports = {
-  initDb, zernioFetch, appUrl,
+  initDb, zernioFetch, appUrl, sendMessage,
   ensureProfile, ensureWebhook, verifyWebhookSignature,
   WEBHOOK_EVENTS,
 }
