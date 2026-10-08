@@ -71,10 +71,6 @@ export default function Settings() {
 
   const [integrations, setIntegrations] = useState({})
   const [loadingChannel, setLoadingChannel] = useState(null)
-  const [showWhatsAppOptions, setShowWhatsAppOptions] = useState(false)
-  const [whatsappStep, setWhatsappStep] = useState('options')
-  const [purchasedNumber, setPurchasedNumber] = useState(null)
-  const [assignedNumber, setAssignedNumber] = useState(null) // { phoneNumber, metaPreverifiedId }
   const [timezone, setTimezone] = useState(org?.timezone || 'America/Mexico_City')
   const [savingTimezone, setSavingTimezone] = useState(false)
 
@@ -83,36 +79,13 @@ export default function Settings() {
   const [savingPw, setSavingPw] = useState(false)
   const [showPwForm, setShowPwForm] = useState(false)
 
-  const RAILWAY = 'https://flowcrm-production-6d63.up.railway.app'
-
-  const whatsappConnected = integrations?.whatsapp?.connected === true
-
   // Load integrations from Firestore — tiempo real
   useEffect(() => {
     if (!orgId) return
     const ref = doc(db, 'organizations', orgId, 'settings', 'integrations')
     const unsub = onSnapshot(ref, snap => {
       if (!snap.exists()) return
-      const data = snap.data()
-      setIntegrations(data)
-      // Flujo legado (pendingNumberId)
-      if (data?.whatsapp?.pendingNumberId && !data?.whatsapp?.connected) {
-        setPurchasedNumber({
-          id: data.whatsapp.pendingNumberId,
-          phoneNumber: data.whatsapp.pendingPhoneNumber,
-        })
-        setWhatsappStep('ready')
-        setShowWhatsAppOptions(true)
-      }
-      // Flujo nuevo (assignedNumber por admin)
-      if (data?.whatsapp?.assignedNumber && !data?.whatsapp?.connected) {
-        setAssignedNumber({
-          phoneNumber: data.whatsapp.assignedNumber,
-          metaPreverifiedId: data.whatsapp.metaPreverifiedId,
-        })
-      } else if (data?.whatsapp?.connected) {
-        setAssignedNumber(null) // limpiar si ya está conectado
-      }
+      setIntegrations(snap.data())
     })
     return unsub
   }, [orgId])
@@ -120,9 +93,9 @@ export default function Settings() {
   // Detect OAuth callback params and show toast
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const channels = ['whatsapp', 'facebook', 'instagram']
+    const channelKeys = ['whatsapp', 'facebook', 'instagram']
     const labels = { whatsapp: 'WhatsApp', facebook: 'Facebook', instagram: 'Instagram' }
-    channels.forEach(ch => {
+    channelKeys.forEach(ch => {
       if (params.get(ch) === 'connected') toast.success(`${labels[ch]} conectado ✓`)
       if (params.get(ch) === 'error') toast.error(`Error al conectar ${labels[ch]}`)
     })
@@ -137,75 +110,39 @@ export default function Settings() {
     if (params.toString()) window.history.replaceState({}, '', '/settings')
   }, [])
 
-  const connectEmbedded = () => {
-    window.open(`${RAILWAY}/whatsapp/connect?orgId=${orgId}`, '_blank')
-  }
-
-  const purchaseNumber = async () => {
-    setWhatsappStep('verifying')
+  // Zernio devuelve la URL donde el cliente completa la conexión. No decidimos
+  // nosotros si compra un número o usa el suyo: esa pantalla es de Zernio, con
+  // sus precios y países reales. El resultado llega por webhook.
+  const connectChannel = async (platform) => {
+    setLoadingChannel(platform)
     try {
-      const res = await fetch('https://flowcrm-production-6d63.up.railway.app/whatsapp/purchase-number', {
+      const res = await fetch('/.netlify/functions/zernio-connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId }),
+        body: JSON.stringify({ orgId, platform }),
       })
       const data = await res.json()
-      if (!data.success) {
-        setWhatsappStep('options')
-        toast.error('Error al obtener el número')
-        return
-      }
-      setPurchasedNumber(data.number)
-
-      // Polling cada 3 segundos hasta que Meta verifique (máx 2 min)
-      const maxAttempts = 40
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        const statusRes = await fetch(
-          `https://flowcrm-production-6d63.up.railway.app/whatsapp/number-status/${data.number.id}`
-        )
-        const statusData = await statusRes.json()
-        if (statusData.verified) {
-          setWhatsappStep('ready')
-          return
-        }
-      }
-
-      toast.error('La verificación tardó demasiado — intenta de nuevo')
-      setWhatsappStep('options')
-      setPurchasedNumber(null)
-    } catch {
-      toast.error('Error al comprar número')
-      setWhatsappStep('options')
+      if (!res.ok || !data.authUrl) throw new Error(data.error || 'No se pudo iniciar la conexión')
+      window.location.href = data.authUrl
+    } catch (e) {
+      toast.error(e.message)
+      setLoadingChannel(null)
     }
-  }
-
-  const connectNumber = () => {
-    setWhatsappStep('connecting')
-    window.open(
-      `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}&phoneNumberId=${purchasedNumber.id}`,
-      '_blank'
-    )
-    setTimeout(() => setWhatsappStep('ready'), 2000)
-  }
-
-  const connectOwnNumber = () => {
-    window.location.href = `https://flowcrm-production-6d63.up.railway.app/whatsapp/connect?orgId=${orgId}`
   }
 
   const handleDisconnect = async (channel) => {
     setLoadingChannel(channel)
     try {
-      const res = await fetch(`${RAILWAY}/disconnect-channel`, {
+      const res = await fetch('/.netlify/functions/zernio-disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orgId, platform: channel }),
       })
-      if (!res.ok) throw new Error('Error del servidor')
-      setIntegrations(prev => ({ ...prev, [channel]: { ...prev[channel], connected: false, accountId: null } }))
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error del servidor')
       toast.success('Canal desconectado')
-    } catch {
-      toast.error('Error al desconectar')
+    } catch (e) {
+      toast.error(e.message || 'Error al desconectar')
     } finally {
       setLoadingChannel(null)
     }
@@ -262,20 +199,24 @@ export default function Settings() {
     }
   }
 
-  const otherChannels = [
+  const channels = [
+    {
+      key: 'whatsapp',
+      icon: '/icons/WhatsApp Icon.png',
+      name: 'WhatsApp Business',
+      description: 'Recibe y responde mensajes de WhatsApp automáticamente',
+    },
     {
       key: 'facebook',
       icon: '/icons/Facebook Icon.png',
       name: 'Facebook Messenger',
       description: 'Conecta tu página de Facebook para recibir mensajes',
-      connectUrl: `https://flowcrm-production-6d63.up.railway.app/facebook/connect?orgId=${orgId}`,
     },
     {
       key: 'instagram',
       icon: '/icons/Instagram Icon.png',
       name: 'Instagram DM',
       description: 'Recibe mensajes directos de Instagram en tu inbox',
-      connectUrl: `https://flowcrm-production-6d63.up.railway.app/instagram/connect?orgId=${orgId}`,
     },
   ]
 
@@ -290,265 +231,8 @@ export default function Settings() {
         title="Canales"
         description="Conecta tus plataformas de mensajería para que el agente pueda recibir y responder mensajes"
       >
-        {/* ── WhatsApp — flujo especial ── */}
-        <div className="p-4 rounded-xl border border-gray-100 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">WhatsApp Business</span>
-                  {whatsappConnected ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                      Conectado
-                    </span>
-                  ) : assignedNumber ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                      Número listo · Falta conectar
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
-                      No conectado
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {whatsappConnected && integrations?.whatsapp?.assignedNumber
-                    ? integrations.whatsapp.assignedNumber
-                    : 'Recibe y responde mensajes de WhatsApp automáticamente'}
-                </p>
-              </div>
-            </div>
-            {whatsappConnected ? (
-              <button
-                onClick={() => handleDisconnect('whatsapp')}
-                disabled={loadingChannel === 'whatsapp'}
-                className="text-xs text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Desconectar
-              </button>
-            ) : !showWhatsAppOptions ? (
-              <button
-                onClick={() => {
-                  setShowWhatsAppOptions(true)
-                  if (assignedNumber) setWhatsappStep('assigned')
-                  else setWhatsappStep('options')
-                }}
-                className={`text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-colors ${assignedNumber ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-900 hover:bg-gray-700'}`}
-              >
-                {assignedNumber ? `Conectar ${assignedNumber.phoneNumber}` : 'Conectar'}
-              </button>
-            ) : null}
-          </div>
-
-          {/* Panel de opciones */}
-          {showWhatsAppOptions && !whatsappConnected && (
-            <div style={{ marginTop: 16, padding: 20, background: '#f5f5f7',
-              borderRadius: 12, border: '1px solid #e8e8ed' }}>
-
-              {/* ESTADO: opciones iniciales */}
-              {whatsappStep === 'options' && (
-                <div>
-                  <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif",
-                    fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Conecta tu WhatsApp Business</div>
-                  <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 16 }}>Necesitas un número dedicado para WhatsApp Business API</div>
-
-                  {/* Opción A: número ya asignado por admin */}
-                  {assignedNumber ? (
-                    <div onClick={() => setWhatsappStep('assigned')}
-                      style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
-                        border: '2px solid #25d366', marginBottom: 10, cursor: 'pointer' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>Número listo: {assignedNumber.phoneNumber}</div>
-                          <div style={{ fontSize: 12, color: '#8e8e93' }}>Sin OTP · Verificado · Conectar en 1 clic</div>
-                        </div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#25d366' }}>Conectar →</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div onClick={purchaseNumber}
-                      style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
-                        border: '2px solid #0066ff', marginBottom: 10, cursor: 'pointer' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>Obtener número US</div>
-                          <div style={{ fontSize: 12, color: '#8e8e93' }}>$2/mes · Sin OTP · Verificado automáticamente</div>
-                        </div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0066ff' }}>Recomendado →</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div onClick={connectOwnNumber}
-                    style={{ padding: '16px 20px', background: 'white', borderRadius: 10,
-                      border: '1px solid #e8e8ed', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10,
-                        background: '#f5f5f7', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 18 }}>🔢</span>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>Usar mi propio número</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93' }}>Requiere verificación OTP</div>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#8e8e93' }}>→</div>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowWhatsAppOptions(false)}
-                    style={{ marginTop: 12, background: 'none', border: 'none',
-                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
-                </div>
-              )}
-
-              {/* ESTADO: número asignado por admin — conectar via Embedded Signup */}
-              {whatsappStep === 'assigned' && assignedNumber && (
-                <div>
-                  <div style={{ padding: '14px 16px', background: 'rgba(37,211,102,0.08)',
-                    border: '1px solid rgba(37,211,102,0.25)', borderRadius: 10, marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 13, color: '#1a7f37', marginBottom: 4 }}>
-                      <img src="/icons/WhatsApp Icon.png" alt="WhatsApp" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-                      Número reservado para ti
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: '#070708' }}>
-                      {assignedNumber.phoneNumber}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
-                      Verificado · Sin OTP · Solo necesitas tu cuenta de Facebook Business
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Qué va a pasar:</div>
-                    {[
-                      'Se abre una ventana de Meta en nueva pestaña',
-                      'Inicia sesión con tu cuenta de Facebook Business',
-                      'Selecciona o crea tu cuenta de WhatsApp Business',
-                      `El número ${assignedNumber.phoneNumber} aparece pre-seleccionado — sin OTP`,
-                      'Acepta permisos — vuelves automáticamente a Flow Hub',
-                    ].map((s, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#25d366',
-                          color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {i + 1}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{s}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button onClick={connectEmbedded}
-                    style={{ width: '100%', padding: '14px 20px', background: '#25d366',
-                      color: 'white', border: 'none', borderRadius: 10,
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-                    Conectar WhatsApp →
-                  </button>
-
-                  <button onClick={() => setWhatsappStep('options')}
-                    style={{ marginTop: 8, width: '100%', padding: '10px',
-                      background: 'transparent', border: 'none',
-                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
-                    Volver
-                  </button>
-                </div>
-              )}
-
-              {/* ESTADO: verificando con Meta */}
-              {whatsappStep === 'verifying' && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Verificando número con Meta</div>
-                  {purchasedNumber && (
-                    <div style={{ fontSize: 14, color: '#0066ff', fontWeight: 700, marginBottom: 8 }}>
-                      {purchasedNumber.phoneNumber}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, color: '#8e8e93', marginBottom: 16 }}>Zernio está registrando tu número con Meta</div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '10px 20px', background: 'rgba(0,102,255,0.08)',
-                    borderRadius: 20, fontSize: 14, fontWeight: 700, color: '#0066ff' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0066ff' }} />
-                    Verificando con Meta...
-                  </div>
-                </div>
-              )}
-
-              {/* ESTADO: listo para conectar */}
-              {whatsappStep === 'ready' && (
-                <div>
-                  <div style={{ padding: '14px 16px', background: 'rgba(0,200,83,0.08)',
-                    border: '1px solid rgba(0,200,83,0.2)', borderRadius: 10, marginBottom: 16 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: '#00a04a', marginBottom: 4 }}>
-                      ✅ Número asignado y verificado
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#070708' }}>
-                      {purchasedNumber?.phoneNumber}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
-                      Guarda este número — lo necesitarás en el siguiente paso
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
-                      Cómo conectar tu WhatsApp Business:
-                    </div>
-                    {[
-                      'Se abrirá una ventana de Meta en nueva pestaña',
-                      'Inicia sesión con tu cuenta de Facebook',
-                      'Selecciona tu Portfolio comercial',
-                      'En "Cuenta de WhatsApp Business" → elige "Crear una cuenta nueva"',
-                      `En el paso de número → selecciona ${purchasedNumber?.phoneNumber} — ya aparece como Verificado`,
-                      'Completa el proceso y cierra la ventana de Meta',
-                    ].map((step, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0066ff',
-                          color: 'white', fontSize: 11, fontWeight: 800, display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {i + 1}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#3a3a3c', lineHeight: 1.5 }}>{step}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button onClick={connectNumber}
-                    style={{ width: '100%', padding: '14px 20px', background: '#0066ff',
-                      color: 'white', border: 'none', borderRadius: 10,
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-                    Conectar {purchasedNumber?.phoneNumber} con WhatsApp →
-                  </button>
-
-                  <button onClick={() => { setWhatsappStep('options'); setPurchasedNumber(null) }}
-                    style={{ marginTop: 8, width: '100%', padding: '10px',
-                      background: 'transparent', border: 'none',
-                      color: '#8e8e93', cursor: 'pointer', fontSize: 13 }}>
-                    Cancelar
-                  </button>
-                </div>
-              )}
-
-              {/* ESTADO: conectando */}
-              {whatsappStep === 'connecting' && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Abriendo WhatsApp Business...</div>
-                  <div style={{ fontSize: 13, color: '#8e8e93' }}>Completa el proceso en la ventana de Meta</div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Facebook e Instagram — flujo directo ── */}
-        {otherChannels.map(ch => (
+        {/* ── Un botón por canal. Las opciones las muestra Zernio. ── */}
+        {channels.map(ch => (
           <ChannelCard
             key={ch.key}
             icon={ch.icon}
@@ -556,7 +240,7 @@ export default function Settings() {
             description={ch.description}
             connected={integrations[ch.key]?.connected || false}
             loading={loadingChannel === ch.key}
-            onConnect={() => { window.location.href = ch.connectUrl }}
+            onConnect={() => connectChannel(ch.key)}
             onDisconnect={() => handleDisconnect(ch.key)}
           />
         ))}

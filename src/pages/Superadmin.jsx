@@ -702,22 +702,21 @@ function Organizations({ orgs, resellers, onRefresh }) {
 
         await updateDoc(doc(db, 'organizations', editOrg.id), { ...orgData, ownerEmail: nuevoEmail })
 
-        // Sincronizar con Zernio siempre (upsert: crea si no existe, actualiza si existe)
+        // Backfill: si la org no tenía perfil de Zernio, se lo crea ahora.
+        // No renombra el perfil existente — la API de Zernio que usamos solo
+        // crea. Si hace falta renombrar, se hace desde el portal de Zernio.
         try {
-          const zRes = await fetch('https://flowcrm-production-6d63.up.railway.app/zernio/update-profile', {
-            method: 'PUT',
+          const zRes = await fetch('/.netlify/functions/zernio-profile', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orgId: editOrg.id, orgName: form.name }),
+            body: JSON.stringify({ orgId: editOrg.id }),
           })
-          if (!zRes.ok) {
-            const zErr = await zRes.json()
-            console.warn('[Zernio] No se pudo sincronizar el perfil:', zErr.error)
-          } else {
-            const zData = await zRes.json()
-            console.log(`[Zernio] Perfil ${zData.action} para:`, form.name)
-          }
+          const zData = await zRes.json()
+          if (!zRes.ok) throw new Error(zData.error || 'Error desconocido')
+          console.log('[Zernio] Perfil ok para:', form.name, zData.profileId)
         } catch (err) {
           console.error('[Zernio] Error al sincronizar perfil:', err)
+          toast.error(`Organización guardada, pero Zernio falló: ${err.message}`)
         }
 
         toast.success('Organización actualizada')
@@ -738,17 +737,22 @@ function Organizations({ orgs, resellers, onRefresh }) {
         const result = await res.json()
         if (!res.ok) throw new Error(result.error || 'Error al crear organización')
 
-        // Crear perfil en Zernio para esta org
+        // Crear el perfil de Zernio y registrar su webhook. Antes esto fallaba
+        // en silencio con un console.error, así que las orgs quedaban sin perfil
+        // y nadie se enteraba: ahora el error se ve.
         if (result.orgId) {
           try {
-            await fetch('https://flowcrm-production-6d63.up.railway.app/zernio/create-profile', {
+            const zRes = await fetch('/.netlify/functions/zernio-profile', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orgId: result.orgId, orgName: form.name }),
+              body: JSON.stringify({ orgId: result.orgId }),
             })
-            console.log('[Zernio] Perfil creado para:', form.name)
+            const zData = await zRes.json()
+            if (!zRes.ok) throw new Error(zData.error || 'Error desconocido')
+            console.log('[Zernio] Perfil creado para:', form.name, zData.profileId)
           } catch (err) {
             console.error('[Zernio] Error creando perfil:', err)
+            toast.error(`Organización creada, pero Zernio falló: ${err.message}`)
           }
         }
 
