@@ -465,7 +465,14 @@ function TestPanel({ orgId, config, pipelines = [] }) {
         body: JSON.stringify({ action: 'chat', orgId, leadId: 'test', message: userMsg, pipelineId: selectedPipelineId }),
       })
       const data = await res.json()
-      setMessages(m => [...m, { role: 'agent', text: data.response || 'Sin respuesta' }])
+      // El simulador no tiene canal de entrega: los adjuntos reales los manda
+      // el webhook de WhatsApp. Acá se listan para poder verificar que el
+      // agente eligió los recursos correctos.
+      setMessages(m => [...m, {
+        role: 'agent',
+        text: data.response || 'Sin respuesta',
+        resources: data.shareResources || [],
+      }])
     } catch {
       setMessages(m => [...m, { role: 'agent', text: 'Error al conectar con el agente.' }])
     } finally { setLoading(false) }
@@ -549,6 +556,24 @@ function TestPanel({ orgId, config, pipelines = [] }) {
             )} style={msg.role === 'agent' ? { background: '#7c3aed' } : {}}>
               {msg.text}
             </div>
+            {msg.resources?.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1.5 max-w-[80%]">
+                <span className="text-[9px] font-bold text-tertiary uppercase tracking-wide">
+                  Se adjuntaría en WhatsApp
+                </span>
+                {msg.resources.map(r => (
+                  <a
+                    key={r.id}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[12px] text-accent-purple underline underline-offset-2"
+                  >
+                    📎 {r.name}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {loading && (

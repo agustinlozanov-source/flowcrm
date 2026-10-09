@@ -113,33 +113,69 @@ ${ragContent || 'No hay documentos cargados aún.'}
 ${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
 
 FORMATO DE RESPUESTA IMPORTANTE:
-Siempre responde con JSON en este formato exacto:
-{
-  "response": "El mensaje que verá el lead",
-  "scoring": {
-${isArrayScoring && scoringConfig.length > 0
-  ? scoringConfig.map(cat => `    "${cat.id}": { "delta": 0, "reason": "" }`).join(',\n')
-  : !isArrayScoring && scoringConfig && Object.keys(scoringConfig).length > 0
-    ? Object.keys(scoringConfig).map(k => `    "${k}": { "delta": 0, "reason": "" }`).join(',\n')
-    : '    "general": { "delta": 0, "reason": "" }'}
-  },
-  "profileB": false,
-  "profileBReason": "",
-  "suggestHandoff": false,
-  "suggestHandoffReason": "",
-  "detectedProductId": null,
-  "detectedPipelineId": null,
-  "shareResources": []
-}
-
-Reglas del JSON:
+Responde SIEMPRE llamando a la herramienta "responder". No escribas texto suelto.
 - "response": el mensaje visible para el lead
-- "scoring.X.delta": puntos a sumar (positivo) o restar (negativo), 0 si no hay señal
+- "scoring": una entrada por cada categoría en la que se activó una señal, con su categoryId, los puntos (delta, negativo si resta) y el motivo. Arreglo vacío si no se activó ninguna.
 - "profileB": true si el lead muestra señales de potencial distribuidor
 - "suggestHandoff": true si el lead está listo para una llamada con el vendedor
-- "detectedProductId": ID del producto si el lead mostró interés en uno específico
-- "detectedPipelineId": ID del flujo de ventas si lograste identificar a cuál pertenece el lead (solo en modo routing)
+- "detectedProductId": id del producto si mostró interés en uno específico, null si no
+- "detectedPipelineId": id del flujo si lograste identificarlo (solo en modo routing), null si no
+- "shareResources": ids de los recursos tipo archivo, imagen o video a adjuntar en este mensaje
 - "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.`
+}
+
+// ── HERRAMIENTA DE RESPUESTA ──────────────────────────────────────
+// El scoring va como arreglo y no como objeto de claves dinámicas: un esquema
+// estricto necesita propiedades conocidas y additionalProperties en false.
+const RESPONSE_TOOL = {
+  name: 'responder',
+  description: 'Entrega la respuesta para el lead junto con la evaluación interna. Es la única forma de responder.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    properties: {
+      response: { type: 'string', description: 'El mensaje que verá el lead' },
+      scoring: {
+        type: 'array',
+        description: 'Una entrada por categoría en la que se activó alguna señal',
+        items: {
+          type: 'object',
+          properties: {
+            categoryId: { type: 'string' },
+            delta: { type: 'number' },
+            reason: { type: 'string' },
+          },
+          required: ['categoryId', 'delta', 'reason'],
+          additionalProperties: false,
+        },
+      },
+      profileB: { type: 'boolean' },
+      profileBReason: { type: 'string' },
+      suggestHandoff: { type: 'boolean' },
+      suggestHandoffReason: { type: 'string' },
+      detectedProductId: { type: ['string', 'null'] },
+      detectedPipelineId: { type: ['string', 'null'] },
+      shareResources: {
+        type: 'array',
+        description: 'Ids de recursos tipo archivo, imagen o video para adjuntar',
+        items: { type: 'string' },
+      },
+    },
+    required: [
+      'response', 'scoring', 'profileB', 'profileBReason', 'suggestHandoff',
+      'suggestHandoffReason', 'detectedProductId', 'detectedPipelineId', 'shareResources',
+    ],
+    additionalProperties: false,
+  },
+}
+
+// El resto del sistema espera scoring como objeto { categoriaId: {delta, reason} }.
+function normalizeToolInput(input) {
+  const scoring = {}
+  for (const row of input.scoring || []) {
+    if (row?.categoryId) scoring[row.categoryId] = { delta: row.delta || 0, reason: row.reason || '' }
+  }
+  return { ...input, scoring }
 }
 
 // ── PARSE AGENT RESPONSE ──────────────────────────────────────────
@@ -545,11 +581,19 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         ...history,
         { role: 'user', content: message },
       ],
+      // Salida estructurada: con strict, la API garantiza que los argumentos
+      // validen contra el esquema. Pedir JSON dentro del texto fallaba cuando
+      // la respuesta llevaba comillas (por ejemplo: dos hojas: "Estado de
+      // cuenta"), el JSON.parse reventaba y el lead recibía el JSON crudo.
+      tools: [RESPONSE_TOOL],
+      tool_choice: { type: 'tool', name: RESPONSE_TOOL.name },
     })
 
-    const rawReply = response.content[0]?.text || '{}'
-    const parsed = parseAgentResponse(rawReply)
-    const visibleReply = parsed.response || rawReply
+    const toolUse = response.content.find(b => b.type === 'tool_use')
+    const parsed = toolUse
+      ? normalizeToolInput(toolUse.input)
+      : parseAgentResponse(response.content.find(b => b.type === 'text')?.text || '')
+    const visibleReply = parsed.response
 
     // Save agent response
     await saveTestMessage(orgId, leadId, 'assistant', visibleReply)

@@ -173,15 +173,22 @@ function attachmentName(resource) {
 // Los de tipo 'enlace' no se adjuntan: su URL va dentro del texto.
 async function sendReply(conversationId, accountId, text, resources = []) {
   await sendMessage(conversationId, accountId, text)
+
+  // Devuelve los que salieron para poder dejarlos en el hilo: si solo se
+  // guarda el texto, el Inbox no muestra los archivos que el lead sí recibió.
+  const sent = []
   for (const r of resources) {
     const type = ATTACHMENT_TYPES[r.type]
     if (!type || !r.url) continue
+    const name = attachmentName(r)
     try {
-      await sendMessage(conversationId, accountId, null, { url: r.url, type, name: attachmentName(r) })
+      await sendMessage(conversationId, accountId, null, { url: r.url, type, name })
+      sent.push({ name, url: r.url, type })
     } catch (e) {
       console.error(`[zernio] no se pudo adjuntar "${r.name}":`, e.message)
     }
   }
+  return sent
 }
 
 module.exports = {

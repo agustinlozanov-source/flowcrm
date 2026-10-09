@@ -208,14 +208,17 @@ function ConversationView({ lead, orgId }) {
               </div>
 
               {msgs.map((msg, i) => {
-                const isOutbound = msg.role === 'agent' || msg.role === 'bot'
+                // agent-manager guarda las respuestas del agente como 'assistant';
+                // el inbound de Meta usa 'bot'. Las dos son salientes.
+                const isBot = msg.role === 'bot' || msg.role === 'assistant'
+                const isOutbound = isBot || msg.role === 'agent'
                 const showLabel = i === 0 || msgs[i - 1]?.role !== msg.role
 
                 return (
                   <div key={msg.id} className={clsx('flex flex-col mb-1', isOutbound ? 'items-end' : 'items-start')}>
                     {showLabel && (
                       <span className="flex items-center gap-1 text-[9px] font-bold text-tertiary uppercase tracking-wide mb-1 px-1">
-                        {msg.role === 'bot' ? <><Zap size={10} className="text-accent-purple" /> Agente IA</> : msg.role === 'agent' ? <><User size={10} /> Tú</> : lead.name}
+                        {isBot ? <><Zap size={10} className="text-accent-purple" /> Agente IA</> : msg.role === 'agent' ? <><User size={10} /> Tú</> : lead.name}
                       </span>
                     )}
                     <div className={clsx(
@@ -226,7 +229,16 @@ function ConversationView({ lead, orgId }) {
                     )}
                       style={isOutbound ? { background: msg.role === 'bot' ? '#7c3aed' : '#0066ff' } : {}}
                     >
-                      {msg.text}
+                      {msg.attachment ? (
+                        <a
+                          href={msg.attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-2"
+                        >
+                          📎 {msg.attachment.name}
+                        </a>
+                      ) : msg.text}
                     </div>
                     <span className="text-[9px] text-tertiary mt-0.5 px-1">{formatMsgTime(msg.createdAt)}</span>
                   </div>
@@ -290,6 +302,45 @@ export default function Inbox() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all | unread | whatsapp | messenger | instagram
   const [search, setSearch] = useState('')
+  const [bulking, setBulking] = useState(false)
+
+  // Pregunta cuántas conversaciones quedaron sin responder, confirma con ese
+  // número y recién ahí dispara. Son WhatsApps a personas reales: no se manda
+  // nada sin que el número esté a la vista.
+  const handleBulkRetry = async () => {
+    if (bulking || !org?.id) return
+    setBulking(true)
+    try {
+      const res = await fetch('/.netlify/functions/agent-pending', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: org.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo revisar')
+
+      if (!data.count) {
+        toast.success('No hay conversaciones sin responder')
+        return
+      }
+      const tope = Math.min(data.count, 50)
+      const aviso = data.count > 50
+        ? `Hay ${data.count} conversaciones sin responder. Se van a contestar las ${tope} más recientes; para el resto, volvé a ejecutarlo.`
+        : `Se va a responder ${tope} conversación${tope === 1 ? '' : 'es'} sin contestar de las últimas 24 horas.`
+      if (!window.confirm(`${aviso}\n\nEl agente le va a escribir por WhatsApp a cada una. ¿Continuar?`)) return
+
+      await fetch('/.netlify/functions/agent-retry-bulk-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: org.id, leadIds: data.leads.map(l => l.id) }),
+      })
+      toast.success(`Respondiendo ${tope} conversaciones — van a ir apareciendo solas`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setBulking(false)
+    }
+  }
 
   useEffect(() => {
     if (!org?.id) return
@@ -333,6 +384,14 @@ export default function Inbox() {
               </span>
             )}
           </div>
+          <button
+            onClick={handleBulkRetry}
+            disabled={bulking}
+            className="w-full mb-2.5 py-2 rounded-[12px] text-[12px] font-medium text-white transition-all disabled:opacity-50"
+            style={{ background: 'linear-gradient(90deg, #1aab99, #3533cd)' }}
+          >
+            {bulking ? 'Revisando…' : '✨ Responder sin contestar'}
+          </button>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}

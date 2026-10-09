@@ -16,4 +16,21 @@ function initDb() {
   return admin.firestore()
 }
 
-module.exports = { initDb }
+// Deja cada adjunto como un mensaje propio del hilo, para que el Inbox
+// muestre lo mismo que recibió el lead.
+async function saveAttachments(db, orgId, leadId, sent = [], channel = 'whatsapp') {
+  for (const a of sent) {
+    await db.collection('organizations').doc(orgId)
+      .collection('leads').doc(leadId)
+      .collection('conversations').add({
+        role: 'assistant',
+        text: `📎 ${a.name}`,
+        attachment: a,
+        channel,
+        read: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+  }
+}
+
+module.exports = { initDb, saveAttachments }
