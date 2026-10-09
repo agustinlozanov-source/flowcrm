@@ -65,6 +65,7 @@ ${isArrayScoring
   // Lead context
   const leadSection = leadContext
     ? `\nCONTEXTO DEL LEAD ACTUAL:
+${leadContext.name ? `- Se llama ${leadContext.name} — úsalo al dirigirte a él o ella.` : '- Todavía no sabes su nombre; puedes preguntárselo con naturalidad.'}
 - Score actual: ${leadContext.score || 0}/100
 - Etapa actual: ${leadContext.stageName || 'Sin etapa'}
 - Pipeline: ${leadContext.pipelineName || 'Sin pipeline'}
@@ -445,6 +446,9 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
       }
 
       leadContext = {
+        // Sin el nombre el agente no puede personalizar: en WhatsApp viene del
+        // perfil del contacto, así que puede faltar o ser un apodo.
+        name: lead.name && lead.name !== 'Sin nombre' ? lead.name : null,
         score: currentScore,
         stageName,
         stageScoreMax,

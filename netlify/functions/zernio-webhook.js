@@ -39,11 +39,12 @@ async function resolveOrg(db, payload) {
     .where('zernioAccountId', '==', accountId).limit(1).get()
   if (!byAccount.empty) return byAccount.docs[0].id
 
-  // Rescate para las orgs conectadas antes de que empezáramos a guardar el
-  // accountId en el documento: el dato ya está en su doc de integraciones.
-  // Recorrer orgs es caro, así que al encontrarla se backfillea y las
-  // siguientes entran por el camino rápido de arriba.
-  const orgs = await db.collection('organizations').where('zernioProfileId', '!=', null).get()
+  // Rescate para las orgs conectadas antes de que guardáramos el accountId en
+  // el documento: el dato ya está en su doc de integraciones. Se recorren
+  // TODAS las orgs a propósito — un filtro de desigualdad sobre zernioProfileId
+  // dejaría fuera justo a las heredadas, que no tienen ese campo. Al encontrarla
+  // se backfillea y las siguientes entran por el camino rápido de arriba.
+  const orgs = await db.collection('organizations').get()
   for (const org of orgs.docs) {
     const integ = await org.ref.collection('settings').doc('integrations').get()
     const data = integ.data() || {}
@@ -54,6 +55,11 @@ async function resolveOrg(db, payload) {
       return org.id
     }
   }
+
+  console.warn(
+    `[zernio-webhook] ninguna org coincide — accountId=${accountId} profileId=${profileId || 'ninguno'}. ` +
+    `Probablemente el canal se conectó por el backend viejo y no quedó registrado; reconectarlo lo arregla.`
+  )
   return null
 }
 
