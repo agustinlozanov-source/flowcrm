@@ -2,7 +2,7 @@
 // Nació de una caída por falta de saldo en la API: los mensajes entraron, el
 // agente no pudo contestar y las charlas quedaron colgadas.
 const admin = require('firebase-admin')
-const { initDb, appUrl, sendMessage: sendViaZernio } = require('./lib/zernio')
+const { initDb, appUrl, sendReply } = require('./lib/zernio')
 
 
 exports.handler = async (event) => {
@@ -64,7 +64,7 @@ exports.handler = async (event) => {
       }
     }
 
-    await sendViaZernio(conversationId, org.zernioAccountId, data.response)
+    await sendReply(conversationId, org.zernioAccountId, data.response, data.shareResources)
     await leadRef.update({
       lastMessage: data.response,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),

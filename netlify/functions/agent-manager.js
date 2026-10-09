@@ -76,10 +76,14 @@ ${leadContext.productId ? `- Producto de interés: ${leadContext.productName || 
 
   // Resources available for sharing
   const resourcesSection = resources?.length > 0
-    ? `\nRECURSOS DISPONIBLES PARA COMPARTIR:\nTienes estos recursos para compartir con el lead. Sigue ESTRICTAMENTE la instrucción de cuándo hacerlo. Nunca inventes URLs — usa EXACTAMENTE las que están aquí.\n${resources.map(r =>
-        r.whenToShare
-          ? `- [${r.type.toUpperCase()}] "${r.name}" → Compartir cuando: ${r.whenToShare}. URL: ${r.url}`
-          : `- [${r.type.toUpperCase()}] "${r.name}": ${r.url}`
+    ? `\nRECURSOS DISPONIBLES PARA COMPARTIR:
+Sigue ESTRICTAMENTE la instrucción de cuándo compartir cada uno.
+- Los de tipo ENLACE se comparten escribiendo su URL dentro de "response". Nunca inventes URLs: usa exactamente la que está aquí.
+- Los de tipo ARCHIVO, IMAGEN y VIDEO se envían como adjunto. NO escribas su URL ni la menciones en "response": agrega su id al arreglo "shareResources" y el sistema lo adjunta solo. En el texto anúncialo con naturalidad ("te paso la guía").
+${resources.map(r =>
+        r.type === 'enlace'
+          ? `- [ENLACE] "${r.name}"${r.whenToShare ? ` → Compartir cuando: ${r.whenToShare}` : ''}. URL: ${r.url}`
+          : `- [${r.type.toUpperCase()}] "${r.name}" (id: ${r.id})${r.whenToShare ? ` → Compartir cuando: ${r.whenToShare}` : ''}`
       ).join('\n')}`
     : ''
 
@@ -124,7 +128,8 @@ ${isArrayScoring && scoringConfig.length > 0
   "suggestHandoff": false,
   "suggestHandoffReason": "",
   "detectedProductId": null,
-  "detectedPipelineId": null
+  "detectedPipelineId": null,
+  "shareResources": []
 }
 
 Reglas del JSON:
@@ -133,7 +138,8 @@ Reglas del JSON:
 - "profileB": true si el lead muestra señales de potencial distribuidor
 - "suggestHandoff": true si el lead está listo para una llamada con el vendedor
 - "detectedProductId": ID del producto si el lead mostró interés en uno específico
-- "detectedPipelineId": ID del flujo de ventas si lograste identificar a cuál pertenece el lead (solo en modo routing)`
+- "detectedPipelineId": ID del flujo de ventas si lograste identificar a cuál pertenece el lead (solo en modo routing)
+- "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.`
 }
 
 // ── PARSE AGENT RESPONSE ──────────────────────────────────────────
@@ -555,11 +561,19 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig)
     }
 
+    // Se resuelven acá para que quien envíe no tenga que volver a leerlos.
+    const toShare = Array.isArray(parsed.shareResources)
+      ? parsed.shareResources
+          .map(id => resources.find(r => r.id === id))
+          .filter(r => r && r.type !== 'enlace')
+      : []
+
     return {
       response: visibleReply,
       score: newScore,
       profileB: parsed.profileB,
       suggestHandoff: parsed.suggestHandoff,
+      shareResources: toShare,
     }
   } catch (err) {
     console.error('❌ Anthropic error:', err.status, err.message)

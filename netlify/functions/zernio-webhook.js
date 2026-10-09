@@ -1,7 +1,7 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, appUrl, sendMessage, verifyWebhookSignature } = require('./lib/zernio')
+const { initDb, appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
 const profileIdOf = (p) => p.profileId || p.account?.profileId || p.profile?._id || null
@@ -170,7 +170,7 @@ async function handleMessageReceived(db, payload) {
     return
   }
 
-  await sendMessage(conv.id, accountId, data.response)
+  await sendReply(conv.id, accountId, data.response, data.shareResources)
   await touchLead(db, orgId, lead.id, { text: data.response, channel, fromLead: false })
   console.log(`[zernio-webhook] respondido a ${phone || lead.id} (org ${orgId})`)
 }

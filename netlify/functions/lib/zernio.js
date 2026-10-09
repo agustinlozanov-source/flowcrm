@@ -140,15 +140,52 @@ function verifyWebhookSignature(rawBody, signature) {
 }
 
 // Responde dentro de una conversación existente del inbox de Zernio.
-async function sendMessage(conversationId, accountId, text) {
+// Con `attachment` manda el archivo como adjunto real de WhatsApp en vez de
+// pegar la URL en el texto.
+async function sendMessage(conversationId, accountId, text, attachment = null) {
+  const body = { accountId }
+  if (text) body.message = text
+  if (attachment?.url) {
+    body.attachmentUrl = attachment.url
+    body.attachmentType = attachment.type || 'file'
+    // Sin nombre, WhatsApp lo deriva de la URL y al destinatario le llega un
+    // nombre ilegible.
+    if (attachment.name) body.attachmentName = attachment.name
+  }
   return zernioFetch(`/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ accountId, message: text }),
+    body: JSON.stringify(body),
   })
 }
 
+// Los tipos de recurso del CRM contra los que acepta Zernio.
+const ATTACHMENT_TYPES = { imagen: 'image', video: 'video', archivo: 'file' }
+
+function attachmentName(resource) {
+  if (!resource.name) return null
+  // WhatsApp muestra mejor el documento si el nombre conserva la extensión.
+  const ext = (resource.url || '').split('?')[0].match(/\.([a-z0-9]{2,5})$/i)?.[1]
+  const hasExt = /\.[a-z0-9]{2,5}$/i.test(resource.name)
+  return ext && !hasExt ? `${resource.name}.${ext}` : resource.name
+}
+
+// Manda la respuesta y después cada recurso como adjunto, uno por mensaje.
+// Los de tipo 'enlace' no se adjuntan: su URL va dentro del texto.
+async function sendReply(conversationId, accountId, text, resources = []) {
+  await sendMessage(conversationId, accountId, text)
+  for (const r of resources) {
+    const type = ATTACHMENT_TYPES[r.type]
+    if (!type || !r.url) continue
+    try {
+      await sendMessage(conversationId, accountId, null, { url: r.url, type, name: attachmentName(r) })
+    } catch (e) {
+      console.error(`[zernio] no se pudo adjuntar "${r.name}":`, e.message)
+    }
+  }
+}
+
 module.exports = {
-  initDb, zernioFetch, appUrl, sendMessage,
+  initDb, zernioFetch, appUrl, sendMessage, sendReply,
   ensureProfile, ensureWebhook, verifyWebhookSignature,
   WEBHOOK_EVENTS,
 }
