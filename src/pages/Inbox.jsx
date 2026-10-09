@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy,
-  doc, updateDoc, serverTimestamp, limit
+  doc, updateDoc, serverTimestamp, limit, getDocs
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
@@ -9,7 +9,7 @@ import { format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { MessageCircle, Facebook, Instagram, MousePointerClick, Globe, MessageSquare, Zap, User } from 'lucide-react'
+import { MessageCircle, Facebook, Instagram, MousePointerClick, Globe, MessageSquare, Zap, User, Paperclip } from 'lucide-react'
 
 const CHANNEL_CONFIG = {
   whatsapp:          { label: 'WhatsApp',  icon: MessageCircle, color: '#25D366', bg: '#e8fdf0' },
@@ -53,6 +53,39 @@ function ConversationView({ lead, orgId }) {
   const [sending, setSending] = useState(false)
   const [loadingAI, setLoadingAI] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [resources, setResources] = useState([])
+  const [showResources, setShowResources] = useState(false)
+  const [sendingResource, setSendingResource] = useState(null)
+
+  // Los enlaces no se adjuntan: su URL va en el texto.
+  useEffect(() => {
+    if (!orgId) return
+    getDocs(collection(db, 'organizations', orgId, 'agent_resources'))
+      .then(snap => setResources(
+        snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.type !== 'enlace')
+      ))
+      .catch(() => setResources([]))
+  }, [orgId])
+
+  const handleSendResource = async (resource) => {
+    setSendingResource(resource.id)
+    try {
+      const res = await fetch('/.netlify/functions/send-resource', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, leadId: lead.id, resourceId: resource.id, text: text.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo enviar')
+      setText('')
+      setShowResources(false)
+      toast.success(`${resource.name} enviado`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSendingResource(null)
+    }
+  }
   const bottomRef = useRef()
   const inputRef = useRef()
 
@@ -276,6 +309,15 @@ function ConversationView({ lead, orgId }) {
             />
             <ChannelBadge channel={activeChannel} />
           </div>
+          {resources.length > 0 && (
+            <button
+              onClick={() => setShowResources(v => !v)}
+              title="Enviar un recurso"
+              className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0 border border-black/[0.1] bg-surface-2 text-secondary hover:text-primary transition-colors"
+            >
+              <Paperclip size={16} />
+            </button>
+          )}
           <button
             onClick={handleSend}
             disabled={!text.trim() || sending}
@@ -288,6 +330,23 @@ function ConversationView({ lead, orgId }) {
             }
           </button>
         </div>
+        {showResources && (
+          <div className="mt-2 border border-black/[0.08] rounded-[12px] overflow-hidden">
+            <div className="px-3 py-1.5 text-[10px] font-bold text-tertiary uppercase tracking-wide bg-surface-2">
+              Enviar recurso{text.trim() ? ' con el texto escrito' : ''}
+            </div>
+            {resources.map(r => (
+              <button
+                key={r.id}
+                onClick={() => handleSendResource(r)}
+                disabled={sendingResource !== null}
+                className="w-full text-left px-3 py-2 text-[12.5px] text-primary hover:bg-surface-2 disabled:opacity-50 border-t border-black/[0.06]"
+              >
+                {sendingResource === r.id ? 'Enviando…' : `📎 ${r.name}`}
+              </button>
+            ))}
+          </div>
+        )}
         <p className="text-[10px] text-tertiary mt-1.5 px-1">Enter para enviar · Shift+Enter para nueva línea</p>
       </div>
     </div>

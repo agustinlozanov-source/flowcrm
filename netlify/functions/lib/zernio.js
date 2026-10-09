@@ -172,7 +172,8 @@ function attachmentName(resource) {
 // Manda la respuesta y después cada recurso como adjunto, uno por mensaje.
 // Los de tipo 'enlace' no se adjuntan: su URL va dentro del texto.
 async function sendReply(conversationId, accountId, text, resources = []) {
-  await sendMessage(conversationId, accountId, text)
+  // Sin texto se manda solo el adjunto: un mensaje vacío lo rechaza Zernio.
+  if (text?.trim()) await sendMessage(conversationId, accountId, text)
 
   // Devuelve los que salieron para poder dejarlos en el hilo: si solo se
   // guarda el texto, el Inbox no muestra los archivos que el lead sí recibió.
