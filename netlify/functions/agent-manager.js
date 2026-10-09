@@ -373,7 +373,7 @@ function buildDistribuidorScoringText(scoringSignals) {
 }
 
 // ── CHAT WITH AGENT ───────────────────────────────────────────────
-async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) {
+async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, skipSaveUser = false) {
   // Load agent config
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
   if (!settingsSnap.exists) throw new Error('Agente no configurado.')
@@ -523,9 +523,12 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null) 
   // Load conversation history
   const history = await getConversationHistory(orgId, leadId)
 
-  // Save user message
-  await saveTestMessage(orgId, leadId, 'user', message)
-  await saveLeadMessage(orgId, leadId, 'user', message)
+  // Save user message. Al reintentar una respuesta que falló, el mensaje del
+  // lead ya está en el hilo: volver a guardarlo lo duplicaría.
+  if (!skipSaveUser) {
+    await saveTestMessage(orgId, leadId, 'user', message)
+    await saveLeadMessage(orgId, leadId, 'user', message)
+  }
 
   try {
     const response = await anthropic.messages.create({
@@ -592,7 +595,7 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
     if (action === 'chat') {
-      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null)
+      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null, body.skipSaveUser === true)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 

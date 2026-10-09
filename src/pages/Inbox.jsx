@@ -52,6 +52,7 @@ function ConversationView({ lead, orgId }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [loadingAI, setLoadingAI] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const bottomRef = useRef()
   const inputRef = useRef()
 
@@ -95,6 +96,29 @@ function ConversationView({ lead, orgId }) {
     } finally {
       setSending(false)
       inputRef.current?.focus()
+    }
+  }
+
+  // La última palabra es del lead → el agente nunca contestó (o falló).
+  const lastMsg = messages[messages.length - 1]
+  const sinResponder = lastMsg?.role === 'user'
+
+  const handleAgentRetry = async () => {
+    if (retrying) return
+    setRetrying(true)
+    try {
+      const res = await fetch('/.netlify/functions/agent-retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, leadId: lead.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo responder')
+      toast.success('El agente respondió')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -216,6 +240,16 @@ function ConversationView({ lead, orgId }) {
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-black/[0.08] flex-shrink-0 bg-surface">
+        {sinResponder && (
+          <button
+            onClick={handleAgentRetry}
+            disabled={retrying}
+            className="w-full mb-2 py-2 rounded-[12px] text-[12.5px] font-medium text-white transition-all disabled:opacity-50"
+            style={{ background: 'linear-gradient(90deg, #1aab99, #3533cd)' }}
+          >
+            {retrying ? 'Respondiendo…' : '✨ Responder con el agente'}
+          </button>
+        )}
         <div className="flex items-end gap-2">
           <div className="flex-1 bg-surface-2 border border-black/[0.1] rounded-[14px] px-4 py-2.5 flex items-end gap-2">
             <textarea

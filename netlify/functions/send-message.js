@@ -1,22 +1,13 @@
 const admin = require('firebase-admin')
+const { initDb, sendMessage: sendViaZernio } = require('./lib/zernio')
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  })
-}
-
-const db = admin.firestore()
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
   try {
     const { orgId, leadId, text, channel } = JSON.parse(event.body)
+    const db = initDb()
 
     if (!orgId || !leadId || !text || !channel) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing fields' }) }
@@ -29,8 +20,14 @@ exports.handler = async (event) => {
     const lead = leadSnap.data()
     const channelUserId = lead.channelIds?.[channel] || lead.phone
 
-    // Send via Meta API
-    if (channelUserId && channel !== 'web') {
+    // Canales conectados por Zernio: el channelId del lead es el id de la
+    // conversación en Zernio, y la cuenta está en la org.
+    const org = (await db.collection('organizations').doc(orgId).get()).data() || {}
+    if (org.zernioAccountId && lead.channelIds?.[channel]) {
+      // A propósito sin try/catch: si no sale, no queremos guardar el mensaje
+      // como enviado. Antes se tragaba el error y el Inbox mentía.
+      await sendViaZernio(lead.channelIds[channel], org.zernioAccountId, text)
+    } else if (channelUserId && channel !== 'web') {
       let url, body, token
 
       if (channel === 'whatsapp') {
@@ -58,10 +55,7 @@ exports.handler = async (event) => {
         body: JSON.stringify(body),
       })
 
-      if (!res.ok) {
-        const err = await res.json()
-        console.error('Meta send error:', err)
-      }
+      if (!res.ok) throw new Error(`Meta send ${res.status}: ${await res.text()}`)
     }
 
     // Save message to Firestore
