@@ -163,3 +163,42 @@ export const panelDealEmpty = {
   owner: { name: 'Flowi', bot: true },
   counts: { timeline: 1, notas: 0, archivos: 0 },
 }
+
+export const pipelines = [
+  { id: 'monte-sinai', name: 'Monte Sinaí', color: '#1AAB99' },
+  { id: 'activz', name: 'Activz · Consumo', color: '#F79009' },
+  { id: 'tere', name: 'Tere Guillén', color: '#9E77ED' },
+]
+
+export const topbarStats = [
+  { label: 'Deals activos', value: '34' },
+  { label: 'Valor real', value: '$187,400' },
+  { label: 'Potencial', value: '$412,000', tone: 'purple' },
+  { label: 'Estancados', value: '4', tone: 'amber' },
+]
+
+/* Una tarjeta por nivel de madurez, para ver la escala completa de un vistazo. */
+export const maturityCards = [
+  { id: 'c1', maturity: 'm1', levelLabel: 'Nuevo (0-25)', name: 'María González', sub: 'WhatsApp · hace 12 min',
+    amount: 1200, score: 18, owner: { name: 'Flowi', bot: true },
+    nextAction: { text: 'Esperando respuesta a saludo', icon: 'clock' } },
+  { id: 'c2', maturity: 'm2', levelLabel: 'Avanzando (26-50)', name: 'Carla Robles', sub: 'WhatsApp · Consulta',
+    amount: 1200, score: 44, potential: 12000, owner: { name: 'Flowi', bot: true },
+    nextAction: { text: 'Confirmar motivo de consulta', icon: 'clock' }, ageLabel: '2d' },
+  { id: 'c3', maturity: 'm3', levelLabel: 'Maduro (51-75)', name: 'Tere Guillén', sub: 'WhatsApp · Angiografía',
+    amount: 3500, score: 68, scoreTrend: 'up', potential: 18000, owner: { name: 'Tere Guillén' },
+    nextAction: { text: 'Confirmar día y hora', tone: 'today', icon: 'calendar' },
+    tags: [{ label: 'Prescrito' }], ageLabel: '1d' },
+  { id: 'c4', maturity: 'm4', levelLabel: 'Listo · handoff (76+)', name: 'Jorge Tamez', sub: 'WhatsApp · Urgencia',
+    amount: 1900, score: 95, scoreTrend: 'up', potential: 32000, owner: { name: 'Mario Ruiz' },
+    nextAction: { text: 'Llamar para confirmar', tone: 'today', icon: 'call' }, ageLabel: '3h' },
+]
+
+export const closingCards = [
+  { id: 'cc1', maturity: 'c1', name: 'José Treviño', sub: 'Asistió · vie 11:00am',
+    amount: 1200, score: 88, potential: 24000, owner: { name: 'José Treviño' },
+    nextAction: { text: '2 oportunidades abiertas', icon: 'check' }, tags: [{ label: 'Cierre parcial' }] },
+  { id: 'cc2', maturity: 'c2', name: 'Elena Martínez', sub: 'Cerrada · sáb 10:30am',
+    amount: 3500, score: 91, owner: { name: 'Elena Martínez' },
+    nextAction: { text: 'Todo cerrado', icon: 'check' }, tags: [{ label: 'Cierre total' }] },
+]

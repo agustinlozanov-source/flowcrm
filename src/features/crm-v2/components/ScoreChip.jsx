@@ -13,8 +13,11 @@ export function scoreTone(score, { won = false } = {}) {
  * Chip tri-color del score, con indicador de tendencia respecto a la semana
  * anterior. `trend` acepta 'up' | 'down' | null.
  */
-export default function ScoreChip({ score, won = false, trend = null, tone }) {
-  const resolved = tone || scoreTone(score, { won })
+export default function ScoreChip({ score, won = false, trend = null, tone = 'plain' }) {
+  // 'plain' es el default a propósito: en el board la tarjeta entera lleva el
+  // color de madurez, así que un chip de color compite con esa señal. El modo
+  // de color queda para contextos sin tarjeta, como listas o reportes.
+  const resolved = tone === 'auto' ? scoreTone(score, { won }) : tone
 
   return (
     <span className={clsx('pv2-score', `pv2-score--${resolved}`)}>

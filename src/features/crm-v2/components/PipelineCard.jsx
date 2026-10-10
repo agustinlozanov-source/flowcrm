@@ -23,8 +23,9 @@ export default function PipelineCard({
   onCall,
 }) {
   const {
-    name, sub, amount, currency = 'MXN', score, scoreTrend, won,
-    owner, nextAction, tags = [], ageLabel, hot, aiBadge, rotting,
+    name, sub, amount, currency = 'MXN', score, scoreTrend,
+    owner, nextAction, tags = [], ageLabel, aiBadge, rotting,
+    maturity, potential,
   } = deal
 
   const compact = density === 'compact'
@@ -38,6 +39,7 @@ export default function PipelineCard({
       onKeyDown={e => { if (e.key === 'Enter') onOpen?.() }}
       className={clsx(
         'pv2-card',
+        maturity && `pv2-card--${maturity}`,
         density !== 'comfortable' && `pv2-card--${density}`,
         selected && 'pv2-card--selected',
         rotting && 'pv2-card--rotting',
@@ -55,15 +57,20 @@ export default function PipelineCard({
           </button>
           {sub && <div className="pv2-card__sub">{sub}</div>}
         </div>
-        <ScoreChip score={score} won={won} trend={scoreTrend} />
+        <ScoreChip score={score} trend={scoreTrend} />
       </div>
 
       {!compact && (
         <>
           <div className="pv2-card__amount">
-            <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
               <span className="pv2-card__amount-value">${Number(amount).toLocaleString('es-MX')}</span>
               <span className="pv2-card__currency">{currency}</span>
+              {potential > 0 && (
+                <span className="pv2-potential" title="Oportunidades potenciales vinculadas">
+                  🎯 +${Math.round(potential / 1000)}K
+                </span>
+              )}
             </div>
             {owner && <OwnerAvatar name={owner.name} bot={owner.bot} />}
           </div>
@@ -97,21 +104,20 @@ export default function PipelineCard({
             </div>
           )}
 
-          {(tags.length > 0 || ageLabel || hot || aiBadge) && (
+          {(tags.length > 0 || ageLabel || aiBadge) && (
             <div className="pv2-card__footer">
               {aiBadge ? (
                 <span className="pv2-ai-badge"><Sparkles size={9} /> {aiBadge}</span>
               ) : (
                 <div className="pv2-tags">
                   {tags.map(t => (
-                    <span key={t.label} className={clsx('pv2-tag', `pv2-tag--${t.tone || 'blue'}`)}>{t.label}</span>
+                    <span key={t.label} className="pv2-tag pv2-tag--muted">{t.label}</span>
                   ))}
                 </div>
               )}
-              {(ageLabel || hot) && (
+              {ageLabel && (
                 <div className="pv2-card__meta">
-                  {ageLabel && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={10} />{ageLabel}</span>}
-                  {hot && <span title="Caliente">🔥</span>}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={10} />{ageLabel}</span>
                 </div>
               )}
             </div>

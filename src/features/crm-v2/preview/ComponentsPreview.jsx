@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import '../pipeline-v2.css'
+import '../crm-v2.css'
 import ScoreChip from '../components/ScoreChip'
 import OwnerAvatar from '../components/OwnerAvatar'
 import PipelineCard from '../components/PipelineCard'
 import PipelineColumn from '../components/PipelineColumn'
-import HandoffColumn from '../components/HandoffColumn'
-import PostHandoffRail from '../components/PostHandoffRail'
 import InsightsBar from '../components/InsightsBar'
 import SidePanel from '../components/SidePanel'
+import Sidebar from '../components/Sidebar'
+import Topbar from '../components/Topbar'
 import * as mock from '../mockData'
 
 /* Ruta de preview de la Fase 1: los componentes aislados, cada uno con sus
@@ -43,6 +43,9 @@ export default function ComponentsPreview() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [peekOpen, setPeekOpen] = useState(false)
   const [insightsCollapsed, setInsightsCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [view, setView] = useState('kanban')
+  const [filter, setFilter] = useState(null)
 
   return (
     <div className="pv2" style={{ background: 'var(--bg)', minHeight: '100vh', padding: '32px 40px' }}>
@@ -59,7 +62,55 @@ export default function ComponentsPreview() {
         </p>
       </header>
 
-      <Section title="ScoreChip" note="Tri-color por umbral: hot 70+, warm 40-69, cold <40. Good es estado, no rango: aplica cuando ya está agendado o ganado.">
+      <Section title="Sidebar" note="220 px, colapsable a 60 px. Reemplaza la sidebar actual del CRM.">
+        <Variant label="Expandida" width={220}>
+          <div style={{ height: 520, display: 'flex' }}>
+            <Sidebar
+              active="pipeline"
+              counts={{ conversaciones: 14 }}
+              pipelines={mock.pipelines}
+              activePipeline="monte-sinai"
+              user={{ name: 'Agustín Lozano', role: 'Admin · Flow Hub' }}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(v => !v)}
+            />
+          </div>
+        </Variant>
+        <Variant label="Colapsada" width={60}>
+          <div style={{ height: 520, display: 'flex' }}>
+            <Sidebar active="reuniones" collapsed user={{ name: 'Mario Ruiz', role: 'Recepción' }} />
+          </div>
+        </Variant>
+        <Variant label="Rol Recepción (sin pipelines)" width={220}>
+          <div style={{ height: 520, display: 'flex' }}>
+            <Sidebar active="reuniones" counts={{}} pipelines={[]} user={{ name: 'Lucía Fonseca', role: 'Recepción' }} />
+          </div>
+        </Variant>
+      </Section>
+
+      <Section title="Topbar" note="56 px sticky con blur. Contextual: título, stats y botón primario los define la vista.">
+        <Variant label="Pipeline (con stats y toggle)" width="100%">
+          <Topbar
+            breadcrumb="Pipeline" title="Monte Sinaí" onTitleClick={() => {}}
+            stats={mock.topbarStats}
+            activeView={view} onViewChange={setView}
+            filterCount={2} onFilters={() => {}} onSearch={() => {}}
+            primaryLabel="Nuevo deal" onPrimary={() => {}}
+          />
+        </Variant>
+        <Variant label="Reuniones (sin toggle de vista)" width="100%">
+          <Topbar
+            breadcrumb="Reuniones" title="Hoy"
+            stats={[{ label: 'Hoy', value: '8' }, { label: 'Asistencia 30d', value: '78%', tone: 'green' }, { label: 'No shows', value: '3', tone: 'amber' }]}
+            onSearch={() => {}} primaryLabel="Nueva cita" onPrimary={() => {}}
+          />
+        </Variant>
+        <Variant label="Mínima (sin stats ni acciones)" width="100%">
+          <Topbar breadcrumb="Configuración" title="Conexiones" onSearch={() => {}} />
+        </Variant>
+      </Section>
+
+      <Section title="ScoreChip" note="Neutro por defecto: el color ya lo lleva la tarjeta entera, y dos señales de color compitiendo anulan a las dos. El modo de color queda para listas y reportes, donde no hay tarjeta.">
         <Variant label="Rangos">
           <div style={{ display: 'flex', gap: 12 }}>
             <ScoreChip score={81} /><ScoreChip score={52} /><ScoreChip score={28} /><ScoreChip score={88} won />
@@ -91,46 +142,65 @@ export default function ComponentsPreview() {
         </Variant>
       </Section>
 
-      <Section title="PipelineCard" note="Tres densidades. Click en la tarjeta abre el panel; click en el nombre abre la página completa.">
-        <Variant label="Comfortable (default)" width={280}>
-          <PipelineCard deal={mock.dealNormal} onWhatsApp={() => {}} onCall={() => {}} />
-        </Variant>
+      <Section title="PipelineCard" note="La tarjeta entera lleva el color de madurez. Un color por tarjeta: dice en qué punto está y en qué columna vive.">
+        {mock.maturityCards.map(c => (
+          <Variant key={c.maturity} label={c.levelLabel} width={280}>
+            <PipelineCard deal={c} onWhatsApp={() => {}} onCall={() => {}} />
+          </Variant>
+        ))}
+      </Section>
+
+      <Section title="PipelineCard · densidades y alertas">
         <Variant label="Compact" width={280}>
-          <PipelineCard deal={mock.dealNormal} density="compact" />
+          <PipelineCard deal={mock.maturityCards[2]} density="compact" />
         </Variant>
         <Variant label="Spacious" width={280}>
-          <PipelineCard deal={mock.dealAi} density="spacious" />
+          <PipelineCard deal={mock.maturityCards[2]} density="spacious" />
         </Variant>
-        <Variant label="Con alerta (rotting)" width={280}>
-          <PipelineCard deal={mock.dealRotting} />
+        <Variant label="Estancada (rotting)" width={280}>
+          <PipelineCard deal={{ ...mock.maturityCards[1], rotting: true, nextAction: { text: 'Sin respuesta 2h', tone: 'overdue', icon: 'alert' } }} />
         </Variant>
-        <Variant label="Bot + seleccionada" width={280}>
-          <PipelineCard deal={mock.dealBot} selected />
-        </Variant>
-        <Variant label="Ganada" width={280}>
-          <PipelineCard deal={mock.dealWon} />
+        <Variant label="Seleccionada" width={280}>
+          <PipelineCard deal={mock.maturityCards[3]} selected />
         </Variant>
       </Section>
 
-      <Section title="PipelineColumn / HandoffColumn" note="La columna Handoff no es una etapa más: gradiente de marca, borde teal, barra más gruesa y alta que dice mover, no crear.">
-        <Variant label="Normal" width={300}>
-          <div style={{ height: 420 }}>
-            <PipelineColumn name="Nuevo" color="var(--stage-1)" metrics={mock.columnMetrics}>
-              <PipelineCard deal={mock.dealBot} />
-              <PipelineCard deal={mock.dealRotting} />
+      <Section title="PipelineColumn · las 3 columnas" note="Menos columnas, menos colores. La barra apilada filtra por nivel al hacer click.">
+        <Variant label="En calentamiento" width={300}>
+          <div style={{ height: 460 }}>
+            <PipelineColumn
+              variant="calentamiento" name="En calentamiento"
+              metrics={[{ label: 'Tarjetas', value: '12' }, { label: 'Real', value: '$14,400' }, { label: 'Potencial', value: '$86K' }]}
+              distribution={{ m1: 5, m2: 4, m3: 3 }}
+              activeFilter={filter} onFilterChange={setFilter}
+            >
+              {mock.maturityCards.slice(0, 3).map(c => <PipelineCard key={c.id} deal={c} />)}
+            </PipelineColumn>
+          </div>
+        </Variant>
+        <Variant label="Handoff" width={300}>
+          <div style={{ height: 460 }}>
+            <PipelineColumn
+              variant="handoff" name="Handoff"
+              metrics={[{ label: 'Tarjetas', value: '2' }, { label: 'Real', value: '$3,100' }, { label: 'Pendiente', value: '1h', tone: 'amber' }]}
+            >
+              <PipelineCard deal={mock.maturityCards[3]} />
+            </PipelineColumn>
+          </div>
+        </Variant>
+        <Variant label="Cierre definitivo" width={300}>
+          <div style={{ height: 460 }}>
+            <PipelineColumn
+              variant="cierre" name="Cierre definitivo"
+              metrics={[{ label: 'Tarjetas', value: '9' }, { label: 'Cerrado', value: '$42,900' }]}
+            >
+              {mock.closingCards.map(c => <PipelineCard key={c.id} deal={c} />)}
             </PipelineColumn>
           </div>
         </Variant>
         <Variant label="Vacía" width={300}>
-          <div style={{ height: 420 }}>
-            <PipelineColumn name="Datos recolectados" color="var(--stage-3)" metrics={[{ label: 'Deals', value: '0' }, { label: 'Valor', value: '$0' }]} isEmpty />
-          </div>
-        </Variant>
-        <Variant label="Handoff" width={300}>
-          <div style={{ height: 420 }}>
-            <HandoffColumn metrics={mock.handoffMetrics}>
-              <PipelineCard deal={{ ...mock.dealRotting, name: 'Jorge Tamez', sub: 'WhatsApp · Urgencia', score: 95, nextAction: { text: 'Bandera roja → recepción', tone: 'overdue', icon: 'alert' } }} />
-            </HandoffColumn>
+          <div style={{ height: 460 }}>
+            <PipelineColumn variant="cierre" name="Cierre definitivo" metrics={[{ label: 'Tarjetas', value: '0' }]} isEmpty emptyLabel="Nada cerrado todavía" />
           </div>
         </Variant>
       </Section>
@@ -146,15 +216,6 @@ export default function ComponentsPreview() {
         </Variant>
         <Variant label="Con alerta" width="100%">
           <InsightsBar metrics={mock.insightsAlert} />
-        </Variant>
-      </Section>
-
-      <Section title="PostHandoffRail" note="Las cinco post-etapas son fijas del producto. Click en una la expande como drawer (Fase 2).">
-        <Variant label="Con datos" width="100%">
-          <PostHandoffRail stages={mock.railStages} />
-        </Variant>
-        <Variant label="Vacío" width="100%">
-          <PostHandoffRail stages={mock.railEmpty} />
         </Variant>
       </Section>
 

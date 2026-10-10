@@ -442,3 +442,172 @@
   background: var(--bg-elev-2); border: 1px solid var(--border-strong);
   border-radius: 3px; color: var(--text-tertiary); line-height: 1.2;
 }
+
+/* ═══════════════ SIDEBAR GLOBAL (A.4) ═══════════════ */
+.pv2-sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--sidebar-bg); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width 0.15s ease-out;
+}
+.pv2-sidebar--collapsed { width: 60px; }
+
+.pv2-sidebar__logo { padding: 20px 20px 16px; display: flex; align-items: center; gap: 10px; min-height: 58px; }
+.pv2-sidebar--collapsed .pv2-sidebar__logo { padding: 20px 0 16px; justify-content: center; }
+.pv2-sidebar__logo img { height: 22px; object-fit: contain; }
+
+.pv2-sidebar__nav { padding: 8px 12px; }
+.pv2-sidebar--collapsed .pv2-sidebar__nav { padding: 8px 6px; }
+.pv2-sidebar__label {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+  padding: 10px 12px 6px;
+}
+
+.pv2-nav-item {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border-radius: 6px; border: none; background: transparent;
+  color: var(--text-secondary); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.1s; font-family: inherit; text-align: left;
+}
+.pv2-nav-item:hover { background: var(--bg-elev-1); color: var(--text); }
+.pv2-nav-item--active { background: var(--bg-elev-2); color: var(--text); }
+.pv2-nav-item--active .pv2-nav-item__icon { color: var(--teal); }
+.pv2-nav-item__icon { display: inline-flex; flex-shrink: 0; }
+.pv2-sidebar--collapsed .pv2-nav-item { justify-content: center; padding: 8px; }
+.pv2-sidebar--collapsed .pv2-nav-item__text,
+.pv2-sidebar--collapsed .pv2-nav-item__count { display: none; }
+.pv2-nav-item__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv2-nav-item__count {
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  background: var(--bg-elev-2); padding: 1px 6px; border-radius: 10px;
+}
+
+.pv2-pipeline-item {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 6px; border: none; background: transparent;
+  color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  font-family: inherit; text-align: left;
+}
+.pv2-pipeline-item:hover { background: var(--bg-elev-1); color: var(--text); }
+.pv2-pipeline-item--active { color: var(--text); font-weight: 500; }
+.pv2-pipeline-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.pv2-sidebar__user {
+  margin-top: auto; padding: 12px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.pv2-sidebar--collapsed .pv2-sidebar__user { justify-content: center; padding: 12px 6px; }
+.pv2-sidebar--collapsed .pv2-sidebar__user-info,
+.pv2-sidebar--collapsed .pv2-sidebar__user > .pv2-icon-btn { display: none; }
+.pv2-sidebar__user-info { flex: 1; min-width: 0; }
+.pv2-sidebar__user-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv2-sidebar__user-role { font-size: 11px; color: var(--text-tertiary); }
+
+/* ═══════════════ TOPBAR GLOBAL (A.5) ═══════════════ */
+.pv2-topbar {
+  height: 56px; flex-shrink: 0;
+  background: var(--topbar-bg); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 12px;
+  position: sticky; top: 0; z-index: 10;
+}
+.pv2-topbar__title { display: flex; flex-direction: column; min-width: 0; }
+.pv2-topbar__breadcrumb { font-size: 11px; color: var(--text-tertiary); font-weight: 500; }
+.pv2-topbar__name {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700;
+  color: var(--text); display: flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+}
+.pv2-topbar__divider { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+.pv2-topbar__stats { display: flex; align-items: center; gap: 20px; padding: 0 12px; }
+.pv2-topbar__stat { display: flex; flex-direction: column; gap: 1px; }
+.pv2-topbar__stat-label { font-size: 10px; color: var(--text-tertiary); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.pv2-topbar__stat-value {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.pv2-topbar__spacer { flex: 1; }
+
+.pv2-search {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px; width: 240px;
+  font-size: 12.5px; color: var(--text-secondary);
+  cursor: pointer; font-family: inherit; text-align: left;
+}
+.pv2-search:hover { border-color: var(--border-strong); }
+.pv2-search__kbd { margin-left: auto; display: inline-flex; gap: 2px; }
+
+.pv2-view-toggle {
+  display: inline-flex; background: var(--bg-elev-1);
+  border: 1px solid var(--border); border-radius: 7px; padding: 2px;
+}
+.pv2-view-toggle button {
+  padding: 5px 10px; font-size: 11.5px; font-weight: 500;
+  color: var(--text-tertiary); background: transparent; border: none;
+  cursor: pointer; border-radius: 5px; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.pv2-view-toggle button:hover { color: var(--text); }
+.pv2-view-toggle button.is-active { background: var(--bg-elev-3); color: var(--text); }
+
+/* ═══════════════ MADUREZ — LA TARJETA ENTERA LLEVA EL COLOR ═══════════════
+ * Un solo color por tarjeta. El color dice todo: en qué punto está y en qué
+ * columna vive. Por eso el chip de score va neutro y las tags en un solo tono:
+ * si cada elemento tiene su propio color, el color deja de significar algo.
+ *
+ * En oscuro el tinte va con alfa baja sobre la base: un bloque saturado se
+ * vuelve ilegible y chillón. El borde izquierdo lleva el color pleno. */
+.pv2-card--m1, .pv2-card--m2, .pv2-card--m3,
+.pv2-card--m4, .pv2-card--c1, .pv2-card--c2 {
+  border-left-width: 3px; border-left-style: solid;
+}
+
+/* En calentamiento */
+.pv2-card--m1 { background: rgba(247, 144, 9, 0.07);  border-color: rgba(247,144,9,0.22);  border-left-color: #F79009; }
+.pv2-card--m2 { background: rgba(234, 179, 8, 0.07);  border-color: rgba(234,179,8,0.22);  border-left-color: #EAB308; }
+.pv2-card--m3 { background: rgba(132, 204, 22, 0.07); border-color: rgba(132,204,22,0.22); border-left-color: #84CC16; }
+/* Handoff */
+.pv2-card--m4 { background: rgba(18, 183, 106, 0.09); border-color: rgba(18,183,106,0.28); border-left-color: #12B76A; }
+/* Cierre definitivo */
+.pv2-card--c1 { background: rgba(46, 144, 250, 0.07); border-color: rgba(46,144,250,0.22); border-left-color: #2E90FA; }
+.pv2-card--c2 { background: rgba(158, 119, 237, 0.07); border-color: rgba(158,119,237,0.22); border-left-color: #9E77ED; }
+
+.pv2-card--m1:hover { background: rgba(247, 144, 9, 0.12); }
+.pv2-card--m2:hover { background: rgba(234, 179, 8, 0.12); }
+.pv2-card--m3:hover { background: rgba(132, 204, 22, 0.12); }
+.pv2-card--m4:hover { background: rgba(18, 183, 106, 0.14); }
+.pv2-card--c1:hover { background: rgba(46, 144, 250, 0.12); }
+.pv2-card--c2:hover { background: rgba(158, 119, 237, 0.12); }
+
+/* El estancamiento es lo único que pisa el color de madurez, porque es la
+ * única información que el color de madurez no puede dar. */
+.pv2-card--rotting { border-left-color: var(--red) !important; }
+
+/* Score neutro: el número informa, el color ya lo da la tarjeta. */
+.pv2-score--plain { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+
+/* Una sola tag, un solo tono. */
+.pv2-tag--muted { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+
+/* Chip de oportunidad potencial */
+.pv2-potential {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10.5px; font-weight: 600; color: var(--text-tertiary);
+  padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,0.05);
+  white-space: nowrap;
+}
+
+/* ═══════════════ BARRA APILADA DE DISTRIBUCIÓN ═══════════════ */
+.pv2-dist { display: flex; width: 100%; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; margin-top: 2px; }
+.pv2-dist__seg { border: none; cursor: pointer; padding: 0; transition: opacity 0.1s; }
+.pv2-dist__seg:hover { opacity: 0.75; }
+.pv2-dist__seg--muted { opacity: 0.3; }
+.pv2-dist__legend { display: flex; gap: 10px; margin-top: 6px; }
+.pv2-dist__item {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; color: var(--text-tertiary);
+  background: none; border: none; cursor: pointer; padding: 0; font-family: inherit;
+}
+.pv2-dist__dot { width: 7px; height: 7px; border-radius: 2px; }
