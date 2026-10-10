@@ -4,10 +4,10 @@
  * Los umbrales son el default del briefing (B.2) y quedan sobrescribibles por
  * cliente — por eso viven acá y no repartidos en los componentes. */
 export const MATURITY = {
-  m1: { id: 'm1', label: 'Nuevo',          color: '#F79009', column: 'calentamiento', max: 25 },
-  m2: { id: 'm2', label: 'Avanzando',      color: '#EAB308', column: 'calentamiento', max: 50 },
-  m3: { id: 'm3', label: 'Maduro',         color: '#84CC16', column: 'calentamiento', max: 75 },
-  m4: { id: 'm4', label: 'Listo',          color: '#12B76A', column: 'handoff',       max: 100 },
+  m1: { id: 'm1', label: 'Nuevo',          color: '#FF6B00', column: 'calentamiento', max: 25 },
+  m2: { id: 'm2', label: 'Avanzando',      color: '#FFD60A', column: 'calentamiento', max: 50 },
+  m3: { id: 'm3', label: 'Maduro',         color: '#A3E635', column: 'calentamiento', max: 75 },
+  m4: { id: 'm4', label: 'Listo',          color: '#00A651', column: 'handoff',       max: 100 },
   c1: { id: 'c1', label: 'Cierre parcial', color: '#2E90FA', column: 'cierre' },
   c2: { id: 'c2', label: 'Cierre total',   color: '#9E77ED', column: 'cierre' },
 }

@@ -8,6 +8,13 @@ import InsightsBar from '../components/InsightsBar'
 import SidePanel from '../components/SidePanel'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
+import PeekPreview from '../components/PeekPreview'
+import AIInsightCard from '../components/AIInsightCard'
+import ScoreExplain from '../components/ScoreExplain'
+import OpportunityRow from '../components/OpportunityRow'
+import AppointmentCard from '../components/AppointmentCard'
+import WhatsAppStatusBadge from '../components/WhatsAppStatusBadge'
+import PauseAIToggle from '../components/PauseAIToggle'
 import * as mock from '../mockData'
 
 /* Ruta de preview de la Fase 1: los componentes aislados, cada uno con sus
@@ -46,6 +53,8 @@ export default function ComponentsPreview() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [view, setView] = useState('kanban')
   const [filter, setFilter] = useState(null)
+  const [peekIdx, setPeekIdx] = useState(null)
+  const [paused, setPaused] = useState(false)
 
   return (
     <div className="pv2" style={{ background: 'var(--bg)', minHeight: '100vh', padding: '32px 40px' }}>
@@ -219,6 +228,84 @@ export default function ComponentsPreview() {
         </Variant>
       </Section>
 
+      <Section title="PeekPreview" note="320 px, solo lectura. Abre con Space sobre una tarjeta; ↑/↓ navegan y Esc cierra.">
+        <Variant label="Abrir">
+          <button className="pv2-btn pv2-btn--primary" onClick={() => setPeekIdx(2)}>Abrir peek</button>
+        </Variant>
+        <Variant label="Navegación">
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+            Con el peek abierto, <span className="pv2-kbd">↑</span> <span className="pv2-kbd">↓</span> cambian de tarjeta.
+          </span>
+        </Variant>
+      </Section>
+
+      <Section title="AIInsightCard" note="Lila y sparkle: la señal de que lo escribió la IA. Se usa solo para eso.">
+        <Variant label="Con acción" width={430}>
+          <AIInsightCard text={mock.panelDeal.aiInsight} onExecute={() => {}} />
+        </Variant>
+        <Variant label="Solo lectura (peek)" width={430}>
+          <AIInsightCard text="Lleva <strong>3 días sin responder</strong>. Sugiero cerrar la oportunidad o reactivar con una promoción." readOnly />
+        </Variant>
+        <Variant label="Sin sugerencia" width={430}>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No renderiza nada si no hay texto.</span>
+          <AIInsightCard text={null} />
+        </Variant>
+      </Section>
+
+      <Section title="ScoreExplain" note="El número se pinta con el color de madurez: misma escala que ordena el board.">
+        <Variant label="Alto, subiendo" width={430}>
+          <ScoreExplain score={78} delta={12} factors={mock.panelDeal.scoreFactors} />
+        </Variant>
+        <Variant label="Bajo" width={430}>
+          <ScoreExplain score={18} factors={[{ text: 'Respondió el primer mensaje', value: 8 }, { text: 'No menciona ningún síntoma', value: -5 }]} />
+        </Variant>
+        <Variant label="Sin factores" width={430}>
+          <ScoreExplain score={52} />
+        </Variant>
+      </Section>
+
+      <Section title="OpportunityRow" note="La tarjeta no es un deal: acumula oportunidades y se cierran una por una. El sparkle marca las que vinculó la IA.">
+        <Variant label="Abiertas, auto y manual" width={430}>
+          {mock.opportunities.slice(0, 3).map(o => <OpportunityRow key={o.id} opportunity={o} />)}
+        </Variant>
+        <Variant label="Cerradas" width={430}>
+          {mock.opportunities.slice(3).map(o => <OpportunityRow key={o.id} opportunity={o} />)}
+        </Variant>
+      </Section>
+
+      <Section title="AppointmentCard" note="Tres tipos y status enriquecidos. El botón principal cambia según el tipo.">
+        <Variant label="Los tres tipos" width={460}>
+          {mock.appointments.slice(0, 3).map(a => <div key={a.id} style={{ marginBottom: 8 }}><AppointmentCard appointment={a} /></div>)}
+        </Variant>
+        <Variant label="Alerta de recepción (15 y 30 min)" width={460}>
+          {mock.appointments.slice(3, 5).map(a => <div key={a.id} style={{ marginBottom: 8 }}><AppointmentCard appointment={a} /></div>)}
+        </Variant>
+        <Variant label="Resueltas" width={460}>
+          {mock.appointments.slice(5).map(a => <div key={a.id} style={{ marginBottom: 8 }}><AppointmentCard appointment={a} /></div>)}
+        </Variant>
+      </Section>
+
+      <Section title="WhatsAppStatusBadge" note="Nació del caso real de Monte Sinaí: el equipo operaba creyendo que todo andaba. Dice el motivo, no solo el color.">
+        <Variant label="OK"><WhatsAppStatusBadge status="ok" /></Variant>
+        <Variant label="Limitado"><WhatsAppStatusBadge status="warn" reasons={['window']} /></Variant>
+        <Variant label="Bloqueado"><WhatsAppStatusBadge status="block" reasons={['payment', 'verification']} /></Variant>
+        <Variant label="Compacto (sidebar)">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <WhatsAppStatusBadge status="ok" compact />
+            <WhatsAppStatusBadge status="warn" reasons={['templates']} compact />
+            <WhatsAppStatusBadge status="block" reasons={['payment']} compact />
+          </div>
+        </Variant>
+      </Section>
+
+      <Section title="PauseAIToggle" note="Pausa por conversación, no por lead. Mientras está pausada, scoring y etapas se congelan.">
+        <Variant label="Interactivo" width={300}>
+          <PauseAIToggle paused={paused} onToggle={setPaused} />
+        </Variant>
+        <Variant label="Activa" width={300}><PauseAIToggle paused={false} /></Variant>
+        <Variant label="Pausada" width={300}><PauseAIToggle paused /></Variant>
+      </Section>
+
       <Section title="SidePanel" note="480 px con tabs, acciones, score explain y timeline. El peek es la variante de 320 px, solo lectura, que abre Space.">
         <Variant label="Completo">
           <button className="pv2-btn pv2-btn--primary" onClick={() => { setPeekOpen(false); setPanelOpen(true) }}>
@@ -247,6 +334,13 @@ export default function ComponentsPreview() {
         open={peekOpen}
         peek
         onClose={() => setPeekOpen(false)}
+      />
+      <PeekPreview
+        deal={peekIdx != null ? { ...mock.maturityCards[peekIdx], lastMessage: mock.peekDeal.lastMessage } : null}
+        open={peekIdx != null}
+        onClose={() => setPeekIdx(null)}
+        onPrev={() => setPeekIdx(i => Math.max(0, i - 1))}
+        onNext={() => setPeekIdx(i => Math.min(mock.maturityCards.length - 1, i + 1))}
       />
     </div>
   )

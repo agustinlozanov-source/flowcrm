@@ -202,3 +202,29 @@ export const closingCards = [
     amount: 3500, score: 91, owner: { name: 'Elena Martínez' },
     nextAction: { text: 'Todo cerrado', icon: 'check' }, tags: [{ label: 'Cierre total' }] },
 ]
+
+export const peekDeal = {
+  ...maturityCards[2],
+  lastMessage: '"Sí, tengo la indicación del Dr. Reyes. ¿Me pueden atender esta semana?"',
+}
+
+export const opportunities = [
+  { id: 'o1', name: 'Angiografía + OCT macular', value: 3500, probability: 'alta', status: 'abierta', auto: true, reason: 'Detectada por "me mandaron a hacer un estudio de retina"' },
+  { id: 'o2', name: 'Cirugía de catarata · ojo derecho', value: 24000, probability: 'media', status: 'abierta', auto: true, reason: 'Detectada por "veo nublado de un ojo"' },
+  { id: 'o3', name: 'Lentes intraoculares premium', value: 18000, probability: 'baja', status: 'abierta' },
+  { id: 'o4', name: 'Consulta de valoración', value: 1200, probability: 'alta', status: 'ganada' },
+  { id: 'o5', name: 'Tratamiento de ojo seco', value: 4800, probability: 'baja', status: 'descartada' },
+]
+
+export const appointments = [
+  { id: 'a1', name: 'José Treviño', hour: '9:30', ampm: 'AM', type: 'presencial', status: 'confirmada',
+    location: 'Sede Centro', requirements: '4h ayuno · acompañante · lentes oscuros', reason: 'Angiografía' },
+  { id: 'a2', name: 'Elena Martínez', hour: '10:30', ampm: 'AM', type: 'video', status: 'pendiente', reason: 'Seguimiento posoperatorio' },
+  { id: 'a3', name: 'Alejandro Garza', hour: '11:00', ampm: 'AM', type: 'llamada', status: 'curso', reason: 'Resultados' },
+  { id: 'a4', name: 'Lupita Flores', hour: '11:30', ampm: 'AM', type: 'presencial', status: 'confirmada',
+    location: 'Sede Valle', reason: 'Consulta', lateMinutes: 18 },
+  { id: 'a5', name: 'Miguel Ortega', hour: '12:00', ampm: 'PM', type: 'presencial', status: 'confirmada',
+    location: 'Sede Centro', reason: 'Campimetría', lateMinutes: 34 },
+  { id: 'a6', name: 'Patricia Núñez', hour: '1:00', ampm: 'PM', type: 'presencial', status: 'asistio', location: 'Sede Centro' },
+  { id: 'a7', name: 'Juan Pérez', hour: '2:00', ampm: 'PM', type: 'presencial', status: 'noshow', location: 'Sede Centro' },
+]
