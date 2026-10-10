@@ -10,6 +10,10 @@ import Register from '@/pages/Register'
 import DistribuidorLoginPage from '@/pages/DistribuidorLoginPage'
 import Pipeline from '@/pages/Pipeline'
 import Superadmin from '@/pages/Superadmin'
+import ComponentsPreview from '@/features/crm-v2/preview/ComponentsPreview'
+import PipelineV2 from '@/features/crm-v2/views/PipelineV2'
+import ReunionesV2 from '@/features/crm-v2/views/ReunionesV2'
+import InboxV2 from '@/features/crm-v2/views/InboxV2'
 import Setup from '@/pages/Setup'
 import Agent from '@/pages/Agent'
 import Contacts from '@/pages/Contacts'
@@ -54,6 +58,12 @@ export default function App() {
 
       <Routes>
         {/* Public */}
+        {/* Preview de componentes del rediseño del pipeline (Fase 1).
+            Fuera del layout del CRM a propósito: es tema oscuro y aislado. */}
+        <Route path="/dev/pipeline-components" element={<ComponentsPreview />} />
+        <Route path="/pipeline-v2" element={<PipelineV2 />} />
+        <Route path="/reuniones-v2" element={<ReunionesV2 />} />
+        <Route path="/inbox-v2" element={<InboxV2 />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/distribuidor-login" element={<DistribuidorLoginPage />} />
