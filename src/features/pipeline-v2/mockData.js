@@ -1,0 +1,165 @@
+/* Datos de ejemplo para la vista de preview de componentes.
+ * NO se conectan a Firestore: la Fase 3 es la que reemplaza esto por queries
+ * reales. Modelado sobre el caso de Monte Sinaí. */
+
+export const dealNormal = {
+  id: 'd1',
+  name: 'Tere Guillén',
+  sub: 'WhatsApp · Angiografía',
+  amount: 3500,
+  currency: 'MXN',
+  score: 78,
+  scoreTrend: 'up',
+  owner: { name: 'Tere Guillén', bot: false },
+  nextAction: { text: 'Confirmar día y hora', tone: 'today', icon: 'calendar' },
+  tags: [{ label: 'Flujo B · prescrito', tone: 'purple' }],
+  ageLabel: '1d',
+  hot: true,
+}
+
+export const dealBot = {
+  id: 'd2',
+  name: 'María González',
+  sub: 'WhatsApp · hace 12 min',
+  amount: 1200,
+  score: 52,
+  owner: { name: 'Flowi', bot: true },
+  nextAction: { text: 'Esperando respuesta a saludo', tone: null, icon: 'clock' },
+}
+
+export const dealRotting = {
+  id: 'd3',
+  name: 'Carla Robles',
+  sub: 'WhatsApp · hace 2h',
+  amount: 1200,
+  score: 48,
+  scoreTrend: 'down',
+  owner: { name: 'Flowi', bot: true },
+  nextAction: { text: 'Sin respuesta 2h', tone: 'overdue', icon: 'alert' },
+  rotting: true,
+}
+
+export const dealAi = {
+  id: 'd4',
+  name: 'Sofía Ramírez',
+  sub: 'WhatsApp · Prelasik',
+  amount: 2150,
+  score: 81,
+  scoreTrend: 'up',
+  owner: { name: 'Sofía Ramírez', bot: false },
+  nextAction: { text: 'Verificar slot vie 11am', tone: 'today', icon: 'calendar' },
+  aiBadge: 'IA sugiere llamar',
+}
+
+export const dealWon = {
+  id: 'd5',
+  name: 'José Treviño',
+  sub: 'Cita vie 11:00am',
+  amount: 1200,
+  score: 88,
+  won: true,
+  owner: { name: 'José Treviño', bot: false },
+  nextAction: { text: 'Confirmada', tone: null, icon: 'check' },
+}
+
+export const columnMetrics = [
+  { label: 'Deals', value: '12' },
+  { label: 'Valor', value: '$14,400' },
+  { label: 'Edad prom', value: '0.4d' },
+]
+
+export const handoffMetrics = [
+  { label: 'Deals', value: '2' },
+  { label: 'Valor', value: '$3,100' },
+  { label: 'Pendiente', value: '1h', tone: 'amber' },
+]
+
+export const railStages = [
+  { id: 'open', count: 7, value: 24800, sub: 'Edad prom: 3.2d' },
+  { id: 'safe', count: 4, value: 18400, sub: 'Edad prom: 1.8d' },
+  { id: 'won', count: 22, value: 42900, sub: '+$12K esta semana', subTone: 'pos' },
+  { id: 'dropped', count: 4, value: 6100, sub: 'Motivo prom: precio' },
+  { id: 'closed', count: 15, value: 28300, sub: 'Últimos 30 días' },
+]
+
+export const railEmpty = [
+  { id: 'open', count: 0, value: 0, sub: 'Sin deals' },
+  { id: 'safe', count: 0, value: 0, sub: 'Sin deals' },
+  { id: 'won', count: 0, value: 0, sub: 'Sin deals' },
+  { id: 'dropped', count: 0, value: 0, sub: 'Sin deals' },
+  { id: 'closed', count: 0, value: 0, sub: 'Sin deals' },
+]
+
+export const insights = [
+  { label: 'Agendadas esta semana', value: '17', trend: { dir: 'up', label: '23%' } },
+  { label: 'Tasa de conversión', value: '42%', trend: { dir: 'up', label: '4pp' } },
+  { label: 'Tiempo prom. de cierre', value: '2.4d', trend: { dir: 'down', label: '0.6d' } },
+  { label: 'Valor ponderado', value: '$94,300' },
+  { label: 'Ganados · 30d', value: '$142,800', color: 'green' },
+]
+
+export const insightsAlert = [
+  { label: 'Agendadas esta semana', value: '3', trend: { dir: 'down', label: '71%' } },
+  { label: 'Tasa de conversión', value: '11%', trend: { dir: 'down', label: '18pp' } },
+  { label: 'Estancados', value: '14', color: 'red' },
+  { label: 'Valor ponderado', value: '$12,100' },
+  { label: 'Ganados · 30d', value: '$8,400', color: 'green' },
+]
+
+export const panelDeal = {
+  ...dealNormal,
+  stageName: 'Intención identificada',
+  stageColor: 'var(--stage-2)',
+  service: 'Angiografía + OCT Macular',
+  channel: 'WhatsApp',
+  createdLabel: 'Creado hace 1d 4h',
+  owner: { name: 'Flowi (bot)', bot: true },
+  nextActionLabel: 'Confirmar hoy',
+  scoreTone: 'hot',
+  scoreDelta: 12,
+  counts: { timeline: 24, notas: 2, archivos: 1 },
+  aiInsight: 'Tere ya aceptó el precio y trae prescripción. Falta <strong>confirmar día y hora</strong>. Dado que su médico le pidió el estudio esta semana, sugiero proponerle <strong>viernes 11:00 AM</strong>.',
+  scoreFactors: [
+    { text: 'Trae prescripción médica (Flujo B)', value: 20 },
+    { text: 'Especifica estudio por nombre', value: 15 },
+    { text: 'Preguntó por disponibilidad esta semana', value: 10 },
+    { text: 'Confirma rango de edad del perfil (45-65)', value: 8 },
+    { text: 'Aún no confirma día concreto', value: -5 },
+  ],
+  fields: [
+    { label: 'Flujo', value: 'Flujo B · estudio prescrito' },
+    { label: 'Servicio', value: 'Angiografía + OCT Macular' },
+    { label: 'Requisitos previos', value: '4h ayuno · acompañante · lentes oscuros' },
+    { label: 'Prescripción', value: 'Recibida', pill: 'green' },
+    { label: 'Origen', value: 'WhatsApp Business' },
+  ],
+  timeline: [
+    {
+      type: 'ai', channel: '⚡ IA · Scoring actualizado', color: 'purple', time: 'Hace 15 min',
+      body: 'Score subió de <strong>66 → 78</strong> tras confirmar prescripción médica.',
+    },
+    {
+      type: 'whatsapp', channel: 'WhatsApp', time: 'Hace 32 min',
+      body: '<strong>Tere:</strong> "Sí, tengo la indicación del Dr. Reyes. ¿Me pueden atender esta semana?"',
+    },
+    {
+      type: 'stage', channel: 'Movimiento de etapa', color: 'teal', time: 'Hace 1d 2h',
+      body: 'Avanzó de <strong>Nuevo</strong> → <strong>Intención identificada</strong>.',
+    },
+  ],
+}
+
+export const panelDealEmpty = {
+  id: 'empty',
+  name: 'Juan Pérez',
+  stageName: 'Nuevo',
+  stageColor: 'var(--stage-1)',
+  service: 'Sin servicio identificado',
+  channel: 'Instagram',
+  createdLabel: 'Creado hace 4 min',
+  amount: 0,
+  score: 12,
+  scoreTone: 'cold',
+  owner: { name: 'Flowi', bot: true },
+  counts: { timeline: 1, notas: 0, archivos: 0 },
+}

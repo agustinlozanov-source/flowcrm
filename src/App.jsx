@@ -10,6 +10,7 @@ import Register from '@/pages/Register'
 import DistribuidorLoginPage from '@/pages/DistribuidorLoginPage'
 import Pipeline from '@/pages/Pipeline'
 import Superadmin from '@/pages/Superadmin'
+import ComponentsPreview from '@/features/pipeline-v2/preview/ComponentsPreview'
 import Setup from '@/pages/Setup'
 import Agent from '@/pages/Agent'
 import Contacts from '@/pages/Contacts'
@@ -54,6 +55,9 @@ export default function App() {
 
       <Routes>
         {/* Public */}
+        {/* Preview de componentes del rediseño del pipeline (Fase 1).
+            Fuera del layout del CRM a propósito: es tema oscuro y aislado. */}
+        <Route path="/dev/pipeline-components" element={<ComponentsPreview />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/distribuidor-login" element={<DistribuidorLoginPage />} />
