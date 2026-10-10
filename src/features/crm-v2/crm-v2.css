@@ -767,3 +767,59 @@
   font-family: inherit; font-size: 12px; font-weight: 600; color: inherit;
   text-decoration: underline; text-underline-offset: 2px;
 }
+
+/* ═══════════════ REUNIONES ═══════════════ */
+.pv2-filters { display: flex; gap: 6px; padding: 12px 20px 0; flex-shrink: 0; }
+.pv2-chip-btn {
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  color: var(--text-tertiary); cursor: pointer; font-family: inherit;
+}
+.pv2-chip-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.pv2-chip-btn--active { background: var(--bg-elev-3); color: var(--text); border-color: var(--border-strong); }
+
+.pv2-agenda { flex: 1; overflow-y: auto; padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+.pv2-agenda__sep {
+  display: flex; align-items: center; gap: 10px; margin: 8px 0 2px;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.pv2-agenda__sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ═══════════════ INBOX ═══════════════ */
+.pv2-inbox { flex: 1; display: flex; min-height: 0; }
+.pv2-inbox__list { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; }
+.pv2-conv {
+  width: 100%; text-align: left; display: flex; gap: 10px; padding: 12px 14px;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-family: inherit;
+}
+.pv2-conv:hover { background: var(--bg-elev-1); }
+.pv2-conv--active { background: var(--bg-elev-2); }
+.pv2-conv__main { flex: 1; min-width: 0; }
+.pv2-conv__top { display: flex; align-items: center; gap: 6px; }
+.pv2-conv__name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv2-conv__time { margin-left: auto; font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+.pv2-conv__last { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv2-conv__paused { color: var(--amber); display: inline-flex; flex-shrink: 0; }
+.pv2-conv__unread { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex-shrink: 0; }
+
+.pv2-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.pv2-chat__header {
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.pv2-chat__body { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.pv2-msg { max-width: 74%; padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.45; }
+.pv2-msg--in  { align-self: flex-start; background: var(--bg-elev-2); border: 1px solid var(--border); border-top-left-radius: 4px; }
+.pv2-msg--bot { align-self: flex-end; background: #7c3aed; color: white; border-top-right-radius: 4px; }
+.pv2-msg--human { align-self: flex-end; background: var(--azul); color: white; border-top-right-radius: 4px; }
+.pv2-msg__who { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; margin-bottom: 3px; }
+.pv2-chat__composer { padding: 12px 18px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.pv2-chat__input {
+  width: 100%; background: var(--bg-elev-1); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; color: var(--text);
+  font-family: inherit; font-size: 13px; resize: none;
+}
+.pv2-chat__input:disabled { opacity: 0.5; cursor: not-allowed; }
+.pv2-chat__aside { width: 280px; flex-shrink: 0; border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; }

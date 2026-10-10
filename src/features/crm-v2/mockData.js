@@ -228,3 +228,34 @@ export const appointments = [
   { id: 'a6', name: 'Patricia Núñez', hour: '1:00', ampm: 'PM', type: 'presencial', status: 'asistio', location: 'Sede Centro' },
   { id: 'a7', name: 'Juan Pérez', hour: '2:00', ampm: 'PM', type: 'presencial', status: 'noshow', location: 'Sede Centro' },
 ]
+
+export const conversations = [
+  { id: 'v1', name: 'Jorge Tamez', time: '3h', unread: true, paused: false,
+    last: 'Desde ayer veo manchas negras y destellos.',
+    thread: [
+      { who: 'in', text: 'Hola, buenas tardes. Necesito una cita urgente.' },
+      { who: 'bot', text: '¡Hola! Con gusto te ayudo. ¿Me cuentas qué molestia tienes?' },
+      { who: 'in', text: 'Desde ayer veo manchas negras y destellos.' },
+      { who: 'bot', text: 'Entiendo, y lo que describes necesita valoración pronta. Déjame pasarte con recepción ahora mismo para darte el espacio más cercano.' },
+    ] },
+  { id: 'v2', name: 'Rocío Benavides', time: '1h', unread: true, paused: true,
+    last: '¿Me pueden marcar? Prefiero explicarlo por teléfono.',
+    thread: [
+      { who: 'in', text: 'Buenas, quería preguntar por una consulta.' },
+      { who: 'bot', text: '¡Claro! ¿Qué molestia te trae por aquí?' },
+      { who: 'in', text: '¿Me pueden marcar? Prefiero explicarlo por teléfono.' },
+      { who: 'human', text: 'Hola Rocío, soy Lucía de Monte Sinaí. Te marco en 20 minutos, ¿te queda bien?' },
+    ] },
+  { id: 'v3', name: 'Tere Guillén', time: '32m', unread: false, paused: false,
+    last: 'Sí, tengo la indicación del Dr. Reyes.',
+    thread: [
+      { who: 'bot', text: 'El estudio cuesta $3,500 MXN. Requiere 4 horas de ayuno y venir acompañada. ¿Tienes la indicación de tu médico?' },
+      { who: 'in', text: 'Sí, tengo la indicación del Dr. Reyes. ¿Me atienden esta semana?' },
+    ] },
+  { id: 'v4', name: 'Carla Robles', time: '2d', unread: false, paused: false,
+    last: 'Déjame checarlo y te aviso.',
+    thread: [
+      { who: 'bot', text: 'La consulta de valoración son $1,200 MXN. ¿Te agendo esta semana?' },
+      { who: 'in', text: 'Déjame checarlo y te aviso.' },
+    ] },
+]
