@@ -14,7 +14,7 @@ import clsx from 'clsx'
 import {
   X, Plus, Clock, Calendar as CalendarIcon, Video, Phone, MapPin,
   List, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  RotateCcw, Star, AlertTriangle, Search, Check, Trash2
+  RotateCcw, Star, AlertTriangle, Search, Check, Trash2, Pencil
 } from 'lucide-react'
 
 // Con tres tipos los ternarios dejaron de servir: acá queda el ícono y el
