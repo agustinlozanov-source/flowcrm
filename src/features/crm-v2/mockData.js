@@ -1,6 +1,6 @@
 /* Datos de ejemplo para la vista de preview de componentes.
  * NO se conectan a Firestore: la Fase 3 es la que reemplaza esto por queries
- * reales. Modelado sobre el caso de Monte Sinaí. */
+ * reales. Modelado sobre el caso de Clínica Aurora. */
 
 export const dealNormal = {
   id: 'd1',
@@ -165,9 +165,9 @@ export const panelDealEmpty = {
 }
 
 export const pipelines = [
-  { id: 'monte-sinai', name: 'Monte Sinaí', color: '#1AAB99' },
-  { id: 'activz', name: 'Activz · Consumo', color: '#F79009' },
-  { id: 'tere', name: 'Tere Guillén', color: '#9E77ED' },
+  { id: 'aurora', name: 'Clínica Aurora', color: '#1AAB99' },
+  { id: 'norte', name: 'Óptica Norte', color: '#F79009' },
+  { id: 'vega', name: 'Centro Vega', color: '#9E77ED' },
 ]
 
 export const topbarStats = [
@@ -244,7 +244,7 @@ export const conversations = [
       { who: 'in', text: 'Buenas, quería preguntar por una consulta.' },
       { who: 'bot', text: '¡Claro! ¿Qué molestia te trae por aquí?' },
       { who: 'in', text: '¿Me pueden marcar? Prefiero explicarlo por teléfono.' },
-      { who: 'human', text: 'Hola Rocío, soy Lucía de Monte Sinaí. Te marco en 20 minutos, ¿te queda bien?' },
+      { who: 'human', text: 'Hola Rocío, soy Lucía de Clínica Aurora. Te marco en 20 minutos, ¿te queda bien?' },
     ] },
   { id: 'v3', name: 'Tere Guillén', time: '32m', unread: false, paused: false,
     last: 'Sí, tengo la indicación del Dr. Reyes.',

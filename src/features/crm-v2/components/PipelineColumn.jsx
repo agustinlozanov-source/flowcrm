@@ -16,6 +16,7 @@ import { MATURITY } from '../maturity'
 export default function PipelineColumn({
   variant = 'calentamiento',
   name,
+  accent,
   metrics = [],
   distribution,
   activeFilter,
@@ -30,13 +31,11 @@ export default function PipelineColumn({
   const total = distribution ? Object.values(distribution).reduce((a, b) => a + b, 0) : 0
 
   return (
-    <section className={clsx('pv2-col', isHandoff && 'pv2-col--handoff')}>
+    <section className="pv2-col">
+      <div className="pv2-col__accent" style={{ background: accent }} />
       <header className="pv2-col__header">
         <div className="pv2-col__header-top">
-          <h3 className="pv2-col__name">
-            {isHandoff && <span className="pv2-col__dot" />}
-            {name}
-          </h3>
+          <h3 className="pv2-col__name">{name}</h3>
           <button className="pv2-icon-btn" onClick={onMenu} title="Opciones de la columna">
             <MoreVertical size={13} />
           </button>
@@ -84,7 +83,6 @@ export default function PipelineColumn({
           </>
         )}
 
-        {isHandoff && <div className="pv2-col__bar" />}
       </header>
 
       <div className="pv2-col__body">

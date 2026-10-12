@@ -78,7 +78,7 @@ export default function ComponentsPreview() {
               active="pipeline"
               counts={{ conversaciones: 14 }}
               pipelines={mock.pipelines}
-              activePipeline="monte-sinai"
+              activePipeline="aurora"
               user={{ name: 'Agustín Lozano', role: 'Admin · Flow Hub' }}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(v => !v)}
@@ -100,7 +100,7 @@ export default function ComponentsPreview() {
       <Section title="Topbar" note="56 px sticky con blur. Contextual: título, stats y botón primario los define la vista.">
         <Variant label="Pipeline (con stats y toggle)" width="100%">
           <Topbar
-            breadcrumb="Pipeline" title="Monte Sinaí" onTitleClick={() => {}}
+            breadcrumb="Pipeline" title="Clínica Aurora" onTitleClick={() => {}}
             stats={mock.topbarStats}
             activeView={view} onViewChange={setView}
             filterCount={2} onFilters={() => {}} onSearch={() => {}}
@@ -285,7 +285,7 @@ export default function ComponentsPreview() {
         </Variant>
       </Section>
 
-      <Section title="WhatsAppStatusBadge" note="Nació del caso real de Monte Sinaí: el equipo operaba creyendo que todo andaba. Dice el motivo, no solo el color.">
+      <Section title="WhatsAppStatusBadge" note="Nació del caso real de Clínica Aurora: el equipo operaba creyendo que todo andaba. Dice el motivo, no solo el color.">
         <Variant label="OK"><WhatsAppStatusBadge status="ok" /></Variant>
         <Variant label="Limitado"><WhatsAppStatusBadge status="warn" reasons={['window']} /></Variant>
         <Variant label="Bloqueado"><WhatsAppStatusBadge status="block" reasons={['payment', 'verification']} /></Variant>

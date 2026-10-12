@@ -1,4 +1,4 @@
-/* Mock del board de Monte Sinaí. 18 tarjetas repartidas en las tres columnas,
+/* Mock del board de Clínica Aurora. 18 tarjetas repartidas en las tres columnas,
  * con los casos que importan: banderas rojas, oportunidades vinculadas,
  * scores variados y cierres parciales y totales.
  *
@@ -107,10 +107,11 @@ export const BOARD = {
   ],
 }
 
+/* `accent` es el color que tiene una tarjeta al LLEGAR a esa columna. */
 export const COLUMNS = [
-  { id: 'calentamiento', variant: 'calentamiento', name: 'En calentamiento' },
-  { id: 'handoff', variant: 'handoff', name: 'Handoff' },
-  { id: 'cierre', variant: 'cierre', name: 'Cierre definitivo' },
+  { id: 'calentamiento', variant: 'calentamiento', name: 'En calentamiento', accent: '#FF6B00' },
+  { id: 'handoff', variant: 'handoff', name: 'Handoff', accent: '#00A651' },
+  { id: 'cierre', variant: 'cierre', name: 'Cierre definitivo', accent: '#2E90FA' },
 ]
 
 const money = n => `$${n.toLocaleString('es-MX')}`
@@ -148,9 +149,9 @@ export const TOPBAR_STATS = [
 ]
 
 export const PIPELINES = [
-  { id: 'monte-sinai', name: 'Monte Sinaí', color: '#1AAB99' },
-  { id: 'activz', name: 'Activz · Consumo', color: '#F79009' },
-  { id: 'tere', name: 'Tere Guillén', color: '#9E77ED' },
+  { id: 'aurora', name: 'Clínica Aurora', color: '#1AAB99' },
+  { id: 'norte', name: 'Óptica Norte', color: '#F79009' },
+  { id: 'vega', name: 'Centro Vega', color: '#9E77ED' },
 ]
 
 export const USER = { name: 'Agustín Lozano', role: 'Admin · Flow Hub' }

@@ -36,6 +36,11 @@ export default function Sidebar({
   onNewPipeline,
   user,
   onSettings,
+  settingsIcon,
+  settingsTitle = 'Configuración',
+  // El logo de marca es claro y desaparece sobre blanco; public/logo.png es
+  // la variante oscura.
+  logo = '/flowhub-logo2.png',
 }) {
   return (
     <aside className={clsx('pv2-sidebar', collapsed && 'pv2-sidebar--collapsed')}>
@@ -44,7 +49,7 @@ export default function Sidebar({
           ? <button className="pv2-icon-btn" onClick={onToggleCollapse} title="Expandir"><PanelLeft size={15} /></button>
           : (
             <>
-              <img src="/flowhub-logo2.png" alt="Flow Hub" />
+              <img src={logo} alt="Flow Hub" />
               <button className="pv2-icon-btn" style={{ marginLeft: 'auto' }} onClick={onToggleCollapse} title="Colapsar">
                 <PanelLeftClose size={14} />
               </button>
@@ -93,8 +98,8 @@ export default function Sidebar({
           <div className="pv2-sidebar__user-name">{user?.name}</div>
           <div className="pv2-sidebar__user-role">{user?.role}</div>
         </div>
-        <button className="pv2-icon-btn" onClick={onSettings} title="Configuración">
-          <Settings size={13} />
+        <button className="pv2-icon-btn" onClick={onSettings} title={settingsTitle}>
+          {settingsIcon || <Settings size={13} />}
         </button>
       </div>
     </aside>

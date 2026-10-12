@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Sun, Moon } from 'lucide-react'
 import '../crm-v2.css'
 import Sidebar from '../components/Sidebar'
 import { PIPELINES, USER } from '../boardData'
@@ -20,19 +21,32 @@ const ROUTES = {
  */
 export default function AppShellV2({ active, children }) {
   const [collapsed, setCollapsed] = useState(false)
+  // El tema se recuerda por usuario. El try/catch es porque en una ventana
+  // privada localStorage puede tirar al leer.
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('pv2-theme') || 'dark' } catch { return 'dark' }
+  })
   const navigate = useNavigate()
 
+  useEffect(() => {
+    try { localStorage.setItem('pv2-theme', theme) } catch { /* sin persistencia, no pasa nada */ }
+  }, [theme])
+
   return (
-    <div className="pv2 pv2-app">
+    <div className={`pv2 pv2-app${theme === 'light' ? ' pv2--light' : ''}`}>
       <Sidebar
         active={active}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(v => !v)}
         counts={{ conversaciones: 14 }}
         pipelines={PIPELINES}
-        activePipeline="monte-sinai"
+        activePipeline="aurora"
         user={USER}
+        logo={theme === 'light' ? '/logo.png' : '/flowhub-logo2.png'}
         onNavigate={id => ROUTES[id] && navigate(ROUTES[id])}
+        onSettings={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+        settingsIcon={theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+        settingsTitle={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
       />
       <main className="pv2-main">{children}</main>
     </div>

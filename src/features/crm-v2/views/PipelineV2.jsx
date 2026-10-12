@@ -50,7 +50,7 @@ export default function PipelineV2() {
   return (
     <AppShellV2 active="pipeline">
       <Topbar
-        breadcrumb="Pipeline" title="Monte Sinaí" onTitleClick={() => {}}
+        breadcrumb="Pipeline" title="Clínica Aurora" onTitleClick={() => {}}
         stats={TOPBAR_STATS}
         activeView={view} onViewChange={setView}
         filterCount={Object.values(filters).filter(Boolean).length}
@@ -90,6 +90,7 @@ export default function PipelineV2() {
                   key={col.id}
                   variant={col.variant}
                   name={col.name}
+                  accent={col.accent}
                   metrics={columnMetrics(all, col.id === 'handoff' ? { pending: '1h' } : undefined)}
                   distribution={col.id === 'calentamiento' ? distribution(all) : undefined}
                   activeFilter={active}

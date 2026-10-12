@@ -179,24 +179,26 @@
   border-radius: 10px; display: flex; flex-direction: column;
   overflow: hidden; max-height: 100%;
 }
-.pv2-col--handoff {
-  background: linear-gradient(180deg, rgba(26,171,153,0.04) 0%, rgba(53,51,205,0.04) 100%);
-  border: 1px solid rgba(26, 171, 153, 0.25);
-}
+/* El acento arriba identifica la columna de un vistazo. Es el mismo color que
+ * tiene una tarjeta cuando LLEGA a esa columna — naranja al entrar, verde al
+ * pasar a handoff, azul al primer cierre — así el color significa lo mismo en
+ * la columna y en la tarjeta.
+ *
+ * Sin gradiente: es denso, pelea con el resto y el teal institucional no
+ * contrasta bien. Color plano, que es lo que se lee de reojo. */
+.pv2-col__accent { height: 4px; width: 100%; flex-shrink: 0; }
+
 .pv2-col__header { padding: 14px 14px 10px; flex-shrink: 0; }
-.pv2-col__header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pv2-col__header-top { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
 .pv2-col__name {
-  display: flex; align-items: center; gap: 8px;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px; font-weight: 700; color: var(--text);
+  font-size: 15px; font-weight: 800; color: var(--text);
+  letter-spacing: -0.01em; text-align: center;
 }
-.pv2-col--handoff .pv2-col__name {
-  background: var(--gradient-brand);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.pv2-col__dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.pv2-col--handoff .pv2-col__dot { background: var(--gradient-brand); }
+/* El menú se saca del flujo para que el título quede centrado de verdad y no
+ * desplazado por el ancho del botón. */
+.pv2-col__header-top .pv2-icon-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.pv2-col__metrics { justify-content: center; }
 
 .pv2-col__metrics { display: flex; gap: 10px; margin-bottom: 10px; }
 .pv2-col__metric { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -206,8 +208,6 @@
   font-size: 11.5px; font-weight: 700; color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-.pv2-col__bar { height: 2px; width: 100%; border-radius: 1px; margin-top: 2px; }
-.pv2-col--handoff .pv2-col__bar { background: var(--gradient-brand); height: 3px; }
 
 .pv2-col__body {
   flex: 1; overflow-y: auto; padding: 10px;
@@ -512,7 +512,8 @@
   display: flex; align-items: center; padding: 0 20px; gap: 12px;
   position: sticky; top: 0; z-index: 10;
 }
-.pv2-topbar__title { display: flex; flex-direction: column; min-width: 0; }
+.pv2-topbar__title { display: flex; flex-direction: column; min-width: 0; flex-shrink: 0; }
+.pv2-topbar__title .pv2-topbar__name { white-space: nowrap; }
 .pv2-topbar__breadcrumb { font-size: 11px; color: var(--text-tertiary); font-weight: 500; }
 .pv2-topbar__name {
   font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700;
@@ -606,9 +607,10 @@
 }
 .pv2-dist__dot { width: 7px; height: 7px; border-radius: 2px; }
 
-/* ═══════════════ TEMA CLARO (solo para esta comparación) ═══════════════
- * No es el light theme definitivo — es para ver cómo se comporta cada
- * tratamiento sobre blanco antes de elegir. */
+/* ═══════════════ TEMA CLARO ═══════════════
+ * Solo redefine neutros. Los colores de madurez NO se tocan: van a tonalidad
+ * plena y son idénticos en los dos temas, que es la ventaja de haber elegido
+ * el acento en vez del tinte de fondo. */
 .pv2--light {
   --bg: #F7F7F9;
   --bg-elev-1: #FFFFFF;
@@ -622,6 +624,8 @@
   --text-muted: #AFAFB7;
   --card-bg: #FFFFFF;
   --card-hover: #F7F7F9;
+  --sidebar-bg: #FFFFFF;
+  --topbar-bg: rgba(255, 255, 255, 0.85);
 
   /* Hay que volver a declarar color acá: en .pv2 se resolvió con el --text
    * oscuro y se hereda ya calculado, así que redefinir la variable sola no
@@ -823,3 +827,24 @@
 }
 .pv2-chat__input:disabled { opacity: 0.5; cursor: not-allowed; }
 .pv2-chat__aside { width: 280px; flex-shrink: 0; border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+
+/* Neutros del tema claro que faltaban para las vistas completas. */
+.pv2--light .pv2-msg--in { background: var(--bg-elev-2); }
+.pv2--light .pv2-chat__input { background: #FFFFFF; }
+.pv2--light .pv2-kbd { background: var(--bg-elev-2); }
+.pv2--light .pv2-quick__btn { background: var(--bg-elev-3); }
+.pv2--light .pv2-opp { background: var(--bg-elev-1); }
+.pv2--light .pv2-appt { background: #FFFFFF; }
+.pv2--light .pv2-appt__time { background: var(--bg-elev-2); }
+.pv2--light .pv2-card { background: #FFFFFF; }
+.pv2--light .pv2-card:hover { background: var(--card-hover); }
+.pv2--light .pv2-col { background: var(--bg-elev-1); }
+.pv2--light .pv2-col__body::-webkit-scrollbar-thumb,
+.pv2--light .pv2-board::-webkit-scrollbar-thumb { background: var(--border-strong); }
+.pv2--light .pv2-topbar { background: rgba(255,255,255,0.85); }
+.pv2--light .pv2-peek { box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+.pv2--light .pv2-panel { box-shadow: -8px 0 32px rgba(0,0,0,0.12); }
+.pv2--light .pv2-overlay { background: rgba(0,0,0,0.25); }
+.pv2--light .pv2-score-explain,
+.pv2--light .pv2-next { background: var(--bg-elev-2); }
+.pv2--light .pv2-dist__seg { opacity: 1; }
