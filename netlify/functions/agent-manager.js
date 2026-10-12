@@ -816,16 +816,29 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
     .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
 
-  // Load enabled products
+  /* Productos que ve el agente.
+   *
+   * Si la organización eligió cuáles habilitar, se respeta esa lista. Pero si
+   * no eligió ninguno se le dan todos, no cero: "sin restricción configurada"
+   * significa que puede usar el catálogo entero, no que no tiene catálogo.
+   *
+   * Con el comportamiento anterior, una organización que nunca pasó por esa
+   * pantalla tenía un agente que hablaba de los productos —los precios salen
+   * de la base de conocimiento— y no podía registrar una sola oportunidad,
+   * porque para él el catálogo estaba vacío.
+   */
   let products = []
+  const productsRef = db.collection('organizations').doc(orgId).collection('products')
   if (agentConfig.enabledProductIds?.length) {
     const productSnaps = await Promise.all(
-      agentConfig.enabledProductIds.map(id =>
-        db.collection('organizations').doc(orgId).collection('products').doc(id).get()
-      )
+      agentConfig.enabledProductIds.map(id => productsRef.doc(id).get())
     )
     products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
+  } else {
+    const todos = await productsRef.get()
+    products = todos.docs.map(d => ({ id: d.id, ...d.data() }))
   }
+  console.log(`[agent] catálogo: ${products.length} producto(s)${agentConfig.enabledProductIds?.length ? ' (lista habilitada)' : ' (todos, sin lista configurada)'}`)
 
   // Load resources available for sharing
   const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources')
@@ -926,6 +939,9 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       })
     }
 
+    // Se registra qué declaró el modelo aunque no se cree nada: sin esto, un
+    // fallo acá es invisible y hay que adivinar.
+    console.log(`[agent] oportunidades declaradas: ${JSON.stringify(parsed.oportunidades || [])}`)
     const nuevasOps = await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)
     if (nuevasOps) console.log(`[agent] ${nuevasOps} oportunidad(es) registradas para ${leadId}`)
 
