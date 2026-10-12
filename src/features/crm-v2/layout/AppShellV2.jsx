@@ -3,14 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { Sun, Moon } from 'lucide-react'
 import '../crm-v2.css'
 import Sidebar from '../components/Sidebar'
-import { PIPELINES, USER } from '../boardData'
+import { useAuthStore } from '@/store/authStore'
 
-/* Rutas v2 por item de la sidebar. Las que todavía no existen quedan sin
- * entrada y el click no hace nada — mejor eso que llevar a un 404. */
+/* Rutas por item de la sidebar. Donde todavía no hay vista v2 se va a la
+ * pantalla actual del CRM: es menos bonito que quedarse en el mundo nuevo,
+ * pero deja la app entera navegable en vez de hacer un callejón sin salida.
+ * Los items sin entrada no hacen nada — mejor eso que llevar a un 404. */
 const ROUTES = {
   pipeline: '/pipeline-v2',
   reuniones: '/reuniones-v2',
   conversaciones: '/inbox-v2',
+  contactos: '/leads',
+  catalogo: '/products',
+  automatizaciones: '/agent',
+  reportes: '/analytics',
 }
 
 /**
@@ -19,7 +25,11 @@ const ROUTES = {
  * Monta la sidebar nueva y no la del CRM actual: el briefing v2 pide
  * reemplazar la global (A.4) y en claro la costura se vería mal.
  */
-export default function AppShellV2({ active, children }) {
+export default function AppShellV2({
+  active, children,
+  pipelines = [], activePipelineId = null, onSelectPipeline, onNewPipeline,
+}) {
+  const { user, org } = useAuthStore()
   const [collapsed, setCollapsed] = useState(false)
   // El tema se recuerda por usuario. El try/catch es porque en una ventana
   // privada localStorage puede tirar al leer.
@@ -38,10 +48,14 @@ export default function AppShellV2({ active, children }) {
         active={active}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(v => !v)}
-        counts={{ conversaciones: 14 }}
-        pipelines={PIPELINES}
-        activePipeline="aurora"
-        user={USER}
+        pipelines={pipelines}
+        activePipeline={activePipelineId}
+        onSelectPipeline={onSelectPipeline}
+        onNewPipeline={onNewPipeline}
+        user={{
+          name: user?.name || user?.email || 'Sin sesión',
+          role: [user?.role === 'superadmin' ? 'Superadmin' : 'Admin', org?.name].filter(Boolean).join(' · '),
+        }}
         logo={theme === 'light' ? '/logo.png' : '/flowhub-logo2.png'}
         onNavigate={id => ROUTES[id] && navigate(ROUTES[id])}
         onSettings={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
