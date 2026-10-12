@@ -5,7 +5,7 @@ import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
-import { db } from '@/lib/firebase'
+import { db, auth } from '@/lib/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
 import {
   Search, Users, MousePointerClick, Instagram, MessageCircle,
@@ -208,20 +208,34 @@ export default function Contacts() {
     return unsub
   }, [])
 
+  /* Limpia la base para poder volver a probar desde el mismo WhatsApp: si el
+   * lead ya existe, el sistema reconoce el número y retoma la conversación
+   * anterior en vez de empezar de cero.
+   *
+   * La organización la decide el servidor a partir de quién pide, no se manda
+   * desde acá: antes se mandaba el id junto a una contraseña escrita en el
+   * código del navegador, y con eso se le podía borrar la base a cualquiera.
+   */
   const handleClearAllLeads = async () => {
     const total = leads.length + systemLeads.length + discardedLeads.length
-    if (!window.confirm(`¿Borrar los ${total} leads y todas sus conversaciones? Esto no se puede deshacer.`)) return
+    const escrito = window.prompt(
+      `Esto borra los ${total} leads de ${org?.name || 'esta organización'}, sus conversaciones, sus oportunidades y todas las citas.\n\nNo se puede deshacer. Escribí BORRAR para confirmar.`,
+    )
+    if (escrito !== 'BORRAR') return
+
     setClearing(true)
     try {
-      const res = await fetch(
-        `https://flowcrm-production-6d63.up.railway.app/admin/clear-leads/${orgId}?secret=flowhub-clear-2026`,
-        { method: 'DELETE' }
-      )
+      const token = await auth.currentUser?.getIdToken()
+      const res = await fetch('/.netlify/functions/clear-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ confirm: 'BORRAR' }),
+      })
       const data = await res.json()
-      if (data.success) toast.success(`${data.deleted} leads eliminados`)
-      else toast.error(data.error || 'Error al limpiar')
+      if (!res.ok || !data.success) throw new Error(data.error || 'Error al limpiar')
+      toast.success(`${data.leads} leads, ${data.subdocs} mensajes y ${data.citas} citas eliminados`)
     } catch (e) {
-      toast.error('Error de conexión')
+      toast.error(e.message || 'Error de conexión')
     } finally {
       setClearing(false)
     }
