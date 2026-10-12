@@ -146,7 +146,7 @@ export default function SidePanel({
             </div>
           )}
 
-          {deal.scoreFactors && (
+          {score != null && (
             <div className="pv2-score-explain">
               <div className="pv2-score-explain__header">
                 <span className="pv2-score-explain__title">Score</span>
@@ -159,7 +159,7 @@ export default function SidePanel({
                 </span>
               </div>
               <div className="pv2-factors">
-                {deal.scoreFactors.map(f => (
+                {(deal.scoreFactors || []).map(f => (
                   <div key={f.text} className="pv2-factor">
                     <span className={clsx('pv2-factor__sign', f.value >= 0 ? 'pv2-factor__sign--pos' : 'pv2-factor__sign--neg')}>
                       {f.value >= 0 ? '+' : '−'}
@@ -170,6 +170,11 @@ export default function SidePanel({
                     </span>
                   </div>
                 ))}
+                {!deal.scoreFactors && (
+                  <p className="pv2-factors__empty">
+                    El desglose de qué sumó y qué restó todavía no se guarda.
+                  </p>
+                )}
               </div>
             </div>
           )}

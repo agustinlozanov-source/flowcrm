@@ -33,10 +33,20 @@ export function columnOf(lead) {
 }
 
 /** Antes del cierre el color lo da el score. En Cierre lo da si quedó algo
- *  abierto: venta cerrada es total, oportunidad todavía abierta es parcial. */
+ *  abierto: si todavía hay una oportunidad viva es cierre parcial, y solo
+ *  cuando no queda ninguna es cierre total. Es la diferencia entre haberle
+ *  vendido la consulta y haberle vendido además la cirugía. */
 export function maturityOf(lead, thresholds) {
   const col = columnOf(lead)
-  if (col === 'cierre') return lead.systemStage === 'closed' ? MATURITY.c2 : MATURITY.c1
+  if (col === 'cierre') {
+    const stats = lead.opportunityStats
+    // Sin oportunidades cargadas se cae al dato viejo: un lead cerrado es
+    // cierre total, cualquier otro es parcial.
+    if (!stats || !stats.total) {
+      return lead.systemStage === 'closed' ? MATURITY.c2 : MATURITY.c1
+    }
+    return stats.open > 0 ? MATURITY.c1 : MATURITY.c2
+  }
   if (col === 'handoff') return MATURITY.m4
   return maturityFromScore(lead.score || 0, thresholds)
 }
@@ -101,6 +111,7 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
   const proximaCita = citasDelLead.find(a => a.status === 'scheduled')
   // El monto de la tarjeta es el precio de este producto; sin el nombre, el
   // número no dice de qué es.
+  const stats = lead.opportunityStats
   const producto = lead.closedProduct?.name
     || (lead.productId ? products.find(p => p.id === lead.productId)?.name : null)
 
@@ -111,9 +122,15 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
     id: lead.id,
     name: [lead.name, lead.lastName].filter(Boolean).join(' ') || 'Sin nombre',
     sub: [canal, cuando && `hace ${cuando}`].filter(Boolean).join(' · '),
-    amount: lead.systemStage === 'closed'
-      ? (lead.closedProduct?.price || lead.value || 0)
-      : (lead.value || 0),
+    // Real es lo efectivamente vendido; potencial es lo que sigue abierto.
+    // Mientras el lead no tenga oportunidades cargadas se usa el dato viejo,
+    // así los leads de antes siguen mostrando su monto.
+    amount: stats?.total
+      ? stats.valueWon
+      : (lead.systemStage === 'closed'
+          ? (lead.closedProduct?.price || lead.value || 0)
+          : (lead.value || 0)),
+    potential: stats?.valueOpen || 0,
     score: lead.score || 0,
     maturity: maturityOf(lead).id,
     // Mientras no haya una persona a cargo, el que atiende es el agente. Pero
@@ -145,6 +162,7 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
       lead.email && { label: 'Email', value: lead.email },
       lead.company && { label: 'Empresa', value: lead.company },
       producto && { label: 'Producto', value: producto, pill: lead.closedProduct?.name ? 'green' : undefined },
+      stats?.open > 0 && { label: 'Abiertas', value: `${stats.open} oportunidad${stats.open === 1 ? '' : 'es'}` },
       lead.paymentDate && { label: 'Fecha de pago', value: lead.paymentDate },
     ].filter(Boolean),
     _lead: lead,
