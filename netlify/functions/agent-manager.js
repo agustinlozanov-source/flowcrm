@@ -15,13 +15,35 @@ const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── BUILD SYSTEM PROMPT ───────────────────────────────────────────
-function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext, resources, allPipelines = [], resolvedPipelineId = null) {
+function buildSystemPrompt(config, ragContent, products, scoringConfig, leadContext, resources, allPipelines = [], resolvedPipelineId = null, agenda = {}) {
   const {
     agentName = 'Asistente',
     customInstructions = '',
   } = config
 
   // Products section
+  // Sin la fecha de hoy el agente no puede traducir "el lunes" ni "mañana" a
+  // una fecha concreta, así que no puede consultar ni agendar nada.
+  const tz = agenda.tz || 'America/Mexico_City'
+  const hoy = new Intl.DateTimeFormat('es-MX', {
+    timeZone: tz, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  }).format(new Date())
+  const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+
+  const agendaSection = `
+AGENDA:
+Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.
+- Si el lead quiere una cita, consultá la agenda ANTES de ofrecer cualquier horario. Nunca inventes disponibilidad ni prometas un horario sin haberlo verificado.
+- Si pide un horario puntual, fijate si está libre. Si no lo está, decíselo y ofrecé los que sí, sin rodeos.
+- Si muestra intención pero no da día ni hora, proponé vos dos o tres opciones concretas de los huecos libres. No preguntes "¿cuándo te queda cómodo?" y lo dejes ahí.
+- Cuando quede acordado, agendala. No digas que la agendaste si no usaste la herramienta.
+- El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, preguntá.
+
+OPORTUNIDADES:
+- Cuando el lead cuente un problema que uno de tus productos resuelve, registrá la oportunidad con ese producto. El mismo lead puede tener varias abiertas.
+- El precio y el nombre salen del catálogo. No los inventes ni los negocies.
+- Registrarla es trabajo interno: no se lo anuncies al lead.`
+
   const productsSection = products.length > 0
     ? `\nPRODUCTOS QUE MANEJO:\n${products.map(p =>
         `- ${p.name} · $${Number(p.price).toLocaleString()} ${p.currency || 'USD'}${p.durationDays ? ` · Dura ${p.durationDays} días` : ''}${p.problemTags?.length ? ` · Resuelve: ${p.problemTags.join(', ')}` : ''}`
@@ -101,6 +123,7 @@ INSTRUCCIONES PRINCIPALES:
 - Adapta tu tono al del lead (formal/informal)
 - Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
 
+${agendaSection}
 ${productsSection}
 ${scoringSection}
 ${leadSection}
@@ -127,6 +150,195 @@ Responde SIEMPRE llamando a la herramienta "responder". No escribas texto suelto
 // ── HERRAMIENTA DE RESPUESTA ──────────────────────────────────────
 // El scoring va como arreglo y no como objeto de claves dinámicas: un esquema
 // estricto necesita propiedades conocidas y additionalProperties en false.
+/* ── Herramientas de trabajo del agente ─────────────────────────────────
+ *
+ * Hasta acá el agente estaba forzado a una sola herramienta, responder, así
+ * que podía decir "te agendo el viernes" y no quedaba nada escrito. Estas tres
+ * le dan la capacidad de hacer lo que el prompt ya le pedía.
+ *
+ * responder sigue siendo la única forma de hablarle al lead, así que el texto
+ * nunca sale sin pasar por el esquema.
+ */
+const CONSULTAR_AGENDA = {
+  name: 'consultar_agenda',
+  description: 'Devuelve los horarios libres de un día, respetando los horarios de atención, las citas ya tomadas y el buffer entre reuniones. Úsala SIEMPRE antes de proponer u ofrecer un horario: nunca inventes disponibilidad.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      fecha: { type: 'string', description: 'Día a consultar en formato YYYY-MM-DD' },
+      duracion: { type: 'integer', description: 'Duración en minutos de la cita que se quiere agendar' },
+    },
+    required: ['fecha'],
+    additionalProperties: false,
+  },
+}
+
+const AGENDAR_CITA = {
+  name: 'agendar_cita',
+  description: 'Agenda una cita en un horario que consultar_agenda haya devuelto como libre. Si el lead pidió un horario que no está libre, no la uses: ofrecé los que sí lo están.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      fecha: { type: 'string', description: 'YYYY-MM-DD' },
+      hora: { type: 'string', description: 'HH:MM en 24 horas, hora local de la organización' },
+      tipo: { type: 'string', enum: ['presencial', 'video', 'call'], description: 'presencial si el lead viene a la sede, video si es videollamada, call si es telefónica' },
+      duracion: { type: 'integer', description: 'Minutos. Por defecto 30' },
+      motivo: { type: 'string', description: 'Qué se va a atender, en una línea' },
+    },
+    required: ['fecha', 'hora', 'tipo'],
+    additionalProperties: false,
+  },
+}
+
+const ABRIR_OPORTUNIDAD = {
+  name: 'abrir_oportunidad',
+  description: 'Registra una oportunidad de venta cuando el lead expresa una necesidad que un producto del catálogo resuelve. Un mismo lead puede tener varias abiertas a la vez. El precio sale del catálogo: no lo inventes ni lo negocies.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      productId: { type: 'string', description: 'Id exacto de un producto del catálogo que te fue listado' },
+      motivo: { type: 'string', description: 'Qué dijo el lead que hace que este producto aplique' },
+      probabilidad: { type: 'string', enum: ['alta', 'media', 'baja'] },
+    },
+    required: ['productId', 'motivo'],
+    additionalProperties: false,
+  },
+}
+
+
+
+/* ── Ejecución de las herramientas ──────────────────────────────────────
+ *
+ * Cada una devuelve texto para el modelo. Los errores se devuelven como texto
+ * y no se lanzan: si Google falla, el agente tiene que poder decir "no pude
+ * ver la agenda" en vez de dejar al lead sin respuesta.
+ */
+async function ejecutarHerramienta(nombre, input, ctx) {
+  const { orgId, leadId, leadName, products } = ctx
+
+  if (nombre === 'consultar_agenda') {
+    if (leadId === 'test') {
+      return 'Modo prueba: no se consulta la agenda real. Asumí que hay huecos a las 10:00, 11:00 y 16:00.'
+    }
+    const { disponibilidad } = require('./lib/agenda')
+    const { slots, tz, buffer } = await disponibilidad(db, orgId, {
+      fecha: input.fecha,
+      duracion: input.duracion || 30,
+    })
+    if (!slots.length) {
+      return `No hay horarios libres el ${input.fecha}. Puede ser día no laborable o estar completo. Ofrecé otro día.`
+    }
+    return `Horarios libres el ${input.fecha} (zona ${tz}, buffer de ${buffer} min entre citas): ${slots.map(s => s.hora).join(', ')}.`
+  }
+
+  if (nombre === 'agendar_cita') {
+    if (leadId === 'test') return 'Modo prueba: la cita no se creó realmente.'
+    const { instanteDesdeLocal, configDeAgenda, disponibilidad } = require('./lib/agenda')
+    // db es el handle de arriba del archivo.
+    const { tz } = await configDeAgenda(db, orgId)
+    const duracion = input.duracion || 30
+
+    // Se vuelve a verificar antes de escribir: entre que el agente consultó y
+    // decidió, alguien pudo tomar ese hueco.
+    const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion })
+    if (!slots.some(x => x.hora === input.hora)) {
+      return `Ese horario ya no está libre. Los que quedan el ${input.fecha} son: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrecé uno de esos.`
+    }
+
+    const cuando = instanteDesdeLocal(input.fecha, input.hora, tz)
+    const ref = await db.collection('organizations').doc(orgId).collection('appointments').add({
+      leadId,
+      leadName: leadName || '',
+      type: input.tipo,
+      status: 'scheduled',
+      scheduledAt: admin.firestore.Timestamp.fromDate(cuando),
+      duration: duracion,
+      notes: input.motivo || '',
+      link: '',
+      location: '',
+      requirements: '',
+      // Queda marcado quién la creó: una cita que puso el agente se revisa
+      // distinto que una que puso una persona.
+      createdByAgent: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    // El evento en Google es lo que hace que el equipo la vea en su agenda.
+    let avisoCalendario = ''
+    try {
+      const { getAccessToken, createEvent, getCalendarId } = require('./lib/google')
+      const token = await getAccessToken(db, orgId)
+      const calendarId = await getCalendarId(db, orgId)
+      const ev = await createEvent(token, {
+        title: `${input.tipo === 'presencial' ? 'Cita' : 'Reunión'} con ${leadName || 'lead'}`,
+        scheduledAt: cuando.toISOString(),
+        duration: duracion,
+        leadName,
+        notes: input.motivo || '',
+        withMeet: input.tipo === 'video',
+        calendarId,
+      })
+      await ref.update({ googleEventId: ev.eventId, googleCalendarId: ev.calendarId, ...(ev.meetLink ? { link: ev.meetLink } : {}) })
+      if (ev.meetLink) avisoCalendario = ` El enlace de la videollamada es ${ev.meetLink} — pasáselo al lead.`
+    } catch (e) {
+      console.warn('[agent] cita creada sin evento en Calendar:', e.message)
+    }
+
+    return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confirmásela al lead con fecha y hora.`
+  }
+
+  if (nombre === 'abrir_oportunidad') {
+    if (leadId === 'test') return 'Modo prueba: la oportunidad no se registró.'
+    const producto = products.find(p => p.id === input.productId)
+    if (!producto) {
+      return `No existe un producto con ese id. Elegí uno de los que te listé, o no abras oportunidad.`
+    }
+    // db es el handle de arriba del archivo.
+    const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+
+    // Si ya hay una abierta del mismo producto no se duplica.
+    const previas = await leadRef.collection('opportunities').where('productId', '==', producto.id).get()
+    if (previas.docs.some(d => d.data().status === 'abierta')) {
+      return `Ya había una oportunidad abierta de ${producto.name}. No se duplicó.`
+    }
+
+    await leadRef.collection('opportunities').add({
+      name: producto.name,
+      productId: producto.id,
+      value: Number(producto.price) || 0,
+      probability: input.probabilidad || 'media',
+      status: 'abierta',
+      auto: true,
+      reason: input.motivo || '',
+      createdBy: 'agent',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    await recalcularOportunidades(db, orgId, leadId)
+    return `Oportunidad registrada: ${producto.name} por $${Number(producto.price).toLocaleString()}. No se la menciones al lead como un trámite: seguí la conversación.`
+  }
+
+  return `Herramienta desconocida: ${nombre}`
+}
+
+/* Los totales se copian al lead porque el board lee cientos de leads de una
+ * sola consulta. Es el mismo cálculo que hace el front en useOpportunities. */
+async function recalcularOportunidades(db, orgId, leadId) {
+  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+  const snap = await leadRef.collection('opportunities').get()
+  const todas = snap.docs.map(d => d.data())
+  const abiertas = todas.filter(o => o.status === 'abierta')
+  const ganadas = todas.filter(o => o.status === 'ganada')
+  await leadRef.update({
+    opportunityStats: {
+      total: todas.length,
+      open: abiertas.length,
+      won: ganadas.length,
+      valueOpen: abiertas.reduce((s, o) => s + (Number(o.value) || 0), 0),
+      valueWon: ganadas.reduce((s, o) => s + (Number(o.value) || 0), 0),
+    },
+  })
+}
+
 const RESPONSE_TOOL = {
   name: 'responder',
   description: 'Entrega la respuesta para el lead junto con la evaluación interna. Es la única forma de responder.',
@@ -560,7 +772,17 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     .orderBy('createdAt', 'desc').get()
   const resources = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
 
-  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId)
+  // La zona horaria sale de la organización: el agente tiene que razonar en la
+  // hora del cliente, no en la del servidor.
+  let agendaInfo = {}
+  try {
+    const { configDeAgenda } = require('./lib/agenda')
+    if (leadId !== 'test') agendaInfo = await configDeAgenda(db, orgId)
+  } catch (e) {
+    console.warn('[agent] sin config de agenda:', e.message)
+  }
+
+  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId, agendaInfo)
 
   // Load conversation history
   const history = await getConversationHistory(orgId, leadId)
@@ -573,26 +795,60 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   }
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [
-        ...history,
-        { role: 'user', content: message },
-      ],
-      // Salida estructurada: con strict, la API garantiza que los argumentos
-      // validen contra el esquema. Pedir JSON dentro del texto fallaba cuando
-      // la respuesta llevaba comillas (por ejemplo: dos hojas: "Estado de
-      // cuenta"), el JSON.parse reventaba y el lead recibía el JSON crudo.
-      tools: [RESPONSE_TOOL],
-      tool_choice: { type: 'tool', name: RESPONSE_TOOL.name },
-    })
+    // Hasta cuántas veces puede usar herramientas antes de responder. Es un
+    // tope de seguridad: si se queda dando vueltas, se corta y responde.
+    const MAX_PASOS = 6
+    const turnos = [
+      ...history,
+      { role: 'user', content: message },
+    ]
+    const ctx = { orgId, leadId, leadName: leadContext?.name, products }
 
-    const toolUse = response.content.find(b => b.type === 'tool_use')
-    const parsed = toolUse
-      ? normalizeToolInput(toolUse.input)
-      : parseAgentResponse(response.content.find(b => b.type === 'text')?.text || '')
+    let parsed = null
+    let response = null
+
+    for (let paso = 0; paso < MAX_PASOS && !parsed; paso++) {
+      response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: turnos,
+        // Salida estructurada: con strict, la API garantiza que los argumentos
+        // validen contra el esquema. Pedir JSON dentro del texto fallaba cuando
+        // la respuesta llevaba comillas (por ejemplo: dos hojas: "Estado de
+        // cuenta"), el JSON.parse reventaba y el lead recibía el JSON crudo.
+        //
+        // tool_choice 'any' obliga a usar alguna herramienta, así que el texto
+        // al lead sigue saliendo solo por responder, pero ahora antes puede
+        // mirar la agenda, agendar o registrar una oportunidad.
+        tools: [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA, ABRIR_OPORTUNIDAD],
+        tool_choice: { type: 'any' },
+      })
+
+      const usos = response.content.filter(b => b.type === 'tool_use')
+      const respuesta = usos.find(u => u.name === RESPONSE_TOOL.name)
+
+      if (respuesta) { parsed = normalizeToolInput(respuesta.input); break }
+      if (!usos.length) break // sin herramienta: se sale y se usa el texto
+
+      turnos.push({ role: 'assistant', content: response.content })
+      const resultados = []
+      for (const uso of usos) {
+        let texto
+        try {
+          texto = await ejecutarHerramienta(uso.name, uso.input, ctx)
+        } catch (e) {
+          console.error(`[agent] ${uso.name} falló:`, e.message)
+          texto = `La herramienta falló: ${e.message}. Seguí la conversación sin prometer lo que no pudiste hacer.`
+        }
+        resultados.push({ type: 'tool_result', tool_use_id: uso.id, content: texto })
+      }
+      turnos.push({ role: 'user', content: resultados })
+    }
+
+    if (!parsed) {
+      parsed = parseAgentResponse(response?.content?.find(b => b.type === 'text')?.text || '')
+    }
     const visibleReply = parsed.response
 
     // Save agent response

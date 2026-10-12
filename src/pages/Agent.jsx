@@ -1713,6 +1713,7 @@ export default function Agent() {
     enabledProductIds: [],
     scoring: {},
     meetingBuffer: 30,
+    workingHours: { dias: [1, 2, 3, 4, 5], desde: '09:00', hasta: '19:00' },
     followUp: {
       enabled: false,
       delayMinutes: 60,
@@ -1750,6 +1751,7 @@ export default function Agent() {
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
           scoring: data.scoring ?? c.scoring,
           meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
+          workingHours: data.workingHours ?? c.workingHours,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
         }))
@@ -1874,7 +1876,45 @@ export default function Agent() {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[11px] text-tertiary mt-2">El agente conoce los horarios ya ocupados y no ofrecerá slots que se empalmen con otras reuniones.</p>
+                  <p className="text-[11px] text-tertiary mt-2">
+                    El agente consulta la agenda antes de ofrecer un horario: cruza las citas de FlowHub con lo que ya esté ocupado en Google Calendar.
+                  </p>
+                </Section>
+
+                <Section title="Horarios de atención" desc="Los únicos días y horas en que el agente puede agendar">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {[['D', 0], ['L', 1], ['M', 2], ['X', 3], ['J', 4], ['V', 5], ['S', 6]].map(([letra, dia]) => {
+                      const dias = config.workingHours?.dias ?? [1, 2, 3, 4, 5]
+                      const activo = dias.includes(dia)
+                      return (
+                        <button key={dia}
+                          onClick={() => set('workingHours', {
+                            ...(config.workingHours || { desde: '09:00', hasta: '19:00' }),
+                            dias: activo ? dias.filter(d => d !== dia) : [...dias, dia].sort(),
+                          })}
+                          className={`w-9 h-9 rounded-lg text-xs font-bold border transition-all ${
+                            activo
+                              ? 'bg-accent-blue text-white border-accent-blue'
+                              : 'bg-surface-2 text-tertiary border-transparent hover:border-accent-blue/40'
+                          }`}>
+                          {letra}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-secondary">De</span>
+                    <input type="time" className="input text-sm w-32"
+                      value={config.workingHours?.desde || '09:00'}
+                      onChange={e => set('workingHours', { ...(config.workingHours || { dias: [1, 2, 3, 4, 5], hasta: '19:00' }), desde: e.target.value })} />
+                    <span className="text-[11px] text-secondary">a</span>
+                    <input type="time" className="input text-sm w-32"
+                      value={config.workingHours?.hasta || '19:00'}
+                      onChange={e => set('workingHours', { ...(config.workingHours || { dias: [1, 2, 3, 4, 5], desde: '09:00' }), hasta: e.target.value })} />
+                  </div>
+                  <p className="text-[11px] text-tertiary mt-2">
+                    Fuera de estos horarios el agente no ofrece nada, aunque el calendario esté libre.
+                  </p>
                 </Section>
 
                 {featureFlags.followup !== false && <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
