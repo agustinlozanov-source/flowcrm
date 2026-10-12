@@ -555,6 +555,7 @@ export default function Meetings() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleCalendarName, setGoogleCalendarName] = useState('')
 
   // Detectar si viene de OAuth exitoso
   useEffect(() => {
@@ -573,7 +574,11 @@ export default function Meetings() {
   useEffect(() => {
     if (!org?.id) return
     getDoc(doc(db, 'organizations', org.id, 'settings', 'integrations'))
-      .then(snap => setGoogleConnected(snap.data()?.googleCalendar?.connected || false))
+      .then(snap => {
+        const g = snap.data()?.googleCalendar
+        setGoogleConnected(g?.connected || false)
+        setGoogleCalendarName(g?.calendarName || '')
+      })
       .catch(() => {})
   }, [org?.id])
 
@@ -645,6 +650,7 @@ export default function Meetings() {
             // Sin Meet no hay link que guardar, así que no pisamos el campo.
             ...(result.meetLink ? { link: result.meetLink } : {}),
             googleEventId: result.eventId,
+            googleCalendarId: result.calendarId || '',
           })
           toast.success('Evento creado en Google Calendar ✓')
         }
@@ -668,7 +674,11 @@ export default function Meetings() {
         await fetch('/.netlify/functions/google-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'delete', orgId: org?.id, googleEventId: appointment.googleEventId }),
+          body: JSON.stringify({
+            action: 'delete', orgId: org?.id,
+            googleEventId: appointment.googleEventId,
+            googleCalendarId: appointment.googleCalendarId || '',
+          }),
         })
       } catch (err) {
         console.error('Error eliminando evento de Calendar:', err.message)
@@ -752,18 +762,18 @@ export default function Meetings() {
             <Check size={11} className="text-white" strokeWidth={3} />
           </div>
           <span className="text-[12.5px] text-green-700 font-semibold flex-1">
-            Google Calendar conectado — las videollamadas de Meet se crean automáticamente
+            Google Calendar conectado{googleCalendarName ? ` — agendando en «${googleCalendarName}»` : ' — las citas se crean en tu agenda principal'}
           </span>
         </div>
       ) : (
         <div className="flex items-center gap-3 px-5 py-3 bg-blue-50/60 border-b border-blue-100">
-          <Video size={15} className="text-blue-500 flex-shrink-0" />
+          <CalendarIcon size={15} className="text-blue-500 flex-shrink-0" />
           <span className="text-[12.5px] text-blue-700 flex-1">
-            Conecta Google Calendar para crear videollamadas de Google Meet automáticamente
+            Conecta Google Calendar para que las citas se agenden solas y las videollamadas generen su link de Meet
           </span>
           <button onClick={connectGoogle}
             className="flex-shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[12px] font-bold rounded-[8px] transition-colors">
-            Conectar Google Meet
+            Conectar Google Calendar
           </button>
         </div>
       )}

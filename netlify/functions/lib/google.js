@@ -4,7 +4,15 @@ const admin = require('firebase-admin')
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const CAL_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+const CAL_BASE = 'https://www.googleapis.com/calendar/v3/calendars'
+const CAL_LIST_URL = 'https://www.googleapis.com/calendar/v3/users/me/calendarList'
+
+// Una cuenta de Google puede tener varias agendas (personal, consultorio,
+// quirófano). Antes mandábamos todo a 'primary' sin preguntar; ahora 'primary'
+// es solo el valor por defecto cuando la org todavía no eligió ninguna.
+function eventsUrl(calendarId) {
+  return `${CAL_BASE}/${encodeURIComponent(calendarId || 'primary')}/events`
+}
 
 function appUrl() {
   return process.env.URL || process.env.DEPLOY_URL || 'https://flowhubcrm.app'
@@ -97,13 +105,41 @@ async function saveTokens(db, orgId, tokens) {
   }, { merge: true })
 }
 
+// La agenda elegida por la org, o la principal si nunca eligió.
+async function getCalendarId(db, orgId) {
+  const snap = await integrationsRef(db, orgId).get()
+  return snap.data()?.googleCalendar?.calendarId || 'primary'
+}
+
+async function setCalendarId(db, orgId, calendarId, calendarName) {
+  await integrationsRef(db, orgId).set({
+    googleCalendar: { calendarId, calendarName: calendarName || '' },
+  }, { merge: true })
+}
+
+// Solo las agendas donde esta cuenta puede crear eventos: las de solo lectura
+// (feriados, calendarios suscritos) no sirven de nada acá.
+async function listCalendars(token) {
+  const res = await fetch(`${CAL_LIST_URL}?minAccessRole=writer`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Google Calendar ${res.status}: ${await res.text()}`)
+  const data = await res.json()
+  return (data.items || []).map(c => ({
+    id: c.id,
+    name: c.summaryOverride || c.summary,
+    primary: !!c.primary,
+    color: c.backgroundColor || '',
+  }))
+}
+
 // withMeet=false para las citas presenciales: ahí no hay videollamada que
 // crear, y en cambio sí hay una sede a la que el lead tiene que llegar.
-async function createEvent(token, { title, scheduledAt, duration, leadEmail, leadName, notes, location, withMeet = true }) {
+async function createEvent(token, { title, scheduledAt, duration, leadEmail, leadName, notes, location, withMeet = true, calendarId }) {
   const start = new Date(scheduledAt)
   const end = new Date(start.getTime() + (duration || 30) * 60000)
 
-  const res = await fetch(`${CAL_URL}?conferenceDataVersion=1`, {
+  const res = await fetch(`${eventsUrl(calendarId)}?conferenceDataVersion=1`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -118,11 +154,17 @@ async function createEvent(token, { title, scheduledAt, duration, leadEmail, lea
   })
   if (!res.ok) throw new Error(`Google Calendar ${res.status}: ${await res.text()}`)
   const ev = await res.json()
-  return { meetLink: ev.conferenceData?.entryPoints?.[0]?.uri || '', eventId: ev.id }
+  // Devolvemos la agenda usada para poder borrar el evento más tarde aunque
+  // la org haya cambiado de agenda en el medio.
+  return {
+    meetLink: ev.conferenceData?.entryPoints?.[0]?.uri || '',
+    eventId: ev.id,
+    calendarId: calendarId || 'primary',
+  }
 }
 
-async function deleteEvent(token, eventId) {
-  const res = await fetch(`${CAL_URL}/${encodeURIComponent(eventId)}`, {
+async function deleteEvent(token, eventId, calendarId) {
+  const res = await fetch(`${eventsUrl(calendarId)}/${encodeURIComponent(eventId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -132,4 +174,7 @@ async function deleteEvent(token, eventId) {
   }
 }
 
-module.exports = { authUrl, exchangeCode, saveTokens, getAccessToken, createEvent, deleteEvent, appUrl }
+module.exports = {
+  authUrl, exchangeCode, saveTokens, getAccessToken,
+  createEvent, deleteEvent, listCalendars, getCalendarId, setCalendarId, appUrl,
+}

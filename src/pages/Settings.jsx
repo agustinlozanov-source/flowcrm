@@ -74,6 +74,11 @@ export default function Settings() {
   const [timezone, setTimezone] = useState(org?.timezone || 'America/Mexico_City')
   const [savingTimezone, setSavingTimezone] = useState(false)
 
+  // Agendas de Google: se cargan bajo demanda, solo si está conectado.
+  const [calendars, setCalendars] = useState([])
+  const [loadingCalendars, setLoadingCalendars] = useState(false)
+  const [savingCalendar, setSavingCalendar] = useState(false)
+
   // Password change state
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
   const [savingPw, setSavingPw] = useState(false)
@@ -89,6 +94,42 @@ export default function Settings() {
     })
     return unsub
   }, [orgId])
+
+  // Traer las agendas de la cuenta conectada. Una cuenta de Google puede
+  // tener varias y hay que decirle a cuál agendar.
+  useEffect(() => {
+    if (!orgId || !integrations.googleCalendar?.connected) { setCalendars([]); return }
+    let alive = true
+    setLoadingCalendars(true)
+    fetch('/.netlify/functions/google-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list-calendars', orgId }),
+    })
+      .then(r => r.json())
+      .then(d => { if (alive && d.calendars) setCalendars(d.calendars) })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoadingCalendars(false) })
+    return () => { alive = false }
+  }, [orgId, integrations.googleCalendar?.connected])
+
+  const handleSelectCalendar = async (calendarId) => {
+    const cal = calendars.find(c => c.id === calendarId)
+    setSavingCalendar(true)
+    try {
+      const res = await fetch('/.netlify/functions/google-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-calendar', orgId, calendarId, calendarName: cal?.name || '' }),
+      })
+      if (!res.ok) throw new Error('fallo')
+      toast.success(`Las citas se agendarán en «${cal?.name || calendarId}»`)
+    } catch {
+      toast.error('No se pudo cambiar la agenda')
+    } finally {
+      setSavingCalendar(false)
+    }
+  }
 
   // Detect OAuth callback params and show toast
   useEffect(() => {
@@ -272,7 +313,7 @@ export default function Settings() {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">Crea reuniones y genera links de Google Meet automáticamente</p>
+              <p className="text-xs text-gray-500 mt-0.5">Agenda las citas y genera los links de Meet automáticamente</p>
             </div>
           </div>
           {integrations.googleCalendar?.connected ? (
@@ -292,6 +333,42 @@ export default function Settings() {
             </button>
           )}
         </div>
+
+        {/* A qué agenda van las citas */}
+        {integrations.googleCalendar?.connected && (
+          <div className="p-4 rounded-xl border border-gray-100 bg-white">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Agenda donde se crean las citas</label>
+            {loadingCalendars ? (
+              <p className="text-xs text-gray-400">Cargando tus agendas…</p>
+            ) : calendars.length === 0 ? (
+              <p className="text-xs text-gray-400">
+                No pudimos leer tus agendas. Desconecta y vuelve a conectar Google Calendar.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={
+                    integrations.googleCalendar?.calendarId
+                    || calendars.find(c => c.primary)?.id
+                    || 'primary'
+                  }
+                  onChange={e => handleSelectCalendar(e.target.value)}
+                  disabled={savingCalendar}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white disabled:opacity-50"
+                >
+                  {calendars.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.primary ? ' (principal)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Las citas que ya existen se quedan en la agenda donde se crearon.
+                </p>
+              </>
+            )}
+          </div>
+        )}
       </Section>
 
       {/* ── Cuenta ── */}

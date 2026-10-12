@@ -705,10 +705,17 @@ function ScheduleModal({ lead, onClose }) {
           })
           const data = await res.json()
           if (data.meetLink) {
-            await updateAppointment(appointmentId, { link: data.meetLink, googleEventId: data.eventId })
+            await updateAppointment(appointmentId, {
+              link: data.meetLink,
+              googleEventId: data.eventId,
+              googleCalendarId: data.calendarId || '',
+            })
             toast.success('Videollamada de Meet creada ✓')
           } else if (data.eventId) {
-            await updateAppointment(appointmentId, { googleEventId: data.eventId })
+            await updateAppointment(appointmentId, {
+              googleEventId: data.eventId,
+              googleCalendarId: data.calendarId || '',
+            })
             toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
           } else {
             toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
