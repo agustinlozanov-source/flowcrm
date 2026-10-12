@@ -93,12 +93,16 @@ function nextActionOf(lead, proximaCita) {
  * @param members       equipo, para resolver a quién está asignado
  * @param citasDelLead  citas futuras de ese lead, ya ordenadas
  */
-export function toCard(lead, { members = [], citasDelLead = [] } = {}) {
+export function toCard(lead, { members = [], citasDelLead = [], products = [] } = {}) {
   const asignado = lead.assignedTo
     ? members.find(m => m.id === lead.assignedTo || m.uid === lead.assignedTo)
     : null
   const ultimo = ts(lead.lastMessageAt)
   const proximaCita = citasDelLead.find(a => a.status === 'scheduled')
+  // El monto de la tarjeta es el precio de este producto; sin el nombre, el
+  // número no dice de qué es.
+  const producto = lead.closedProduct?.name
+    || (lead.productId ? products.find(p => p.id === lead.productId)?.name : null)
 
   const canal = CANAL[lead.lastMessageChannel] || CANAL[lead.source] || ''
   const cuando = relativo(ultimo || ts(lead.createdAt))
@@ -119,7 +123,10 @@ export function toCard(lead, { members = [], citasDelLead = [] } = {}) {
       ? { name: asignado.name || asignado.email || 'Sin nombre' }
       : (columnOf(lead) === 'calentamiento' ? { name: 'Flowi', bot: true } : null),
     nextAction: nextActionOf(lead, proximaCita),
-    tags: lead.profileB ? [{ label: 'Perfil B' }] : [],
+    tags: [
+      producto && { label: producto },
+      lead.profileB && { label: 'Perfil B' },
+    ].filter(Boolean),
     ageLabel: relativo(ts(lead.createdAt)),
     rotting: !!ultimo && Date.now() - ultimo.getTime() > ROTTING_HORAS * HORAS && columnOf(lead) === 'calentamiento',
     // Para el panel lateral, que muestra el contexto sin volver a Firestore.
@@ -137,7 +144,7 @@ export function toCard(lead, { members = [], citasDelLead = [] } = {}) {
       lead.phone && { label: 'Teléfono', value: lead.phone },
       lead.email && { label: 'Email', value: lead.email },
       lead.company && { label: 'Empresa', value: lead.company },
-      lead.closedProduct?.name && { label: 'Producto', value: lead.closedProduct.name, pill: 'green' },
+      producto && { label: 'Producto', value: producto, pill: lead.closedProduct?.name ? 'green' : undefined },
       lead.paymentDate && { label: 'Fecha de pago', value: lead.paymentDate },
     ].filter(Boolean),
     _lead: lead,

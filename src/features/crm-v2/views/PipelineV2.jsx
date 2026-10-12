@@ -15,6 +15,7 @@ import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAppointments } from '@/hooks/useAppointments'
+import { useProducts } from '@/hooks/useProducts'
 import { useAuthStore } from '@/store/authStore'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
@@ -37,6 +38,7 @@ export default function PipelineV2() {
     moveToHandoff, resolveHandoff, updateLead, createLead,
   } = usePipeline()
   const { appointments } = useAppointments()
+  const { products } = useProducts()
 
   const [view, setView] = useState('kanban')
   const [insightsOpen, setInsightsOpen] = useState(true)
@@ -74,12 +76,14 @@ export default function PipelineV2() {
 
     const out = { calentamiento: [], handoff: [], cierre: [] }
     for (const lead of visibles) {
-      out[columnOf(lead)].push(toCard(lead, { members, citasDelLead: citasPorLead[lead.id] || [] }))
+      out[columnOf(lead)].push(
+        toCard(lead, { members, products, citasDelLead: citasPorLead[lead.id] || [] }),
+      )
     }
     // Dentro de cada columna, primero lo más maduro.
     for (const k of Object.keys(out)) out[k].sort((a, b) => b.score - a.score)
     return out
-  }, [leads, systemLeads, members, citasPorLead, search])
+  }, [leads, systemLeads, members, products, citasPorLead, search])
 
   const flat = useMemo(() => COLUMNS.flatMap(c => board[c.id]), [board])
 
