@@ -1713,6 +1713,7 @@ export default function Agent() {
     enabledProductIds: [],
     scoring: {},
     meetingBuffer: 30,
+    scoreOnBooking: 25,
     workingHours: { dias: [1, 2, 3, 4, 5], desde: '09:00', hasta: '19:00' },
     followUp: {
       enabled: false,
@@ -1751,6 +1752,7 @@ export default function Agent() {
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
           scoring: data.scoring ?? c.scoring,
           meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
+          scoreOnBooking: data.scoreOnBooking ?? c.scoreOnBooking,
           workingHours: data.workingHours ?? c.workingHours,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
@@ -1878,6 +1880,24 @@ export default function Agent() {
                   </div>
                   <p className="text-[11px] text-tertiary mt-2">
                     El agente consulta la agenda antes de ofrecer un horario: cruza las citas de FlowHub con lo que ya esté ocupado en Google Calendar.
+                  </p>
+                </Section>
+
+                <Section title="Puntos por agendar" desc="Cuánto sube el score cuando el agente logra agendar una cita">
+                  <div className="flex flex-wrap gap-2">
+                    {[0, 15, 25, 40, 60].map(p => (
+                      <button key={p} onClick={() => set('scoreOnBooking', p)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          (config.scoreOnBooking ?? 25) === p
+                            ? 'bg-accent-blue text-white border-accent-blue'
+                            : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+                        }`}>
+                        {p === 0 ? 'Sin bono' : `+${p}`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-tertiary mt-2">
+                    Si para tu negocio la cita ya es la conversión, conviene que pese. Con 0 el score solo se mueve por las categorías de scoring.
                   </p>
                 </Section>
 

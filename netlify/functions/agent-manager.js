@@ -40,11 +40,13 @@ Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.
 - El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, preguntá.
 
 OPORTUNIDADES:
-- Cuando el lead cuente un problema que uno de tus productos resuelve, registrá la oportunidad con ese producto. El mismo lead puede tener varias a la vez.
-- Distinguí bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, la especialidad.
-- Ejemplo: alguien pide cita y menciona un problema de endodoncia. Son dos: la consulta de valoración es real, y la endodoncia es potencial.
+En cada respuesta tenés que llenar el campo "oportunidades" con los productos del catálogo que apliquen a este lead. Si no aplica ninguno, mandá la lista vacía. No lo omitas.
+- Apenas el lead cuenta para qué viene, ya hay al menos una. Si mencionaste un producto por nombre o por precio en tu respuesta, esa oportunidad va en la lista.
+- Distinguí bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, el estudio de especialidad.
+- Ejemplo: alguien dice que quiere operarse la vista. Son dos: la consulta de valoración es real, y el estudio o la cirugía que necesita es potencial.
 - El precio y el nombre salen del catálogo. No los inventes ni los negocies.
-- Registrarlas es trabajo interno: no se lo anuncies al lead.`
+- No repitas las que ya registraste en mensajes anteriores de esta conversación.
+- Es trabajo interno: no se lo anuncies al lead.`
 
   const productsSection = products.length > 0
     ? `\nPRODUCTOS QUE MANEJO:\n${products.map(p =>
@@ -192,25 +194,6 @@ const AGENDAR_CITA = {
   },
 }
 
-const ABRIR_OPORTUNIDAD = {
-  name: 'abrir_oportunidad',
-  description: 'Registra una oportunidad de venta cuando el lead expresa una necesidad que un producto del catálogo resuelve. Un mismo lead puede tener varias a la vez. El precio sale del catálogo: no lo inventes ni lo negocies.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      productId: { type: 'string', description: 'Id exacto de un producto del catálogo que te fue listado' },
-      tipo: {
-        type: 'string',
-        enum: ['real', 'potencial'],
-        description: 'real es la oportunidad de entrada, lo concreto que está por pasar: la consulta, la valoración, la cita que se va a agendar. potencial es lo que se deduce del problema que contó y vendría después: el tratamiento, la cirugía, la especialidad. Si dudás, la primera es real y las que salen del diagnóstico son potenciales.',
-      },
-      motivo: { type: 'string', description: 'Qué dijo el lead que hace que este producto aplique' },
-      probabilidad: { type: 'string', enum: ['alta', 'media', 'baja'] },
-    },
-    required: ['productId', 'tipo', 'motivo'],
-    additionalProperties: false,
-  },
-}
 
 
 
@@ -297,41 +280,73 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       }
     }
 
+    /* Agendar es la conversión de este negocio: para una clínica la cita ya es
+     * el cierre de la parte que nos toca. Pero el score solo se movía por las
+     * categorías que el modelo reporta, así que alguien que ya tenía su cita
+     * podía quedar en 51 — ni cerca del handoff. El bono es configurable y se
+     * puede poner en 0 para quien no quiera este comportamiento. */
+    try {
+      const cfgSnap = await db.collection('organizations').doc(orgId)
+        .collection('settings').doc('agent').get()
+      const bono = Number(cfgSnap.data()?.scoreOnBooking ?? 25)
+      if (bono > 0) {
+        const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+        const actual = Number((await leadRef.get()).data()?.score || 0)
+        await leadRef.update({ score: Math.min(100, actual + bono) })
+      }
+    } catch (e) {
+      console.warn('[agent] no se pudo sumar el bono por agendar:', e.message)
+    }
+
     return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confirmásela al lead con fecha y hora.`
   }
 
-  if (nombre === 'abrir_oportunidad') {
-    if (leadId === 'test') return 'Modo prueba: la oportunidad no se registró.'
-    const producto = products.find(p => p.id === input.productId)
-    if (!producto) {
-      return `No existe un producto con ese id. Elegí uno de los que te listé, o no abras oportunidad.`
-    }
-    // db es el handle de arriba del archivo.
-    const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
-
-    // Si ya hay una abierta del mismo producto no se duplica.
-    const previas = await leadRef.collection('opportunities').where('productId', '==', producto.id).get()
-    if (previas.docs.some(d => d.data().status === 'abierta')) {
-      return `Ya había una oportunidad abierta de ${producto.name}. No se duplicó.`
-    }
-
-    await leadRef.collection('opportunities').add({
-      name: producto.name,
-      productId: producto.id,
-      value: Number(producto.price) || 0,
-      kind: input.tipo === 'potencial' ? 'potencial' : 'real',
-      probability: input.probabilidad || 'media',
-      status: 'abierta',
-      auto: true,
-      reason: input.motivo || '',
-      createdBy: 'agent',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
-    await recalcularOportunidades(db, orgId, leadId)
-    return `Oportunidad registrada: ${producto.name} por $${Number(producto.price).toLocaleString()}. No se la menciones al lead como un trámite: seguí la conversación.`
-  }
-
   return `Herramienta desconocida: ${nombre}`
+}
+
+/**
+ * Crea las oportunidades que el modelo declaró en su respuesta.
+ *
+ * No lanza: una oportunidad que no se pudo registrar no puede impedir que el
+ * lead reciba su respuesta.
+ */
+async function registrarOportunidades(orgId, leadId, lista, products) {
+  if (!Array.isArray(lista) || !lista.length || leadId === 'test') return 0
+  const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+
+  let creadas = 0
+  try {
+    const previas = await leadRef.collection('opportunities').get()
+    const yaAbiertas = new Set(
+      previas.docs.filter(d => d.data().status === 'abierta').map(d => d.data().productId),
+    )
+
+    for (const o of lista) {
+      const producto = products.find(p => p.id === o?.productId)
+      // Un id inventado no se guarda: el precio tiene que salir del catálogo.
+      if (!producto || yaAbiertas.has(producto.id)) continue
+
+      await leadRef.collection('opportunities').add({
+        name: producto.name,
+        productId: producto.id,
+        value: Number(producto.price) || 0,
+        kind: o.tipo === 'potencial' ? 'potencial' : 'real',
+        probability: 'media',
+        status: 'abierta',
+        auto: true,
+        reason: o.motivo || '',
+        createdBy: 'agent',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      yaAbiertas.add(producto.id)
+      creadas++
+    }
+
+    if (creadas) await recalcularOportunidades(db, orgId, leadId)
+  } catch (e) {
+    console.error('[agent] no se pudieron registrar oportunidades:', e.message)
+  }
+  return creadas
 }
 
 /* Los totales se copian al lead porque el board lee cientos de leads de una
@@ -385,6 +400,28 @@ const RESPONSE_TOOL = {
       suggestHandoffReason: { type: 'string' },
       detectedProductId: { type: ['string', 'null'] },
       detectedPipelineId: { type: ['string', 'null'] },
+      // Las oportunidades viajan en la salida obligatoria y no en una
+      // herramienta aparte: como herramienta opcional el modelo simplemente no
+      // la usaba — conversaba bien, agendaba, y no registraba nada. Acá tiene
+      // que declararlas en cada respuesta, aunque sea con la lista vacía.
+      oportunidades: {
+        type: 'array',
+        description: 'Productos del catálogo que aplican a este lead según lo que viene contando. Una entrada por producto, sin repetir los que ya registraste antes.',
+        items: {
+          type: 'object',
+          properties: {
+            productId: { type: 'string', description: 'Id exacto de un producto del catálogo' },
+            tipo: {
+              type: 'string',
+              enum: ['real', 'potencial'],
+              description: 'real es la de entrada: la consulta o valoración que se va a agendar. potencial es lo que se deduce del problema y vendría después: la cirugía, el tratamiento.',
+            },
+            motivo: { type: 'string', description: 'Qué dijo el lead que hace que aplique' },
+          },
+          required: ['productId', 'tipo', 'motivo'],
+          additionalProperties: false,
+        },
+      },
       shareResources: {
         type: 'array',
         description: 'Ids de recursos tipo archivo, imagen o video para adjuntar',
@@ -394,6 +431,7 @@ const RESPONSE_TOOL = {
     required: [
       'response', 'scoring', 'profileB', 'profileBReason', 'suggestHandoff',
       'suggestHandoffReason', 'detectedProductId', 'detectedPipelineId', 'shareResources',
+      'oportunidades',
     ],
     additionalProperties: false,
   },
@@ -839,7 +877,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         // tool_choice 'any' obliga a usar alguna herramienta, así que el texto
         // al lead sigue saliendo solo por responder, pero ahora antes puede
         // mirar la agenda, agendar o registrar una oportunidad.
-        tools: [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA, ABRIR_OPORTUNIDAD],
+        tools: [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
         tool_choice: { type: 'any' },
       })
 
@@ -878,6 +916,9 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     if (leadId !== 'test' && scoringConfig) {
       newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig)
     }
+
+    const nuevasOps = await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)
+    if (nuevasOps) console.log(`[agent] ${nuevasOps} oportunidad(es) registradas para ${leadId}`)
 
     // Se resuelven acá para que quien envíe no tenga que volver a leerlos.
     const toShare = Array.isArray(parsed.shareResources)
