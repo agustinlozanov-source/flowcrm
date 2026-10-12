@@ -97,7 +97,9 @@ async function saveTokens(db, orgId, tokens) {
   }, { merge: true })
 }
 
-async function createEvent(token, { title, scheduledAt, duration, leadEmail, leadName, notes }) {
+// withMeet=false para las citas presenciales: ahí no hay videollamada que
+// crear, y en cambio sí hay una sede a la que el lead tiene que llegar.
+async function createEvent(token, { title, scheduledAt, duration, leadEmail, leadName, notes, location, withMeet = true }) {
   const start = new Date(scheduledAt)
   const end = new Date(start.getTime() + (duration || 30) * 60000)
 
@@ -109,7 +111,8 @@ async function createEvent(token, { title, scheduledAt, duration, leadEmail, lea
       description: notes || '',
       start: { dateTime: start.toISOString() },
       end: { dateTime: end.toISOString() },
-      conferenceData: { createRequest: { requestId: `flowcrm-${Date.now()}` } },
+      ...(location ? { location } : {}),
+      ...(withMeet ? { conferenceData: { createRequest: { requestId: `flowcrm-${Date.now()}` } } } : {}),
       attendees: leadEmail ? [{ email: leadEmail, displayName: leadName }] : [],
     }),
   })

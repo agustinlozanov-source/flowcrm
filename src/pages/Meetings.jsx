@@ -10,10 +10,21 @@ import CallCockpit from '@/components/pipeline/CallCockpit'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import {
-  X, Plus, Clock, Calendar as CalendarIcon, Video, Phone,
+  X, Plus, Clock, Calendar as CalendarIcon, Video, Phone, MapPin,
   List, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
   RotateCcw, Star, AlertTriangle, Search, Check, Trash2
 } from 'lucide-react'
+
+// Con tres tipos los ternarios dejaron de servir: acá queda el ícono y el
+// color de cada uno, y agregar un cuarto no obliga a tocar diez lugares.
+const TYPE_ICON = { call: Phone, video: Video, presencial: MapPin }
+const TYPE_BG = { call: 'bg-blue-50', video: 'bg-purple-50', presencial: 'bg-emerald-50' }
+const TYPE_FG = { call: 'text-blue-600', video: 'text-purple-600', presencial: 'text-emerald-600' }
+
+function TypeIcon({ type, size = 16, className }) {
+  const Icon = TYPE_ICON[type] || Phone
+  return <Icon size={size} className={className} />
+}
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
 function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLeadId, createLead, stages }) {
@@ -27,6 +38,8 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
     duration: 15,
     platform: 'meet',
     link: '',
+    location: '',
+    requirements: '',
     notes: '',
   })
   const [leadSearch, setLeadSearch] = useState(initLead?.name || '')
@@ -107,7 +120,7 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
           <div>
             <h2 className="font-display font-bold text-lg tracking-tight">Nueva cita</h2>
-            <p className="text-xs text-secondary mt-0.5">Agenda una llamada o videollamada</p>
+            <p className="text-xs text-secondary mt-0.5">Agenda una llamada, videollamada o cita presencial</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
             <X size={15} strokeWidth={2.5} />
@@ -119,17 +132,17 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
           {/* Type */}
           <div>
             <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Tipo *</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {Object.entries(APPOINTMENT_TYPES).map(([key, val]) => (
                 <button key={key} type="button"
                   onClick={() => setForm(f => ({ ...f, type: key }))}
                   className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] border text-[13px] font-semibold transition-all',
+                    'flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] border text-[12.5px] font-semibold transition-all',
                     form.type === key
                       ? 'border-primary bg-primary text-white'
                       : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
                   )}>
-                  {key === 'call' ? <Phone size={14} /> : <Video size={14} />}
+                  <TypeIcon type={key} size={14} />
                   {val.label}
                 </button>
               ))}
@@ -287,6 +300,29 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
             </>
           )}
 
+          {/* Sede y requisitos — solo para presencial */}
+          {form.type === 'presencial' && (
+            <>
+              <div>
+                <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Sede o ubicación</label>
+                <input value={form.location} onChange={set('location')}
+                  placeholder="Ej: Sucursal Centro · Av. Hidalgo 420"
+                  className="input text-sm" />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">
+                  Requisitos previos
+                </label>
+                <textarea value={form.requirements} onChange={set('requirements')} rows={2}
+                  className="input resize-none text-sm"
+                  placeholder="Ej: 4h de ayuno · venir acompañado · lentes oscuros" />
+                <p className="text-[10.5px] text-tertiary mt-1">
+                  Se le muestran al lead y quedan a la vista de recepción el día de la cita.
+                </p>
+              </div>
+            </>
+          )}
+
           {/* Notes */}
           <div>
             <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Notas previas</label>
@@ -299,7 +335,7 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
             <button type="submit" disabled={loading} className="btn-primary flex-1 flex items-center justify-center gap-2">
               {loading
                 ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <>{form.type === 'call' ? <Phone size={14} /> : <Video size={14} />} Agendar</>}
+                : <><TypeIcon type={form.type} size={14} /> Agendar</>}
             </button>
           </div>
         </form>
@@ -325,11 +361,9 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
       <div className="flex items-start gap-3">
         <div className={clsx(
           'w-9 h-9 rounded-[9px] flex items-center justify-center flex-shrink-0',
-          appointment.type === 'call' ? 'bg-blue-50' : 'bg-purple-50'
+          TYPE_BG[appointment.type] || 'bg-blue-50'
         )}>
-          {appointment.type === 'call'
-            ? <Phone size={16} className="text-blue-600" />
-            : <Video size={16} className="text-purple-600" />}
+          <TypeIcon type={appointment.type} size={16} className={TYPE_FG[appointment.type] || 'text-blue-600'} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -377,6 +411,22 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
         </span>
       )}
 
+      {/* Sede y requisitos — lo que necesita saber quien recibe al lead */}
+      {appointment.type === 'presencial' && (appointment.location || appointment.requirements) && (
+        <div className="flex flex-col gap-1 text-[12px]">
+          {appointment.location && (
+            <span className="flex items-center gap-1.5 text-secondary">
+              <MapPin size={12} className="flex-shrink-0" /> {appointment.location}
+            </span>
+          )}
+          {appointment.requirements && (
+            <span className="flex items-start gap-1.5 text-tertiary">
+              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> {appointment.requirements}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Outcome summary (if completed) */}
       {isCompleted && appointment.outcome && (
         <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-[8px]">
@@ -400,8 +450,8 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
               onOpenCockpit(appointment)
             }}
             className="btn-primary flex-1 text-[12.5px] py-2 flex items-center justify-center gap-1.5">
-            {appointment.type === 'call' ? <Phone size={13} /> : <Video size={13} />}
-            Iniciar {type.label.toLowerCase()}
+            <TypeIcon type={appointment.type} size={13} />
+            {type.cta || `Iniciar ${type.label.toLowerCase()}`}
           </button>
           <button onClick={() => onCancel(appointment.id)}
             title="Cancelar cita"
@@ -461,11 +511,9 @@ function TodayPanel({ appointments, leads, onOpenCockpit, onCancel }) {
               className="flex items-center gap-3 px-3 py-2.5 bg-surface rounded-[10px] border border-amber-200">
               <div className={clsx(
                 'w-7 h-7 rounded-[7px] flex items-center justify-center flex-shrink-0',
-                a.type === 'call' ? 'bg-blue-50' : 'bg-purple-50'
+                TYPE_BG[a.type] || 'bg-blue-50'
               )}>
-                {a.type === 'call'
-                  ? <Phone size={13} className="text-blue-600" />
-                  : <Video size={13} className="text-purple-600" />}
+                <TypeIcon type={a.type} size={13} className={TYPE_FG[a.type] || 'text-blue-600'} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-[12.5px] text-primary truncate">{a.leadName}</div>
@@ -478,7 +526,7 @@ function TodayPanel({ appointments, leads, onOpenCockpit, onCancel }) {
                   onOpenCockpit(a)
                 }}
                 className="text-[11px] font-bold px-3 py-1.5 rounded-[7px] bg-primary text-white hover:bg-primary/90 transition-colors flex items-center gap-1">
-                {a.type === 'call' ? <Phone size={11} /> : <Video size={11} />} Iniciar
+                <TypeIcon type={a.type} size={11} /> {a.type === 'presencial' ? 'Marcar' : 'Iniciar'}
               </button>
             </div>
           )
@@ -564,7 +612,13 @@ export default function Meetings() {
   const handleCreate = async (data) => {
     const appointmentId = await createAppointment(data)
 
-    if (data.type === 'video' && data.platform === 'meet' && googleConnected && appointmentId) {
+    // La videollamada de Meet necesita el evento para obtener el link; la
+    // presencial lo necesita para que la sede y los requisitos queden en la
+    // agenda de quien atiende. La llamada telefónica no necesita nada.
+    const wantsEvent = appointmentId && googleConnected && (
+      (data.type === 'video' && data.platform === 'meet') || data.type === 'presencial'
+    )
+    if (wantsEvent) {
       try {
         const lead = leads.find(l => l.id === data.leadId)
         const res = await fetch('/.netlify/functions/google-event', {
@@ -572,18 +626,24 @@ export default function Meetings() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orgId: org.id,
-            title: `Reunión con ${data.leadName || lead?.name || 'Lead'}`,
+            title: data.type === 'presencial'
+              ? `Cita con ${data.leadName || lead?.name || 'Lead'}`
+              : `Reunión con ${data.leadName || lead?.name || 'Lead'}`,
             scheduledAt: data.scheduledAt,
             duration: data.duration || 30,
             leadEmail: lead?.email || null,
             leadName: data.leadName || lead?.name || '',
-            notes: data.notes || '',
+            notes: [data.notes, data.requirements && `Requisitos: ${data.requirements}`]
+              .filter(Boolean).join('\n\n'),
+            location: data.location || '',
+            withMeet: data.type === 'video',
           }),
         })
         const result = await res.json()
-        if (result.meetLink) {
+        if (result.eventId) {
           await updateDoc(doc(db, 'organizations', org.id, 'appointments', appointmentId), {
-            link: result.meetLink,
+            // Sin Meet no hay link que guardar, así que no pisamos el campo.
+            ...(result.meetLink ? { link: result.meetLink } : {}),
             googleEventId: result.eventId,
           })
           toast.success('Evento creado en Google Calendar ✓')
@@ -654,6 +714,7 @@ export default function Meetings() {
               { value: 'all', label: 'Todas' },
               { value: 'call', label: <><Phone size={11} className="inline mr-1" />Llamadas</> },
               { value: 'video', label: <><Video size={11} className="inline mr-1" />Video</> },
+              { value: 'presencial', label: <><MapPin size={11} className="inline mr-1" />Presencial</> },
             ].map(({ value, label }) => (
               <button key={value} onClick={() => setTypeFilter(value)}
                 className={clsx('px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all',
@@ -811,7 +872,7 @@ export default function Meetings() {
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <CalendarIcon size={32} className="text-tertiary" strokeWidth={1.5} />
                 <p className="font-display font-bold text-lg text-primary">Sin citas</p>
-                <p className="text-sm text-secondary">Agenda tu primera llamada o videollamada</p>
+                <p className="text-sm text-secondary">Agenda tu primera llamada, videollamada o cita presencial</p>
                 <button onClick={() => setShowNew(true)} className="btn-primary text-sm py-2 px-4 mt-1">
                   Nueva cita
                 </button>

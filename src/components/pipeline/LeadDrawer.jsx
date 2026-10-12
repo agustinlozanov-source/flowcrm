@@ -13,7 +13,7 @@ import clsx from 'clsx'
 import {
   Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar,
   Package, ChevronDown, Search, Plus, Star, AlertTriangle, Clock,
-  CheckCircle2, XCircle, ArrowRight, Video, TrendingUp
+  CheckCircle2, XCircle, ArrowRight, Video, MapPin, TrendingUp
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -645,6 +645,14 @@ function HandoffPanel({ lead }) {
   )
 }
 
+// Un ícono por tipo de cita, en un solo lugar.
+const TYPE_ICON = { call: Phone, video: Video, presencial: MapPin }
+
+function TypeIcon({ type, size = 13 }) {
+  const Icon = TYPE_ICON[type] || Phone
+  return <Icon size={size} />
+}
+
 // ── ScheduleModal ────────────────────────────────────────────────
 function ScheduleModal({ lead, onClose }) {
   const { org } = useAuthStore()
@@ -656,6 +664,8 @@ function ScheduleModal({ lead, onClose }) {
     duration: 15,
     platform: 'meet',
     link: '',
+    location: '',
+    requirements: '',
     notes: '',
   })
   const [loading, setLoading] = useState(false)
@@ -669,25 +679,37 @@ function ScheduleModal({ lead, onClose }) {
       const scheduledAt = new Date(`${form.date}T${form.time}:00`)
       const appointmentId = await createAppointment({ ...form, leadId: lead.id, leadName: lead.name, scheduledAt })
 
-      // Si es videollamada de Meet, crear evento en Google Calendar
-      if (form.type === 'video' && form.platform === 'meet' && appointmentId) {
+      // La videollamada de Meet necesita el evento para sacar el link; la
+      // presencial, para que la sede y los requisitos queden en la agenda.
+      const wantsEvent = appointmentId && (
+        (form.type === 'video' && form.platform === 'meet') || form.type === 'presencial'
+      )
+      if (wantsEvent) {
         try {
           const res = await fetch('/.netlify/functions/google-event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orgId: org?.id,
-              title: `Reunión con ${lead.name}`,
+              title: form.type === 'presencial'
+                ? `Cita con ${lead.name}`
+                : `Reunión con ${lead.name}`,
               scheduledAt: scheduledAt.toISOString(),
               duration: form.duration || 30,
               leadName: lead.name,
-              notes: form.notes || '',
+              notes: [form.notes, form.requirements && `Requisitos: ${form.requirements}`]
+                .filter(Boolean).join('\n\n'),
+              location: form.location || '',
+              withMeet: form.type === 'video',
             }),
           })
           const data = await res.json()
           if (data.meetLink) {
             await updateAppointment(appointmentId, { link: data.meetLink, googleEventId: data.eventId })
             toast.success('Videollamada de Meet creada ✓')
+          } else if (data.eventId) {
+            await updateAppointment(appointmentId, { googleEventId: data.eventId })
+            toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
           } else {
             toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
           }
@@ -719,15 +741,15 @@ function ScheduleModal({ lead, onClose }) {
           {/* Type */}
           <div>
             <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Tipo *</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {Object.entries(APPOINTMENT_TYPES).map(([key, val]) => (
                 <button key={key} type="button"
                   onClick={() => setForm(f => ({ ...f, type: key }))}
                   className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2 rounded-[10px] border text-[12px] font-semibold transition-all',
+                    'flex items-center justify-center gap-1.5 py-2 rounded-[10px] border text-[11.5px] font-semibold transition-all',
                     form.type === key ? 'border-primary bg-primary text-white' : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
                   )}>
-                  {key === 'call' ? <Phone size={13} /> : <Video size={13} />}
+                  <TypeIcon type={key} />
                   {val.label}
                 </button>
               ))}
@@ -780,6 +802,22 @@ function ScheduleModal({ lead, onClose }) {
               </div>
             </>
           )}
+          {/* Sede y requisitos (presencial) */}
+          {form.type === 'presencial' && (
+            <>
+              <div>
+                <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Sede o ubicación</label>
+                <input value={form.location} onChange={set('location')}
+                  placeholder="Ej: Sucursal Centro · Av. Hidalgo 420" className="input text-sm" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Requisitos previos</label>
+                <textarea value={form.requirements} onChange={set('requirements')} rows={2}
+                  className="input resize-none text-sm"
+                  placeholder="Ej: 4h de ayuno · venir acompañado" />
+              </div>
+            </>
+          )}
           {/* Notes */}
           <div>
             <label className="text-[10px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">Notas</label>
@@ -792,7 +830,7 @@ function ScheduleModal({ lead, onClose }) {
               className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5">
               {loading
                 ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <>{form.type === 'call' ? <Phone size={13} /> : <Video size={13} />} Agendar</>}
+                : <><TypeIcon type={form.type} /> Agendar</>}
             </button>
           </div>
         </form>
