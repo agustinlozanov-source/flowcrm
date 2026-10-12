@@ -4,6 +4,7 @@ import { Sun, Moon } from 'lucide-react'
 import '../crm-v2.css'
 import Sidebar from '../components/Sidebar'
 import { useAuthStore } from '@/store/authStore'
+import { useNavItems } from '../useNavItems'
 
 /* Rutas por item de la sidebar. Donde todavía no hay vista v2 se va a la
  * pantalla actual del CRM: es menos bonito que quedarse en el mundo nuevo,
@@ -37,6 +38,7 @@ export default function AppShellV2({
   pipelines = [], activePipelineId = null, onSelectPipeline, onNewPipeline,
 }) {
   const { user, org } = useAuthStore()
+  const groups = useNavItems()
   const [collapsed, setCollapsed] = useState(false)
   // El tema se recuerda por usuario. El try/catch es porque en una ventana
   // privada localStorage puede tirar al leer.
@@ -53,6 +55,7 @@ export default function AppShellV2({
     <div className={`pv2 pv2-app${theme === 'light' ? ' pv2--light' : ''}`}>
       <Sidebar
         active={active}
+        groups={groups}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(v => !v)}
         pipelines={pipelines}

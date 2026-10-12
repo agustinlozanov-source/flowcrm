@@ -50,6 +50,9 @@ export default function Sidebar({
   active = 'pipeline',
   collapsed = false,
   onToggleCollapse,
+  // Los grupos llegan ya filtrados por permisos y módulos; el default es la
+  // lista completa, para la página de componentes.
+  groups = NAV_GROUPS,
   counts = {},
   pipelines = [],
   activePipeline,
@@ -79,7 +82,7 @@ export default function Sidebar({
           )}
       </div>
 
-      {NAV_GROUPS.map(group => (
+      {groups.map(group => (
         <nav className="pv2-sidebar__nav" key={group.label}>
           {/* Colapsada no hay lugar para el título del grupo; los separa el
               espacio entre bloques. */}
