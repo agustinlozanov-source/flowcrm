@@ -40,9 +40,11 @@ Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.
 - El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, preguntá.
 
 OPORTUNIDADES:
-- Cuando el lead cuente un problema que uno de tus productos resuelve, registrá la oportunidad con ese producto. El mismo lead puede tener varias abiertas.
+- Cuando el lead cuente un problema que uno de tus productos resuelve, registrá la oportunidad con ese producto. El mismo lead puede tener varias a la vez.
+- Distinguí bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, la especialidad.
+- Ejemplo: alguien pide cita y menciona un problema de endodoncia. Son dos: la consulta de valoración es real, y la endodoncia es potencial.
 - El precio y el nombre salen del catálogo. No los inventes ni los negocies.
-- Registrarla es trabajo interno: no se lo anuncies al lead.`
+- Registrarlas es trabajo interno: no se lo anuncies al lead.`
 
   const productsSection = products.length > 0
     ? `\nPRODUCTOS QUE MANEJO:\n${products.map(p =>
@@ -192,15 +194,20 @@ const AGENDAR_CITA = {
 
 const ABRIR_OPORTUNIDAD = {
   name: 'abrir_oportunidad',
-  description: 'Registra una oportunidad de venta cuando el lead expresa una necesidad que un producto del catálogo resuelve. Un mismo lead puede tener varias abiertas a la vez. El precio sale del catálogo: no lo inventes ni lo negocies.',
+  description: 'Registra una oportunidad de venta cuando el lead expresa una necesidad que un producto del catálogo resuelve. Un mismo lead puede tener varias a la vez. El precio sale del catálogo: no lo inventes ni lo negocies.',
   input_schema: {
     type: 'object',
     properties: {
       productId: { type: 'string', description: 'Id exacto de un producto del catálogo que te fue listado' },
+      tipo: {
+        type: 'string',
+        enum: ['real', 'potencial'],
+        description: 'real es la oportunidad de entrada, lo concreto que está por pasar: la consulta, la valoración, la cita que se va a agendar. potencial es lo que se deduce del problema que contó y vendría después: el tratamiento, la cirugía, la especialidad. Si dudás, la primera es real y las que salen del diagnóstico son potenciales.',
+      },
       motivo: { type: 'string', description: 'Qué dijo el lead que hace que este producto aplique' },
       probabilidad: { type: 'string', enum: ['alta', 'media', 'baja'] },
     },
-    required: ['productId', 'motivo'],
+    required: ['productId', 'tipo', 'motivo'],
     additionalProperties: false,
   },
 }
@@ -306,6 +313,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       name: producto.name,
       productId: producto.id,
       value: Number(producto.price) || 0,
+      kind: input.tipo === 'potencial' ? 'potencial' : 'real',
       probability: input.probabilidad || 'media',
       status: 'abierta',
       auto: true,
@@ -328,13 +336,17 @@ async function recalcularOportunidades(db, orgId, leadId) {
   const todas = snap.docs.map(d => d.data())
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
+  const vivas = todas.filter(o => ['abierta', 'ganada'].includes(o.status))
+  const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
   await leadRef.update({
     opportunityStats: {
       total: todas.length,
       open: abiertas.length,
       won: ganadas.length,
-      valueOpen: abiertas.reduce((s, o) => s + (Number(o.value) || 0), 0),
-      valueWon: ganadas.reduce((s, o) => s + (Number(o.value) || 0), 0),
+      valueOpen: suma(abiertas),
+      valueWon: suma(ganadas),
+      valueReal: suma(vivas.filter(o => (o.kind || 'real') === 'real')),
+      valuePotencial: suma(vivas.filter(o => o.kind === 'potencial')),
     },
   })
 }

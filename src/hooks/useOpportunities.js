@@ -22,20 +22,39 @@ export const ESTADOS_ABIERTOS = ['abierta']
 const ref = (orgId, leadId) =>
   collection(db, 'organizations', orgId, 'leads', leadId, 'opportunities')
 
-/** Suma el estado de las oportunidades y lo deja escrito en el lead. */
+/* Dos ejes que no hay que confundir.
+ *
+ * kind dice qué clase de oportunidad es: `real` es la de entrada —la cita, la
+ * consulta de valoración—, lo concreto que está por pasar. `potencial` es lo
+ * que ya se sabe que viene detrás por el problema que contó el lead: la
+ * endodoncia, la cirugía láser. Eso alimenta Real y Potencial del board.
+ *
+ * status dice si se cerró o no, y eso alimenta el color del cierre: mientras
+ * quede una abierta es cierre parcial.
+ *
+ * Medir Real como "lo ya vendido" era un error: en calentamiento todavía no se
+ * vendió nada, así que Real daba cero siempre y no decía nada.
+ */
+const VIVAS = ['abierta', 'ganada']
+
 async function recalcular(orgId, leadId) {
   const snap = await getDocs(ref(orgId, leadId))
   const todas = snap.docs.map(d => d.data())
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
+  const vivas = todas.filter(o => VIVAS.includes(o.status))
+  const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
 
   await updateDoc(doc(db, 'organizations', orgId, 'leads', leadId), {
     opportunityStats: {
       total: todas.length,
       open: abiertas.length,
       won: ganadas.length,
-      valueOpen: abiertas.reduce((s, o) => s + (Number(o.value) || 0), 0),
-      valueWon: ganadas.reduce((s, o) => s + (Number(o.value) || 0), 0),
+      valueOpen: suma(abiertas),
+      valueWon: suma(ganadas),
+      // Las descartadas y perdidas no suman en ninguno de los dos.
+      valueReal: suma(vivas.filter(o => (o.kind || 'real') === 'real')),
+      valuePotencial: suma(vivas.filter(o => o.kind === 'potencial')),
     },
     updatedAt: serverTimestamp(),
   })
@@ -61,12 +80,16 @@ export function useOpportunities(leadId) {
     return unsub
   }, [orgId, leadId])
 
-  const crear = async ({ name, value, productId = null, probability = 'media', auto = false, reason = '' }) => {
+  const crear = async ({ name, value, productId = null, probability = 'media', auto = false, reason = '', kind }) => {
     if (!orgId || !leadId) return
+    // La primera que se abre es la de entrada; las siguientes son lo que viene
+    // detrás. Se puede cambiar después.
+    const tipo = kind || (opportunities.length === 0 ? 'real' : 'potencial')
     const docRef = await addDoc(ref(orgId, leadId), {
       name,
       value: Number(value) || 0,
       productId,
+      kind: tipo,
       probability,
       status: 'abierta',
       // Quién la abrió: la IA cuando la detecta sola, la persona si no.

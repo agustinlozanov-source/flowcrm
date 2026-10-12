@@ -15,8 +15,8 @@ const ESTADOS = {
  * `auto` marca las que vinculó la IA por matching de problemTags — se señala
  * con el sparkle lila, igual que el resto de lo que escribe la IA.
  */
-export default function OpportunityRow({ opportunity, onClose, onDiscard, onEdit }) {
-  const { name, value, probability = 'media', status = 'abierta', auto, reason } = opportunity
+export default function OpportunityRow({ opportunity, onClose, onDiscard, onEdit, onToggleKind }) {
+  const { name, value, probability = 'media', status = 'abierta', auto, reason, kind = 'real' } = opportunity
   const estado = ESTADOS[status] || ESTADOS.abierta
   const cerrada = status !== 'abierta'
 
@@ -30,6 +30,16 @@ export default function OpportunityRow({ opportunity, onClose, onDiscard, onEdit
               <Sparkles size={10} />
             </span>
           )}
+          {/* Real es la de entrada; potencial es lo que viene después. Se
+              puede corregir con un clic, porque la IA puede equivocarse. */}
+          <button
+            className={clsx('pv2-opp__kind', `pv2-opp__kind--${kind}`)}
+            onClick={e => { e.stopPropagation(); onToggleKind?.() }}
+            title={kind === 'real' ? 'De entrada — suma a Real. Click para pasarla a potencial.' : 'Viene después — suma a Potencial. Click para pasarla a real.'}
+            disabled={!onToggleKind}
+          >
+            {kind === 'real' ? 'real' : 'potencial'}
+          </button>
           <span className={`pv2-opp__prob pv2-opp__prob--${probability}`}>{probability}</span>
           {cerrada && <span style={{ color: estado.tone ? `var(--${estado.tone})` : undefined }}>{estado.label}</span>}
         </div>

@@ -53,6 +53,7 @@ export function OportunidadesSection({ leadId, products = [] }) {
           key={o.id}
           opportunity={o}
           onEdit={() => editarPrecio(o)}
+          onToggleKind={() => editar(o.id, { kind: (o.kind || 'real') === 'real' ? 'potencial' : 'real' })}
           onClose={() => cambiarEstado(o.id, 'ganada')}
           onDiscard={() => cambiarEstado(o.id, 'descartada')}
         />

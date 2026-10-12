@@ -122,15 +122,15 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
     id: lead.id,
     name: [lead.name, lead.lastName].filter(Boolean).join(' ') || 'Sin nombre',
     sub: [canal, cuando && `hace ${cuando}`].filter(Boolean).join(' · '),
-    // Real es lo efectivamente vendido; potencial es lo que sigue abierto.
-    // Mientras el lead no tenga oportunidades cargadas se usa el dato viejo,
-    // así los leads de antes siguen mostrando su monto.
+    // Real es la oportunidad de entrada —la cita, la consulta— y potencial es
+    // lo que viene detrás por el problema que contó. No es vendido contra no
+    // vendido: en calentamiento todavía no se vendió nada.
     amount: stats?.total
-      ? stats.valueWon
+      ? (stats.valueReal || 0)
       : (lead.systemStage === 'closed'
           ? (lead.closedProduct?.price || lead.value || 0)
           : (lead.value || 0)),
-    potential: stats?.valueOpen || 0,
+    potential: stats?.valuePotencial || 0,
     score: lead.score || 0,
     maturity: maturityOf(lead).id,
     // Mientras no haya una persona a cargo, el que atiende es el agente. Pero

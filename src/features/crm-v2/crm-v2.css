@@ -936,3 +936,13 @@
 .pv2-add--inline { margin-top: 8px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 /* El boton de editar llevaba icono y texto apilados */
 .pv2-section__action { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* Clase de oportunidad: de entrada (real) o derivada (potencial) */
+.pv2-opp__kind {
+  border: 1px solid transparent; border-radius: 5px; padding: 1px 6px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  cursor: pointer; font-family: inherit; background: none;
+}
+.pv2-opp__kind:disabled { cursor: default; }
+.pv2-opp__kind--real { background: rgba(26,171,153,0.14); color: var(--teal); }
+.pv2-opp__kind--potencial { background: rgba(158,119,237,0.16); color: #B692F6; }

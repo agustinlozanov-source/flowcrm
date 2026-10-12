@@ -119,13 +119,15 @@ const money = n => `$${n.toLocaleString('es-MX')}`
 /** Métricas del header, calculadas desde las tarjetas para que no se
  *  desincronicen de lo que se ve. */
 export function columnMetrics(cards, { pending } = {}) {
+  // Real es lo de entrada —la consulta, la cita— y Potencial lo que viene
+  // detrás. Potencial se muestra siempre: que esté en cero también dice algo.
   const real = cards.reduce((s, c) => s + (c.amount || 0), 0)
   const pot = cards.reduce((s, c) => s + (c.potential || 0), 0)
   const m = [
     { label: 'Tarjetas', value: String(cards.length) },
     { label: 'Real', value: money(real) },
+    { label: 'Potencial', value: pot >= 1000 ? `$${Math.round(pot / 1000)}K` : money(pot) },
   ]
-  if (pot > 0) m.push({ label: 'Potencial', value: `$${Math.round(pot / 1000)}K` })
   if (pending) m.push({ label: 'Pendiente', value: pending, tone: 'amber' })
   return m
 }
