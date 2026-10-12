@@ -11,6 +11,9 @@ import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
+import { OportunidadesSection, ContactoSection } from '../components/LeadSections'
+import LeadTimeline from '../components/LeadTimeline'
+import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
 import { usePipeline } from '@/hooks/usePipeline'
@@ -48,6 +51,9 @@ export default function PipelineV2() {
   const [peek, setPeek] = useState(null)
   const [dragging, setDragging] = useState(null)
   const [creating, setCreating] = useState(false)
+  // Contador y no booleano: hacer clic en el nombre otra vez tiene que volver
+  // a abrir el editor aunque ya se haya cerrado.
+  const [editandoContacto, setEditandoContacto] = useState(0)
   const hovered = useRef(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -306,6 +312,31 @@ export default function PipelineV2() {
       </div>
 
       <SidePanel
+        onTitleClick={() => setEditandoContacto(n => n + 1)}
+        extraResumen={selected && (
+          <>
+            <OportunidadesSection leadId={selected.id} products={products} />
+            <ContactoSection
+              key={`contacto-${editandoContacto}`}
+              lead={selected._lead}
+              autoEdit={editandoContacto > 0}
+              onSave={datos => updateLead(selected.id, datos)}
+            />
+          </>
+        )}
+        tabContent={selected ? {
+          timeline: <LeadTimeline leadId={selected.id} />,
+          notas: <NotasLead lead={selected._lead} onSave={notes => updateLead(selected.id, { notes })} />,
+          archivos: <p className="pv2-empty-tab">Los archivos del lead todavía no se guardan acá. Los que manda el agente quedan en la conversación.</p>,
+        } : undefined}
+        onAction={id => {
+          if (!selected) return
+          if (id === 'whatsapp') return navigate(`/inbox?lead=${selected.id}`)
+          if (id === 'call' && selected.phone) return (window.location.href = `tel:${selected.phone}`)
+          if (id === 'email' && selected.email) return (window.location.href = `mailto:${selected.email}`)
+          if (id === 'calendar') return navigate(`/meetings?lead=${selected.id}&nueva=1`)
+          toast.error('Ese contacto no tiene ese dato cargado todavía')
+        }}
         deal={selected ? {
           ...selected,
           stageName: COLUMNS.find(c => board[c.id].some(d => d.id === selected.id))?.name,

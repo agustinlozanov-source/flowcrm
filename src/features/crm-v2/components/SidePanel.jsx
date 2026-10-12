@@ -37,6 +37,12 @@ export default function SidePanel({
   onOpenFull,
   onAction,
   onExecuteAi,
+  // Contenido real que aporta quien monta el panel. Sin esto el panel solo
+  // sabe dibujar lo que viene en `deal`, que es poco más que la tarjeta.
+  onTitleClick,
+  onEditFields,
+  extraResumen,
+  tabContent,
 }) {
   const [tab, setTab] = useState('resumen')
   if (!deal) return null
@@ -68,7 +74,13 @@ export default function SidePanel({
             </div>
           </div>
 
-          <h2 className="pv2-panel__title">{deal.name}</h2>
+          {onTitleClick ? (
+            <button className="pv2-panel__title pv2-panel__title--link" onClick={onTitleClick} title="Ver y editar los datos del contacto">
+              {deal.name}
+            </button>
+          ) : (
+            <h2 className="pv2-panel__title">{deal.name}</h2>
+          )}
           <div className="pv2-panel__subtitle">
             {[deal.service, deal.channel, deal.createdLabel].filter(Boolean).map((part, i) => (
               <span key={part} style={{ display: 'inline-flex', gap: 8 }}>
@@ -131,6 +143,14 @@ export default function SidePanel({
         )}
 
         <div className="pv2-panel__body">
+          {/* Las pestañas que no son Resumen muestran lo que les pasen. Antes
+              el cuerpo era siempre el mismo y cambiar de pestaña no hacía
+              nada. */}
+          {!peek && tab !== 'resumen' && (tabContent?.[tab] || (
+            <p className="pv2-empty-tab">Todavía no hay nada acá.</p>
+          ))}
+
+          {(peek || tab === 'resumen') && <>
           {deal.aiInsight && (
             <div className="pv2-ai">
               <div className="pv2-ai__header">
@@ -183,7 +203,9 @@ export default function SidePanel({
             <section className="pv2-section">
               <h4 className="pv2-section__title">
                 Información del deal
-                <button className="pv2-section__action">Editar</button>
+                {onEditFields && (
+                  <button className="pv2-section__action" onClick={onEditFields}>Editar</button>
+                )}
               </h4>
               {deal.fields.map(f => (
                 <div key={f.label} className="pv2-field">
@@ -219,6 +241,9 @@ export default function SidePanel({
               </div>
             </section>
           )}
+
+          {!peek && extraResumen}
+          </>}
         </div>
 
         {!peek && (

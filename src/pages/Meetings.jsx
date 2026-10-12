@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAppointments, APPOINTMENT_TYPES, APPOINTMENT_STATUS, VIDEO_PLATFORMS } from '@/hooks/useAppointments'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
@@ -549,6 +550,10 @@ export default function Meetings() {
 
   const [view, setView] = useState('list')
   const [showNew, setShowNew] = useState(false)
+  // ?lead=<id>&nueva=1 abre el formulario con ese lead ya elegido. Lo usa el
+  // boton de agendar de la ficha del pipeline.
+  const [params, setParams] = useSearchParams()
+  const leadPedido = params.get('lead')
   const [cockpit, setCockpit] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -581,6 +586,18 @@ export default function Meetings() {
       })
       .catch(() => {})
   }, [org?.id])
+
+  const limpiarParams = () => {
+    if (!params.get('lead') && !params.get('nueva')) return
+    params.delete('lead'); params.delete('nueva')
+    setParams(params, { replace: true })
+  }
+
+  // Se espera a que los leads esten cargados: el formulario necesita
+  // encontrar al lead para mostrarlo elegido.
+  useEffect(() => {
+    if (params.get('nueva') === '1' && !showNew && leads.length > 0) setShowNew(true)
+  }, [params, showNew, leads.length])
 
   const connectGoogle = () => {
     window.location.href = `/.netlify/functions/google-auth?orgId=${org.id}`
@@ -906,7 +923,9 @@ export default function Meetings() {
       {/* MODALS */}
       {showNew && (
         <NewAppointmentModal leads={leads} defaultDate={selectedDay}
-          onClose={() => setShowNew(false)} onCreate={handleCreate}
+          defaultLeadId={leadPedido || undefined}
+          onClose={() => { setShowNew(false); limpiarParams() }}
+          onCreate={handleCreate}
           createLead={createLead} stages={stages} />
       )}
 
