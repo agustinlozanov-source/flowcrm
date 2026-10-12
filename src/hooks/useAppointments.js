@@ -8,8 +8,11 @@ import { useAuthStore } from '@/store/authStore'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
 export const APPOINTMENT_TYPES = {
-  call:  { label: 'Llamada',      icon: '📞', color: '#0066ff' },
-  video: { label: 'Videollamada', icon: '🎥', color: '#7c3aed' },
+  call:       { label: 'Llamada',      icon: '📞', color: '#0066ff', cta: 'Iniciar llamada' },
+  video:      { label: 'Videollamada', icon: '🎥', color: '#7c3aed', cta: 'Entrar a la videollamada' },
+  // La cita presencial no genera link: el lead viene a la sede. Por eso lleva
+  // sus propios campos (sede y requisitos previos) y su propio CTA.
+  presencial: { label: 'Presencial',   icon: '📍', color: '#00875a', cta: 'Marcar asistencia' },
 }
 
 export const APPOINTMENT_STATUS = {
@@ -85,7 +88,7 @@ export function useAppointments() {
   // Create appointment
   const createAppointment = async ({
     leadId, leadName, type, scheduledAt, duration,
-    platform, link, notes, assignedTo
+    platform, link, notes, assignedTo, location, requirements
   }) => {
     if (!orgId) return
     const ref = await addDoc(
@@ -98,6 +101,9 @@ export function useAppointments() {
         duration: duration || 15,
         platform: platform || null,
         link: link || '',
+        // Solo aplican a las presenciales; en el resto quedan vacías.
+        location: location || '',
+        requirements: requirements || '',
         notes: notes || '',
         assignedTo: assignedTo || userId,
         status: 'pending',
