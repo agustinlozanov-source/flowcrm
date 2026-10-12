@@ -280,23 +280,10 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       }
     }
 
-    /* Agendar es la conversión de este negocio: para una clínica la cita ya es
-     * el cierre de la parte que nos toca. Pero el score solo se movía por las
-     * categorías que el modelo reporta, así que alguien que ya tenía su cita
-     * podía quedar en 51 — ni cerca del handoff. El bono es configurable y se
-     * puede poner en 0 para quien no quiera este comportamiento. */
-    try {
-      const cfgSnap = await db.collection('organizations').doc(orgId)
-        .collection('settings').doc('agent').get()
-      const bono = Number(cfgSnap.data()?.scoreOnBooking ?? 25)
-      if (bono > 0) {
-        const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
-        const actual = Number((await leadRef.get()).data()?.score || 0)
-        await leadRef.update({ score: Math.min(100, actual + bono) })
-      }
-    } catch (e) {
-      console.warn('[agent] no se pudo sumar el bono por agendar:', e.message)
-    }
+    /* No se toca el score acá. El cierre del turno lo recalcula desde el valor
+     * que leyó ANTES de este bucle, así que cualquier escritura nuestra queda
+     * pisada. Se avisa y el ajuste se hace en un solo lugar, al final. */
+    ctx.citaAgendada = true
 
     return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confirmásela al lead con fecha y hora.`
   }
@@ -499,13 +486,19 @@ async function findTargetStage(orgId, pipelineId, score) {
 }
 
 // ── UPDATE LEAD SCORE AND STAGE ───────────────────────────────────
-async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentScore, scoringConfig) {
+async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentScore, scoringConfig, { citaAgendada = false, bonoPorAgendar = 25 } = {}) {
   const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
   const leadSnap = await leadRef.get()
   if (!leadSnap.exists) return
 
   const lead = leadSnap.data()
-  const newScore = calculateNewScore(currentScore, parsedResponse.scoring)
+  if (!parsedResponse.scoring && !citaAgendada) return Number(lead.score || 0)
+  // Agendar es la conversión de este negocio: para una clínica la cita ya es
+  // el cierre de la parte que nos toca. Sin esto, alguien que ya tenía su cita
+  // quedaba en 51 — ni cerca del handoff.
+  const newScore = Math.min(100,
+    calculateNewScore(currentScore, parsedResponse.scoring) + (citaAgendada ? bonoPorAgendar : 0),
+  )
 
   const updateData = {
     score: newScore,
@@ -534,10 +527,14 @@ async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentSco
   }
 
   // Stage advancement based on score
-  if (lead.pipelineId && !lead.systemStage) {
-    const targetStage = await findTargetStage(orgId, lead.pipelineId, newScore)
-    if (targetStage && targetStage.id !== lead.stageId) {
-      if (targetStage.id === '__handoff__' || parsedResponse.suggestHandoff) {
+  if (!lead.systemStage) {
+    const targetStage = lead.pipelineId
+      ? await findTargetStage(orgId, lead.pipelineId, newScore)
+      : null
+    // Con cita agendada se pasa a handoff aunque el pipeline no tenga umbrales
+    // configurados o el score no llegue: la conversión ya ocurrió.
+    if (citaAgendada || (targetStage && targetStage.id !== lead.stageId)) {
+      if (targetStage.id === '__handoff__' || parsedResponse.suggestHandoff || citaAgendada) {
         // Move to handoff
         updateData.systemStage = 'handoff'
         updateData.systemStageAt = admin.firestore.FieldValue.serverTimestamp()
@@ -913,8 +910,13 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
 
     // Update lead score and stage (only for real leads)
     let newScore = currentScore
-    if (leadId !== 'test' && scoringConfig) {
-      newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig)
+    if (leadId !== 'test') {
+      // Se corre aunque no haya scoring configurado: si agendó hay que moverlo
+      // a handoff igual, y antes eso dependía de tener scoring.
+      newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig, {
+        citaAgendada: !!ctx.citaAgendada,
+        bonoPorAgendar: Number(agentConfig.scoreOnBooking ?? 25),
+      })
     }
 
     const nuevasOps = await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)

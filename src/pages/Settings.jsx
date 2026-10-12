@@ -403,6 +403,8 @@ export default function Settings() {
                 <optgroup label="México">
                   <option value="America/Mexico_City">México Centro (UTC-6)</option>
                   <option value="America/Monterrey">Monterrey / NL (UTC-6)</option>
+                  <option value="America/Matamoros">Matamoros / Reynosa / Nuevo Laredo — frontera (UTC-5 en verano)</option>
+                  <option value="America/Ojinaga">Ciudad Juárez / Ojinaga — frontera (UTC-6 en verano)</option>
                   <option value="America/Mazatlan">Mazatlán / Noroeste (UTC-7)</option>
                   <option value="America/Tijuana">Tijuana / Pacifico (UTC-8)</option>
                 </optgroup>
