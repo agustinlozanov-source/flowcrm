@@ -1,22 +1,44 @@
 import clsx from 'clsx'
 import {
-  Sun, BarChart3, MessageSquare, CalendarDays, Users, Building2,
-  Package, Zap, PieChart, Settings, PanelLeftClose, PanelLeft,
+  BarChart3, MessageSquare, CalendarDays, Users, Package, Sparkles,
+  UserCog, Upload, PieChart, Clapperboard, Globe, Gift, Target,
+  Settings, PanelLeftClose, PanelLeft,
 } from 'lucide-react'
 import OwnerAvatar from './OwnerAvatar'
 
-// Orden exacto del briefing (A.4). Pipeline es la vista default.
-export const NAV_ITEMS = [
-  { id: 'hoy', label: 'Hoy', Icon: Sun },
-  { id: 'pipeline', label: 'Pipeline', Icon: BarChart3 },
-  { id: 'conversaciones', label: 'Conversaciones', Icon: MessageSquare, badge: true },
-  { id: 'reuniones', label: 'Reuniones', Icon: CalendarDays },
-  { id: 'contactos', label: 'Contactos', Icon: Users },
-  { id: 'empresas', label: 'Empresas', Icon: Building2 },
-  { id: 'catalogo', label: 'Catálogo', Icon: Package },
-  { id: 'automatizaciones', label: 'Automatizaciones', Icon: Zap },
-  { id: 'reportes', label: 'Reportes', Icon: PieChart },
+/* Toda la navegación del CRM, agrupada como en la sidebar actual. El orden de
+ * la parte de arriba es el del briefing (A.4); lo que el briefing no nombraba
+ * no se elimina, se conserva: ninguna pantalla puede desaparecer porque la
+ * sidebar se haya rediseñado. */
+export const NAV_GROUPS = [
+  {
+    label: 'CRM',
+    items: [
+      { id: 'pipeline', label: 'Pipeline', Icon: BarChart3 },
+      { id: 'conversaciones', label: 'Conversaciones', Icon: MessageSquare, badge: true },
+      { id: 'reuniones', label: 'Reuniones', Icon: CalendarDays },
+      { id: 'contactos', label: 'Contactos', Icon: Users },
+      { id: 'catalogo', label: 'Catálogo', Icon: Package },
+      { id: 'agente', label: 'Agente IA', Icon: Sparkles },
+      { id: 'equipo', label: 'Equipo', Icon: UserCog },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      { id: 'importar', label: 'Importar', Icon: Upload },
+      { id: 'reportes', label: 'Reportes', Icon: PieChart },
+      { id: 'contenido', label: 'Contenido', Icon: Clapperboard },
+      { id: 'landing', label: 'Landing pages', Icon: Globe },
+      { id: 'referidos', label: 'Referidos', Icon: Gift },
+      { id: 'metas', label: 'Metas', Icon: Target },
+      { id: 'ajustes', label: 'Ajustes', Icon: Settings },
+    ],
+  },
 ]
+
+// Lista plana, para quien solo necesite recorrer los items.
+export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items)
 
 /**
  * Sidebar global del CRM rediseñado. Colapsa a 60 px mostrando solo íconos.
@@ -57,20 +79,25 @@ export default function Sidebar({
           )}
       </div>
 
-      <nav className="pv2-sidebar__nav">
-        {NAV_ITEMS.map(({ id, label, Icon, badge }) => (
-          <button
-            key={id}
-            className={clsx('pv2-nav-item', active === id && 'pv2-nav-item--active')}
-            onClick={() => onNavigate?.(id)}
-            title={collapsed ? label : undefined}
-          >
-            <span className="pv2-nav-item__icon"><Icon size={16} /></span>
-            <span className="pv2-nav-item__text">{label}</span>
-            {badge && counts[id] > 0 && <span className="pv2-nav-item__count">{counts[id]}</span>}
-          </button>
-        ))}
-      </nav>
+      {NAV_GROUPS.map(group => (
+        <nav className="pv2-sidebar__nav" key={group.label}>
+          {/* Colapsada no hay lugar para el título del grupo; los separa el
+              espacio entre bloques. */}
+          {!collapsed && <div className="pv2-sidebar__label">{group.label}</div>}
+          {group.items.map(({ id, label, Icon, badge }) => (
+            <button
+              key={id}
+              className={clsx('pv2-nav-item', active === id && 'pv2-nav-item--active')}
+              onClick={() => onNavigate?.(id)}
+              title={collapsed ? label : undefined}
+            >
+              <span className="pv2-nav-item__icon"><Icon size={16} /></span>
+              <span className="pv2-nav-item__text">{label}</span>
+              {badge && counts[id] > 0 && <span className="pv2-nav-item__count">{counts[id]}</span>}
+            </button>
+          ))}
+        </nav>
+      ))}
 
       {!collapsed && pipelines.length > 0 && (
         <div className="pv2-sidebar__nav">

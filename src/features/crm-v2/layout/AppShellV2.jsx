@@ -11,12 +11,19 @@ import { useAuthStore } from '@/store/authStore'
  * Los items sin entrada no hacen nada — mejor eso que llevar a un 404. */
 const ROUTES = {
   pipeline: '/pipeline-v2',
-  reuniones: '/reuniones-v2',
   conversaciones: '/inbox-v2',
+  reuniones: '/reuniones-v2',
   contactos: '/leads',
   catalogo: '/products',
-  automatizaciones: '/agent',
+  agente: '/agent',
+  equipo: '/team',
+  importar: '/import',
   reportes: '/analytics',
+  contenido: '/content',
+  landing: '/landing',
+  referidos: '/referrals',
+  metas: '/goals',
+  ajustes: '/settings',
 }
 
 /**
