@@ -61,7 +61,7 @@ export default function App() {
         {/* Preview de componentes del rediseño del pipeline (Fase 1).
             Fuera del layout del CRM a propósito: es tema oscuro y aislado. */}
         <Route path="/dev/pipeline-components" element={<ComponentsPreview />} />
-        <Route path="/pipeline-v2" element={<PipelineV2 />} />
+        <Route path="/pipeline-v2" element={<Navigate to="/pipeline" replace />} />
         <Route path="/reuniones-v2" element={<ReunionesV2 />} />
         <Route path="/inbox-v2" element={<InboxV2 />} />
         <Route path="/login" element={<Login />} />
@@ -90,7 +90,11 @@ export default function App() {
           }
         >
           <Route index element={<Navigate to="/pipeline" replace />} />
-          <Route path="pipeline" element={<Pipeline />} />
+          {/* El board nuevo es el oficial. El anterior queda accesible unos
+              dias en /pipeline-clasico por si hay que volver con el equipo
+              trabajando; cuando sobre confianza, se borra. */}
+          <Route path="pipeline" element={<PipelineV2 />} />
+          <Route path="pipeline-clasico" element={<Pipeline />} />
           <Route path="leads" element={<Contacts />} />
           <Route path="products" element={<ProductCatalog />} />
           <Route path="agent" element={<Agent />} />

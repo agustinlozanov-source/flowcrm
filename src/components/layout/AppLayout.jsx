@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useNavigate, Outlet } from 'react-router-dom'
+import { useNavigate, useLocation, Outlet } from 'react-router-dom'
+import { Sun, Moon, Languages, LogOut, Shield } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
@@ -7,8 +8,11 @@ import { useAuthStore } from '@/store/authStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/hooks/useLang'
 import toast from 'react-hot-toast'
-import clsx from 'clsx'
 import SupportChat from './SupportChat'
+import Sidebar from '@/features/crm-v2/components/Sidebar'
+import { useNavItems } from '@/features/crm-v2/useNavItems'
+import { ROUTES, esRediseñada } from '@/features/crm-v2/routes'
+import '@/features/crm-v2/crm-v2.css'
 
 const NAV_SECTIONS = [
   {
@@ -199,21 +203,40 @@ const NAV_SECTIONS = [
   },
 ]
 
+/* ── Marco de toda la aplicación ─────────────────────────────────────────────
+ *
+ * Desde el rediseño el marco es uno solo: la sidebar nueva envuelve todas las
+ * pantallas, las rediseñadas y las que todavía no. Antes había dos mundos y
+ * cambiaba el entorno entero según dónde entrabas.
+ *
+ * NAV_SECTIONS de arriba ya no dibuja nada, pero se queda: es la fuente contra
+ * la que se verifican las puertas de useNavItems (módulos, permisos, flags).
+ */
 export default function AppLayout() {
   const { org, user, memberData } = useAuthStore()
-  const { can, isAdmin } = usePermissions()
+  const { isAdmin } = usePermissions()
   const navigate = useNavigate()
+  const location = useLocation()
   const [signingOut, setSigningOut] = useState(false)
-  const [featureFlags, setFeatureFlags] = useState({})
-  const { lang, toggleLang, t } = useLang()
-
+  // La sidebar colapsada se recuerda: quien trabaja en pantalla chica no
+  // quiere volver a cerrarla en cada recarga.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('pv2-sidebar-collapsed') === '1' } catch { return false }
+  })
   useEffect(() => {
-    const ref = doc(db, '_global_config', 'feature_flags')
-    const unsub = onSnapshot(ref, snap => {
-      if (snap.exists()) setFeatureFlags(snap.data())
-    })
-    return unsub
-  }, [])
+    try { localStorage.setItem('pv2-sidebar-collapsed', collapsed ? '1' : '0') } catch { /* ok */ }
+  }, [collapsed])
+  const { lang, toggleLang, t } = useLang()
+  const groups = useNavItems()
+
+  // Claro por defecto: el marco nuevo envuelve pantallas que son claras, y
+  // arrancar en oscuro dejaba la costura a la vista en todas ellas.
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('pv2-theme') || 'light' } catch { return 'light' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('pv2-theme', theme) } catch { /* sin persistencia, no pasa nada */ }
+  }, [theme])
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -227,128 +250,53 @@ export default function AppLayout() {
     }
   }
 
-  // Filter nav items based on permissions + plan modules
-  const orgModules = org?.modules // string[] | undefined
-  const visibleSections = NAV_SECTIONS.map(section => ({
-    ...section,
-    items: section.items.filter(item => {
-      // Feature flag gate: if flag exists and is false, hide
-      if (item.featureFlag && featureFlags[item.featureFlag] === false) return false
-      // Module gate: if org has a modules list, only show items in that list
-      if (orgModules?.length > 0 && item.moduleId && !orgModules.includes(item.moduleId)) return false
-      // Permission gate
-      if (item.permission && !can(item.permission)) return false
-      return true
-    })
-  })).filter(section => section.items.length > 0)
+  // Qué item se marca como activo sale de la ruta, no de un prop: así no hay
+  // que acordarse de pasarlo en cada pantalla.
+  const activeId = Object.entries(ROUTES).find(([, path]) => location.pathname.startsWith(path))?.[0]
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg">
+    <div className={`pv2 pv2-app${theme === 'light' ? ' pv2--light' : ''}`}>
+      <Sidebar
+        active={activeId}
+        groups={groups}
+        t={t}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(v => !v)}
+        logo={theme === 'light' ? '/logo.png' : '/flowhub-logo2.png'}
+        onNavigate={id => ROUTES[id] && navigate(ROUTES[id])}
+        badge={isAdmin ? <><Shield size={11} /> Administrador</> : null}
+        user={{
+          name: memberData?.name || user?.displayName || user?.email || 'Usuario',
+          role: org?.name || 'Mi organización',
+        }}
+        actions={[
+          {
+            id: 'tema',
+            title: theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro',
+            icon: theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />,
+            onClick: () => setTheme(t => (t === 'dark' ? 'light' : 'dark')),
+          },
+          {
+            id: 'idioma',
+            title: lang === 'es' ? 'Switch to English' : 'Cambiar a español',
+            icon: <Languages size={13} />,
+            onClick: toggleLang,
+          },
+          {
+            id: 'salir',
+            title: 'Cerrar sesión',
+            icon: <LogOut size={13} />,
+            onClick: handleSignOut,
+            disabled: signingOut,
+          },
+        ]}
+      />
 
-      {/* SIDEBAR */}
-      <aside className="w-[240px] min-w-[240px] bg-surface border-r border-black/[0.08] flex flex-col h-full">
-
-        {/* Logo */}
-        <div className="px-5 h-[68px] border-b border-black/[0.08] flex items-center gap-2.5 flex-shrink-0">
-          <img src="/logo.png" alt="Logo" className="w-28 object-contain" />
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2">
-          {visibleSections.map((section) => (
-            <div key={section.labelKey} className="px-3 mb-4">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-tertiary px-2 py-1 mb-1">
-                {t(section.labelKey)}
-              </div>
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    clsx(
-                      'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-all duration-150 mb-0.5',
-                      isActive
-                        ? 'bg-primary text-white'
-                        : 'text-secondary hover:bg-surface-2 hover:text-primary'
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <span className={isActive ? 'opacity-100' : 'opacity-60'}>
-                        {item.icon}
-                      </span>
-                      <span className="flex-1">{t(item.labelKey)}</span>
-                      {item.badge && (
-                        <span className={clsx(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                          isActive ? 'bg-white/20 text-white' : 'bg-accent-blue text-white'
-                        )}>
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        {/* User footer */}
-        <div className="border-t border-black/[0.08] p-3">
-          {/* Role badge */}
-          {isAdmin && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 mb-1 rounded-lg bg-purple-50">
-              <svg className="w-3 h-3 text-purple-600" viewBox="0 0 12 12" fill="currentColor">
-                <path d="M6 1l1.5 3h3l-2.5 2 1 3L6 7.5 3 9l1-3L1.5 4h3z" />
-              </svg>
-              <span className="text-[11px] font-bold text-purple-700">Administrador</span>
-            </div>
-          )}
-
-          {/* Lang switcher */}
-          <button onClick={toggleLang}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 mb-1 rounded-lg text-[12px] font-semibold text-tertiary hover:bg-surface-2 hover:text-secondary transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
-            {lang === 'es' ? 'English' : 'Español'}
-          </button>
-
-          {/* User info */}
-          <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer group">
-            <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-              <span className="text-[11px] font-bold text-white">
-                {user?.email?.[0]?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[12.5px] font-semibold text-primary truncate leading-tight">
-                {memberData?.name || user?.displayName || user?.email || 'Usuario'}
-              </div>
-              <div className="text-[11px] text-tertiary">{org?.name || 'Mi organización'}</div>
-            </div>
-            <button onClick={handleSignOut} disabled={signingOut}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-tertiary hover:text-red-500"
-              title="Cerrar sesión">
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M6 2H3a1 1 0 00-1 1v9a1 1 0 001 1h3M10 10l3-3-3-3M13 7H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-hidden">
+      <main className={esRediseñada(location.pathname) ? 'pv2-main' : 'pv2-main pv2-main--clasica'}>
         <Outlet />
       </main>
 
-      {/* SUPPORT CHAT */}
       <SupportChat />
-
     </div>
   )
 }

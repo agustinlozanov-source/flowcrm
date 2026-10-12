@@ -892,3 +892,32 @@
 .pv2-dialog__actions .pv2-btn { flex: 1; justify-content: center; }
 .pv2-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pv2-btn--primary:disabled:hover { opacity: 0.4; }
+
+/* ── Pie de la sidebar global ────────────────────────────────────── */
+.pv2-sidebar__badge {
+  margin: 0 12px 6px; padding: 4px 8px; border-radius: 6px;
+  background: rgba(158, 119, 237, 0.14); color: #B692F6;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 5px;
+}
+.pv2-sidebar__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.pv2-sidebar--collapsed .pv2-sidebar__actions { display: none; }
+
+/* Cambiador de pipeline, debajo del topbar */
+.pv2-pipeline-switch {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elev-1);
+}
+.pv2-pipeline-switch .pv2-pipeline-dot { margin-right: 5px; }
+
+/* ── Pantallas todavía no rediseñadas ────────────────────────────────
+   Usan colores claros fijos (texto casi negro sobre blanco), no tokens. En
+   tema oscuro el texto quedaba negro sobre fondo negro, ilegible. Así que el
+   área de contenido se mantiene clara para ellas: la sidebar puede estar
+   oscura, el contenido no. Cada pantalla que se rediseñe sale de acá. */
+.pv2-main--clasica {
+  background: #f5f5f7;
+  color: #0a0a0a;
+  overflow: auto;
+}

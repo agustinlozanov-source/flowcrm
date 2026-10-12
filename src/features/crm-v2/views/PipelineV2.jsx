@@ -4,7 +4,6 @@ import {
   PointerSensor, useSensor, useSensors, useDraggable,
 } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
-import AppShellV2 from '../layout/AppShellV2'
 import Topbar from '../components/Topbar'
 import InsightsBar from '../components/InsightsBar'
 import PipelineColumn from '../components/PipelineColumn'
@@ -17,6 +16,7 @@ import { toCard, columnOf } from '../adapter'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useAuthStore } from '@/store/authStore'
+import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 
 /**
@@ -202,20 +202,33 @@ export default function PipelineV2() {
   })
 
   return (
-    <AppShellV2
-      active="pipeline"
-      pipelines={pipelinesSidebar}
-      activePipelineId={activePipelineId}
-      onSelectPipeline={setActivePipelineId}
-    >
+    <>
       <Topbar
-        breadcrumb="Pipeline" title={org?.name || 'Pipeline'} onTitleClick={() => {}}
+        breadcrumb="Pipeline"
+        title={pipelines.find(p => p.id === activePipelineId)?.name || org?.name || 'Pipeline'}
         stats={topbarStats}
         activeView={view} onViewChange={setView}
         filterCount={Object.values(filters).filter(Boolean).length}
         onFilters={() => {}} onSearch={setSearch}
         primaryLabel="Nueva tarjeta" onPrimary={() => setCreating(true)}
       />
+
+      {/* Cambiar de pipeline. Como en el board anterior, solo aparece si hay
+          más de uno: con uno solo es una fila que no decide nada. */}
+      {pipelinesSidebar.length > 1 && (
+        <div className="pv2-pipeline-switch">
+          {pipelinesSidebar.map(p => (
+            <button
+              key={p.id}
+              className={clsx('pv2-chip-btn', activePipelineId === p.id && 'pv2-chip-btn--active')}
+              onClick={() => setActivePipelineId(p.id)}
+            >
+              <span className="pv2-pipeline-dot" style={{ background: p.color }} />
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <InsightsBar
         metrics={insights}
@@ -315,7 +328,7 @@ export default function PipelineV2() {
         onPrev={() => step(-1)}
         onNext={() => step(1)}
       />
-    </AppShellV2>
+    </>
   )
 }
 

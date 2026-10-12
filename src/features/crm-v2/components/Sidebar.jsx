@@ -13,26 +13,28 @@ import OwnerAvatar from './OwnerAvatar'
 export const NAV_GROUPS = [
   {
     label: 'CRM',
+    labelKey: 'nav.crm',
     items: [
-      { id: 'pipeline', label: 'Pipeline', Icon: BarChart3 },
-      { id: 'conversaciones', label: 'Conversaciones', Icon: MessageSquare, badge: true },
-      { id: 'reuniones', label: 'Reuniones', Icon: CalendarDays },
-      { id: 'contactos', label: 'Contactos', Icon: Users },
-      { id: 'catalogo', label: 'Catálogo', Icon: Package },
-      { id: 'agente', label: 'Agente IA', Icon: Sparkles },
-      { id: 'equipo', label: 'Equipo', Icon: UserCog },
+      { id: 'pipeline', label: 'Pipeline', labelKey: 'nav.pipeline', Icon: BarChart3 },
+      { id: 'conversaciones', label: 'Conversaciones', labelKey: 'nav.inbox', Icon: MessageSquare, badge: true },
+      { id: 'reuniones', label: 'Reuniones', labelKey: 'nav.meetings', Icon: CalendarDays },
+      { id: 'contactos', label: 'Contactos', labelKey: 'nav.contacts', Icon: Users },
+      { id: 'catalogo', label: 'Catálogo', labelKey: 'nav.catalog', Icon: Package },
+      { id: 'agente', label: 'Agente IA', labelKey: 'nav.agent', Icon: Sparkles },
+      { id: 'equipo', label: 'Equipo', labelKey: 'nav.team', Icon: UserCog },
     ],
   },
   {
     label: 'Herramientas',
+    labelKey: 'nav.tools',
     items: [
-      { id: 'importar', label: 'Importar', Icon: Upload },
-      { id: 'reportes', label: 'Reportes', Icon: PieChart },
-      { id: 'contenido', label: 'Contenido', Icon: Clapperboard },
-      { id: 'landing', label: 'Landing pages', Icon: Globe },
-      { id: 'referidos', label: 'Referidos', Icon: Gift },
-      { id: 'metas', label: 'Metas', Icon: Target },
-      { id: 'ajustes', label: 'Ajustes', Icon: Settings },
+      { id: 'importar', label: 'Importar', labelKey: 'nav.import', Icon: Upload },
+      { id: 'reportes', label: 'Reportes', labelKey: 'nav.analytics', Icon: PieChart },
+      { id: 'contenido', label: 'Contenido', labelKey: 'nav.content', Icon: Clapperboard },
+      { id: 'landing', label: 'Landing pages', labelKey: 'nav.landing', Icon: Globe },
+      { id: 'referidos', label: 'Referidos', labelKey: 'nav.referrals', Icon: Gift },
+      { id: 'metas', label: 'Metas', labelKey: 'nav.goals', Icon: Target },
+      { id: 'ajustes', label: 'Ajustes', labelKey: 'nav.settings', Icon: Settings },
     ],
   },
 ]
@@ -60,6 +62,12 @@ export default function Sidebar({
   onSelectPipeline,
   onNewPipeline,
   user,
+  // Traductor opcional: sin él se usan las etiquetas en español.
+  t,
+  // Botones del pie. Antes era uno solo y la sidebar global necesita varios
+  // (tema, idioma, cerrar sesión).
+  actions = [],
+  badge,
   onSettings,
   settingsIcon,
   settingsTitle = 'Configuración',
@@ -86,19 +94,27 @@ export default function Sidebar({
         <nav className="pv2-sidebar__nav" key={group.label}>
           {/* Colapsada no hay lugar para el título del grupo; los separa el
               espacio entre bloques. */}
-          {!collapsed && <div className="pv2-sidebar__label">{group.label}</div>}
-          {group.items.map(({ id, label, Icon, badge }) => (
-            <button
-              key={id}
-              className={clsx('pv2-nav-item', active === id && 'pv2-nav-item--active')}
-              onClick={() => onNavigate?.(id)}
-              title={collapsed ? label : undefined}
-            >
-              <span className="pv2-nav-item__icon"><Icon size={16} /></span>
-              <span className="pv2-nav-item__text">{label}</span>
-              {badge && counts[id] > 0 && <span className="pv2-nav-item__count">{counts[id]}</span>}
-            </button>
-          ))}
+          {!collapsed && (
+            <div className="pv2-sidebar__label">
+              {t && group.labelKey ? t(group.labelKey) : group.label}
+            </div>
+          )}
+          {group.items.map(item => {
+            const { id, Icon } = item
+            const label = t && item.labelKey ? t(item.labelKey) : item.label
+            return (
+              <button
+                key={id}
+                className={clsx('pv2-nav-item', active === id && 'pv2-nav-item--active')}
+                onClick={() => onNavigate?.(id)}
+                title={collapsed ? label : undefined}
+              >
+                <span className="pv2-nav-item__icon"><Icon size={16} /></span>
+                <span className="pv2-nav-item__text">{label}</span>
+                {item.badge && counts[id] > 0 && <span className="pv2-nav-item__count">{counts[id]}</span>}
+              </button>
+            )
+          })}
         </nav>
       ))}
 
@@ -122,15 +138,33 @@ export default function Sidebar({
         </div>
       )}
 
+      {/* Distintivo de administrador: lo tenía la sidebar anterior y sirve
+          para saber de un vistazo con qué rol estás entrando. */}
+      {badge && !collapsed && (
+        <div className="pv2-sidebar__badge">{badge}</div>
+      )}
+
       <div className="pv2-sidebar__user">
         <OwnerAvatar name={user?.name} size={32} />
-        <div className="pv2-sidebar__user-info">
-          <div className="pv2-sidebar__user-name">{user?.name}</div>
-          <div className="pv2-sidebar__user-role">{user?.role}</div>
+        {!collapsed && (
+          <div className="pv2-sidebar__user-info">
+            <div className="pv2-sidebar__user-name">{user?.name}</div>
+            <div className="pv2-sidebar__user-role">{user?.role}</div>
+          </div>
+        )}
+        <div className="pv2-sidebar__actions">
+          {actions.length > 0
+            ? actions.map(a => (
+                <button key={a.id} className="pv2-icon-btn" onClick={a.onClick} disabled={a.disabled} title={a.title}>
+                  {a.icon}
+                </button>
+              ))
+            : (
+              <button className="pv2-icon-btn" onClick={onSettings} title={settingsTitle}>
+                {settingsIcon || <Settings size={13} />}
+              </button>
+            )}
         </div>
-        <button className="pv2-icon-btn" onClick={onSettings} title={settingsTitle}>
-          {settingsIcon || <Settings size={13} />}
-        </button>
       </div>
     </aside>
   )
