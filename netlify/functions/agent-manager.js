@@ -49,10 +49,10 @@ En cada respuesta tenés que llenar el campo "oportunidades" con los productos d
 - Es trabajo interno: no se lo anuncies al lead.`
 
   const productsSection = products.length > 0
-    ? `\nPRODUCTOS QUE MANEJO:\n${products.map(p =>
-        `- ${p.name} · $${Number(p.price).toLocaleString()} ${p.currency || 'USD'}${p.durationDays ? ` · Dura ${p.durationDays} días` : ''}${p.problemTags?.length ? ` · Resuelve: ${p.problemTags.join(', ')}` : ''}`
+    ? `\nPRODUCTOS QUE MANEJO (usá el id tal cual para oportunidades y productos detectados):\n${products.map(p =>
+        `- [id: ${p.id}] ${p.name} · $${Number(p.price).toLocaleString()} ${p.currency || 'USD'}${p.durationDays ? ` · Dura ${p.durationDays} días` : ''}${p.problemTags?.length ? ` · Resuelve: ${p.problemTags.join(', ')}` : ''}`
       ).join('\n')}`
-    : ''
+    : '\nNo tenés catálogo de productos cargado, así que mandá la lista de oportunidades vacía.'
 
   // Scoring instructions — supports array format (categories/subcategories/signals) and legacy object format
   const isArrayScoring = Array.isArray(scoringConfig)
@@ -308,10 +308,17 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
       previas.docs.filter(d => d.data().status === 'abierta').map(d => d.data().productId),
     )
 
+    const normalizar = t => String(t || '').trim().toLowerCase()
     for (const o of lista) {
+      // Por id, y si manda el nombre se acepta igual: el precio sale del
+      // catálogo de todos modos, así que no se gana nada siendo estricto.
       const producto = products.find(p => p.id === o?.productId)
-      // Un id inventado no se guarda: el precio tiene que salir del catálogo.
-      if (!producto || yaAbiertas.has(producto.id)) continue
+        || products.find(p => normalizar(p.name) === normalizar(o?.productId))
+      if (!producto) {
+        console.warn(`[agent] producto no reconocido: ${o?.productId}`)
+        continue
+      }
+      if (yaAbiertas.has(producto.id)) continue
 
       await leadRef.collection('opportunities').add({
         name: producto.name,
