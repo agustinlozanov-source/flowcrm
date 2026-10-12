@@ -189,7 +189,7 @@ const cuandoCita = (ts) => {
  * había que irse a Reuniones y buscarlo, y marcar que asistió solo se podía
  * desde el cockpit de llamada.
  */
-export function CitasSection({ leadId }) {
+export function CitasSection({ leadId, onEditar }) {
   const { appointments, marcarAsistencia } = useAppointments()
   const mias = appointments
     .filter(a => a.leadId === leadId)
@@ -232,6 +232,11 @@ export function CitasSection({ leadId }) {
             </div>
             {porDelante && (
               <div style={{ display: 'flex', gap: 4 }}>
+                {/* Una cita se cambia por teléfono todo el tiempo: tiene que
+                    poder editarse desde acá y no solo desde Reuniones. */}
+                <button className="pv2-icon-btn" title="Editar fecha, hora o sede" onClick={() => onEditar?.(a.id)}>
+                  <Pencil size={12} />
+                </button>
                 <button className="pv2-icon-btn" title="No asistió" onClick={() => marcar(a.id, false)}>
                   <XCircle size={13} />
                 </button>

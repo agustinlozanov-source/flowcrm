@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAppointments, APPOINTMENT_TYPES, APPOINTMENT_STATUS, VIDEO_PLATFORMS } from '@/hooks/useAppointments'
+import { useOpportunitiesOnce } from '@/hooks/useOpportunities'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
@@ -28,20 +29,23 @@ function TypeIcon({ type, size = 16, className }) {
 }
 
 // ─── NEW APPOINTMENT MODAL ────────────────────────────────────────
-function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLeadId, createLead, stages }) {
-  const initLead = leads.find(l => l.id === defaultLeadId)
+function NewAppointmentModal({ leads, onClose, onCreate, onUpdate, editing, defaultDate, defaultLeadId, createLead, stages }) {
+  const initLead = leads.find(l => l.id === (editing?.leadId || defaultLeadId))
+  const fechaEditada = editing?.scheduledAt?.toDate?.() || null
   const [form, setForm] = useState({
-    type: 'call',
-    leadId: defaultLeadId || '',
-    leadName: initLead?.name || '',
-    date: defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-    time: '10:00',
-    duration: 15,
-    platform: 'meet',
-    link: '',
-    location: '',
-    requirements: '',
-    notes: '',
+    type: editing?.type || 'call',
+    leadId: editing?.leadId || defaultLeadId || '',
+    leadName: editing?.leadName || initLead?.name || '',
+    date: fechaEditada
+      ? format(fechaEditada, 'yyyy-MM-dd')
+      : (defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
+    time: fechaEditada ? format(fechaEditada, 'HH:mm') : '10:00',
+    duration: editing?.duration ?? 15,
+    platform: editing?.platform || 'meet',
+    link: editing?.link || '',
+    location: editing?.location || '',
+    requirements: editing?.requirements || '',
+    notes: editing?.notes || '',
   })
   const [leadSearch, setLeadSearch] = useState(initLead?.name || '')
   const [showLeadDrop, setShowLeadDrop] = useState(false)
@@ -102,14 +106,16 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
     setLoading(true)
     try {
       const scheduledAt = new Date(`${form.date}T${form.time}:00`)
-      await onCreate({
-        ...form,
-        scheduledAt,
-        leadName: selectedLead?.name || form.leadName || '',
-      })
-      toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+      const datos = { ...form, scheduledAt, leadName: selectedLead?.name || form.leadName || '' }
+      if (editing) {
+        await onUpdate(editing.id, datos)
+        toast.success('Cita actualizada ✓')
+      } else {
+        await onCreate(datos)
+        toast.success(`${APPOINTMENT_TYPES[form.type].label} agendada ✓`)
+      }
       onClose()
-    } catch { toast.error('Error al agendar') }
+    } catch { toast.error(editing ? 'Error al actualizar' : 'Error al agendar') }
     finally { setLoading(false) }
   }
 
@@ -120,7 +126,7 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
 
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
           <div>
-            <h2 className="font-display font-bold text-lg tracking-tight">Nueva cita</h2>
+            <h2 className="font-display font-bold text-lg tracking-tight">{editing ? 'Editar cita' : 'Nueva cita'}</h2>
             <p className="text-xs text-secondary mt-0.5">Agenda una llamada, videollamada o cita presencial</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
@@ -336,7 +342,7 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
             <button type="submit" disabled={loading} className="btn-primary flex-1 flex items-center justify-center gap-2">
               {loading
                 ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><TypeIcon type={form.type} size={14} /> Agendar</>}
+                : <><TypeIcon type={form.type} size={14} /> {editing ? 'Guardar cambios' : 'Agendar'}</>}
             </button>
           </div>
         </form>
@@ -346,7 +352,11 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
 }
 
 // ─── APPOINTMENT CARD ─────────────────────────────────────────────
-function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete, onAttendance }) {
+function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete, onAttendance, onEdit }) {
+  // Qué se está jugando en esta cita. Sin esto, quien la atiende no sabe si
+  // viene por una consulta de mil pesos o por una cirugía de cuarenta mil.
+  const oportunidades = useOpportunitiesOnce(appointment.leadId)
+  const opsVivas = oportunidades.filter(o => ['abierta', 'ganada'].includes(o.status))
   const dateTime = appointment.scheduledAt?.toDate?.() || new Date()
   const status = APPOINTMENT_STATUS[appointment.status] || APPOINTMENT_STATUS.pending
   const type = APPOINTMENT_TYPES[appointment.type] || APPOINTMENT_TYPES.call
@@ -397,6 +407,24 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete,
           {lead.systemStage === 'handoff' && (
             <span className="text-amber-600 font-semibold">⚡ En Handoff</span>
           )}
+        </div>
+      )}
+
+      {/* Oportunidades asociadas al lead de esta cita */}
+      {opsVivas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {opsVivas.map(o => (
+            <span key={o.id}
+              className="text-[11px] font-semibold px-2 py-1 rounded-[6px] flex items-center gap-1.5"
+              style={{
+                background: (o.kind || 'real') === 'real' ? 'rgba(0,135,90,0.08)' : 'rgba(124,58,237,0.08)',
+                color: (o.kind || 'real') === 'real' ? '#00875a' : '#7c3aed',
+              }}>
+              {o.name}
+              <span className="opacity-70">${Number(o.value || 0).toLocaleString('es-MX')}</span>
+              {o.status === 'ganada' && <CheckCircle2 size={11} />}
+            </span>
+          ))}
         </div>
       )}
 
@@ -467,6 +495,11 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete,
             className="btn-primary flex-1 text-[12.5px] py-2 flex items-center justify-center gap-1.5">
             <TypeIcon type={appointment.type} size={13} />
             {type.cta || `Iniciar ${type.label.toLowerCase()}`}
+          </button>
+          <button onClick={() => onEdit(appointment)}
+            title="Editar cita — fecha, hora, tipo o sede"
+            className="px-3 py-2 rounded-[8px] border border-black/[0.1] text-secondary hover:border-blue-200 hover:text-blue-500 transition-all text-[12px]">
+            <Pencil size={14} />
           </button>
           <button onClick={() => onCancel(appointment.id)}
             title="Cancelar cita"
@@ -557,7 +590,7 @@ export default function Meetings() {
   const { org } = useAuthStore()
   const {
     appointments, loading,
-    createAppointment, cancelAppointment, deleteAppointment, marcarAsistencia
+    createAppointment, cancelAppointment, deleteAppointment, marcarAsistencia, updateAppointment
   } = useAppointments()
 
   const { leads: allLeads, systemLeads, createLead, stages } = usePipeline()
@@ -565,6 +598,7 @@ export default function Meetings() {
 
   const [view, setView] = useState('list')
   const [showNew, setShowNew] = useState(false)
+  const [editando, setEditando] = useState(null)
   // ?lead=<id>&nueva=1 abre el formulario con ese lead ya elegido. Lo usa el
   // boton de agendar de la ficha del pipeline.
   const [params, setParams] = useSearchParams()
@@ -602,6 +636,19 @@ export default function Meetings() {
       .catch(() => {})
   }, [org?.id])
 
+  const handleUpdate = async (id, datos) => {
+    await updateAppointment(id, {
+      type: datos.type,
+      scheduledAt: datos.scheduledAt,
+      duration: datos.duration,
+      platform: datos.platform || null,
+      link: datos.link || '',
+      location: datos.location || '',
+      requirements: datos.requirements || '',
+      notes: datos.notes || '',
+    })
+  }
+
   const handleAttendance = async (id, asistio) => {
     try {
       await marcarAsistencia(id, asistio)
@@ -612,8 +659,8 @@ export default function Meetings() {
   }
 
   const limpiarParams = () => {
-    if (!params.get('lead') && !params.get('nueva')) return
-    params.delete('lead'); params.delete('nueva')
+    if (!params.get('lead') && !params.get('nueva') && !params.get('editar')) return
+    params.delete('lead'); params.delete('nueva'); params.delete('editar')
     setParams(params, { replace: true })
   }
 
@@ -621,7 +668,12 @@ export default function Meetings() {
   // encontrar al lead para mostrarlo elegido.
   useEffect(() => {
     if (params.get('nueva') === '1' && !showNew && leads.length > 0) setShowNew(true)
-  }, [params, showNew, leads.length])
+    const editId = params.get('editar')
+    if (editId && !editando) {
+      const cita = appointments.find(a => a.id === editId)
+      if (cita) setEditando(cita)
+    }
+  }, [params, showNew, leads.length, appointments, editando])
 
   const connectGoogle = () => {
     window.location.href = `/.netlify/functions/google-auth?orgId=${org.id}`
@@ -902,6 +954,7 @@ export default function Meetings() {
                       onOpenCockpit={setCockpit}
                       onCancel={handleCancel}
                       onAttendance={handleAttendance}
+                      onEdit={setEditando}
                       onDelete={handleDelete} />
                   ))}
                 </div>
@@ -937,6 +990,7 @@ export default function Meetings() {
                     onOpenCockpit={setCockpit}
                     onCancel={handleCancel}
                     onAttendance={handleAttendance}
+                    onEdit={setEditando}
                     onDelete={handleDelete} />
                 ))}
               </div>
@@ -947,11 +1001,13 @@ export default function Meetings() {
       </div>
 
       {/* MODALS */}
-      {showNew && (
+      {(showNew || editando) && (
         <NewAppointmentModal leads={leads} defaultDate={selectedDay}
           defaultLeadId={leadPedido || undefined}
-          onClose={() => { setShowNew(false); limpiarParams() }}
+          editing={editando}
+          onClose={() => { setShowNew(false); setEditando(null); limpiarParams() }}
           onCreate={handleCreate}
+          onUpdate={handleUpdate}
           createLead={createLead} stages={stages} />
       )}
 

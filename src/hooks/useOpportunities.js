@@ -159,3 +159,23 @@ export function useOpportunities(leadId) {
 
   return { opportunities, loading, crear, cambiarEstado, editar, borrar }
 }
+
+/** Oportunidades de un lead, leídas una vez. Para mostrarlas donde no hace
+ *  falta tiempo real — la tarjeta de una cita, por ejemplo — sin dejar una
+ *  suscripción abierta por cada tarjeta de la lista. */
+export function useOpportunitiesOnce(leadId) {
+  const { org } = useAuthStore()
+  const orgId = org?.id
+  const [opportunities, setOpportunities] = useState([])
+
+  useEffect(() => {
+    if (!orgId || !leadId) { setOpportunities([]); return }
+    let vivo = true
+    getDocs(ref(orgId, leadId))
+      .then(snap => { if (vivo) setOpportunities(snap.docs.map(d => ({ id: d.id, ...d.data() }))) })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [orgId, leadId])
+
+  return opportunities
+}

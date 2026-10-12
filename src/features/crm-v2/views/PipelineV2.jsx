@@ -98,19 +98,26 @@ export default function PipelineV2() {
   // ese histórico — ver BACKEND-CHANGES-NEEDED.md.
   const insights = useMemo(() => {
     const activas = board.calentamiento.length + board.handoff.length
-    const valor = flat.reduce((s, c) => s + (c.amount || 0), 0)
-    const hace30 = Date.now() - 30 * 864e5
-    const ganados = systemLeads
-      .filter(l => l.systemStage === 'closed' && (l.closedAt?.toDate?.()?.getTime() || 0) > hace30)
-      .reduce((s, l) => s + (l.closedProduct?.price || l.value || 0), 0)
     const money = n => `$${Math.round(n).toLocaleString('es-MX')}`
+
+    /* Ganado sale de las oportunidades cerradas, no del producto del lead.
+     *
+     * Antes exigía que el lead tuviera fecha de cierre, y esa fecha solo la
+     * escribe el camino viejo de cerrar venta: ganar oportunidades desde la
+     * ficha dejaba el número en cero para siempre. Tampoco se declara una
+     * ventana de 30 días, porque la fecha de cada cierre vive en la
+     * oportunidad y acá solo llegan los totales del lead. */
+    const todos = [...leads, ...systemLeads].filter(l => !l.discarded)
+    const ganado = todos.reduce((s, l) => s + (l.opportunityStats?.valueWon || 0), 0)
+
     return [
       { label: 'Tarjetas activas', value: String(activas) },
       { label: 'En cierre', value: String(board.cierre.length) },
-      { label: 'Valor en juego', value: money(valor) },
-      { label: 'Ganados · 30d', value: money(ganados), color: 'green' },
+      { label: 'Real', value: money(flat.reduce((s, c) => s + (c.amount || 0), 0)) },
+      { label: 'Potencial', value: money(flat.reduce((s, c) => s + (c.potential || 0), 0)), color: 'purple' },
+      { label: 'Ganado', value: money(ganado), color: 'green' },
     ]
-  }, [board, flat, systemLeads])
+  }, [board, flat, leads, systemLeads])
 
   // Los pipelines de Firestore no guardan color; la sidebar sí lo necesita
   // para el punto de cada uno, así que se asigna por posición.
@@ -315,7 +322,7 @@ export default function PipelineV2() {
         onTitleClick={() => setEditandoContacto(n => n + 1)}
         extraResumen={selected && (
           <>
-            <CitasSection leadId={selected.id} />
+            <CitasSection leadId={selected.id} onEditar={id => navigate(`/meetings?editar=${id}`)} />
             <OportunidadesSection leadId={selected.id} products={products} />
             <ContactoSection
               key={`contacto-${editandoContacto}`}
