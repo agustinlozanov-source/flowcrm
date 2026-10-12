@@ -288,7 +288,13 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       await ref.update({ googleEventId: ev.eventId, googleCalendarId: ev.calendarId, ...(ev.meetLink ? { link: ev.meetLink } : {}) })
       if (ev.meetLink) avisoCalendario = ` El enlace de la videollamada es ${ev.meetLink} — pasáselo al lead.`
     } catch (e) {
+      // La cita ya quedó guardada en FlowHub: que Google falle no la cancela.
       console.warn('[agent] cita creada sin evento en Calendar:', e.message)
+      if (input.tipo === 'video') {
+        // Sin decirlo, el agente podía prometerle al lead un enlace que no
+        // existe — exactamente lo que hay que evitar.
+        avisoCalendario = ' NO hay enlace de videollamada: el calendario no está conectado. No le prometas ningún enlace; decile que se lo vas a enviar antes de la reunión.'
+      }
     }
 
     return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confirmásela al lead con fecha y hora.`
