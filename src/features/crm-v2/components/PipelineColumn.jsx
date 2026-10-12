@@ -96,7 +96,7 @@ export default function PipelineColumn({
           : children}
       </ColumnBody>
 
-      <footer className="pv2-col__footer">
+      <footer className="pv2-col__footer" style={(onAdd || isHandoff) ? undefined : { visibility: 'hidden' }}>
         <button
           className="pv2-add"
           onClick={onAdd}

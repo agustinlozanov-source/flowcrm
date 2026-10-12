@@ -126,6 +126,9 @@ export function toCard(lead, { members = [], citasDelLead = [] } = {}) {
     // Solo campos con contenido: el panel los dibuja todos, y una fila vacía
     // ocupa el mismo lugar que una con información.
     lastMessage: lead.lastMessage || '',
+    // El Inbox solo lista leads que ya conversaron; sin esto el botón llevaría
+    // a una lista donde el lead no aparece.
+    hasConversation: !!lead.lastMessageAt,
     channel: canal,
     phone: lead.phone || '',
     email: lead.email || '',

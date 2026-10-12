@@ -11,11 +11,13 @@ import PipelineColumn from '../components/PipelineColumn'
 import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
+import NewCardDialog from '../components/NewCardDialog'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useAuthStore } from '@/store/authStore'
+import { useNavigate } from 'react-router-dom'
 
 /**
  * Pipeline rediseñado, con datos reales de Firestore.
@@ -28,10 +30,11 @@ import { useAuthStore } from '@/store/authStore'
  */
 export default function PipelineV2() {
   const { org } = useAuthStore()
+  const navigate = useNavigate()
   const {
     leads, systemLeads, members, loading, stages,
     pipelines, activePipelineId, setActivePipelineId,
-    moveToHandoff, resolveHandoff, updateLead,
+    moveToHandoff, resolveHandoff, updateLead, createLead,
   } = usePipeline()
   const { appointments } = useAppointments()
 
@@ -42,6 +45,7 @@ export default function PipelineV2() {
   const [selected, setSelected] = useState(null)
   const [peek, setPeek] = useState(null)
   const [dragging, setDragging] = useState(null)
+  const [creating, setCreating] = useState(false)
   const hovered = useRef(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -127,6 +131,17 @@ export default function PipelineV2() {
     return true
   }, [])
 
+  const handleCreate = useCallback(async ({ name, phone, value }) => {
+    try {
+      // Sin etapa el lead no aparecería en ninguna columna, así que entra en
+      // la primera del pipeline activo.
+      await createLead({ name, phone, value, source: 'manual', stageId: stages[0]?.id || null })
+      toast.success(`${name} entró al pipeline`)
+    } catch {
+      toast.error('No se pudo crear la tarjeta')
+    }
+  }, [createLead, stages])
+
   const handleDragEnd = useCallback(async ({ active, over }) => {
     setDragging(null)
     if (!over) return
@@ -199,7 +214,7 @@ export default function PipelineV2() {
         activeView={view} onViewChange={setView}
         filterCount={Object.values(filters).filter(Boolean).length}
         onFilters={() => {}} onSearch={setSearch}
-        primaryLabel="Nueva tarjeta" onPrimary={() => {}}
+        primaryLabel="Nueva tarjeta" onPrimary={() => setCreating(true)}
       />
 
       <InsightsBar
@@ -244,6 +259,7 @@ export default function PipelineV2() {
                   emptyLabel={active ? 'Ninguna tarjeta en este nivel' : 'Sin tarjetas en esta columna'}
                   droppableId={col.id}
                   canDrop={!dragging || puedeMover(dragging, col.id)}
+                  onAdd={col.id === 'calentamiento' ? () => setCreating(true) : undefined}
                 >
                   {cards.map(deal => (
                     <DraggableCard
@@ -252,6 +268,8 @@ export default function PipelineV2() {
                       selected={selected?.id === deal.id}
                       onHover={h => { hovered.current = h ? deal : (hovered.current?.id === deal.id ? null : hovered.current) }}
                       onOpen={() => { setPeek(null); setSelected(deal) }}
+                      onWhatsApp={deal.hasConversation ? () => navigate(`/inbox?lead=${deal.id}`) : undefined}
+                      onCall={deal.phone ? () => { window.location.href = `tel:${deal.phone}` } : undefined}
                     />
                   ))}
                 </PipelineColumn>
@@ -288,6 +306,8 @@ export default function PipelineV2() {
         }}
       />
 
+      {creating && <NewCardDialog onClose={() => setCreating(false)} onCreate={handleCreate} />}
+
       <PeekPreview
         deal={peek}
         open={!!peek}
@@ -302,7 +322,7 @@ export default function PipelineV2() {
 /* La tarjeta arrastrable envuelve a PipelineCard en vez de modificarla: así
  * la tarjeta sigue sirviendo fuera de un DndContext, como en la página de
  * componentes. */
-function DraggableCard({ deal, selected, onHover, onOpen }) {
+function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id })
   return (
     <div
@@ -313,7 +333,13 @@ function DraggableCard({ deal, selected, onHover, onOpen }) {
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
     >
-      <PipelineCard deal={deal} selected={selected} onOpen={onOpen} />
+      <PipelineCard
+        deal={deal}
+        selected={selected}
+        onOpen={onOpen}
+        onWhatsApp={onWhatsApp}
+        onCall={onCall}
+      />
     </div>
   )
 }

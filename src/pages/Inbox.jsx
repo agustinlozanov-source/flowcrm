@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   collection, onSnapshot, query, orderBy,
   doc, updateDoc, serverTimestamp, limit, getDocs
@@ -362,6 +363,9 @@ export default function Inbox() {
   const [filter, setFilter] = useState('all') // all | unread | whatsapp | messenger | instagram
   const [search, setSearch] = useState('')
   const [bulking, setBulking] = useState(false)
+  // ?lead=<id> abre esa conversación al entrar. Lo usa el botón de WhatsApp
+  // de la tarjeta del pipeline, que si no te deja en la lista buscando.
+  const [params, setParams] = useSearchParams()
 
   // Pregunta cuántas conversaciones quedaron sin responder, confirma con ese
   // número y recién ahí dispara. Son WhatsApps a personas reales: no se manda
@@ -416,6 +420,19 @@ export default function Inbox() {
     })
     return () => unsub()
   }, [org?.id])
+
+  // Se corre cuando llegan los leads, no al montar: al montar todavía no está
+  // el que hay que seleccionar.
+  useEffect(() => {
+    const wanted = params.get('lead')
+    if (!wanted || selectedLead?.id === wanted) return
+    const lead = leads.find(l => l.id === wanted)
+    if (!lead) return
+    setSelectedLead(lead)
+    // Se limpia para que recargar no vuelva a forzar la misma conversación.
+    params.delete('lead')
+    setParams(params, { replace: true })
+  }, [leads, params, selectedLead?.id, setParams])
 
   const filteredLeads = leads.filter(lead => {
     if (search && !lead.name?.toLowerCase().includes(search.toLowerCase()) &&
