@@ -1,0 +1,54 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Sun, Moon } from 'lucide-react'
+import '../crm-v2.css'
+import Sidebar from '../components/Sidebar'
+import { PIPELINES, USER } from '../boardData'
+
+/* Rutas v2 por item de la sidebar. Las que todavía no existen quedan sin
+ * entrada y el click no hace nada — mejor eso que llevar a un 404. */
+const ROUTES = {
+  pipeline: '/pipeline-v2',
+  reuniones: '/reuniones-v2',
+  conversaciones: '/inbox-v2',
+}
+
+/**
+ * Shell de las vistas v2: sidebar propia, tema oscuro y el contenido.
+ *
+ * Monta la sidebar nueva y no la del CRM actual: el briefing v2 pide
+ * reemplazar la global (A.4) y en claro la costura se vería mal.
+ */
+export default function AppShellV2({ active, children }) {
+  const [collapsed, setCollapsed] = useState(false)
+  // El tema se recuerda por usuario. El try/catch es porque en una ventana
+  // privada localStorage puede tirar al leer.
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('pv2-theme') || 'dark' } catch { return 'dark' }
+  })
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    try { localStorage.setItem('pv2-theme', theme) } catch { /* sin persistencia, no pasa nada */ }
+  }, [theme])
+
+  return (
+    <div className={`pv2 pv2-app${theme === 'light' ? ' pv2--light' : ''}`}>
+      <Sidebar
+        active={active}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(v => !v)}
+        counts={{ conversaciones: 14 }}
+        pipelines={PIPELINES}
+        activePipeline="aurora"
+        user={USER}
+        logo={theme === 'light' ? '/logo.png' : '/flowhub-logo2.png'}
+        onNavigate={id => ROUTES[id] && navigate(ROUTES[id])}
+        onSettings={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+        settingsIcon={theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+        settingsTitle={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+      />
+      <main className="pv2-main">{children}</main>
+    </div>
+  )
+}
