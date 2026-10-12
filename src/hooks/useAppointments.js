@@ -17,10 +17,16 @@ export const APPOINTMENT_TYPES = {
 
 export const APPOINTMENT_STATUS = {
   pending:   { label: 'Pendiente',  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)'  },
-  completed: { label: 'Realizada',  color: '#00c853', bg: 'rgba(0,200,83,0.08)'   },
+  completed: { label: 'Asistió',    color: '#00c853', bg: 'rgba(0,200,83,0.08)'   },
+  // Faltar no es lo mismo que cancelar: cancelar avisa, no presentarse no.
+  no_show:   { label: 'No asistió', color: '#ff9500', bg: 'rgba(255,149,0,0.10)'  },
   cancelled: { label: 'Cancelada',  color: '#ff3b30', bg: 'rgba(255,59,48,0.08)'  },
   rescheduled:{ label: 'Reagendada',color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
 }
+
+// Las que todavía tienen que ocurrir. Es la definición que usan la agenda del
+// agente, el filtro de Reuniones y la ficha del lead.
+export const ESTADOS_EN_PIE = ['pending', 'scheduled', 'rescheduled']
 
 export const APPOINTMENT_OUTCOMES = {
   secure:      { label: 'Oportunidad segura', color: '#0066ff' },
@@ -147,6 +153,25 @@ export function useAppointments() {
     )
   }
 
+  /* Asistencia, que es lo primero que hay que registrar de una cita y hasta
+   * ahora solo se podía marcar pasando por el cockpit de llamada — pensado
+   * para llamadas, no para alguien que vino a la sede.
+   *
+   * No se mezcla con el resultado comercial: que haya venido no dice todavía
+   * si compró. Eso se resuelve cerrando oportunidades. */
+  const marcarAsistencia = async (appointmentId, asistio) => {
+    if (!orgId) return
+    await updateDoc(
+      doc(db, 'organizations', orgId, 'appointments', appointmentId),
+      {
+        status: asistio ? 'completed' : 'no_show',
+        attended: asistio,
+        attendedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    )
+  }
+
   // Cancel appointment
   const cancelAppointment = async (appointmentId) => {
     if (!orgId) return
@@ -188,6 +213,7 @@ export function useAppointments() {
     createAppointment,
     updateAppointment,
     completeAppointment,
+    marcarAsistencia,
     cancelAppointment,
     rescheduleAppointment,
     deleteAppointment,

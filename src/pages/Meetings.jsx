@@ -346,7 +346,7 @@ function NewAppointmentModal({ leads, onClose, onCreate, defaultDate, defaultLea
 }
 
 // ─── APPOINTMENT CARD ─────────────────────────────────────────────
-function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete }) {
+function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete, onAttendance }) {
   const dateTime = appointment.scheduledAt?.toDate?.() || new Date()
   const status = APPOINTMENT_STATUS[appointment.status] || APPOINTMENT_STATUS.pending
   const type = APPOINTMENT_TYPES[appointment.type] || APPOINTMENT_TYPES.call
@@ -443,6 +443,20 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
 
       {/* Actions */}
       {isPending && (
+        <>
+        {/* Asistencia: era lo único que no se podía registrar sin pasar por el
+            cockpit, que está pensado para llamadas y no para alguien que vino
+            a la sede. */}
+        <div className="flex gap-2">
+          <button onClick={() => onAttendance(appointment.id, true)}
+            className="flex-1 py-2 rounded-[8px] border border-green-200 text-green-600 hover:bg-green-50 transition-all text-[12.5px] font-semibold flex items-center justify-center gap-1.5">
+            <CheckCircle2 size={13} /> Asistió
+          </button>
+          <button onClick={() => onAttendance(appointment.id, false)}
+            className="flex-1 py-2 rounded-[8px] border border-black/[0.1] text-secondary hover:border-amber-300 hover:text-amber-600 transition-all text-[12.5px] font-semibold flex items-center justify-center gap-1.5">
+            <XCircle size={13} /> No asistió
+          </button>
+        </div>
         <div className="flex gap-2">
           <button onClick={() => {
               if (appointment.type === 'video' && appointment.link) {
@@ -465,6 +479,7 @@ function AppointmentCard({ appointment, lead, onOpenCockpit, onCancel, onDelete 
             <Trash2 size={14} />
           </button>
         </div>
+        </>
       )}
 
       {/* Delete button — always visible for non-pending */}
@@ -542,7 +557,7 @@ export default function Meetings() {
   const { org } = useAuthStore()
   const {
     appointments, loading,
-    createAppointment, cancelAppointment, deleteAppointment
+    createAppointment, cancelAppointment, deleteAppointment, marcarAsistencia
   } = useAppointments()
 
   const { leads: allLeads, systemLeads, createLead, stages } = usePipeline()
@@ -555,7 +570,7 @@ export default function Meetings() {
   const [params, setParams] = useSearchParams()
   const leadPedido = params.get('lead')
   const [cockpit, setCockpit] = useState(null)
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('pending')
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
@@ -586,6 +601,15 @@ export default function Meetings() {
       })
       .catch(() => {})
   }, [org?.id])
+
+  const handleAttendance = async (id, asistio) => {
+    try {
+      await marcarAsistencia(id, asistio)
+      toast.success(asistio ? 'Marcada como asistida' : 'Marcada como no asistida')
+    } catch {
+      toast.error('No se pudo registrar')
+    }
+  }
 
   const limpiarParams = () => {
     if (!params.get('lead') && !params.get('nueva')) return
@@ -877,6 +901,7 @@ export default function Meetings() {
                       lead={leads.find(l => l.id === a.leadId)}
                       onOpenCockpit={setCockpit}
                       onCancel={handleCancel}
+                      onAttendance={handleAttendance}
                       onDelete={handleDelete} />
                   ))}
                 </div>
@@ -911,6 +936,7 @@ export default function Meetings() {
                     lead={leads.find(l => l.id === a.leadId)}
                     onOpenCockpit={setCockpit}
                     onCancel={handleCancel}
+                    onAttendance={handleAttendance}
                     onDelete={handleDelete} />
                 ))}
               </div>

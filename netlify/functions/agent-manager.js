@@ -240,7 +240,9 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       leadId,
       leadName: leadName || '',
       type: input.tipo,
-      status: 'scheduled',
+      // El mismo estado que usa la interfaz, o la cita aparece sin etiqueta
+      // en Reuniones y los filtros no la encuentran.
+      status: 'pending',
       scheduledAt: admin.firestore.Timestamp.fromDate(cuando),
       duration: duracion,
       notes: input.motivo || '',

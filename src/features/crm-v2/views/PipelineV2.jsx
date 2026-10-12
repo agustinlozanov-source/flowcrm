@@ -11,7 +11,7 @@ import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
-import { OportunidadesSection, ContactoSection } from '../components/LeadSections'
+import { OportunidadesSection, ContactoSection, CitasSection } from '../components/LeadSections'
 import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
@@ -315,6 +315,7 @@ export default function PipelineV2() {
         onTitleClick={() => setEditandoContacto(n => n + 1)}
         extraResumen={selected && (
           <>
+            <CitasSection leadId={selected.id} />
             <OportunidadesSection leadId={selected.id} products={products} />
             <ContactoSection
               key={`contacto-${editandoContacto}`}

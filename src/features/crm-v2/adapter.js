@@ -108,7 +108,7 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
     ? members.find(m => m.id === lead.assignedTo || m.uid === lead.assignedTo)
     : null
   const ultimo = ts(lead.lastMessageAt)
-  const proximaCita = citasDelLead.find(a => a.status === 'scheduled')
+  const proximaCita = citasDelLead.find(a => ['pending', 'scheduled'].includes(a.status))
   // El monto de la tarjeta es el precio de este producto; sin el nombre, el
   // número no dice de qué es.
   const stats = lead.opportunityStats

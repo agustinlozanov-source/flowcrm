@@ -949,3 +949,16 @@
 .pv2-opp__kind--real { background: rgba(26,171,153,0.14); color: var(--teal); }
 .pv2-opp__kind--potencial { background: rgba(158,119,237,0.16); color: #B692F6; }
 .pv2-field__hint { font-size: 10.5px; color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+
+/* Citas en la ficha del lead */
+.pv2-cita {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; margin-top: 6px;
+  background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 9px;
+}
+.pv2-cita__icono { color: var(--text-tertiary); flex-shrink: 0; }
+.pv2-cita__main { flex: 1; min-width: 0; }
+.pv2-cita__cuando { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.pv2-cita__cuando::first-letter { text-transform: uppercase; }
+.pv2-cita__sub { font-size: 11px; color: var(--text-tertiary); }
+.pv2-cita__estado { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }

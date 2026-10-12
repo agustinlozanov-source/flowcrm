@@ -4,7 +4,8 @@
  * lo que le pasan y lo dibuja. Lo que lee y escribe Firestore vive acá.
  */
 import { useState } from 'react'
-import { Plus, Pencil, Check, X } from 'lucide-react'
+import { Plus, Pencil, Check, X, Calendar, MapPin, Video, Phone, CheckCircle2, XCircle } from 'lucide-react'
+import { useAppointments, APPOINTMENT_STATUS, ESTADOS_EN_PIE } from '@/hooks/useAppointments'
 import OpportunityRow from './OpportunityRow'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import toast from 'react-hot-toast'
@@ -166,6 +167,83 @@ export function ContactoSection({ lead, onSave, autoEdit = false }) {
           </div>
         ))
       )}
+    </section>
+  )
+}
+
+/* ── Citas del lead ──────────────────────────────────────────────── */
+
+const ICONO_CITA = { presencial: MapPin, video: Video, call: Phone }
+
+const cuandoCita = (ts) => {
+  const d = ts?.toDate?.() || null
+  if (!d) return ''
+  return d.toLocaleString('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+}
+
+/**
+ * Lo primero que hay que saber de un lead es si tiene cita y cuándo. Antes
+ * había que irse a Reuniones y buscarlo, y marcar que asistió solo se podía
+ * desde el cockpit de llamada.
+ */
+export function CitasSection({ leadId }) {
+  const { appointments, marcarAsistencia } = useAppointments()
+  const mias = appointments
+    .filter(a => a.leadId === leadId)
+    .sort((a, b) => (a.scheduledAt?.toMillis?.() || 0) - (b.scheduledAt?.toMillis?.() || 0))
+
+  if (!mias.length) return null
+
+  const enPie = mias.filter(a => ESTADOS_EN_PIE.includes(a.status))
+  const pasadas = mias.filter(a => !ESTADOS_EN_PIE.includes(a.status))
+
+  const marcar = async (id, asistio) => {
+    try {
+      await marcarAsistencia(id, asistio)
+      toast.success(asistio ? 'Marcada como asistida' : 'Marcada como no asistida')
+    } catch {
+      toast.error('No se pudo registrar')
+    }
+  }
+
+  return (
+    <section className="pv2-section">
+      <h4 className="pv2-section__title">
+        Citas
+        {enPie.length > 0 && <span className="pv2-section__hint">{enPie.length} por delante</span>}
+      </h4>
+
+      {[...enPie, ...pasadas].map(a => {
+        const Icono = ICONO_CITA[a.type] || Calendar
+        const estado = APPOINTMENT_STATUS[a.status]
+        const porDelante = ESTADOS_EN_PIE.includes(a.status)
+        return (
+          <div key={a.id} className="pv2-cita">
+            <Icono size={13} className="pv2-cita__icono" />
+            <div className="pv2-cita__main">
+              <div className="pv2-cita__cuando">{cuandoCita(a.scheduledAt)}</div>
+              {a.location && <div className="pv2-cita__sub">{a.location}</div>}
+              {!porDelante && estado && (
+                <span className="pv2-cita__estado" style={{ color: estado.color }}>{estado.label}</span>
+              )}
+            </div>
+            {porDelante && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="pv2-icon-btn" title="No asistió" onClick={() => marcar(a.id, false)}>
+                  <XCircle size={13} />
+                </button>
+                <button className="pv2-icon-btn" title="Asistió" style={{ color: 'var(--green)' }}
+                  onClick={() => marcar(a.id, true)}>
+                  <CheckCircle2 size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </section>
   )
 }

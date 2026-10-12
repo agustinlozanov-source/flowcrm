@@ -153,7 +153,10 @@ async function ocupadoEnFlowHub(db, orgId, desde, hasta) {
 
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .filter(a => a.status === 'scheduled')
+    // La interfaz crea las citas como 'pending' y el agente las creaba como
+    // 'scheduled': filtrar por uno solo dejaba la mitad de la agenda invisible
+    // y el agente podía agendar encima de una cita cargada a mano.
+    .filter(a => ['pending', 'scheduled'].includes(a.status))
     .map(a => {
       const inicio = a.scheduledAt.toDate()
       return { inicio, fin: new Date(inicio.getTime() + (a.duration || 30) * 60000) }
