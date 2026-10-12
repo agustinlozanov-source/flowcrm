@@ -80,6 +80,7 @@ export function OportunidadesSection({ leadId, products = [] }) {
 
 /* ── Datos del contacto ──────────────────────────────────────────── */
 const CAMPOS = [
+  { key: 'name', label: 'Nombre', placeholder: 'Como se llama de verdad' },
   { key: 'email', label: 'Email', type: 'email', placeholder: 'nombre@correo.com' },
   { key: 'phone', label: 'Teléfono', placeholder: '52 55 1234 5678' },
   { key: 'company', label: 'Empresa', placeholder: '—' },
@@ -103,9 +104,12 @@ export function ContactoSection({ lead, onSave, autoEdit = false }) {
   }
 
   const guardar = async () => {
+    // Un nombre vacío dejaría la tarjeta sin título: si lo borró, se ignora.
+    const limpio = { ...form }
+    if (!limpio.name?.trim()) delete limpio.name
     setGuardando(true)
     try {
-      await onSave(form)
+      await onSave(limpio)
       setEditando(false)
       toast.success('Datos guardados')
     } catch {
@@ -153,6 +157,11 @@ export function ContactoSection({ lead, onSave, autoEdit = false }) {
             <span className="pv2-field__label">{c.label}</span>
             <span className="pv2-field__value">
               {lead?.[c.key] || <span style={{ color: 'var(--text-muted)' }}>Sin dato</span>}
+              {c.key === 'name' && lead?.name && (
+                <span className="pv2-field__hint" title="Así llegó desde el canal">
+                  como lo trae {lead.lastMessageChannel === 'whatsapp' ? 'WhatsApp' : 'el canal'}
+                </span>
+              )}
             </span>
           </div>
         ))

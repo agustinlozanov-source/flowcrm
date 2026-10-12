@@ -948,3 +948,4 @@
 .pv2-opp__kind:disabled { cursor: default; }
 .pv2-opp__kind--real { background: rgba(26,171,153,0.14); color: var(--teal); }
 .pv2-opp__kind--potencial { background: rgba(158,119,237,0.16); color: #B692F6; }
+.pv2-field__hint { font-size: 10.5px; color: var(--text-muted); font-weight: 400; margin-left: 6px; }

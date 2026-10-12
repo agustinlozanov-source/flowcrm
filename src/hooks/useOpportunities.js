@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react'
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot,
-  getDocs, query, orderBy, serverTimestamp,
+  getDocs, getDoc, query, orderBy, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
@@ -45,7 +45,8 @@ async function recalcular(orgId, leadId) {
   const vivas = todas.filter(o => VIVAS.includes(o.status))
   const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
 
-  await updateDoc(doc(db, 'organizations', orgId, 'leads', leadId), {
+  const leadRef = doc(db, 'organizations', orgId, 'leads', leadId)
+  const cambios = {
     opportunityStats: {
       total: todas.length,
       open: abiertas.length,
@@ -57,7 +58,35 @@ async function recalcular(orgId, leadId) {
       valuePotencial: suma(vivas.filter(o => o.kind === 'potencial')),
     },
     updatedAt: serverTimestamp(),
-  })
+  }
+
+  /* Cerrar una oportunidad como ganada mueve el lead a Cierre definitivo.
+   *
+   * Cobrar la consulta y dejar la cirugía abierta ya es un cierre parcial: el
+   * lead no tiene nada que hacer en Handoff, que es "falta llamarlo". Antes
+   * había que cerrar la oportunidad y además arrastrar la tarjeta a mano.
+   *
+   * Si queda algo abierto el estado es "oportunidad segura" —hay plata
+   * confirmada y algo vivo— y cuando no queda nada abierto, venta cerrada.
+   * El color azul o morado sale solo de esos mismos números.
+   *
+   * Solo avanza: nunca saca un lead de Cierre, para no deshacer a sus espaldas
+   * algo que una persona decidió.
+   */
+  if (ganadas.length > 0) {
+    const leadSnap = await getDoc(leadRef)
+    const etapaActual = leadSnap.data()?.systemStage
+    const yaEstaEnCierre = ['open_opportunity', 'secure_opportunity', 'closed'].includes(etapaActual)
+    const destino = abiertas.length > 0 ? 'secure_opportunity' : 'closed'
+
+    if (!yaEstaEnCierre || (etapaActual !== 'closed' && destino === 'closed')) {
+      cambios.systemStage = destino
+      cambios.systemStageAt = serverTimestamp()
+      cambios.stageId = null
+    }
+  }
+
+  await updateDoc(leadRef, cambios)
 }
 
 export function useOpportunities(leadId) {
