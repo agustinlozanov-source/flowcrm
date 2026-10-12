@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { MoreVertical } from 'lucide-react'
+import { useDroppable } from '@dnd-kit/core'
 import { MATURITY } from '../maturity'
 
 /**
@@ -26,6 +27,10 @@ export default function PipelineColumn({
   emptyLabel,
   onAdd,
   onMenu,
+  // Sin droppableId la columna no acepta tarjetas: así la página de
+  // componentes puede montarla fuera de un DndContext.
+  droppableId,
+  canDrop = true,
 }) {
   const isHandoff = variant === 'handoff'
   const total = distribution ? Object.values(distribution).reduce((a, b) => a + b, 0) : 0
@@ -85,11 +90,11 @@ export default function PipelineColumn({
 
       </header>
 
-      <div className="pv2-col__body">
+      <ColumnBody droppableId={droppableId} canDrop={canDrop}>
         {isEmpty
           ? <div className="pv2-col__empty">{emptyLabel || 'Sin tarjetas acá'}</div>
           : children}
-      </div>
+      </ColumnBody>
 
       <footer className="pv2-col__footer">
         <button
@@ -101,5 +106,31 @@ export default function PipelineColumn({
         </button>
       </footer>
     </section>
+  )
+}
+
+/* El cuerpo es lo que recibe la tarjeta. Va aparte porque useDroppable es un
+ * hook y no puede llamarse condicionalmente dentro de la columna. */
+function ColumnBody({ droppableId, canDrop, children }) {
+  if (!droppableId) return <div className="pv2-col__body">{children}</div>
+  return <DroppableBody id={droppableId} canDrop={canDrop}>{children}</DroppableBody>
+}
+
+function DroppableBody({ id, canDrop, children }) {
+  // A propósito no se deshabilita el droppable: deshabilitado nunca reporta
+  // isOver y el destino inválido quedaba sin marcar — la tarjeta no caía y no
+  // se entendía por qué. Se marca en rojo y el rechazo lo hace quien suelta.
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      className={clsx(
+        'pv2-col__body',
+        isOver && canDrop && 'pv2-col__body--over',
+        isOver && !canDrop && 'pv2-col__body--blocked',
+      )}
+    >
+      {children}
+    </div>
   )
 }

@@ -1,4 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import {
+  DndContext, DragOverlay, closestCorners,
+  PointerSensor, useSensor, useSensors, useDraggable,
+} from '@dnd-kit/core'
+import toast from 'react-hot-toast'
 import AppShellV2 from '../layout/AppShellV2'
 import Topbar from '../components/Topbar'
 import InsightsBar from '../components/InsightsBar'
@@ -24,8 +29,9 @@ import { useAuthStore } from '@/store/authStore'
 export default function PipelineV2() {
   const { org } = useAuthStore()
   const {
-    leads, systemLeads, members, loading,
+    leads, systemLeads, members, loading, stages,
     pipelines, activePipelineId, setActivePipelineId,
+    moveToHandoff, resolveHandoff, updateLead,
   } = usePipeline()
   const { appointments } = useAppointments()
 
@@ -35,7 +41,10 @@ export default function PipelineV2() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [peek, setPeek] = useState(null)
+  const [dragging, setDragging] = useState(null)
   const hovered = useRef(null)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   // Citas futuras agrupadas por lead: la tarjeta necesita saber si hay una
   // agendada para decir cuál es la próxima acción.
@@ -102,6 +111,60 @@ export default function PipelineV2() {
     { label: 'Handoff', value: String(board.handoff.length) },
   ]), [flat, board])
 
+  /* Qué movimientos tienen sentido.
+   *
+   * Una venta cerrada no se arrastra: sacarla de Cierre la descerraría y
+   * descuadraría las estadísticas del equipo. Se reabre desde la ficha, que
+   * pregunta y deja rastro.
+   *
+   * Calentamiento → Cierre tampoco: pasar directo a oportunidad saltea la
+   * llamada, que es justamente lo que Handoff representa. */
+  const puedeMover = useCallback((card, destino) => {
+    const origen = columnOf(card._lead)
+    if (origen === destino) return false
+    if (card._lead.systemStage === 'closed') return false
+    if (origen === 'calentamiento' && destino === 'cierre') return false
+    return true
+  }, [])
+
+  const handleDragEnd = useCallback(async ({ active, over }) => {
+    setDragging(null)
+    if (!over) return
+    const card = flat.find(c => c.id === active.id)
+    const destino = over.id
+    if (!card) return
+    if (!puedeMover(card, destino)) {
+      // Callarse acá deja al usuario pensando que la app falló.
+      const origen = columnOf(card._lead)
+      if (origen === destino) return
+      if (card._lead.systemStage === 'closed') {
+        toast.error('Una venta cerrada se reabre desde la ficha, no arrastrando')
+      } else {
+        toast.error('De Calentamiento se pasa por Handoff: ahí es donde alguien llama')
+      }
+      return
+    }
+
+    try {
+      if (destino === 'handoff') {
+        await moveToHandoff(card.id)
+        toast.success(`${card.name} pasó a Handoff`)
+      } else if (destino === 'cierre') {
+        // Hubo llamada pero todavía no hay fecha de pago: eso es exactamente
+        // una oportunidad abierta. La fecha se carga después en la ficha.
+        await resolveHandoff(card.id, 'open_opportunity')
+        toast.success(`${card.name} pasó a Cierre — falta fecha de pago`)
+      } else {
+        // Volver a calentamiento. moveToHandoff había borrado la etapa, así
+        // que hay que devolverle una o el lead queda sin columna.
+        await updateLead(card.id, { systemStage: null, stageId: card._lead.stageId || stages[0]?.id || null })
+        toast.success(`${card.name} volvió a Calentamiento`)
+      }
+    } catch {
+      toast.error('No se pudo mover la tarjeta')
+    }
+  }, [flat, puedeMover, moveToHandoff, resolveHandoff, updateLead, stages])
+
   useEffect(() => {
     const onKey = e => {
       const typing = ['INPUT', 'TEXTAREA'].includes(e.target.tagName)
@@ -154,6 +217,13 @@ export default function PipelineV2() {
             Llega en una fase posterior. Por ahora, Kanban.
           </div>
         ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={({ active }) => setDragging(flat.find(c => c.id === active.id) || null)}
+            onDragCancel={() => setDragging(null)}
+            onDragEnd={handleDragEnd}
+          >
           <div className="pv2-board">
             {COLUMNS.map(col => {
               const all = board[col.id]
@@ -172,27 +242,31 @@ export default function PipelineV2() {
                   onFilterChange={level => setFilters(f => ({ ...f, [col.id]: level }))}
                   isEmpty={cards.length === 0}
                   emptyLabel={active ? 'Ninguna tarjeta en este nivel' : 'Sin tarjetas en esta columna'}
+                  droppableId={col.id}
+                  canDrop={!dragging || puedeMover(dragging, col.id)}
                 >
                   {cards.map(deal => (
-                    <div
+                    <DraggableCard
                       key={deal.id}
-                      onMouseEnter={() => { hovered.current = deal }}
-                      onMouseLeave={() => { if (hovered.current?.id === deal.id) hovered.current = null }}
-                    >
-                      <PipelineCard
-                        deal={deal}
-                        selected={selected?.id === deal.id}
-                        onOpen={() => { setPeek(null); setSelected(deal) }}
-                        onOpenFull={() => {}}
-                        onWhatsApp={() => {}}
-                        onCall={() => {}}
-                      />
-                    </div>
+                      deal={deal}
+                      selected={selected?.id === deal.id}
+                      onHover={h => { hovered.current = h ? deal : (hovered.current?.id === deal.id ? null : hovered.current) }}
+                      onOpen={() => { setPeek(null); setSelected(deal) }}
+                    />
                   ))}
                 </PipelineColumn>
               )
             })}
           </div>
+
+          <DragOverlay>
+            {dragging && (
+              <div className="pv2-drag-overlay">
+                <PipelineCard deal={dragging} onOpen={() => {}} />
+              </div>
+            )}
+          </DragOverlay>
+          </DndContext>
         )}
       </div>
 
@@ -222,5 +296,24 @@ export default function PipelineV2() {
         onNext={() => step(1)}
       />
     </AppShellV2>
+  )
+}
+
+/* La tarjeta arrastrable envuelve a PipelineCard en vez de modificarla: así
+ * la tarjeta sigue sirviendo fuera de un DndContext, como en la página de
+ * componentes. */
+function DraggableCard({ deal, selected, onHover, onOpen }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id })
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={isDragging ? 'pv2-card--dragging' : undefined}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+    >
+      <PipelineCard deal={deal} selected={selected} onOpen={onOpen} />
+    </div>
   )
 }

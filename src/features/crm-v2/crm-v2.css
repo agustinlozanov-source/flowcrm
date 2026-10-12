@@ -848,3 +848,20 @@
 .pv2--light .pv2-score-explain,
 .pv2--light .pv2-next { background: var(--bg-elev-2); }
 .pv2--light .pv2-dist__seg { opacity: 1; }
+
+/* ── Arrastrar tarjetas entre columnas ───────────────────────────── */
+/* El destino válido se marca con el teal de marca; el inválido en rojo, para
+   que no haya que soltar para descubrir que no se podía. */
+.pv2-col__body--over {
+  background: rgba(26, 171, 153, 0.07);
+  box-shadow: inset 0 0 0 2px rgba(26, 171, 153, 0.45);
+  border-radius: 10px;
+}
+.pv2-col__body--blocked {
+  background: rgba(240, 68, 56, 0.06);
+  box-shadow: inset 0 0 0 2px rgba(240, 68, 56, 0.35);
+  border-radius: 10px;
+  cursor: not-allowed;
+}
+.pv2-card--dragging { opacity: 0.35; }
+.pv2-drag-overlay { transform: rotate(1.5deg); cursor: grabbing; width: 260px; }
