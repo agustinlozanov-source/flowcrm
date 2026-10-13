@@ -34,6 +34,23 @@
   --app-line: 255 255 255;
 }
 
+/* Los controles nativos —campos, listas, selectores de fecha— y las barras de
+   desplazamiento se pintan solos según esto. Sin él, un campo sin fondo
+   declarado sale blanco con texto negro aunque todo lo demás esté oscuro. */
+.pv2:not(.pv2--light) { color-scheme: dark; }
+.pv2--light { color-scheme: light; }
+
+/* Respaldo para los campos que no declaran su propio fondo. Va con :where para
+   que no pese nada: cualquier clase propia le gana sin pelear. */
+:where(.pv2:not(.pv2--light)) :where(input, select, textarea) {
+  background-color: rgb(var(--app-surface-2));
+  color: rgb(var(--app-primary));
+  border-color: rgb(var(--app-line) / 0.14);
+}
+:where(.pv2:not(.pv2--light)) :where(input, textarea)::placeholder {
+  color: rgb(var(--app-tertiary));
+}
+
 /* ── Utilidades con color fijo, reasignadas en oscuro ──────────────
    Generadas a partir de lo que realmente usa el código, no de memoria.
    Cada pantalla que se rediseñe deja de necesitar su parte. */
@@ -102,3 +119,38 @@
 .pv2:not(.pv2--light) .text-gray-700 { color: rgb(var(--app-primary)) !important; }
 .pv2:not(.pv2--light) .text-gray-800 { color: rgb(var(--app-primary)) !important; }
 .pv2:not(.pv2--light) .text-gray-900 { color: rgb(var(--app-primary)) !important; }
+
+/* Fondos y bordes tenues de color. En claro resaltan sobre blanco; en
+   oscuro encandilan. Pasan a ser un velo del mismo color, asi el aviso
+   sigue leyendose como aviso y el acierto como acierto. */
+.pv2:not(.pv2--light) .bg-amber-100 { background-color: rgb(245 158 11 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-amber-50 { background-color: rgb(245 158 11 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-amber-50\/50 { background-color: rgb(245 158 11 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-blue-50 { background-color: rgb(59 130 246 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-blue-50\/30 { background-color: rgb(59 130 246 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-blue-50\/50 { background-color: rgb(59 130 246 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-blue-50\/60 { background-color: rgb(59 130 246 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-emerald-50 { background-color: rgb(16 185 129 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-green-100 { background-color: rgb(34 197 94 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-green-50 { background-color: rgb(34 197 94 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-green-50\/50 { background-color: rgb(34 197 94 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-green-50\/70 { background-color: rgb(34 197 94 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-indigo-50 { background-color: rgb(99 102 241 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-purple-100 { background-color: rgb(168 85 247 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-purple-50 { background-color: rgb(168 85 247 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-purple-50\/50 { background-color: rgb(168 85 247 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-red-100 { background-color: rgb(239 68 68 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-red-50 { background-color: rgb(239 68 68 / 0.14) !important; }
+.pv2:not(.pv2--light) .bg-red-50\/50 { background-color: rgb(239 68 68 / 0.14) !important; }
+.pv2:not(.pv2--light) .border-amber-200 { border-color: rgb(245 158 11 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-amber-50 { border-color: rgb(245 158 11 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-blue-100 { border-color: rgb(59 130 246 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-blue-200 { border-color: rgb(59 130 246 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-emerald-200 { border-color: rgb(16 185 129 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-green-100 { border-color: rgb(34 197 94 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-green-200 { border-color: rgb(34 197 94 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-green-50 { border-color: rgb(34 197 94 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-purple-100 { border-color: rgb(168 85 247 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-purple-200 { border-color: rgb(168 85 247 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-red-200 { border-color: rgb(239 68 68 / 0.3) !important; }
+.pv2:not(.pv2--light) .border-red-50 { border-color: rgb(239 68 68 / 0.3) !important; }
