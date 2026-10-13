@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { usePipeline } from '@/hooks/usePipeline'
+import { useAppointments } from '@/hooks/useAppointments'
+import EmbudoCard from '@/features/analytics/EmbudoCard'
 import { startOfMonth, endOfMonth, startOfWeek, subDays, isWithinInterval, format, eachDayOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -138,7 +140,17 @@ function DonutChart({ data, size = 120 }) {
 }
 
 export default function Analytics() {
-  const { stages, leads, leadsByStage, loading } = usePipeline()
+  const {
+    stages, leadsByStage, loading,
+    leads: leadsActivos, systemLeads, discardedLeads,
+  } = usePipeline()
+  const { appointments } = useAppointments()
+
+  // Todos los leads, no solo los de calentamiento.
+  const leads = useMemo(
+    () => [...leadsActivos, ...systemLeads, ...discardedLeads],
+    [leadsActivos, systemLeads, discardedLeads],
+  )
   const [period, setPeriod] = useState('month')
 
   const { start, end } = useMemo(() => {
@@ -289,14 +301,8 @@ export default function Analytics() {
               <BarChart data={dailyData} height={140} color="#0066ff" />
             </div>
 
-            {/* Funnel */}
-            <div className="card p-5">
-              <div className="mb-4">
-                <h3 className="font-display font-bold text-sm">Funnel de conversión</h3>
-                <p className="text-xs text-tertiary mt-0.5">Leads por etapa · % vs primer etapa</p>
-              </div>
-              <FunnelChart stages={stages} leadsByStage={leadsByStage} />
-            </div>
+            {/* El embudo real del proceso, de punta a punta */}
+            <EmbudoCard leads={leads} citas={appointments} periodo={{ desde: start, hasta: end }} />
           </div>
 
           {/* SOURCE BREAKDOWN */}
