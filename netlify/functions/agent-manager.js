@@ -33,26 +33,28 @@ function buildSystemPrompt(config, ragContent, products, scoringConfig, leadCont
   const agendaSection = `
 AGENDA:
 Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.
-- Si el lead quiere una cita, consultá la agenda ANTES de ofrecer cualquier horario. Nunca inventes disponibilidad ni prometas un horario sin haberlo verificado.
-- Si pide un horario puntual, fijate si está libre. Si no lo está, decíselo y ofrecé los que sí, sin rodeos.
-- Si muestra intención pero no da día ni hora, proponé vos dos o tres opciones concretas de los huecos libres. No preguntes "¿cuándo te queda cómodo?" y lo dejes ahí.
-- Cuando quede acordado, agendala. No digas que la agendaste si no usaste la herramienta.
-- El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, preguntá.
+- Los mensajes del historial que empiezan con una fecha entre corchetes son de OTRO día. Lo que ahí se dijo —"mañana", "el martes", "esta semana"— se contaba desde esa fecha, no desde hoy. Calcula siempre desde la fecha de hoy.
+- Antes de decir "mañana" o "hoy" por una cita ya agendada, compara su fecha con la de hoy.
+- Si el lead quiere una cita, consulta la agenda ANTES de ofrecer cualquier horario. Nunca inventes disponibilidad ni prometas un horario sin haberlo verificado.
+- Si pide un horario puntual, revisa si está libre. Si no lo está, díselo y ofrece los que sí, sin rodeos.
+- Si muestra intención pero no da día ni hora, propón tú dos o tres opciones concretas de los huecos libres. No preguntes "¿cuándo te queda cómodo?" y lo dejes ahí.
+- Cuando quede acordado, agéndala. No digas que la agendaste si no usaste la herramienta.
+- El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, pregunta.
 
 OPORTUNIDADES:
-En cada respuesta tenés que llenar el campo "oportunidades" con los productos del catálogo que apliquen a este lead. Si no aplica ninguno, mandá la lista vacía. No lo omitas.
+En cada respuesta tienes que llenar el campo "oportunidades" con los productos del catálogo que apliquen a este lead. Si no aplica ninguno, manda la lista vacía. No lo omitas.
 - Apenas el lead cuenta para qué viene, ya hay al menos una. Si mencionaste un producto por nombre o por precio en tu respuesta, esa oportunidad va en la lista.
-- Distinguí bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, el estudio de especialidad.
+- Distingue bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, el estudio de especialidad.
 - Ejemplo: alguien dice que quiere operarse la vista. Son dos: la consulta de valoración es real, y el estudio o la cirugía que necesita es potencial.
 - El precio y el nombre salen del catálogo. No los inventes ni los negocies.
 - No repitas las que ya registraste en mensajes anteriores de esta conversación.
 - Es trabajo interno: no se lo anuncies al lead.`
 
   const productsSection = products.length > 0
-    ? `\nPRODUCTOS QUE MANEJO (usá el id tal cual para oportunidades y productos detectados):\n${products.map(p =>
+    ? `\nPRODUCTOS QUE MANEJO (usa el id tal cual para oportunidades y productos detectados):\n${products.map(p =>
         `- [id: ${p.id}] ${p.name} · $${Number(p.price).toLocaleString()} ${p.currency || 'USD'}${p.durationDays ? ` · Dura ${p.durationDays} días` : ''}${p.problemTags?.length ? ` · Resuelve: ${p.problemTags.join(', ')}` : ''}`
       ).join('\n')}`
-    : '\nNo tenés catálogo de productos cargado, así que mandá la lista de oportunidades vacía.'
+    : '\nNo tienes catálogo de productos cargado, así que manda la lista de oportunidades vacía.'
 
   // Scoring instructions — supports array format (categories/subcategories/signals) and legacy object format
   const isArrayScoring = Array.isArray(scoringConfig)
@@ -125,6 +127,7 @@ INSTRUCCIONES PRINCIPALES:
 - Nunca menciones que eres una IA a menos que te lo pregunten directamente
 - Termina siempre con una pregunta o llamada a acción concreta
 - Adapta tu tono al del lead (formal/informal)
+- Habla en español de México, de "tú". Nunca uses voseo rioplatense ("vos", "tenés", "reservás", "podés"): no es como habla tu cliente ni como hablan sus pacientes
 - Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
 
 ${agendaSection}
@@ -179,7 +182,7 @@ const CONSULTAR_AGENDA = {
 
 const AGENDAR_CITA = {
   name: 'agendar_cita',
-  description: 'Agenda una cita en un horario que consultar_agenda haya devuelto como libre. Si el lead pidió un horario que no está libre, no la uses: ofrecé los que sí lo están.',
+  description: 'Agenda una cita en un horario que consultar_agenda haya devuelto como libre. Si el lead pidió un horario que no está libre, no la uses: ofrece los que sí lo están.',
   input_schema: {
     type: 'object',
     properties: {
@@ -216,7 +219,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       duracion: input.duracion || 30,
     })
     if (!slots.length) {
-      return `No hay horarios libres el ${input.fecha}. Puede ser día no laborable o estar completo. Ofrecé otro día.`
+      return `No hay horarios libres el ${input.fecha}. Puede ser día no laborable o estar completo. Ofrece otro día.`
     }
     return `Horarios libres el ${input.fecha} (zona ${tz}, buffer de ${buffer} min entre citas): ${slots.map(s => s.hora).join(', ')}.`
   }
@@ -232,7 +235,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
     // decidió, alguien pudo tomar ese hueco.
     const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion })
     if (!slots.some(x => x.hora === input.hora)) {
-      return `Ese horario ya no está libre. Los que quedan el ${input.fecha} son: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrecé uno de esos.`
+      return `Ese horario ya no está libre. Los que quedan el ${input.fecha} son: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrece uno de esos.`
     }
 
     const cuando = instanteDesdeLocal(input.fecha, input.hora, tz)
@@ -271,14 +274,14 @@ async function ejecutarHerramienta(nombre, input, ctx) {
         calendarId,
       })
       await ref.update({ googleEventId: ev.eventId, googleCalendarId: ev.calendarId, ...(ev.meetLink ? { link: ev.meetLink } : {}) })
-      if (ev.meetLink) avisoCalendario = ` El enlace de la videollamada es ${ev.meetLink} — pasáselo al lead.`
+      if (ev.meetLink) avisoCalendario = ` El enlace de la videollamada es ${ev.meetLink} — pásaselo al lead.`
     } catch (e) {
       // La cita ya quedó guardada en FlowHub: que Google falle no la cancela.
       console.warn('[agent] cita creada sin evento en Calendar:', e.message)
       if (input.tipo === 'video') {
         // Sin decirlo, el agente podía prometerle al lead un enlace que no
         // existe — exactamente lo que hay que evitar.
-        avisoCalendario = ' NO hay enlace de videollamada: el calendario no está conectado. No le prometas ningún enlace; decile que se lo vas a enviar antes de la reunión.'
+        avisoCalendario = ' NO hay enlace de videollamada: el calendario no está conectado. No le prometas ningún enlace; dile que se lo vas a enviar antes de la reunión.'
       }
     }
 
@@ -287,7 +290,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
      * pisada. Se avisa y el ajuste se hace en un solo lugar, al final. */
     ctx.citaAgendada = true
 
-    return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confirmásela al lead con fecha y hora.`
+    return `Cita agendada para el ${input.fecha} a las ${input.hora} (${duracion} min, ${input.tipo}).${avisoCalendario} Confírmasela al lead con fecha y hora.`
   }
 
   return `Herramienta desconocida: ${nombre}`
@@ -633,15 +636,37 @@ async function clearTestThread(orgId) {
 }
 
 // ── GET CONVERSATION HISTORY ──────────────────────────────────────
-async function getConversationHistory(orgId, leadId) {
+async function getConversationHistory(orgId, leadId, tz = 'America/Mexico_City') {
   const collPath = leadId === 'test'
     ? db.collection('organizations').doc(orgId).collection('agent_test_threads').doc(leadId).collection('messages')
     : db.collection('organizations').doc(orgId).collection('leads').doc(leadId).collection('conversations')
   const snap = await collPath.orderBy('createdAt', 'desc').limit(10).get()
-  return snap.docs.reverse().map(d => ({
-    role: d.data().role === 'user' ? 'user' : 'assistant',
-    content: d.data().text || d.data().content || '',
-  }))
+
+  const dia = d => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d)
+  const hoy = dia(new Date())
+
+  return snap.docs.reverse().map(d => {
+    const data = d.data()
+    const texto = data.text || data.content || ''
+    const cuando = data.createdAt?.toDate?.()
+
+    /* Se antepone la fecha solo a los mensajes de otros días.
+     *
+     * Sin esto el agente leía toda la conversación como si hubiera pasado
+     * recién: si ayer dijo "mañana martes", hoy seguía creyendo que estamos a
+     * lunes, por más que el prompt diga la fecha correcta. Marcar los viejos
+     * y dejar limpios los de hoy le da la referencia sin ensuciar lo reciente.
+     */
+    const fecha = cuando ? dia(cuando) : null
+    const prefijo = fecha && fecha !== hoy
+      ? `[${new Intl.DateTimeFormat('es-MX', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(cuando)}] `
+      : ''
+
+    return {
+      role: data.role === 'user' ? 'user' : 'assistant',
+      content: prefijo + texto,
+    }
+  })
 }
 
 // ── SAVE MESSAGE ──────────────────────────────────────────────────
@@ -860,7 +885,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId, agendaInfo)
 
   // Load conversation history
-  const history = await getConversationHistory(orgId, leadId)
+  const history = await getConversationHistory(orgId, leadId, agendaInfo.tz)
 
   // Save user message. Al reintentar una respuesta que falló, el mensaje del
   // lead ya está en el hilo: volver a guardarlo lo duplicaría.
@@ -914,7 +939,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
           texto = await ejecutarHerramienta(uso.name, uso.input, ctx)
         } catch (e) {
           console.error(`[agent] ${uso.name} falló:`, e.message)
-          texto = `La herramienta falló: ${e.message}. Seguí la conversación sin prometer lo que no pudiste hacer.`
+          texto = `La herramienta falló: ${e.message}. Sigue la conversación sin prometer lo que no pudiste hacer.`
         }
         resultados.push({ type: 'tool_result', tool_use_id: uso.id, content: texto })
       }
