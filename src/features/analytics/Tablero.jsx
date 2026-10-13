@@ -2,7 +2,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
-import { Plus, RotateCcw, LayoutGrid } from 'lucide-react'
+import { Plus, RotateCcw, LayoutGrid, GripVertical, Tv, X } from 'lucide-react'
+import {
+  DndContext, DragOverlay, closestCorners,
+  PointerSensor, useSensor, useSensors, useDraggable, useDroppable,
+} from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import TarjetaDato from './TarjetaDato'
 import EditorTarjeta from './EditorTarjeta'
@@ -17,12 +21,25 @@ const ocupado = fila => (fila.tarjetas || []).reduce((s, t) => s + (t.ancho || 1
  * cuatro. Los predefinidos viven en el código; solo se guarda lo que el
  * usuario cambió, así un preset mejorado le llega a todos sin pisar su trabajo.
  */
+/* Modo pantalla.
+ *
+ * Para dejar el tablero puesto en un televisor de la oficina. No hace falta
+ * ninguna tecnología de transmisión: se abre a pantalla completa y los datos
+ * se actualizan solos, porque el tablero ya escucha los cambios en vivo. Para
+ * llevarlo al televisor alcanza con el Chromecast o AirPlay del navegador.
+ *
+ * Se achica el ancho de las cosas y se agranda la letra, porque una pantalla
+ * se mira de lejos y por eso muestra menos y más grande.
+ */
 export default function Tablero({ datos, periodo }) {
   const { org } = useAuthStore()
   const orgId = org?.id
   const [activo, setActivo] = useState('operacion')
   const [personalizados, setPersonalizados] = useState({})
   const [editando, setEditando] = useState(null) // { filaId, tarjeta? }
+  const [arrastrando, setArrastrando] = useState(null)
+  const [pantalla, setPantalla] = useState(false)
+  const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [listo, setListo] = useState(false)
 
   useEffect(() => {
@@ -88,10 +105,92 @@ export default function Tablero({ datos, periodo }) {
 
   const cambiarTablero = (id) => { setActivo(id); guardar({ activo: id }) }
 
+  const entrarPantalla = async () => {
+    setPantalla(true)
+    // La pantalla completa del navegador puede fallar si no viene de un clic
+    // directo o si el equipo no la permite; el modo sirve igual sin ella.
+    try { await document.documentElement.requestFullscreen?.() } catch { /* ok */ }
+  }
+
+  const salirPantalla = async () => {
+    setPantalla(false)
+    try { if (document.fullscreenElement) await document.exitFullscreen() } catch { /* ok */ }
+  }
+
+  // Salir con Escape apaga la pantalla completa del navegador pero no nuestro
+  // modo: hay que escuchar el cambio para que no queden desincronizados.
+  useEffect(() => {
+    const onCambio = () => { if (!document.fullscreenElement) setPantalla(false) }
+    document.addEventListener('fullscreenchange', onCambio)
+    return () => document.removeEventListener('fullscreenchange', onCambio)
+  }, [])
+
+  /* Mover una tarjeta de fila.
+   *
+   * Solo entra si cabe: una fila no puede pasar de cuatro columnas, y dejarla
+   * desbordar rompe la grilla entera. Si no cabe, se avisa en vez de hacer
+   * nada en silencio.
+   */
+  const soltar = ({ active, over }) => {
+    setArrastrando(null)
+    if (!over) return
+    const destinoId = String(over.id).replace(/^fila:/, '')
+    const origen = tablero.filas.find(f => (f.tarjetas || []).some(t => t.id === active.id))
+    if (!origen || origen.id === destinoId) return
+
+    const tarjeta = origen.tarjetas.find(t => t.id === active.id)
+    const destino = tablero.filas.find(f => f.id === destinoId)
+    if (!destino || destino.tipo === 'embudo') return
+
+    const libreDestino = 4 - ocupado(destino)
+    if ((tarjeta.ancho || 1) > libreDestino) {
+      toast.error(`No entra: en esa fila quedan ${libreDestino} de 4 y la tarjeta ocupa ${tarjeta.ancho || 1}.`)
+      return
+    }
+
+    escribirFilas(tablero.filas.map(f => {
+      if (f.id === origen.id) return { ...f, tarjetas: f.tarjetas.filter(t => t.id !== tarjeta.id) }
+      if (f.id === destino.id) return { ...f, tarjetas: [...(f.tarjetas || []), tarjeta] }
+      return f
+    }))
+  }
+
   if (!listo) return <div className="p-6 text-sm text-secondary">Cargando el tablero…</div>
 
   const filaEnEdicion = editando && tablero.filas.find(f => f.id === editando.filaId)
   const libre = filaEnEdicion ? 4 - ocupado(filaEnEdicion) + (editando.tarjeta?.ancho || 0) : 4
+
+  if (pantalla) {
+    return (
+      <div className="fixed inset-0 z-[90] bg-bg overflow-auto p-8 pv2-pantalla">
+        <div className="flex items-baseline justify-between gap-4 mb-6">
+          <div>
+            <h1 className="font-display font-extrabold text-3xl">{tablero.nombre}</h1>
+            <p className="text-sm text-secondary mt-1">{tablero.para}</p>
+          </div>
+          <button onClick={salirPantalla}
+            className="btn-secondary text-sm flex items-center gap-1.5 flex-shrink-0">
+            <X size={14} /> Salir
+          </button>
+        </div>
+        <div className="flex flex-col gap-6">
+          {tablero.filas.map(fila => (
+            fila.tipo === 'embudo' ? (
+              <EmbudoCard key={fila.id} leads={datos.leads} citas={datos.citas} periodo={periodo} />
+            ) : (
+              <div key={fila.id} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {(fila.tarjetas || []).map(t => (
+                  <div key={t.id} style={{ gridColumn: `span ${Math.min(t.ancho || 1, 4)}` }}>
+                    <TarjetaDato tarjeta={t} datos={datos} periodo={periodo} />
+                  </div>
+                ))}
+              </div>
+            )
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,6 +205,11 @@ export default function Tablero({ datos, periodo }) {
                               : 'border-border-strong text-secondary hover:text-primary'
             }`}>{t.nombre}</button>
         ))}
+        <button onClick={entrarPantalla}
+          title="Dejarlo puesto en una pantalla — se actualiza solo"
+          className="ml-auto text-[12px] text-tertiary hover:text-primary flex items-center gap-1.5 flex-shrink-0">
+          <Tv size={14} /> Modo pantalla
+        </button>
         {esModificado && (
           <button onClick={restaurar}
             className="text-[11.5px] text-tertiary hover:text-primary flex items-center gap-1 ml-1">
@@ -116,6 +220,13 @@ export default function Tablero({ datos, periodo }) {
       <p className="text-xs text-secondary -mt-2">{(TODOS.find(t => t.id === activo) || {}).para}</p>
 
       {/* Filas */}
+      <DndContext
+        sensors={sensores}
+        collisionDetection={closestCorners}
+        onDragStart={({ active }) => setArrastrando(active.id)}
+        onDragCancel={() => setArrastrando(null)}
+        onDragEnd={soltar}
+      >
       {tablero.filas.map(fila => {
         if (fila.tipo === 'embudo') {
           return (
@@ -128,15 +239,15 @@ export default function Tablero({ datos, periodo }) {
         }
         const usado = ocupado(fila)
         return (
-          <div key={fila.id} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <FilaSoltable key={fila.id} id={fila.id} activa={!!arrastrando}>
             {(fila.tarjetas || []).map(t => (
-              <div key={t.id} className="group/t" style={{ gridColumn: `span ${Math.min(t.ancho || 1, 4)}` }}>
+              <TarjetaArrastrable key={t.id} tarjeta={t} oculta={arrastrando === t.id}>
                 <TarjetaDato
                   tarjeta={t} datos={datos} periodo={periodo}
                   onEditar={() => setEditando({ filaId: fila.id, tarjeta: t })}
                   onBorrar={() => borrarTarjeta(fila.id, t.id)}
                 />
-              </div>
+              </TarjetaArrastrable>
             ))}
             {usado < 4 && (
               <div style={{ gridColumn: `span ${4 - usado}` }}>
@@ -158,9 +269,21 @@ export default function Tablero({ datos, periodo }) {
                 Quitar esta fila
               </button>
             )}
-          </div>
+          </FilaSoltable>
         )
       })}
+
+      <DragOverlay>
+        {arrastrando && (
+          <div className="opacity-90 rotate-1">
+            <TarjetaDato
+              tarjeta={tablero.filas.flatMap(f => f.tarjetas || []).find(t => t.id === arrastrando)}
+              datos={datos} periodo={periodo}
+            />
+          </div>
+        )}
+      </DragOverlay>
+      </DndContext>
 
       <button onClick={agregarFila}
         className="self-start text-[12.5px] text-tertiary hover:text-primary flex items-center gap-1.5">
@@ -177,6 +300,45 @@ export default function Tablero({ datos, periodo }) {
           onCerrar={() => setEditando(null)}
         />
       )}
+    </div>
+  )
+}
+
+/* La fila es el destino del arrastre. Se marca solo mientras hay algo en el
+ * aire: un recuadro permanente ensucia el tablero. */
+function FilaSoltable({ id, activa, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `fila:${id}` })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-[14px] transition-all ${
+        activa ? 'outline-dashed outline-1 outline-offset-4 outline-border-strong' : ''
+      } ${isOver ? 'outline-accent-blue bg-accent-blue/[0.04]' : ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+/* El asa de arrastre va aparte del cuerpo: si toda la tarjeta arrastrara, no
+ * se podrían usar sus propios botones. */
+function TarjetaArrastrable({ tarjeta, oculta, children }) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: tarjeta.id })
+  return (
+    <div
+      ref={setNodeRef}
+      className="group/t relative"
+      style={{ gridColumn: `span ${Math.min(tarjeta.ancho || 1, 4)}`, opacity: oculta ? 0.3 : 1 }}
+    >
+      <button
+        {...attributes} {...listeners}
+        title="Arrastrar a otra fila"
+        className="absolute left-1.5 top-3 z-10 p-0.5 rounded text-tertiary hover:text-primary
+                   opacity-0 group-hover/t:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+      >
+        <GripVertical size={13} />
+      </button>
+      {children}
     </div>
   )
 }

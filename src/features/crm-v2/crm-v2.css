@@ -1014,3 +1014,11 @@
   color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
 .pv2-filtro .pv2-input { min-width: 180px; text-transform: none; letter-spacing: 0; }
 .pv2-filtro--check { flex-direction: row; align-items: center; gap: 7px; padding-bottom: 8px; cursor: pointer; }
+
+/* Modo pantalla: se mira de lejos, así que todo crece. Solo la tipografía y
+   los números — el resto de la maquetación ya es relativa. */
+.pv2-pantalla .font-display { letter-spacing: -0.02em; }
+.pv2-pantalla h3 { font-size: 17px !important; }
+.pv2-pantalla .tabular-nums { font-size: 1.25em; }
+.pv2-pantalla .text-\[12px\], .pv2-pantalla .text-\[12\.5px\] { font-size: 14px; }
+.pv2-pantalla .text-\[11px\], .pv2-pantalla .text-\[11\.5px\] { font-size: 13px; }
