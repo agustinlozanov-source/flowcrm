@@ -133,24 +133,49 @@ export default function Tablero({ datos, periodo }) {
    */
   const soltar = ({ active, over }) => {
     setArrastrando(null)
-    if (!over) return
-    const destinoId = String(over.id).replace(/^fila:/, '')
-    const origen = tablero.filas.find(f => (f.tarjetas || []).some(t => t.id === active.id))
-    if (!origen || origen.id === destinoId) return
+    if (!over || active.id === over.id) return
 
+    const origen = tablero.filas.find(f => (f.tarjetas || []).some(t => t.id === active.id))
+    if (!origen) return
     const tarjeta = origen.tarjetas.find(t => t.id === active.id)
-    const destino = tablero.filas.find(f => f.id === destinoId)
+
+    // Se puede soltar sobre una fila (va al final) o sobre otra tarjeta (va en
+    // su lugar). Lo segundo es lo que permite ordenarlas dentro de una fila.
+    const sobre = String(over.id)
+    let destino, posicion
+    if (sobre.startsWith('tarjeta:')) {
+      const destinoTarjetaId = sobre.slice(8)
+      destino = tablero.filas.find(f => (f.tarjetas || []).some(t => t.id === destinoTarjetaId))
+      posicion = destino?.tarjetas.findIndex(t => t.id === destinoTarjetaId)
+    } else {
+      destino = tablero.filas.find(f => f.id === sobre.replace(/^fila:/, ''))
+      posicion = destino?.tarjetas?.length ?? 0
+    }
     if (!destino || destino.tipo === 'embudo') return
 
-    const libreDestino = 4 - ocupado(destino)
-    if ((tarjeta.ancho || 1) > libreDestino) {
-      toast.error(`No entra: en esa fila quedan ${libreDestino} de 4 y la tarjeta ocupa ${tarjeta.ancho || 1}.`)
+    // Dentro de la misma fila solo cambia el orden: el espacio ya estaba
+    // ocupado por esta tarjeta, así que no hay nada que verificar.
+    if (destino.id === origen.id) {
+      const resto = origen.tarjetas.filter(t => t.id !== tarjeta.id)
+      const i = Math.max(0, Math.min(resto.length, posicion))
+      resto.splice(i, 0, tarjeta)
+      escribirFilas(tablero.filas.map(f => (f.id === origen.id ? { ...f, tarjetas: resto } : f)))
+      return
+    }
+
+    const libre = 4 - ocupado(destino)
+    if ((tarjeta.ancho || 1) > libre) {
+      toast.error(`No entra: en esa fila quedan ${libre} de 4 y la tarjeta ocupa ${tarjeta.ancho || 1}.`)
       return
     }
 
     escribirFilas(tablero.filas.map(f => {
       if (f.id === origen.id) return { ...f, tarjetas: f.tarjetas.filter(t => t.id !== tarjeta.id) }
-      if (f.id === destino.id) return { ...f, tarjetas: [...(f.tarjetas || []), tarjeta] }
+      if (f.id === destino.id) {
+        const copia = [...(f.tarjetas || [])]
+        copia.splice(Math.max(0, Math.min(copia.length, posicion)), 0, tarjeta)
+        return { ...f, tarjetas: copia }
+      }
       return f
     }))
   }
@@ -324,10 +349,16 @@ function FilaSoltable({ id, activa, children }) {
  * se podrían usar sus propios botones. */
 function TarjetaArrastrable({ tarjeta, oculta, children }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: tarjeta.id })
+  // Además de arrastrarse, recibe: soltar una tarjeta sobre otra es lo que
+  // permite ordenarlas dentro de la fila.
+  const { setNodeRef: setDrop, isOver } = useDroppable({ id: `tarjeta:${tarjeta.id}` })
+
   return (
     <div
-      ref={setNodeRef}
-      className="group/t relative"
+      ref={el => { setNodeRef(el); setDrop(el) }}
+      className={`group/t relative rounded-[14px] transition-all ${
+        isOver && !oculta ? 'outline outline-2 outline-offset-2 outline-accent-blue' : ''
+      }`}
       style={{ gridColumn: `span ${Math.min(tarjeta.ancho || 1, 4)}`, opacity: oculta ? 0.3 : 1 }}
     >
       <button
