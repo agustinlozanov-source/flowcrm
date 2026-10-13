@@ -47,7 +47,7 @@ En cada respuesta tienes que llenar el campo "oportunidades" con los productos d
 - Distingue bien las dos clases. La "real" es la de entrada: la consulta, la valoración, la cita que se va a agendar — lo concreto que está por pasar. La "potencial" es lo que se deduce de lo que contó y vendría después: el tratamiento, la cirugía, el estudio de especialidad.
 - Ejemplo: alguien dice que quiere operarse la vista. Son dos: la consulta de valoración es real, y el estudio o la cirugía que necesita es potencial.
 - El precio y el nombre salen del catálogo. No los inventes ni los negocies.
-- No repitas las que ya registraste en mensajes anteriores de esta conversación.
+- No repitas las que ya registraste en mensajes anteriores de esta conversación, aunque ya se hayan cerrado.
 - Es trabajo interno: no se lo anuncies al lead.`
 
   const productsSection = products.length > 0
@@ -309,9 +309,7 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
   let creadas = 0
   try {
     const previas = await leadRef.collection('opportunities').get()
-    const yaAbiertas = new Set(
-      previas.docs.filter(d => d.data().status === 'abierta').map(d => d.data().productId),
-    )
+    const yaRegistradas = new Set(previas.docs.map(d => d.data().productId).filter(Boolean))
 
     const normalizar = t => String(t || '').trim().toLowerCase()
     for (const o of lista) {
@@ -323,7 +321,7 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
         console.warn(`[agent] producto no reconocido: ${o?.productId}`)
         continue
       }
-      if (yaAbiertas.has(producto.id)) continue
+      if (yaRegistradas.has(producto.id)) continue
 
       await leadRef.collection('opportunities').add({
         name: producto.name,
@@ -337,7 +335,7 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
         createdBy: 'agent',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       })
-      yaAbiertas.add(producto.id)
+      yaRegistradas.add(producto.id)
       creadas++
     }
 
