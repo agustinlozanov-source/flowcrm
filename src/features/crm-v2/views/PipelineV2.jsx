@@ -118,14 +118,26 @@ export default function PipelineV2() {
     const todos = [...leads, ...systemLeads].filter(l => !l.discarded)
     const ganado = todos.reduce((s, l) => s + (l.opportunityStats?.valueWon || 0), 0)
 
-    return [
-      { label: 'Tarjetas activas', value: String(activas) },
-      { label: 'En cierre', value: String(board.cierre.length) },
+    const lista = [
+      { label: 'Activas', value: String(activas), ancho: 'chico' },
+      { label: 'En cierre', value: String(board.cierre.length), ancho: 'chico' },
       { label: 'Real', value: money(flat.reduce((s, c) => s + (c.amount || 0), 0)) },
       { label: 'Potencial', value: money(flat.reduce((s, c) => s + (c.potential || 0), 0)), color: 'purple' },
       { label: 'Ganado', value: money(ganado), color: 'green' },
     ]
-  }, [board, flat, leads, systemLeads])
+
+    // La meta del trimestre cierra la fila: es contra lo que se mide todo lo
+    // anterior, y arriba no entraba sin amontonar la barra.
+    const m = currentGoal ? computedMetrics(currentGoal) : null
+    if (m?.target > 0) {
+      lista.push({
+        label: `Meta ${currentQuarter}${currentGoal.theme ? ` · ${currentGoal.theme}` : ''}`,
+        value: `${money(m.achieved)} / ${money(m.target)}`,
+        progreso: m.progressPct,
+      })
+    }
+    return lista
+  }, [board, flat, leads, systemLeads, currentGoal, currentQuarter, computedMetrics])
 
   // Los pipelines de Firestore no guardan color; la sidebar sí lo necesita
   // para el punto de cada uno, así que se asigna por posición.
@@ -135,22 +147,10 @@ export default function PipelineV2() {
     [pipelines],
   )
 
-  const topbarStats = useMemo(() => {
-    const base = [
-      { label: 'Tarjetas', value: String(flat.length) },
-      { label: 'Handoff', value: String(board.handoff.length) },
-    ]
-    const m = currentGoal ? computedMetrics(currentGoal) : null
-    if (m?.target > 0) {
-      const k = n => (n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${Math.round(n)}`)
-      base.push({
-        label: `Meta ${currentQuarter}${currentGoal.theme ? ` · ${currentGoal.theme}` : ''}`,
-        value: `${k(m.achieved)} / ${k(m.target)}`,
-      })
-      base.push({ label: 'Avance', value: `${m.progressPct}%` })
-    }
-    return base
-  }, [flat, board, currentGoal, currentQuarter, computedMetrics])
+  const topbarStats = useMemo(() => ([
+    { label: 'Tarjetas', value: String(flat.length) },
+    { label: 'Handoff', value: String(board.handoff.length) },
+  ]), [flat, board])
 
   /* Qué movimientos tienen sentido.
    *

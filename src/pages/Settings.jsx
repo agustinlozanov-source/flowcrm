@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { auth } from '@/lib/firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, auth, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import toast from 'react-hot-toast'
@@ -84,6 +84,28 @@ export default function Settings() {
   const [empresa, setEmpresa] = useState({ name: '', address: '', phone: '', website: '' })
   const [guardandoPerfil, setGuardandoPerfil] = useState(false)
   const [guardandoEmpresa, setGuardandoEmpresa] = useState(false)
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const fotoRef = useRef(null)
+
+  const subirFoto = async (file) => {
+    if (!file.type.startsWith('image/')) { toast.error('Tiene que ser una imagen'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('La imagen supera los 5 MB'); return }
+    setSubiendoFoto(true)
+    try {
+      // Un nombre fijo por usuario: cambiar la foto reemplaza la anterior en
+      // vez de ir dejando archivos sueltos para siempre.
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const r = storageRef(storage, `organizations/${orgId}/members/${user.uid}/foto.${ext}`)
+      await uploadBytes(r, file)
+      const url = await getDownloadURL(r)
+      setPerfil(p => ({ ...p, photoURL: url }))
+      toast.success('Foto lista — tocá Guardar perfil')
+    } catch {
+      toast.error('No se pudo subir la foto')
+    } finally {
+      setSubiendoFoto(false)
+    }
+  }
 
   useEffect(() => {
     setPerfil({
@@ -335,12 +357,30 @@ export default function Settings() {
             <div className="flex-1 min-w-0">
               <label className="block text-xs text-gray-500 mb-1">Foto de perfil</label>
               <input
-                type="url"
-                value={perfil.photoURL}
-                onChange={e => setPerfil(p => ({ ...p, photoURL: e.target.value }))}
-                placeholder="https://… (enlace a la imagen)"
-                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+                ref={fotoRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) subirFoto(f); e.target.value = '' }}
               />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fotoRef.current?.click()}
+                  disabled={subiendoFoto}
+                  className="text-xs font-medium border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                >
+                  {subiendoFoto ? 'Subiendo…' : perfil.photoURL ? 'Cambiar foto' : 'Subir foto'}
+                </button>
+                {perfil.photoURL && (
+                  <button
+                    onClick={() => setPerfil(p => ({ ...p, photoURL: '' }))}
+                    className="text-xs text-red-600 hover:text-red-700 px-2 py-1.5"
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+              <p className="text-[10.5px] text-gray-400 mt-1">JPG o PNG, hasta 5 MB. Se guarda al tocar Guardar perfil.</p>
             </div>
           </div>
 

@@ -13,7 +13,10 @@ export default function InsightsBar({ metrics = [], collapsed = false, onToggle,
       {metrics.map((m, i) => (
         <div key={m.label} style={{ display: 'contents' }}>
           {i > 0 && <span className="pv2-insights__divider" />}
-          <button className="pv2-insight" onClick={() => onDrillDown?.(m)}>
+          <button
+            className={clsx('pv2-insight', m.ancho === 'chico' && 'pv2-insight--chico')}
+            onClick={() => onDrillDown?.(m)}
+          >
             <span className="pv2-insight__label">{m.label}</span>
             <span className="pv2-insight__value" style={m.color ? { color: `var(--${m.color})` } : undefined}>
               {m.value}
@@ -23,6 +26,12 @@ export default function InsightsBar({ metrics = [], collapsed = false, onToggle,
                 </span>
               )}
             </span>
+            {/* Barra de avance solo donde hay una meta contra la cual medir. */}
+            {m.progreso != null && (
+              <span className="pv2-insight__barra">
+                <span className="pv2-insight__barra-fill" style={{ width: `${Math.min(100, m.progreso)}%` }} />
+              </span>
+            )}
           </button>
         </div>
       ))}

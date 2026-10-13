@@ -284,7 +284,8 @@
 /* ─── INSIGHTS BAR ─── */
 .pv2-insights {
   background: var(--bg-elev-1); border-bottom: 1px solid var(--border);
-  padding: 10px 20px; display: flex; align-items: center; gap: 24px; flex-shrink: 0;
+  padding: 10px 20px; display: flex; align-items: center; gap: 18px; flex-shrink: 0;
+  flex-wrap: wrap; row-gap: 8px;
 }
 .pv2-insight { display: flex; flex-direction: column; gap: 2px; cursor: pointer; padding: 2px 0; background: none; border: none; text-align: left; }
 .pv2-insight__label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.04em; text-transform: uppercase; }
@@ -982,3 +983,12 @@
 }
 .pv2-sidebar__user-btn:disabled { cursor: default; }
 .pv2-sidebar__user-btn:not(:disabled):hover { background: var(--bg-elev-2); }
+
+/* Los contadores sueltos no necesitan el mismo aire que una cifra de dinero */
+.pv2-insight--chico .pv2-insight__value { font-size: 13px; }
+.pv2-insight--chico { min-width: 0; }
+.pv2-insight__barra {
+  display: block; height: 3px; border-radius: 2px; margin-top: 4px;
+  background: var(--bg-elev-3); overflow: hidden; min-width: 120px;
+}
+.pv2-insight__barra-fill { display: block; height: 100%; background: var(--gradient-brand); }
