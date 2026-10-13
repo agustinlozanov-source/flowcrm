@@ -287,7 +287,9 @@
   padding: 10px 20px; display: flex; align-items: center; gap: 18px; flex-shrink: 0;
   flex-wrap: wrap; row-gap: 8px;
 }
-.pv2-insight { display: flex; flex-direction: column; gap: 2px; cursor: pointer; padding: 2px 0; background: none; border: none; text-align: left; }
+.pv2-insight { display: flex; flex-direction: column; gap: 2px; cursor: default; padding: 2px 6px; margin: 0 -6px; border-radius: 7px; background: none; border: none; text-align: left; }
+.pv2-insight--accionable { cursor: pointer; }
+.pv2-insight--accionable:hover { background: var(--bg-elev-2); }
 .pv2-insight__label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.04em; text-transform: uppercase; }
 .pv2-insight__value {
   font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700;
@@ -534,11 +536,21 @@
 .pv2-search {
   display: flex; align-items: center; gap: 8px;
   background: var(--bg-elev-1); border: 1px solid var(--border);
-  border-radius: 8px; padding: 7px 10px; width: 240px;
+  border-radius: 8px; padding: 7px 10px; width: 260px;
   font-size: 12.5px; color: var(--text-secondary);
-  cursor: pointer; font-family: inherit; text-align: left;
+  font-family: inherit; text-align: left;
 }
-.pv2-search:hover { border-color: var(--border-strong); }
+.pv2-search:hover, .pv2-search:focus-within { border-color: var(--border-strong); }
+.pv2-search__input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--text); font: inherit;
+}
+.pv2-search__input::placeholder { color: var(--text-muted); }
+.pv2-search__clear {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--text-tertiary); display: inline-flex; flex-shrink: 0;
+}
+.pv2-search__clear:hover { color: var(--text); }
 .pv2-search__kbd { margin-left: auto; display: inline-flex; gap: 2px; }
 
 .pv2-view-toggle {
@@ -913,13 +925,12 @@
 .pv2-pipeline-switch .pv2-pipeline-dot { margin-right: 5px; }
 
 /* ── Pantallas todavía no rediseñadas ────────────────────────────────
-   Usan colores claros fijos (texto casi negro sobre blanco), no tokens. En
-   tema oscuro el texto quedaba negro sobre fondo negro, ilegible. Así que el
-   área de contenido se mantiene clara para ellas: la sidebar puede estar
-   oscura, el contenido no. Cada pantalla que se rediseñe sale de acá. */
-.pv2-main--clasica {
-  background: #f5f5f7;
-  color: #0a0a0a;
+   Ya entienden el tema: sus colores salen de las variables de styles/tema.css
+   en vez de estar escritos a mano. Solo necesitan poder desplazarse, porque
+   no traen su propio contenedor con scroll. */
+.pv2-main--scroll {
+  background: rgb(var(--app-bg));
+  color: rgb(var(--app-primary));
   overflow: auto;
 }
 .pv2-factors__empty { font-size: 11.5px; color: var(--text-muted); margin: 0; line-height: 1.5; }
@@ -992,3 +1003,14 @@
   background: var(--bg-elev-3); overflow: hidden; min-width: 120px;
 }
 .pv2-insight__barra-fill { display: block; height: 100%; background: var(--gradient-brand); }
+
+/* Panel de filtros del board */
+.pv2-filtros {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  padding: 10px 20px; background: var(--bg-elev-1);
+  border-bottom: 1px solid var(--border);
+}
+.pv2-filtro { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px;
+  color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.pv2-filtro .pv2-input { min-width: 180px; text-transform: none; letter-spacing: 0; }
+.pv2-filtro--check { flex-direction: row; align-items: center; gap: 7px; padding-bottom: 8px; cursor: pointer; }

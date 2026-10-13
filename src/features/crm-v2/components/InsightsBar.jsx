@@ -14,8 +14,14 @@ export default function InsightsBar({ metrics = [], collapsed = false, onToggle,
         <div key={m.label} style={{ display: 'contents' }}>
           {i > 0 && <span className="pv2-insights__divider" />}
           <button
-            className={clsx('pv2-insight', m.ancho === 'chico' && 'pv2-insight--chico')}
-            onClick={() => onDrillDown?.(m)}
+            className={clsx(
+              'pv2-insight',
+              m.ancho === 'chico' && 'pv2-insight--chico',
+              m.accion && 'pv2-insight--accionable',
+            )}
+            onClick={() => m.accion && onDrillDown?.(m)}
+            disabled={!m.accion}
+            title={m.ayuda}
           >
             <span className="pv2-insight__label">{m.label}</span>
             <span className="pv2-insight__value" style={m.color ? { color: `var(--${m.color})` } : undefined}>

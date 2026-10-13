@@ -1,5 +1,6 @@
+import { useRef, useEffect } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, SlidersHorizontal, Search, Plus, LayoutGrid, List, TrendingUp } from 'lucide-react'
+import { ChevronDown, SlidersHorizontal, Search, Plus, LayoutGrid, List, TrendingUp, X } from 'lucide-react'
 
 const VIEWS = [
   { id: 'kanban', label: 'Kanban', Icon: LayoutGrid },
@@ -28,9 +29,24 @@ export default function Topbar({
   filterCount = 0,
   onFilters,
   onSearch,
+  searchValue = '',
   primaryLabel,
   onPrimary,
 }) {
+  const buscador = useRef(null)
+
+  // El atajo que el propio botón anunciaba y no existía.
+  useEffect(() => {
+    const onKey = e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        buscador.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <header className="pv2-topbar">
       <div className="pv2-topbar__title">
@@ -84,13 +100,26 @@ export default function Topbar({
         </button>
       )}
 
-      <button className="pv2-search" onClick={onSearch}>
-        <Search size={14} style={{ opacity: 0.7 }} />
-        Buscar
-        <span className="pv2-search__kbd">
-          <span className="pv2-kbd">{isMac ? '⌘' : 'Ctrl'}</span><span className="pv2-kbd">K</span>
-        </span>
-      </button>
+      <div className="pv2-search">
+        <Search size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+        <input
+          ref={buscador}
+          className="pv2-search__input"
+          value={searchValue}
+          onChange={e => onSearch?.(e.target.value)}
+          placeholder="Buscar por nombre, empresa o teléfono"
+        />
+        {searchValue
+          ? (
+            <button className="pv2-search__clear" onClick={() => onSearch?.('')} title="Limpiar">
+              <X size={13} />
+            </button>
+          ) : (
+            <span className="pv2-search__kbd">
+              <span className="pv2-kbd">{isMac ? '⌘' : 'Ctrl'}</span><span className="pv2-kbd">K</span>
+            </span>
+          )}
+      </div>
 
       {primaryLabel && (
         <button className="pv2-btn pv2-btn--primary" onClick={onPrimary}>

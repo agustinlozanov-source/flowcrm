@@ -290,7 +290,7 @@ export default function AppLayout() {
         ]}
       />
 
-      <main className={esRediseñada(location.pathname) ? 'pv2-main' : 'pv2-main pv2-main--clasica'}>
+      <main className={esRediseñada(location.pathname) ? 'pv2-main' : 'pv2-main pv2-main--scroll'}>
         <Outlet />
       </main>
 

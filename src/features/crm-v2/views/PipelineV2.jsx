@@ -22,6 +22,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { useAuthStore } from '@/store/authStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useGoals } from '@/hooks/useGoals'
+import { repararSiHaceFalta, totalesViejos } from '@/hooks/useOpportunities'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 
@@ -58,6 +59,11 @@ export default function PipelineV2() {
   // Contador y no booleano: hacer clic en el nombre otra vez tiene que volver
   // a abrir el editor aunque ya se haya cerrado.
   const [editandoContacto, setEditandoContacto] = useState(0)
+  const [verFiltros, setVerFiltros] = useState(false)
+  // Filtros reales del board. El botón de Filtros existía y no hacía nada.
+  const [dueno, setDueno] = useState('todos')
+  const [canal, setCanal] = useState('todos')
+  const [soloConCita, setSoloConCita] = useState(false)
   const hovered = useRef(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -88,8 +94,16 @@ export default function PipelineV2() {
           l.phone?.includes(q))
       : todos
 
+    const porFiltros = visibles.filter(l => {
+      if (dueno === 'agente' && l.assignedTo) return false
+      if (dueno !== 'todos' && dueno !== 'agente' && l.assignedTo !== dueno) return false
+      if (canal !== 'todos' && (l.lastMessageChannel || l.source) !== canal) return false
+      if (soloConCita && !(citasPorLead[l.id] || []).length) return false
+      return true
+    })
+
     const out = { calentamiento: [], handoff: [], cierre: [] }
-    for (const lead of visibles) {
+    for (const lead of porFiltros) {
       out[columnOf(lead)].push(
         toCard(lead, { members, products, citasDelLead: citasPorLead[lead.id] || [] }),
       )
@@ -97,9 +111,23 @@ export default function PipelineV2() {
     // Dentro de cada columna, primero lo más maduro.
     for (const k of Object.keys(out)) out[k].sort((a, b) => b.score - a.score)
     return out
-  }, [leads, systemLeads, members, products, citasPorLead, search, canSeeAllLeads, user?.uid])
+  }, [leads, systemLeads, members, products, citasPorLead, search, canSeeAllLeads, user?.uid,
+      dueno, canal, soloConCita])
 
   const flat = useMemo(() => COLUMNS.flatMap(c => board[c.id]), [board])
+
+  /* Reparación de totales viejos.
+   *
+   * Los totales están copiados en el lead, así que cambiar la fórmula no
+   * actualiza lo ya escrito: el board mostraba Potencial con plata que ya se
+   * había cerrado. Se corrigen de a pocos para no disparar cien escrituras de
+   * golpe, y como después quedan bien, esto deja de hacer nada solo.
+   */
+  useEffect(() => {
+    if (!org?.id) return
+    const viejos = [...leads, ...systemLeads].filter(totalesViejos).slice(0, 10)
+    viejos.forEach(l => repararSiHaceFalta(org.id, l.id).catch(() => {}))
+  }, [org?.id, leads, systemLeads])
 
   // Solo métricas que se pueden calcular de verdad. Las del briefing que
   // dependen de histórico (conversión, tiempo de cierre) llegan cuando exista
@@ -119,11 +147,16 @@ export default function PipelineV2() {
     const ganado = todos.reduce((s, l) => s + (l.opportunityStats?.valueWon || 0), 0)
 
     const lista = [
-      { label: 'Activas', value: String(activas), ancho: 'chico' },
-      { label: 'En cierre', value: String(board.cierre.length), ancho: 'chico' },
-      { label: 'Real', value: money(flat.reduce((s, c) => s + (c.amount || 0), 0)) },
-      { label: 'Potencial', value: money(flat.reduce((s, c) => s + (c.potential || 0), 0)), color: 'purple' },
-      { label: 'Ganado', value: money(ganado), color: 'green' },
+      { label: 'Activas', value: String(activas), ancho: 'chico',
+        ayuda: 'Tarjetas en calentamiento y handoff' },
+      { label: 'En cierre', value: String(board.cierre.length), ancho: 'chico',
+        ayuda: 'Tarjetas con al menos una venta hecha' },
+      { label: 'Real', value: money(flat.reduce((s, c) => s + (c.amount || 0), 0)),
+        ayuda: 'Las oportunidades de entrada que siguen abiertas: la consulta, la valoración' },
+      { label: 'Potencial', value: money(flat.reduce((s, c) => s + (c.potential || 0), 0)), color: 'purple',
+        ayuda: 'Lo que se abrió a partir del problema que contó el lead y todavía no se cerró' },
+      { label: 'Ganado', value: money(ganado), color: 'green',
+        accion: 'objetivos', ayuda: 'Ver los objetivos del trimestre' },
     ]
 
     // La meta del trimestre cierra la fila: es contra lo que se mide todo lo
@@ -134,6 +167,8 @@ export default function PipelineV2() {
         label: `Meta ${currentQuarter}${currentGoal.theme ? ` · ${currentGoal.theme}` : ''}`,
         value: `${money(m.achieved)} / ${money(m.target)}`,
         progreso: m.progressPct,
+        accion: 'objetivos',
+        ayuda: 'Ver y editar los objetivos del trimestre',
       })
     }
     return lista
@@ -245,10 +280,45 @@ export default function PipelineV2() {
         title={pipelines.find(p => p.id === activePipelineId)?.name || org?.name || 'Pipeline'}
         stats={topbarStats}
         activeView={view} onViewChange={setView}
-        filterCount={Object.values(filters).filter(Boolean).length}
-        onFilters={() => {}} onSearch={setSearch}
+        filterCount={
+          Object.values(filters).filter(Boolean).length
+          + (dueno !== 'todos' ? 1 : 0) + (canal !== 'todos' ? 1 : 0) + (soloConCita ? 1 : 0)
+        }
+        onFilters={() => setVerFiltros(v => !v)} onSearch={setSearch} searchValue={search}
         primaryLabel="Nueva tarjeta" onPrimary={() => setCreating(true)}
       />
+
+      {verFiltros && (
+        <div className="pv2-filtros">
+          <label className="pv2-filtro">
+            <span>Dueño</span>
+            <select className="pv2-input" value={dueno} onChange={e => setDueno(e.target.value)}>
+              <option value="todos">Cualquiera</option>
+              <option value="agente">Sin asignar — los atiende el agente</option>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name || m.email}</option>)}
+            </select>
+          </label>
+          <label className="pv2-filtro">
+            <span>Canal</span>
+            <select className="pv2-input" value={canal} onChange={e => setCanal(e.target.value)}>
+              <option value="todos">Todos</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="instagram">Instagram</option>
+              <option value="messenger">Messenger</option>
+              <option value="manual">Carga manual</option>
+            </select>
+          </label>
+          <label className="pv2-filtro pv2-filtro--check">
+            <input type="checkbox" checked={soloConCita} onChange={e => setSoloConCita(e.target.checked)} />
+            <span>Solo con cita agendada</span>
+          </label>
+          {(dueno !== 'todos' || canal !== 'todos' || soloConCita) && (
+            <button className="pv2-btn" onClick={() => { setDueno('todos'); setCanal('todos'); setSoloConCita(false) }}>
+              Quitar filtros
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Cambiar de pipeline. Como en el board anterior, solo aparece si hay
           más de uno: con uno solo es una fila que no decide nada. */}
@@ -269,6 +339,7 @@ export default function PipelineV2() {
 
       <InsightsBar
         metrics={insights}
+        onDrillDown={m => { if (m.accion === 'objetivos') navigate('/goals') }}
         collapsed={!insightsOpen}
         onToggle={() => setInsightsOpen(v => !v)}
       />

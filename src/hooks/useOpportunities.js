@@ -40,21 +40,10 @@ async function recalcular(orgId, leadId) {
   const todas = snap.docs.map(d => d.data())
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
-  const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
 
   const leadRef = doc(db, 'organizations', orgId, 'leads', leadId)
   const cambios = {
-    opportunityStats: {
-      total: todas.length,
-      open: abiertas.length,
-      won: ganadas.length,
-      valueOpen: suma(abiertas),
-      valueWon: suma(ganadas),
-      // Solo lo que sigue abierto: una ganada ya no está en juego, y contarla
-      // acá además de en Ganado la mostraba dos veces.
-      valueReal: suma(abiertas.filter(o => (o.kind || 'real') === 'real')),
-      valuePotencial: suma(abiertas.filter(o => o.kind === 'potencial')),
-    },
+    opportunityStats: totalesDe(todas),
     updatedAt: serverTimestamp(),
   }
 
@@ -91,6 +80,39 @@ async function recalcular(orgId, leadId) {
   await updateDoc(leadRef, cambios)
 }
 
+/** Calcula los totales desde las oportunidades. Es la única fórmula; tanto
+ *  `recalcular` como la reparación la usan, para que no puedan divergir. */
+function totalesDe(todas) {
+  const abiertas = todas.filter(o => o.status === 'abierta')
+  const ganadas = todas.filter(o => o.status === 'ganada')
+  const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
+  return {
+    total: todas.length,
+    open: abiertas.length,
+    won: ganadas.length,
+    valueOpen: suma(abiertas),
+    valueWon: suma(ganadas),
+    valueReal: suma(abiertas.filter(o => (o.kind || 'real') === 'real')),
+    valuePotencial: suma(abiertas.filter(o => o.kind === 'potencial')),
+  }
+}
+
+/** Corrige los totales guardados si no coinciden con las oportunidades.
+ *
+ * Hace falta porque los totales están copiados en el lead: cuando cambia la
+ * forma de calcularlos, lo ya escrito queda viejo y el board lo muestra tal
+ * cual. Esto lo repara la primera vez que alguien abre la ficha. */
+export async function repararSiHaceFalta(orgId, leadId) {
+  const leadRef = doc(db, 'organizations', orgId, 'leads', leadId)
+  const [snapOps, snapLead] = await Promise.all([getDocs(ref(orgId, leadId)), getDoc(leadRef)])
+  const esperado = totalesDe(snapOps.docs.map(d => d.data()))
+  const guardado = snapLead.data()?.opportunityStats
+
+  const igual = guardado && Object.keys(esperado).every(k => (guardado[k] || 0) === esperado[k])
+  if (igual) return
+  await updateDoc(leadRef, { opportunityStats: esperado })
+}
+
 export function useOpportunities(leadId) {
   const { org, user } = useAuthStore()
   const orgId = org?.id
@@ -100,11 +122,16 @@ export function useOpportunities(leadId) {
   useEffect(() => {
     if (!orgId || !leadId) { setOpportunities([]); setLoading(false); return }
     setLoading(true)
+    let yaRevisado = false
     const unsub = onSnapshot(
       query(ref(orgId, leadId), orderBy('createdAt', 'asc')),
       snap => {
         setOpportunities(snap.docs.map(d => ({ id: d.id, ...d.data() })))
         setLoading(false)
+        if (!yaRevisado) {
+          yaRevisado = true
+          repararSiHaceFalta(orgId, leadId).catch(() => {})
+        }
       },
       () => setLoading(false),
     )
@@ -180,4 +207,14 @@ export function useOpportunitiesOnce(leadId) {
   }, [orgId, leadId])
 
   return opportunities
+}
+
+/** Detecta totales escritos con la fórmula vieja, sin leer la subcolección.
+ *
+ * La señal es exacta: con la fórmula nueva, real + potencial es exactamente lo
+ * abierto. Con la vieja incluían también lo ganado, así que suman de más. */
+export function totalesViejos(lead) {
+  const s = lead?.opportunityStats
+  if (!s?.total) return false
+  return (s.valueReal || 0) + (s.valuePotencial || 0) > (s.valueOpen || 0)
 }

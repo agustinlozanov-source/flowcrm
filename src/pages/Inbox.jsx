@@ -388,9 +388,9 @@ function ConversationView({ lead, orgId }) {
             onChange={e => { const f = e.target.files?.[0]; if (f) subirYEnviar(f); e.target.value = '' }}
           />
           <button
-            onClick={() => (resources.length > 0 ? setShowResources(v => !v) : fileRef.current?.click())}
+            onClick={() => setShowResources(v => !v)}
             disabled={subiendo}
-            title={resources.length > 0 ? 'Adjuntar' : 'Adjuntar un archivo de tu computadora'}
+            title="Adjuntar un recurso o un archivo"
             className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0 border border-black/[0.1] bg-surface-2 text-secondary hover:text-primary transition-colors disabled:opacity-40"
           >
             {subiendo
@@ -420,6 +420,11 @@ function ConversationView({ lead, orgId }) {
             >
               <Upload size={13} /> Subir desde mi computadora
             </button>
+            {resources.length > 0 && (
+              <div className="px-3 py-1 text-[10px] font-bold text-tertiary uppercase tracking-wide bg-surface-2 border-t border-black/[0.06]">
+                Recursos cargados
+              </div>
+            )}
             {resources.map(r => (
               <button
                 key={r.id}
@@ -427,7 +432,10 @@ function ConversationView({ lead, orgId }) {
                 disabled={sendingResource !== null}
                 className="w-full text-left px-3 py-2 text-[12.5px] text-primary hover:bg-surface-2 disabled:opacity-50 border-t border-black/[0.06]"
               >
-                {sendingResource === r.id ? 'Enviando…' : `📎 ${r.name}`}
+                <span className="flex items-center gap-2">
+                  <Paperclip size={12} />
+                  {sendingResource === r.id ? 'Enviando…' : r.name}
+                </span>
               </button>
             ))}
           </div>
