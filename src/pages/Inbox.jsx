@@ -4,13 +4,14 @@ import {
   collection, onSnapshot, query, orderBy,
   doc, updateDoc, serverTimestamp, limit, getDocs
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, storage } from '@/lib/firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { useAuthStore } from '@/store/authStore'
 import { format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { MessageCircle, Facebook, Instagram, MousePointerClick, Globe, MessageSquare, Zap, User, Paperclip } from 'lucide-react'
+import { MessageCircle, Facebook, Instagram, MousePointerClick, Globe, MessageSquare, Zap, User, Paperclip, Sparkles, CalendarDays, X, Pause, Play, Upload } from 'lucide-react'
 
 const CHANNEL_CONFIG = {
   whatsapp:          { label: 'WhatsApp',  icon: MessageCircle, color: '#25D366', bg: '#e8fdf0' },
@@ -57,6 +58,60 @@ function ConversationView({ lead, orgId }) {
   const [resources, setResources] = useState([])
   const [showResources, setShowResources] = useState(false)
   const [sendingResource, setSendingResource] = useState(null)
+  const [pausando, setPausando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
+  const fileRef = useRef(null)
+
+  /* Adjuntar un archivo del disco. Se sube a Storage y se manda la URL: Zernio
+   * necesita una dirección pública, no el archivo en sí. */
+  const subirYEnviar = async (file) => {
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error('El archivo supera los 25 MB')
+      return
+    }
+    setSubiendo(true)
+    try {
+      const tipo = file.type.startsWith('image/') ? 'imagen'
+        : file.type.startsWith('video/') ? 'video'
+        : 'archivo'
+      const ruta = `organizations/${orgId}/inbox/${lead.id}/${Date.now()}-${file.name}`
+      const refArchivo = storageRef(storage, ruta)
+      await uploadBytes(refArchivo, file)
+      const url = await getDownloadURL(refArchivo)
+
+      const res = await fetch('/.netlify/functions/send-resource', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgId, leadId: lead.id, text: text.trim() || null,
+          archivo: { name: file.name, url, type: tipo },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo enviar')
+      setText('')
+      setShowResources(false)
+      toast.success(`${file.name} enviado`)
+    } catch (e) {
+      toast.error(e.message || 'No se pudo enviar el archivo')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  const togglePausa = async () => {
+    setPausando(true)
+    try {
+      await updateDoc(doc(db, 'organizations', orgId, 'leads', lead.id), {
+        agentPaused: !lead.agentPaused,
+      })
+      toast.success(lead.agentPaused ? 'El agente vuelve a responder' : 'Agente pausado en esta conversación')
+    } catch {
+      toast.error('No se pudo cambiar')
+    } finally {
+      setPausando(false)
+    }
+  }
 
   // Los enlaces no se adjuntan: su URL va en el texto.
   useEffect(() => {
@@ -208,6 +263,22 @@ function ConversationView({ lead, orgId }) {
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Pausar al agente en esta conversación. Mientras está pausado el
+              webhook no responde y la persona puede escribir a mano. */}
+          <button
+            onClick={togglePausa}
+            disabled={pausando}
+            title={lead.agentPaused ? 'El agente no está respondiendo acá' : 'Pausar al agente en esta conversación'}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-40',
+              lead.agentPaused
+                ? 'border-amber-300 bg-amber-50 text-amber-600'
+                : 'border-black/[0.1] text-secondary hover:border-amber-300 hover:text-amber-600'
+            )}
+          >
+            {lead.agentPaused ? <Play size={13} /> : <Pause size={13} />}
+            {lead.agentPaused ? 'Reanudar agente' : 'Pausar agente'}
+          </button>
           <button
             onClick={handleAISuggest}
             disabled={loadingAI || messages.length === 0}
@@ -310,15 +381,22 @@ function ConversationView({ lead, orgId }) {
             />
             <ChannelBadge channel={activeChannel} />
           </div>
-          {resources.length > 0 && (
-            <button
-              onClick={() => setShowResources(v => !v)}
-              title="Enviar un recurso"
-              className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0 border border-black/[0.1] bg-surface-2 text-secondary hover:text-primary transition-colors"
-            >
-              <Paperclip size={16} />
-            </button>
-          )}
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) subirYEnviar(f); e.target.value = '' }}
+          />
+          <button
+            onClick={() => (resources.length > 0 ? setShowResources(v => !v) : fileRef.current?.click())}
+            disabled={subiendo}
+            title={resources.length > 0 ? 'Adjuntar' : 'Adjuntar un archivo de tu computadora'}
+            className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0 border border-black/[0.1] bg-surface-2 text-secondary hover:text-primary transition-colors disabled:opacity-40"
+          >
+            {subiendo
+              ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+              : <Paperclip size={16} />}
+          </button>
           <button
             onClick={handleSend}
             disabled={!text.trim() || sending}
@@ -334,8 +412,14 @@ function ConversationView({ lead, orgId }) {
         {showResources && (
           <div className="mt-2 border border-black/[0.08] rounded-[12px] overflow-hidden">
             <div className="px-3 py-1.5 text-[10px] font-bold text-tertiary uppercase tracking-wide bg-surface-2">
-              Enviar recurso{text.trim() ? ' con el texto escrito' : ''}
+              Adjuntar{text.trim() ? ' con el texto escrito' : ''}
             </div>
+            <button
+              onClick={() => { setShowResources(false); fileRef.current?.click() }}
+              className="w-full text-left px-3 py-2 text-[12.5px] text-primary hover:bg-surface-2 flex items-center gap-2 font-semibold"
+            >
+              <Upload size={13} /> Subir desde mi computadora
+            </button>
             {resources.map(r => (
               <button
                 key={r.id}
@@ -361,6 +445,9 @@ export default function Inbox() {
   const [selectedLead, setSelectedLead] = useState(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all | unread | whatsapp | messenger | instagram
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
+  const [verFechas, setVerFechas] = useState(false)
   const [search, setSearch] = useState('')
   const [bulking, setBulking] = useState(false)
   // ?lead=<id> abre esa conversación al entrar. Lo usa el botón de WhatsApp
@@ -437,6 +524,16 @@ export default function Inbox() {
   const filteredLeads = leads.filter(lead => {
     if (search && !lead.name?.toLowerCase().includes(search.toLowerCase()) &&
       !lead.phone?.includes(search)) return false
+
+    // Rango de fechas sobre el último mensaje: es lo que define si una
+    // conversación "pasó" en esa ventana.
+    if (desde || hasta) {
+      const d = lead.lastMessageAt?.toDate?.()
+      if (!d) return false
+      if (desde && d < new Date(`${desde}T00:00:00`)) return false
+      if (hasta && d > new Date(`${hasta}T23:59:59`)) return false
+    }
+
     if (filter === 'unread') return lead.hasUnread
     if (filter !== 'all') return lead.lastMessageChannel === filter
     return true
@@ -466,7 +563,9 @@ export default function Inbox() {
             className="w-full mb-2.5 py-2 rounded-[12px] text-[12px] font-medium text-white transition-all disabled:opacity-50"
             style={{ background: 'linear-gradient(90deg, #1aab99, #3533cd)' }}
           >
-            {bulking ? 'Revisando…' : '✨ Responder sin contestar'}
+            {bulking
+      ? 'Revisando…'
+      : <span className="inline-flex items-center gap-1.5"><Sparkles size={13} /> Responder sin contestar</span>}
           </button>
           <input
             value={search}
@@ -490,7 +589,31 @@ export default function Inbox() {
                 filter === v ? 'bg-primary text-white' : 'text-secondary hover:bg-surface-2'
               )}>{l}</button>
           ))}
+          <button onClick={() => setVerFechas(v => !v)}
+            title="Filtrar por fecha"
+            className={clsx('px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap',
+              (desde || hasta) ? 'bg-primary text-white' : 'text-secondary hover:bg-surface-2'
+            )}>
+            <CalendarDays size={14} />
+          </button>
         </div>
+
+        {verFechas && (
+          <div className="px-3 py-2 border-b border-black/[0.06] flex items-center gap-1.5 flex-shrink-0">
+            <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+              className="input text-[11px] py-1 px-1.5 flex-1 min-w-0" />
+            <span className="text-[11px] text-tertiary">a</span>
+            <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+              className="input text-[11px] py-1 px-1.5 flex-1 min-w-0" />
+            {(desde || hasta) && (
+              <button onClick={() => { setDesde(''); setHasta('') }}
+                title="Quitar el filtro de fecha"
+                className="text-tertiary hover:text-red-500 flex-shrink-0">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto">

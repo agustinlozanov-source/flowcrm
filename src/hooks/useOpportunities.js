@@ -35,14 +35,11 @@ const ref = (orgId, leadId) =>
  * Medir Real como "lo ya vendido" era un error: en calentamiento todavía no se
  * vendió nada, así que Real daba cero siempre y no decía nada.
  */
-const VIVAS = ['abierta', 'ganada']
-
 async function recalcular(orgId, leadId) {
   const snap = await getDocs(ref(orgId, leadId))
   const todas = snap.docs.map(d => d.data())
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
-  const vivas = todas.filter(o => VIVAS.includes(o.status))
   const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
 
   const leadRef = doc(db, 'organizations', orgId, 'leads', leadId)
@@ -53,9 +50,10 @@ async function recalcular(orgId, leadId) {
       won: ganadas.length,
       valueOpen: suma(abiertas),
       valueWon: suma(ganadas),
-      // Las descartadas y perdidas no suman en ninguno de los dos.
-      valueReal: suma(vivas.filter(o => (o.kind || 'real') === 'real')),
-      valuePotencial: suma(vivas.filter(o => o.kind === 'potencial')),
+      // Solo lo que sigue abierto: una ganada ya no está en juego, y contarla
+      // acá además de en Ganado la mostraba dos veces.
+      valueReal: suma(abiertas.filter(o => (o.kind || 'real') === 'real')),
+      valuePotencial: suma(abiertas.filter(o => o.kind === 'potencial')),
     },
     updatedAt: serverTimestamp(),
   }
@@ -84,6 +82,10 @@ async function recalcular(orgId, leadId) {
       cambios.systemStageAt = serverTimestamp()
       cambios.stageId = null
     }
+    // Sin closedAt el lead no entra en ninguna consulta por rango de fechas, y
+    // los objetivos del trimestre buscan justamente por ahí. Se escribe una
+    // sola vez, en el primer cierre.
+    if (!leadSnap.data()?.closedAt) cambios.closedAt = serverTimestamp()
   }
 
   await updateDoc(leadRef, cambios)

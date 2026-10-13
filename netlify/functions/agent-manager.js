@@ -353,7 +353,6 @@ async function recalcularOportunidades(db, orgId, leadId) {
   const todas = snap.docs.map(d => d.data())
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
-  const vivas = todas.filter(o => ['abierta', 'ganada'].includes(o.status))
   const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
   await leadRef.update({
     opportunityStats: {
@@ -362,8 +361,9 @@ async function recalcularOportunidades(db, orgId, leadId) {
       won: ganadas.length,
       valueOpen: suma(abiertas),
       valueWon: suma(ganadas),
-      valueReal: suma(vivas.filter(o => (o.kind || 'real') === 'real')),
-      valuePotencial: suma(vivas.filter(o => o.kind === 'potencial')),
+      // Solo abiertas: ver el comentario en useOpportunities.js.
+      valueReal: suma(abiertas.filter(o => (o.kind || 'real') === 'real')),
+      valuePotencial: suma(abiertas.filter(o => o.kind === 'potencial')),
     },
   })
 }

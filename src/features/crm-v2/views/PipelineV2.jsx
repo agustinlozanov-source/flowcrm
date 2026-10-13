@@ -20,6 +20,8 @@ import { usePipeline } from '@/hooks/usePipeline'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useProducts } from '@/hooks/useProducts'
 import { useAuthStore } from '@/store/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useGoals } from '@/hooks/useGoals'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 
@@ -33,7 +35,9 @@ import { useNavigate } from 'react-router-dom'
  * porque dependen de cuál está hovereada, que es estado del board.
  */
 export default function PipelineV2() {
-  const { org } = useAuthStore()
+  const { org, user } = useAuthStore()
+  const { canSeeAllLeads, canReassignLeads } = usePermissions()
+  const { currentGoal, currentQuarter, computedMetrics } = useGoals()
   const navigate = useNavigate()
   const {
     leads, systemLeads, members, loading, stages,
@@ -71,7 +75,11 @@ export default function PipelineV2() {
   }, [appointments])
 
   const board = useMemo(() => {
-    const todos = [...leads, ...systemLeads].filter(l => !l.discarded)
+    const todos = [...leads, ...systemLeads]
+      .filter(l => !l.discarded)
+      // Sin el permiso de ver todo el equipo, cada quien ve lo suyo. Los que
+      // no tienen dueño los ve cualquiera: todavía los atiende el agente.
+      .filter(l => canSeeAllLeads || !l.assignedTo || l.assignedTo === user?.uid)
     const q = search.trim().toLowerCase()
     const visibles = q
       ? todos.filter(l =>
@@ -89,7 +97,7 @@ export default function PipelineV2() {
     // Dentro de cada columna, primero lo más maduro.
     for (const k of Object.keys(out)) out[k].sort((a, b) => b.score - a.score)
     return out
-  }, [leads, systemLeads, members, products, citasPorLead, search])
+  }, [leads, systemLeads, members, products, citasPorLead, search, canSeeAllLeads, user?.uid])
 
   const flat = useMemo(() => COLUMNS.flatMap(c => board[c.id]), [board])
 
@@ -127,10 +135,22 @@ export default function PipelineV2() {
     [pipelines],
   )
 
-  const topbarStats = useMemo(() => ([
-    { label: 'Tarjetas', value: String(flat.length) },
-    { label: 'Handoff', value: String(board.handoff.length) },
-  ]), [flat, board])
+  const topbarStats = useMemo(() => {
+    const base = [
+      { label: 'Tarjetas', value: String(flat.length) },
+      { label: 'Handoff', value: String(board.handoff.length) },
+    ]
+    const m = currentGoal ? computedMetrics(currentGoal) : null
+    if (m?.target > 0) {
+      const k = n => (n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${Math.round(n)}`)
+      base.push({
+        label: `Meta ${currentQuarter}${currentGoal.theme ? ` · ${currentGoal.theme}` : ''}`,
+        value: `${k(m.achieved)} / ${k(m.target)}`,
+      })
+      base.push({ label: 'Avance', value: `${m.progressPct}%` })
+    }
+    return base
+  }, [flat, board, currentGoal, currentQuarter, computedMetrics])
 
   /* Qué movimientos tienen sentido.
    *
@@ -320,6 +340,10 @@ export default function PipelineV2() {
 
       <SidePanel
         onTitleClick={() => setEditandoContacto(n => n + 1)}
+        asignables={members}
+        onAssign={canReassignLeads && selected
+          ? (uid) => updateLead(selected.id, { assignedTo: uid, assignedAt: new Date() })
+          : undefined}
         extraResumen={selected && (
           <>
             <CitasSection leadId={selected.id} onEditar={id => navigate(`/meetings?editar=${id}`)} />
@@ -347,6 +371,7 @@ export default function PipelineV2() {
         }}
         deal={selected ? {
           ...selected,
+          assignedTo: selected._lead?.assignedTo || '',
           stageName: COLUMNS.find(c => board[c.id].some(d => d.id === selected.id))?.name,
           nextActionLabel: selected.nextAction?.text,
         } : null}

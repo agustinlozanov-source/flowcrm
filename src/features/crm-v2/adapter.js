@@ -131,6 +131,9 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
           ? (lead.closedProduct?.price || lead.value || 0)
           : (lead.value || 0)),
     potential: stats?.valuePotencial || 0,
+    // Lo ya ganado, para que la ficha pueda mostrar eso en vez del monto
+    // cuando ya no queda nada abierto. Si no, con todo cerrado decía 0.
+    won: stats?.valueWon || 0,
     score: lead.score || 0,
     maturity: maturityOf(lead).id,
     // Mientras no haya una persona a cargo, el que atiende es el agente. Pero

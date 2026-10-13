@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
-import { Sun, Moon, Languages, LogOut, Shield } from 'lucide-react'
+import { Sun, Moon, LogOut, Shield } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
@@ -226,7 +226,7 @@ export default function AppLayout() {
   useEffect(() => {
     try { localStorage.setItem('pv2-sidebar-collapsed', collapsed ? '1' : '0') } catch { /* ok */ }
   }, [collapsed])
-  const { lang, toggleLang, t } = useLang()
+  const { t } = useLang()
   const groups = useNavItems()
 
   // Claro por defecto: el marco nuevo envuelve pantallas que son claras, y
@@ -268,19 +268,17 @@ export default function AppLayout() {
         user={{
           name: memberData?.name || user?.displayName || user?.email || 'Usuario',
           role: org?.name || 'Mi organización',
+          photoURL: memberData?.photoURL || user?.photoURL || null,
         }}
+        // Hacer clic en uno mismo abre la propia configuración: es lo que
+        // cualquiera espera y antes no hacía nada.
+        onUserClick={() => navigate('/settings')}
         actions={[
           {
             id: 'tema',
             title: theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro',
             icon: theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />,
             onClick: () => setTheme(t => (t === 'dark' ? 'light' : 'dark')),
-          },
-          {
-            id: 'idioma',
-            title: lang === 'es' ? 'Switch to English' : 'Cambiar a español',
-            icon: <Languages size={13} />,
-            onClick: toggleLang,
           },
           {
             id: 'salir',

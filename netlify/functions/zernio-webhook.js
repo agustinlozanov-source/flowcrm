@@ -152,6 +152,12 @@ async function handleMessageReceived(db, payload) {
   })
   await touchLead(db, orgId, lead.id, { text, channel, fromLead: true })
 
+  // Pausado a mano desde el Inbox: alguien está llevando la conversación.
+  if (lead.agentPaused) {
+    console.log(`[zernio-webhook] lead ${lead.id} con el agente pausado — sin respuesta automática`)
+    return
+  }
+
   // Si ya hay una persona a cargo, el agente no interviene.
   if (lead.systemStage === 'handoff') {
     console.log(`[zernio-webhook] lead ${lead.id} en handoff — sin respuesta automática`)

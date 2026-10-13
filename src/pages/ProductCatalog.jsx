@@ -5,6 +5,8 @@ import {
   Upload, Tag, Clock, LayoutGrid, List,
   Download, FileSpreadsheet, AlertTriangle, Check, ImagePlus
 } from 'lucide-react'
+import { usePermissions } from '@/hooks/usePermissions'
+import { descargarCSV, COLUMNAS_PRODUCTOS } from '@/lib/exportar'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -526,6 +528,13 @@ function ProductCard({ product, onEdit, onDelete }) {
 // ── MAIN CATALOG ──────────────────────────────────────────────────
 export default function ProductCatalog() {
   const { products, loading, categories, createProduct, updateProduct, deleteProduct } = useProducts()
+  const { canExportData } = usePermissions()
+
+  const handleExport = () => {
+    if (!products.length) { toast.error('No hay productos para exportar'); return }
+    const n = descargarCSV('catalogo', COLUMNAS_PRODUCTOS, products)
+    toast.success(`${n} productos exportados`)
+  }
   const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -634,6 +643,12 @@ export default function ProductCatalog() {
               className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
               <Upload size={13} /> Importar
             </button>
+            {canExportData && (
+              <button onClick={handleExport}
+                className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
+                <Download size={13} /> Exportar
+              </button>
+            )}
             <button onClick={openNew}
               className="btn-primary text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5">
               <Plus size={14} strokeWidth={3} color="white" /> Nuevo producto

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Target } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import { maturityFromScore } from '../maturity'
 
@@ -43,7 +43,7 @@ export default function PeekPreview({ deal, open = false, onClose, onPrev, onNex
           <span className="pv2-peek__label">Monto</span>
           <span className="pv2-peek__value">
             ${Number(deal.amount).toLocaleString('es-MX')} {deal.currency || 'MXN'}
-            {deal.potential > 0 && <span className="pv2-potential" style={{ marginLeft: 6 }}>🎯 +${Math.round(deal.potential / 1000)}K</span>}
+            {deal.potential > 0 && <span className="pv2-potential" style={{ marginLeft: 6 }}><Target size={10} /> +${Math.round(deal.potential / 1000)}K</span>}
           </span>
         </div>
         <div className="pv2-peek__row">

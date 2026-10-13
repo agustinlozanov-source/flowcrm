@@ -9,20 +9,28 @@ exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json' }
 
   try {
-    const { orgId, leadId, resourceId, text } = JSON.parse(event.body || '{}')
-    if (!orgId || !leadId || !resourceId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'orgId, leadId y resourceId son requeridos' }) }
+    const { orgId, leadId, resourceId, archivo, text } = JSON.parse(event.body || '{}')
+    if (!orgId || !leadId || (!resourceId && !archivo?.url)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Falta el recurso o el archivo a enviar' }) }
     }
 
     const db = initDb()
     const orgRef = db.collection('organizations').doc(orgId)
 
-    const resSnap = await orgRef.collection('agent_resources').doc(resourceId).get()
-    if (!resSnap.exists) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Recurso no encontrado' }) }
-    const resource = { id: resSnap.id, ...resSnap.data() }
-
-    if (resource.type === 'enlace') {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Los enlaces se mandan como texto, no como adjunto' }) }
+    let resource
+    if (resourceId) {
+      const resSnap = await orgRef.collection('agent_resources').doc(resourceId).get()
+      if (!resSnap.exists) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Recurso no encontrado' }) }
+      resource = { id: resSnap.id, ...resSnap.data() }
+      if (resource.type === 'enlace') {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Los enlaces se mandan como texto, no como adjunto' }) }
+      }
+    } else {
+      resource = {
+        name: archivo.name || 'archivo',
+        url: archivo.url,
+        type: ['imagen', 'video', 'archivo'].includes(archivo.type) ? archivo.type : 'archivo',
+      }
     }
 
     const leadSnap = await orgRef.collection('leads').doc(leadId).get()
@@ -43,7 +51,7 @@ exports.handler = async (event) => {
     }
     await saveAttachments(db, orgId, leadId, sent, channel)
 
-    console.log(`[send-resource] "${resource.name}" enviado a lead ${leadId}`)
+    console.log(`[send-resource] "${resource.name}" enviado a lead ${leadId}${resourceId ? '' : ' (archivo subido)'}`)
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, sent }) }
   } catch (e) {
     console.error('send-resource error:', e)

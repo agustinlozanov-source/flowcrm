@@ -134,8 +134,12 @@ export function useGoals() {
         )
       )
 
+      // Lo facturado sale de las oportunidades ganadas. `productValue` no
+      // existe en ningún lead, así que esto daba cero desde siempre; el
+      // producto cerrado queda de respaldo para las ventas viejas.
       const total = snap.docs.reduce((sum, d) => {
-        return sum + (d.data().productValue || 0)
+        const l = d.data()
+        return sum + (l.opportunityStats?.valueWon || l.closedProduct?.price || l.value || 0)
       }, 0)
       setClosedRevenue(total)
     } catch (err) {
@@ -167,15 +171,18 @@ export function useGoals() {
         const data = d.data()
         const closedAt = data.closedAt?.toDate?.()
         if (!closedAt) return
-        const revenue = data.productValue || 0
+        const revenue = data.opportunityStats?.valueWon || data.closedProduct?.price || data.value || 0
+        // Un cierre es una oportunidad ganada, no un lead: el mismo contacto
+        // puede dejar la consulta y la cirugía, y son dos.
+        const cierres = data.opportunityStats?.won || 1
         const monthIdx = closedAt.getMonth()
         if (!monthly[monthIdx]) monthly[monthIdx] = { revenue: 0, deals: 0 }
         monthly[monthIdx].revenue += revenue
-        monthly[monthIdx].deals += 1
+        monthly[monthIdx].deals += cierres
         const week = weeks.find(w => closedAt >= w.startDate && closedAt <= w.endDate)
         if (week) {
           if (!weekly[week.weekNum]) weekly[week.weekNum] = { deals: 0 }
-          weekly[week.weekNum].deals += 1
+          weekly[week.weekNum].deals += cierres
         }
       })
       setActuals(prev => ({ ...prev, [key]: { monthly, weekly } }))

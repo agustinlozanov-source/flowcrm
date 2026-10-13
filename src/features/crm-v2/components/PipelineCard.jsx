@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle } from 'lucide-react'
+import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -68,7 +68,7 @@ export default function PipelineCard({
               <span className="pv2-card__currency">{currency}</span>
               {potential > 0 && (
                 <span className="pv2-potential" title="Oportunidades potenciales vinculadas">
-                  🎯 +${Math.round(potential / 1000)}K
+                  <Target size={10} /> +${Math.round(potential / 1000)}K
                 </span>
               )}
             </div>

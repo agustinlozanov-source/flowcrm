@@ -5,6 +5,8 @@ import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
+import { descargarCSV, COLUMNAS_LEADS } from '@/lib/exportar'
 import { db, auth } from '@/lib/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
 import {
@@ -189,6 +191,7 @@ function LeadImportModal({ onClose, onImport }) {
 
 export default function Contacts() {
   const { org } = useAuthStore()
+  const { canExportData } = usePermissions()
   const orgId = org?.id
   const { stages, leads, systemLeads, discardedLeads, loading, createLead } = usePipeline()
   const [selectedLead, setSelectedLead] = useState(null)
@@ -216,6 +219,16 @@ export default function Contacts() {
    * desde acá: antes se mandaba el id junto a una contraseña escrita en el
    * código del navegador, y con eso se le podía borrar la base a cualquiera.
    */
+  /* Exportar la base. Se lleva lo que está a la vista con los filtros puestos,
+   * no todo siempre: si alguien filtró por descartados, eso es lo que quiere
+   * bajarse. */
+  const handleExport = () => {
+    const filas = [...leads, ...systemLeads, ...discardedLeads]
+    if (!filas.length) { toast.error('No hay contactos para exportar'); return }
+    const n = descargarCSV('contactos', COLUMNAS_LEADS, filas)
+    toast.success(`${n} contactos exportados`)
+  }
+
   const handleClearAllLeads = async () => {
     const total = leads.length + systemLeads.length + discardedLeads.length
     const escrito = window.prompt(
@@ -349,6 +362,12 @@ export default function Contacts() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            {canExportData && (
+              <button onClick={handleExport}
+                className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5">
+                <Download size={13} /> Exportar
+              </button>
+            )}
             {featureFlags.clear_leads === true && (
               <button onClick={handleClearAllLeads} disabled={clearing}
                 className="btn-secondary text-[12.5px] py-1.5 px-3 flex items-center gap-1.5 text-red-500 hover:bg-red-50 border-red-200">

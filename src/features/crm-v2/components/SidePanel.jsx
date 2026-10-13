@@ -41,6 +41,8 @@ export default function SidePanel({
   // sabe dibujar lo que viene en `deal`, que es poco más que la tarjeta.
   onTitleClick,
   onEditFields,
+  onAssign,
+  asignables,
   extraResumen,
   tabContent,
 }) {
@@ -92,18 +94,34 @@ export default function SidePanel({
 
           <div className="pv2-panel__meta">
             <div className="pv2-panel__meta-item">
-              <span className="pv2-panel__meta-label">Monto</span>
-              <span className="pv2-panel__meta-value">
-                ${Number(deal.amount).toLocaleString('es-MX')}
+              <span className="pv2-panel__meta-label">{deal.amount > 0 || !deal.won ? 'Monto' : 'Ganado'}</span>
+              <span className="pv2-panel__meta-value"
+                style={deal.amount > 0 || !deal.won ? undefined : { color: 'var(--green)' }}>
+                ${Number(deal.amount > 0 || !deal.won ? deal.amount : deal.won).toLocaleString('es-MX')}
                 <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}> {deal.currency || 'MXN'}</span>
               </span>
             </div>
             <div className="pv2-panel__meta-item">
               <span className="pv2-panel__meta-label">Asignado a</span>
+              {onAssign ? (
+                /* Reasignar es una de las operaciones más frecuentes de un CRM
+                   y vivía fuera del alcance de quien mira la ficha. */
+                <select
+                  className="pv2-assign"
+                  value={deal.assignedTo || ''}
+                  onChange={e => onAssign(e.target.value || null)}
+                >
+                  <option value="">Sin asignar — lo atiende el agente</option>
+                  {(asignables || []).map(m => (
+                    <option key={m.id} value={m.id}>{m.name || m.email}</option>
+                  ))}
+                </select>
+              ) : (
               <span className="pv2-panel__meta-value" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
                 <OwnerAvatar name={deal.owner?.name} bot={deal.owner?.bot} size={20} />
                 {deal.owner?.name}
               </span>
+              )}
             </div>
             {deal.nextActionLabel && (
               <div className="pv2-panel__meta-item">

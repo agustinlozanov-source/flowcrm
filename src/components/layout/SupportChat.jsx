@@ -157,7 +157,7 @@ export default function SupportChat() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-5 right-5 z-50 w-13 h-13 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+        className="fixed bottom-24 right-5 z-50 w-13 h-13 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
         style={{
           width: 52,
           height: 52,
@@ -188,7 +188,7 @@ export default function SupportChat() {
       {/* Chat window */}
       {open && (
         <div
-          className="support-chat-window fixed bottom-[72px] right-5 z-50 flex flex-col rounded-2xl overflow-hidden"
+          className="support-chat-window fixed bottom-[148px] right-5 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
             width: 340,
             height: 480,

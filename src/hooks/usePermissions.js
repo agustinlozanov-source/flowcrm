@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   can_manage_team:        { label: 'Crear y editar usuarios del equipo',        group: 'Equipo'     },
   can_see_team_agenda:    { label: 'Ver agenda de todo el equipo',              group: 'Agenda'     },
   can_edit_any_lead:      { label: 'Editar información de leads ajenos',        group: 'Pipeline'   },
+  can_export_data:        { label: 'Exportar contactos y catálogo',             group: 'Datos'      },
 }
 
 // Default permissions by role
@@ -73,5 +74,6 @@ export function usePermissions() {
     canSeeTeamAgenda:    can('can_see_team_agenda'),
     canEditAnyLead:      can('can_edit_any_lead'),
     canDiscardAnyLead:   can('can_discard_any_lead'),
+    canExportData:       can('can_export_data'),
   }
 }

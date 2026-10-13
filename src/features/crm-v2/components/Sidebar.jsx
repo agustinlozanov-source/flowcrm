@@ -62,6 +62,7 @@ export default function Sidebar({
   onSelectPipeline,
   onNewPipeline,
   user,
+  onUserClick,
   // Traductor opcional: sin él se usan las etiquetas en español.
   t,
   // Botones del pie. Antes era uno solo y la sidebar global necesita varios
@@ -145,13 +146,20 @@ export default function Sidebar({
       )}
 
       <div className="pv2-sidebar__user">
-        <OwnerAvatar name={user?.name} size={32} />
-        {!collapsed && (
-          <div className="pv2-sidebar__user-info">
-            <div className="pv2-sidebar__user-name">{user?.name}</div>
-            <div className="pv2-sidebar__user-role">{user?.role}</div>
-          </div>
-        )}
+        <button
+          className="pv2-sidebar__user-btn"
+          onClick={onUserClick}
+          disabled={!onUserClick}
+          title={onUserClick ? 'Mi configuración' : undefined}
+        >
+          <OwnerAvatar name={user?.name} src={user?.photoURL} size={32} />
+          {!collapsed && (
+            <div className="pv2-sidebar__user-info">
+              <div className="pv2-sidebar__user-name">{user?.name}</div>
+              <div className="pv2-sidebar__user-role">{user?.role}</div>
+            </div>
+          )}
+        </button>
         <div className="pv2-sidebar__actions">
           {actions.length > 0
             ? actions.map(a => (

@@ -24,8 +24,21 @@ function gradientFor(name = '') {
  * Avatar del dueño del deal. `bot` cambia el tratamiento: fondo oscuro con
  * borde teal e ícono, para que Flowi nunca se confunda con una persona.
  */
-export default function OwnerAvatar({ name, bot = false, size = 22 }) {
+export default function OwnerAvatar({ name, bot = false, size = 22, src = null }) {
   const style = { width: size, height: size, fontSize: Math.round(size * 0.45) }
+
+  // Con foto cargada se usa la foto; las iniciales son el respaldo.
+  if (src && !bot) {
+    return (
+      <img
+        className="pv2-avatar pv2-avatar--foto"
+        style={style}
+        src={src}
+        alt={name || ''}
+        title={name}
+      />
+    )
+  }
 
   if (bot) {
     return (

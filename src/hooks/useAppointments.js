@@ -8,11 +8,11 @@ import { useAuthStore } from '@/store/authStore'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
 export const APPOINTMENT_TYPES = {
-  call:       { label: 'Llamada',      icon: '📞', color: '#0066ff', cta: 'Iniciar llamada' },
-  video:      { label: 'Videollamada', icon: '🎥', color: '#7c3aed', cta: 'Entrar a la videollamada' },
+  call:       { label: 'Llamada',      color: '#0066ff', cta: 'Iniciar llamada' },
+  video:      { label: 'Videollamada', color: '#7c3aed', cta: 'Entrar a la videollamada' },
   // La cita presencial no genera link: el lead viene a la sede. Por eso lleva
   // sus propios campos (sede y requisitos previos) y su propio CTA.
-  presencial: { label: 'Presencial',   icon: '📍', color: '#00875a', cta: 'Marcar asistencia' },
+  presencial: { label: 'Presencial',   color: '#00875a', cta: 'Marcar asistencia' },
 }
 
 export const APPOINTMENT_STATUS = {

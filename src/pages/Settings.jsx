@@ -66,13 +66,63 @@ function Section({ title, description, children }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Settings() {
-  const { org, user } = useAuthStore()
+  const { org, user, memberData } = useAuthStore()
   const orgId = org?.id
 
   const [integrations, setIntegrations] = useState({})
   const [loadingChannel, setLoadingChannel] = useState(null)
   const [timezone, setTimezone] = useState(org?.timezone || 'America/Mexico_City')
   const [savingTimezone, setSavingTimezone] = useState(false)
+
+  /* Perfil y empresa.
+   *
+   * El perfil vive en el documento del miembro dentro de la organización, que
+   * es de donde ya lee el resto del sistema el nombre y el rol. La empresa, en
+   * el documento de la organización.
+   */
+  const [perfil, setPerfil] = useState({ name: '', email: '', phone: '', address: '', photoURL: '' })
+  const [empresa, setEmpresa] = useState({ name: '', address: '', phone: '', website: '' })
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false)
+  const [guardandoEmpresa, setGuardandoEmpresa] = useState(false)
+
+  useEffect(() => {
+    setPerfil({
+      name: memberData?.name || user?.displayName || '',
+      email: memberData?.email || user?.email || '',
+      phone: memberData?.phone || '',
+      address: memberData?.address || '',
+      photoURL: memberData?.photoURL || user?.photoURL || '',
+    })
+  }, [memberData, user])
+
+  useEffect(() => {
+    setEmpresa({
+      name: org?.name || '',
+      address: org?.address || '',
+      phone: org?.phone || '',
+      website: org?.website || '',
+    })
+  }, [org])
+
+  const guardarPerfil = async () => {
+    if (!orgId || !user?.uid) return
+    setGuardandoPerfil(true)
+    try {
+      await setDoc(doc(db, 'organizations', orgId, 'members', user.uid), perfil, { merge: true })
+      toast.success('Perfil guardado')
+    } catch { toast.error('No se pudo guardar el perfil') }
+    finally { setGuardandoPerfil(false) }
+  }
+
+  const guardarEmpresa = async () => {
+    if (!orgId) return
+    setGuardandoEmpresa(true)
+    try {
+      await setDoc(doc(db, 'organizations', orgId), empresa, { merge: true })
+      toast.success('Datos de la empresa guardados')
+    } catch { toast.error('No se pudieron guardar') }
+    finally { setGuardandoEmpresa(false) }
+  }
 
   // Agendas de Google: se cargan bajo demanda, solo si está conectado.
   const [calendars, setCalendars] = useState([])
@@ -272,6 +322,88 @@ export default function Settings() {
       </div>
 
       <Section
+        title="Mi perfil"
+        description="Cómo te ve el resto del equipo"
+      >
+        <div className="p-4 rounded-xl border border-gray-100 bg-white flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            {perfil.photoURL
+              ? <img src={perfil.photoURL} alt="" className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
+              : <div className="w-14 h-14 rounded-full bg-gray-900 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  {(perfil.name || user?.email || '?')[0]?.toUpperCase()}
+                </div>}
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs text-gray-500 mb-1">Foto de perfil</label>
+              <input
+                type="url"
+                value={perfil.photoURL}
+                onChange={e => setPerfil(p => ({ ...p, photoURL: e.target.value }))}
+                placeholder="https://… (enlace a la imagen)"
+                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+              />
+            </div>
+          </div>
+
+          {[
+            { k: 'name', label: 'Nombre completo', ph: 'Nombre y apellido' },
+            { k: 'email', label: 'Correo', ph: 'nombre@empresa.com', type: 'email' },
+            { k: 'phone', label: 'Teléfono', ph: '52 55 1234 5678' },
+            { k: 'address', label: 'Dirección', ph: 'Calle, número, ciudad' },
+          ].map(c => (
+            <div key={c.k} className="flex items-center justify-between gap-3">
+              <label className="text-sm text-gray-700 flex-shrink-0 w-36">{c.label}</label>
+              <input
+                type={c.type || 'text'}
+                value={perfil[c.k]}
+                onChange={e => setPerfil(p => ({ ...p, [c.k]: e.target.value }))}
+                placeholder={c.ph}
+                className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+              />
+            </div>
+          ))}
+
+          <button
+            onClick={guardarPerfil}
+            disabled={guardandoPerfil}
+            className="self-end text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg disabled:opacity-50"
+          >
+            {guardandoPerfil ? 'Guardando…' : 'Guardar perfil'}
+          </button>
+        </div>
+      </Section>
+
+      <Section
+        title="Mi empresa"
+        description="Estos datos aparecen en el sistema y en lo que se le muestra al cliente"
+      >
+        <div className="p-4 rounded-xl border border-gray-100 bg-white flex flex-col gap-3">
+          {[
+            { k: 'name', label: 'Nombre de la empresa', ph: 'Como la conocen tus clientes' },
+            { k: 'address', label: 'Dirección', ph: 'Calle, número, colonia, ciudad' },
+            { k: 'phone', label: 'Teléfono', ph: '(868) 813 2110' },
+            { k: 'website', label: 'Sitio web', ph: 'https://…' },
+          ].map(c => (
+            <div key={c.k} className="flex items-center justify-between gap-3">
+              <label className="text-sm text-gray-700 flex-shrink-0 w-36">{c.label}</label>
+              <input
+                value={empresa[c.k]}
+                onChange={e => setEmpresa(p => ({ ...p, [c.k]: e.target.value }))}
+                placeholder={c.ph}
+                className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+              />
+            </div>
+          ))}
+          <button
+            onClick={guardarEmpresa}
+            disabled={guardandoEmpresa}
+            className="self-end text-xs font-medium text-white bg-gray-900 hover:bg-gray-700 px-3 py-1.5 rounded-lg disabled:opacity-50"
+          >
+            {guardandoEmpresa ? 'Guardando…' : 'Guardar empresa'}
+          </button>
+        </div>
+      </Section>
+
+      <Section
         title="Canales"
         description="Conecta tus plataformas de mensajería para que el agente pueda recibir y responder mensajes"
       >
@@ -394,17 +526,17 @@ export default function Settings() {
               <span className="text-xs text-gray-500 block">Zona horaria</span>
               <span className="text-[11px] text-gray-400">Se usa para agendar videollamadas correctamente</span>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
               <select
                 value={timezone}
                 onChange={e => setTimezone(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/10 w-[190px] max-w-full truncate"
               >
                 <optgroup label="México">
                   <option value="America/Mexico_City">México Centro (UTC-6)</option>
                   <option value="America/Monterrey">Monterrey / NL (UTC-6)</option>
-                  <option value="America/Matamoros">Matamoros / Reynosa / Nuevo Laredo — frontera (UTC-5 en verano)</option>
-                  <option value="America/Ojinaga">Ciudad Juárez / Ojinaga — frontera (UTC-6 en verano)</option>
+                  <option value="America/Matamoros">Frontera Tamaulipas (UTC-5)</option>
+                  <option value="America/Ojinaga">Frontera Chihuahua (UTC-6)</option>
                   <option value="America/Mazatlan">Mazatlán / Noroeste (UTC-7)</option>
                   <option value="America/Tijuana">Tijuana / Pacifico (UTC-8)</option>
                 </optgroup>

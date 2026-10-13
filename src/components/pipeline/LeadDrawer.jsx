@@ -13,17 +13,18 @@ import clsx from 'clsx'
 import {
   Edit2, Trash2, X, FileText, Phone, MessageCircle, Mail, Calendar,
   Package, ChevronDown, Search, Plus, Star, AlertTriangle, Clock,
-  CheckCircle2, XCircle, ArrowRight, Video, MapPin, TrendingUp
+  CheckCircle2, XCircle, ArrowRight, Video, MapPin, TrendingUp,
+  Megaphone, Instagram, Linkedin, Globe, PenLine
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
-  meta_ads:  { icon: '🔵', label: 'Meta Ads' },
-  instagram: { icon: '📸', label: 'Instagram' },
-  whatsapp:  { icon: '💬', label: 'WhatsApp' },
-  linkedin:  { icon: '💼', label: 'LinkedIn' },
-  web:       { icon: '🌐', label: 'Web' },
-  referral:  { icon: '⭐', label: 'Referido' },
-  manual:    { icon: '✏️', label: 'Manual' },
+  meta_ads:  { icon: <Megaphone size={13} />,     label: 'Meta Ads' },
+  instagram: { icon: <Instagram size={13} />,     label: 'Instagram' },
+  whatsapp:  { icon: <MessageCircle size={13} />, label: 'WhatsApp' },
+  linkedin:  { icon: <Linkedin size={13} />,      label: 'LinkedIn' },
+  web:       { icon: <Globe size={13} />,         label: 'Web' },
+  referral:  { icon: <Star size={13} />,          label: 'Referido' },
+  manual:    { icon: <PenLine size={13} />,       label: 'Manual' },
 }
 
 const INTERACTION_TYPES = [
