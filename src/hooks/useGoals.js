@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  collection, doc, onSnapshot, setDoc, updateDoc,
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
   serverTimestamp, query, where, getDocs
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -99,7 +99,7 @@ export function useGoals() {
 
   // Real-time goals listener
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) { setLoading(false); return }
     const unsub = onSnapshot(
       collection(db, 'organizations', orgId, 'goals'),
       snap => {
@@ -107,7 +107,8 @@ export function useGoals() {
         snap.docs.forEach(d => { data[d.id] = { id: d.id, ...d.data() } })
         setGoals(data)
         setLoading(false)
-      }
+      },
+      err => { console.error('Error cargando objetivos:', err); setLoading(false) },
     )
     return unsub
   }, [orgId])
@@ -232,6 +233,11 @@ export function useGoals() {
 
   // ── OPERATIONS ─────────────────────────────────────────────────
 
+  const deleteGoal = async (quarter, year) => {
+    if (!orgId) return
+    await deleteDoc(doc(db, 'organizations', orgId, 'goals', `${year}-${quarter}`))
+  }
+
   const saveGoal = async (quarter, year, data) => {
     if (!orgId) return
     const key = `${year}-${quarter}`
@@ -298,6 +304,7 @@ export function useGoals() {
     closedRevenue,
     computedMetrics,
     saveGoal,
+    deleteGoal,
     updateRock,
     toggleRock,
     actuals,

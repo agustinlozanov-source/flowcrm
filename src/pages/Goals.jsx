@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useGoals, QUARTERS, getQuarterWeeks, getQuarterMonths } from '@/hooks/useGoals'
 import clsx from 'clsx'
+import { usePermissions } from '@/hooks/usePermissions'
 import toast from 'react-hot-toast'
 import {
   Target, Trophy, ChevronRight, Plus, X, Check,
   TrendingUp, TrendingDown, AlertTriangle, Pencil,
-  Flame, Calendar, Star, ChevronDown, Info
+  Flame, Calendar, Star, ChevronDown, Info, Trash2
 } from 'lucide-react'
 
 // ─── HELPERS ──────────────────────────────────────────────────────
@@ -429,10 +430,12 @@ function ProgressRing({ pct, size = 80, stroke = 7, color = '#0066ff' }) {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────
 export default function Goals() {
+  // Borrar un trimestre entero es decisión de quien dirige, no de cualquiera.
+  const { isAdmin } = usePermissions()
   const {
     goals, loading, currentQuarter, currentYear,
     closedRevenue, computedMetrics,
-    saveGoal, updateRock, toggleRock,
+    saveGoal, deleteGoal, updateRock, toggleRock,
     actuals, loadActuals, saveMonthlyTargets, saveWeeklyTargets,
     QUARTERS,
   } = useGoals()
@@ -440,6 +443,28 @@ export default function Goals() {
   const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter)
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [showSetupModal, setShowSetupModal] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+
+  /* Borrar un trimestre se lleva su temática, su meta de facturación, sus
+   * rocas y las metas mensuales y semanales. Por eso pide escribir el nombre
+   * del trimestre: un aceptar suelto es demasiado fácil de tocar sin querer. */
+  const handleDeleteGoal = async () => {
+    const clave = `${selectedQuarter} ${selectedYear}`
+    const escrito = window.prompt(
+      `Esto elimina el objetivo de ${clave}${goal?.theme ? ` — "${goal.theme}"` : ''}, con sus rocas y sus metas mensuales y semanales.\n\nNo se puede deshacer. Escribí ${clave} para confirmar.`,
+    )
+    if (escrito?.trim().toUpperCase() !== clave.toUpperCase()) return
+
+    setBorrando(true)
+    try {
+      await deleteGoal(selectedQuarter, selectedYear)
+      toast.success(`Objetivo de ${clave} eliminado`)
+    } catch {
+      toast.error('No se pudo eliminar')
+    } finally {
+      setBorrando(false)
+    }
+  }
   const [showRockModal, setShowRockModal] = useState(false)
   const [editingRock, setEditingRock] = useState(null) // { index, data }
   const [activeTab, setActiveTab] = useState('trimestre')
@@ -517,12 +542,19 @@ export default function Goals() {
           onYearChange={setSelectedYear}
         />
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setShowSetupModal(true)}
             className={clsx('text-[12.5px] py-1.5 px-3.5 flex items-center gap-1.5',
               goal ? 'btn-secondary' : 'btn-primary')}>
             {goal ? <><Pencil size={13} /> Editar</> : <><Plus size={14} strokeWidth={3} color="white" /> Configurar {selectedQuarter}</>}
           </button>
+          {goal && isAdmin && (
+            <button onClick={handleDeleteGoal} disabled={borrando}
+              title="Eliminar el objetivo de este trimestre"
+              className="text-[12.5px] py-1.5 px-3 rounded-[8px] border border-black/[0.1] text-secondary hover:border-red-200 hover:text-red-500 transition-all flex items-center gap-1.5 disabled:opacity-50">
+              <Trash2 size={13} /> {borrando ? 'Eliminando…' : 'Eliminar'}
+            </button>
+          )}
         </div>
       </div>
 
