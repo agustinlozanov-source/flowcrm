@@ -42,7 +42,7 @@ function ChannelBadge({ channel, size = 'sm' }) {
   const Icon = cfg.icon
   return (
     <span className={clsx('font-bold rounded-full flex items-center gap-1', size === 'sm' ? 'text-[10px] px-2 py-0.5' : 'text-[11px] px-2.5 py-1')}
-      style={{ background: cfg.bg, color: cfg.color }}>
+      style={{ background: cfg.color, color: cfg.bg }}>
       <Icon size={size === 'sm' ? 10 : 12} /> {cfg.label}
     </span>
   )
@@ -594,7 +594,7 @@ export default function Inbox() {
           ].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)}
               className={clsx('px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap',
-                filter === v ? 'bg-primary text-white' : 'text-secondary hover:bg-surface-2'
+                filter === v ? 'bg-accent-blue text-white' : 'text-secondary hover:bg-surface-2'
               )}>{l}</button>
           ))}
           <button onClick={() => setVerFechas(v => !v)}
@@ -699,7 +699,7 @@ export default function Inbox() {
               {Object.entries(CHANNEL_CONFIG).map(([key, cfg]) => {
                 const Icon = cfg.icon;
                 return (
-                  <span key={key} className="text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ background: cfg.bg, color: cfg.color }}>
+                  <span key={key} className="text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ background: cfg.color, color: cfg.bg }}>
                     <Icon size={12} /> {cfg.label}
                   </span>
                 )

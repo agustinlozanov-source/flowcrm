@@ -154,3 +154,10 @@
 .pv2:not(.pv2--light) .border-purple-200 { border-color: rgb(168 85 247 / 0.3) !important; }
 .pv2:not(.pv2--light) .border-red-200 { border-color: rgb(239 68 68 / 0.3) !important; }
 .pv2:not(.pv2--light) .border-red-50 { border-color: rgb(239 68 68 / 0.3) !important; }
+
+/* `primary` es el color del texto, y en oscuro es casi blanco. Cualquier
+   botón con fondo primario y letra blanca quedaba blanco sobre blanco. En
+   oscuro ese fondo pasa al azul de marca, que es lo que esos botones son. */
+.pv2:not(.pv2--light) .bg-primary { background-color: #0066ff !important; }
+.pv2:not(.pv2--light) .border-primary { border-color: #0066ff !important; }
+.pv2:not(.pv2--light) .hover\:bg-primary:hover { background-color: #0066ff !important; }
