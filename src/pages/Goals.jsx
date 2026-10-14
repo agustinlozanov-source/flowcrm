@@ -11,7 +11,23 @@ import {
 
 // ─── HELPERS ──────────────────────────────────────────────────────
 const fmt = (n) => n?.toLocaleString('en-US', { maximumFractionDigits: 0 }) || '0'
-const fmtUSD = (n) => `$${fmt(n)}`
+const MONEDAS = {
+  MXN: { simbolo: '$', label: 'Peso mexicano (MXN)' },
+  USD: { simbolo: '$', label: 'Dólar (USD)' },
+  EUR: { simbolo: '€', label: 'Euro (EUR)' },
+  COP: { simbolo: '$', label: 'Peso colombiano (COP)' },
+  ARS: { simbolo: '$', label: 'Peso argentino (ARS)' },
+  CLP: { simbolo: '$', label: 'Peso chileno (CLP)' },
+  PEN: { simbolo: 'S/', label: 'Sol peruano (PEN)' },
+  BRL: { simbolo: 'R$', label: 'Real (BRL)' },
+}
+const MONEDA_POR_DEFECTO = 'MXN'
+
+/** Formatea con la moneda del objetivo. Se pasa la moneda en vez de leerla de
+ *  una variable global porque dos trimestres podrían estar en monedas
+ *  distintas si la organización cambió de criterio. */
+const fmtMoneda = (n, moneda = MONEDA_POR_DEFECTO) =>
+  `${(MONEDAS[moneda] || MONEDAS[MONEDA_POR_DEFECTO]).simbolo}${fmt(n)} ${moneda}`
 
 // ─── QUARTER SELECTOR ─────────────────────────────────────────────
 function QuarterSelector({ selected, year, onChange, onYearChange }) {
@@ -214,7 +230,7 @@ function MonthlyTargetModal({ quarter, year, goal, onClose, onSave }) {
           <div className={clsx('mt-4 px-3 py-2 rounded-[8px] text-[11.5px] font-semibold flex items-center justify-between',
             Math.abs(total - quarterly) < 1 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700')}>
             <span>Total mensual vs meta trimestral</span>
-            <span>{fmtUSD(total)} / {fmtUSD(quarterly)}</span>
+            <span>{fmtMoneda(total, goal?.currency)} / {fmtMoneda(quarterly, goal?.currency)}</span>
           </div>
         )}
 
@@ -304,6 +320,7 @@ function GoalSetupModal({ goal, quarter, year, onClose, onSave }) {
     description:   goal?.description   || '',
     prize:         goal?.prize         || '',
     targetRevenue: goal?.targetRevenue || '',
+    currency:      goal?.currency      || MONEDA_POR_DEFECTO,
   })
   const [saving, setSaving] = useState(false)
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -385,12 +402,22 @@ function GoalSetupModal({ goal, quarter, year, onClose, onSave }) {
           {/* Target */}
           <div>
             <label className="text-[11px] font-semibold text-secondary uppercase tracking-wide block mb-1.5">
-              Meta de facturación (USD) *
+              Meta de facturación *
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary text-[13px] font-semibold">$</span>
-              <input type="number" value={form.targetRevenue} onChange={set('targetRevenue')}
-                placeholder="30000" className="input pl-7" />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary text-[13px] font-semibold">
+                  {(MONEDAS[form.currency] || MONEDAS[MONEDA_POR_DEFECTO]).simbolo}
+                </span>
+                <input type="number" value={form.targetRevenue} onChange={set('targetRevenue')}
+                  placeholder="30000" className="input pl-7" />
+              </div>
+              <select value={form.currency || MONEDA_POR_DEFECTO} onChange={set('currency')}
+                className="input w-[130px] flex-shrink-0 text-sm">
+                {Object.entries(MONEDAS).map(([k, m]) => (
+                  <option key={k} value={k}>{m.label}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -474,6 +501,9 @@ export default function Goals() {
   const goalKey = `${selectedYear}-${selectedQuarter}`
   const goal = goals[goalKey] || null
   const metrics = computedMetrics(goal)
+  // La moneda viaja con el objetivo: los trimestres viejos no la tienen y
+  // caen al peso mexicano, que es donde opera el cliente.
+  const moneda = goal?.currency || MONEDA_POR_DEFECTO
   const goalActuals = actuals[goalKey] || { monthly: {}, weekly: {} }
   const quarterWeeks = getQuarterWeeks(selectedQuarter, selectedYear)
 
@@ -667,9 +697,9 @@ export default function Goals() {
                           <p className="text-[11px] font-bold text-tertiary uppercase tracking-wide">Facturación trimestral</p>
                           <div className="flex items-baseline gap-2 mt-1">
                             <span className="font-display font-bold text-2xl text-primary">
-                              {fmtUSD(metrics.achieved)}
+                              {fmtMoneda(metrics.achieved, moneda)}
                             </span>
-                            <span className="text-secondary text-[13px]">de {fmtUSD(metrics.target)}</span>
+                            <span className="text-secondary text-[13px]">de {fmtMoneda(metrics.target, moneda)}</span>
                           </div>
                         </div>
                         <div className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-bold',
@@ -698,19 +728,19 @@ export default function Goals() {
 
                     <div className="card p-4">
                       <p className="text-[10.5px] font-bold text-tertiary uppercase tracking-wide mb-1">Meta mensual</p>
-                      <p className="font-display font-bold text-xl text-primary">{fmtUSD(metrics.monthlyTarget)}</p>
+                      <p className="font-display font-bold text-xl text-primary">{fmtMoneda(metrics.monthlyTarget, moneda)}</p>
                       <p className="text-[11px] text-secondary mt-0.5">por mes</p>
                     </div>
 
                     <div className="card p-4">
                       <p className="text-[10.5px] font-bold text-tertiary uppercase tracking-wide mb-1">Meta semanal</p>
-                      <p className="font-display font-bold text-xl text-primary">{fmtUSD(metrics.weeklyTarget)}</p>
+                      <p className="font-display font-bold text-xl text-primary">{fmtMoneda(metrics.weeklyTarget, moneda)}</p>
                       <p className="text-[11px] text-secondary mt-0.5">por semana</p>
                     </div>
 
                     <div className="card p-4">
                       <p className="text-[10.5px] font-bold text-tertiary uppercase tracking-wide mb-1">Meta diaria</p>
-                      <p className="font-display font-bold text-xl text-primary">{fmtUSD(metrics.dailyTarget)}</p>
+                      <p className="font-display font-bold text-xl text-primary">{fmtMoneda(metrics.dailyTarget, moneda)}</p>
                       <p className="text-[11px] text-secondary mt-0.5">por día hábil</p>
                     </div>
 
@@ -718,7 +748,7 @@ export default function Goals() {
                       <p className="text-[10.5px] font-bold text-tertiary uppercase tracking-wide mb-1">Ritmo actual</p>
                       <p className={clsx('font-display font-bold text-xl',
                         metrics.onTrack ? 'text-green-600' : 'text-amber-600')}>
-                        {fmtUSD(metrics.currentPace)}
+                        {fmtMoneda(metrics.currentPace, moneda)}
                       </p>
                       <p className="text-[11px] text-secondary mt-0.5">por día promedio</p>
                     </div>
@@ -729,7 +759,7 @@ export default function Goals() {
                           <AlertTriangle size={13} className="text-red-500" />
                           <p className="text-[10.5px] font-bold text-red-600 uppercase tracking-wide">Para recuperar el ritmo</p>
                         </div>
-                        <p className="font-display font-bold text-xl text-red-600">{fmtUSD(metrics.dailyNeeded)}/día</p>
+                        <p className="font-display font-bold text-xl text-red-600">{fmtMoneda(metrics.dailyNeeded, moneda)}/día</p>
                         <p className="text-[11px] text-red-500/70 mt-0.5">
                           necesarios en los {metrics.remaining} días restantes para llegar a la meta
                         </p>
@@ -831,8 +861,8 @@ export default function Goals() {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="font-display font-bold text-[20px] text-primary">{fmtUSD(actual)}</p>
-                              <p className="text-[11px] text-tertiary">meta: {fmtUSD(target)}</p>
+                              <p className="font-display font-bold text-[20px] text-primary">{fmtMoneda(actual, moneda)}</p>
+                              <p className="text-[11px] text-tertiary">meta: {fmtMoneda(target, moneda)}</p>
                             </div>
                           </div>
                           <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
@@ -850,7 +880,7 @@ export default function Goals() {
                             <span>{pct}% completado</span>
                             {actual >= target && target > 0
                               ? <span className="text-green-600 font-semibold">✓ Meta alcanzada</span>
-                              : <span>Faltan {fmtUSD(Math.max(0, target - actual))}</span>
+                              : <span>Faltan {fmtMoneda(Math.max(0, target - actual), moneda)}</span>
                             }
                           </div>
                         </div>

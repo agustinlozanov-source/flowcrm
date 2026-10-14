@@ -108,9 +108,18 @@ export async function repararSiHaceFalta(orgId, leadId) {
   const esperado = totalesDe(snapOps.docs.map(d => d.data()))
   const guardado = snapLead.data()?.opportunityStats
 
+  const cambios = {}
   const igual = guardado && Object.keys(esperado).every(k => (guardado[k] || 0) === esperado[k])
-  if (igual) return
-  await updateDoc(leadRef, { opportunityStats: esperado })
+  if (!igual) cambios.opportunityStats = esperado
+
+  // Sin fecha de cierre el lead no entra en ninguna consulta por rango, y los
+  // objetivos del trimestre buscan justamente así.
+  if (esperado.won > 0 && !snapLead.data()?.closedAt) {
+    cambios.closedAt = serverTimestamp()
+  }
+
+  if (!Object.keys(cambios).length) return
+  await updateDoc(leadRef, cambios)
 }
 
 export function useOpportunities(leadId) {
@@ -216,5 +225,9 @@ export function useOpportunitiesOnce(leadId) {
 export function totalesViejos(lead) {
   const s = lead?.opportunityStats
   if (!s?.total) return false
-  return (s.valueReal || 0) + (s.valuePotencial || 0) > (s.valueOpen || 0)
+  // Totales calculados con la fórmula vieja: real + potencial no puede
+  // superar lo abierto.
+  if ((s.valueReal || 0) + (s.valuePotencial || 0) > (s.valueOpen || 0)) return true
+  // O ganó algo y nunca se le puso fecha de cierre: invisible para la meta.
+  return s.won > 0 && !lead.closedAt
 }

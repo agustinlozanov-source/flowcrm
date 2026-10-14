@@ -125,11 +125,11 @@ export function useGoals() {
       const q = QUARTERS[currentQuarter]
       const startDate = new Date(currentYear, q.months[0], 1)
       const endDate = new Date(currentYear, q.months[2] + 1, 0)
+      endDate.setHours(23, 59, 59, 999)
 
       const snap = await getDocs(
         query(
           collection(db, 'organizations', orgId, 'leads'),
-          where('systemStage', '==', 'closed'),
           where('closedAt', '>=', startDate),
           where('closedAt', '<=', endDate)
         )
@@ -140,6 +140,7 @@ export function useGoals() {
       // producto cerrado queda de respaldo para las ventas viejas.
       const total = snap.docs.reduce((sum, d) => {
         const l = d.data()
+        if (l.discarded) return sum
         return sum + (l.opportunityStats?.valueWon || l.closedProduct?.price || l.value || 0)
       }, 0)
       setClosedRevenue(total)
@@ -160,7 +161,6 @@ export function useGoals() {
       const snap = await getDocs(
         query(
           collection(db, 'organizations', orgId, 'leads'),
-          where('systemStage', '==', 'closed'),
           where('closedAt', '>=', startDate),
           where('closedAt', '<=', endDate)
         )
@@ -170,6 +170,7 @@ export function useGoals() {
       const weekly = {}
       snap.docs.forEach(d => {
         const data = d.data()
+        if (data.discarded) return
         const closedAt = data.closedAt?.toDate?.()
         if (!closedAt) return
         const revenue = data.opportunityStats?.valueWon || data.closedProduct?.price || data.value || 0
