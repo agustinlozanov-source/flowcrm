@@ -1178,6 +1178,149 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
 }
 
 // ─── PRODUCTS TAB ────────────────────────────────────────────────
+/* ── HORARIOS DE ATENCIÓN ──────────────────────────────────────────
+ *
+ * Cada día con sus propios tramos. Varios por día, porque una clínica que
+ * cierra al mediodía tiene dos y antes había que elegir uno solo.
+ *
+ * Un día sin tramos es un día cerrado: no hace falta un interruptor aparte
+ * para apagarlo, y así no se puede quedar "abierto sin horario".
+ */
+const DIAS = [
+  { n: 1, corto: 'Lun', largo: 'Lunes' },
+  { n: 2, corto: 'Mar', largo: 'Martes' },
+  { n: 3, corto: 'Mié', largo: 'Miércoles' },
+  { n: 4, corto: 'Jue', largo: 'Jueves' },
+  { n: 5, corto: 'Vie', largo: 'Viernes' },
+  { n: 6, corto: 'Sáb', largo: 'Sábado' },
+  { n: 0, corto: 'Dom', largo: 'Domingo' },
+]
+
+const TRAMO_NUEVO = { desde: '09:00', hasta: '19:00' }
+
+/** Un tramo que arranca donde terminó el anterior y dura dos horas. Sin esto
+ *  el tramo nuevo nacía al revés —de 19:00 a 14:00— y había que arreglarlo a
+ *  mano antes de poder usarlo. */
+function siguienteTramo(finAnterior) {
+  const [h, m] = (finAnterior || '14:00').split(':').map(Number)
+  const minutos = Math.min(h * 60 + m + 120, 23 * 60 + 59)
+  const dos = n => String(n).padStart(2, '0')
+  return {
+    desde: finAnterior || '14:00',
+    hasta: `${dos(Math.floor(minutos / 60))}:${dos(minutos % 60)}`,
+  }
+}
+
+/** Acepta la forma vieja —un rango para varios días— para no perder lo que ya
+ *  estaba configurado. */
+function aPorDia(valor) {
+  if (valor?.porDia) return valor.porDia
+  if (valor?.dias) {
+    const tramo = [{ desde: valor.desde || '09:00', hasta: valor.hasta || '19:00' }]
+    return Object.fromEntries(valor.dias.map(d => [d, tramo]))
+  }
+  return { 1: [{ desde: '09:00', hasta: '19:00' }], 2: [{ desde: '09:00', hasta: '19:00' }],
+           3: [{ desde: '09:00', hasta: '19:00' }], 4: [{ desde: '09:00', hasta: '19:00' }],
+           5: [{ desde: '09:00', hasta: '19:00' }] }
+}
+
+function HorariosDeAtencion({ valor, onChange }) {
+  const porDia = aPorDia(valor)
+  const escribir = (nuevo) => onChange({ porDia: nuevo })
+
+  const tramosDe = (d) => porDia[d] || []
+  const setTramos = (d, tramos) => {
+    const copia = { ...porDia }
+    if (tramos.length) copia[d] = tramos
+    else delete copia[d]
+    escribir(copia)
+  }
+
+  const abrirDia = (d) => setTramos(d, [{ ...TRAMO_NUEVO }])
+  const cerrarDia = (d) => setTramos(d, [])
+
+  const copiarATodos = (d) => {
+    const tramos = tramosDe(d)
+    if (!tramos.length) return
+    const copia = {}
+    // Solo a los días que ya están abiertos: copiar un horario a un domingo
+    // que estaba cerrado sería abrir el negocio sin que nadie lo pidiera.
+    for (const dia of Object.keys(porDia)) copia[dia] = tramos.map(t => ({ ...t }))
+    escribir(copia)
+    toast.success('Horario copiado a los días abiertos')
+  }
+
+  const abiertos = DIAS.filter(d => tramosDe(d.n).length)
+
+  return (
+    <Section title="Horarios de atención" desc="Los únicos días y horas en que el agente puede agendar">
+      <div className="flex flex-col gap-2">
+        {DIAS.map(({ n, corto, largo }) => {
+          const tramos = tramosDe(n)
+          const abierto = tramos.length > 0
+          return (
+            <div key={n} className={`rounded-[10px] border px-3 py-2.5 transition-all ${
+              abierto ? 'border-black/[0.08] bg-surface' : 'border-transparent bg-surface-2'
+            }`}>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => (abierto ? cerrarDia(n) : abrirDia(n))}
+                  className={`w-[52px] py-1.5 rounded-lg text-[11.5px] font-bold transition-all flex-shrink-0 ${
+                    abierto ? 'bg-accent-blue text-white' : 'bg-surface text-tertiary border border-black/[0.08]'
+                  }`}
+                  title={abierto ? `Cerrar ${largo.toLowerCase()}` : `Abrir ${largo.toLowerCase()}`}
+                >
+                  {corto}
+                </button>
+
+                {!abierto ? (
+                  <span className="text-[12px] text-tertiary">Cerrado</span>
+                ) : (
+                  <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    {tramos.map((t, i) => (
+                      <div key={i} className="flex items-center gap-1.5 flex-wrap">
+                        <input type="time" className="input text-[13px] py-1 w-[104px]" value={t.desde}
+                          onChange={e => setTramos(n, tramos.map((x, j) => (j === i ? { ...x, desde: e.target.value } : x)))} />
+                        <span className="text-[11px] text-tertiary">a</span>
+                        <input type="time" className="input text-[13px] py-1 w-[104px]" value={t.hasta}
+                          onChange={e => setTramos(n, tramos.map((x, j) => (j === i ? { ...x, hasta: e.target.value } : x)))} />
+                        {t.hasta <= t.desde && (
+                          <span className="text-[10.5px] text-red-500">el cierre va después de la apertura</span>
+                        )}
+                        {tramos.length > 1 && (
+                          <button onClick={() => setTramos(n, tramos.filter((_, j) => j !== i))}
+                            title="Quitar este tramo"
+                            className="text-tertiary hover:text-red-500 p-0.5"><X size={13} /></button>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setTramos(n, [...tramos, siguienteTramo(tramos[tramos.length - 1].hasta)])}
+                        className="text-[11px] text-accent-blue hover:underline flex items-center gap-1">
+                        <Plus size={11} /> Otro tramo
+                      </button>
+                      {abiertos.length > 1 && (
+                        <button onClick={() => copiarATodos(n)}
+                          className="text-[11px] text-tertiary hover:text-primary">
+                          Copiar a los demás días
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-[11px] text-tertiary mt-3">
+        Un día sin horario queda cerrado. Si cierran al mediodía, agregá un segundo tramo en vez de estirar el primero:
+        el agente no ofrece nada en el hueco del medio.
+      </p>
+    </Section>
+  )
+}
+
 function ProductsTab({ enabledProductIds, onChange }) {
   const { products, loading } = useProducts()
   const activeProducts = products.filter(p => (p.status || 'active') === 'active')
@@ -1712,9 +1855,10 @@ export default function Agent() {
     customInstructions: {},
     enabledProductIds: [],
     scoring: {},
-    meetingBuffer: 30,
+    meetingBuffer: 15,
     scoreOnBooking: 25,
-    workingHours: { dias: [1, 2, 3, 4, 5], desde: '09:00', hasta: '19:00' },
+    workingHours: null,
+    slotStep: 30,
     followUp: {
       enabled: false,
       delayMinutes: 60,
@@ -1754,6 +1898,7 @@ export default function Agent() {
           meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
           scoreOnBooking: data.scoreOnBooking ?? c.scoreOnBooking,
           workingHours: data.workingHours ?? c.workingHours,
+          slotStep: data.slotStep ?? c.slotStep,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
         }))
@@ -1862,7 +2007,28 @@ export default function Agent() {
                     placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
                 </Section>
 
-                <Section title="Buffer entre reuniones" desc="Tiempo mínimo entre citas — el agente no propondrá horarios que se empalmen">
+                <Section title="Cada cuánto puede empezar una cita" desc="El agente ofrece horarios en múltiplos de este intervalo">
+                  <div className="flex flex-wrap gap-2">
+                    {[10, 15, 20, 30, 60].map(min => (
+                      <button
+                        key={min}
+                        onClick={() => set('slotStep', min)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          (config.slotStep ?? 30) === min
+                            ? 'bg-accent-blue text-white border-accent-blue'
+                            : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+                        }`}
+                      >
+                        cada {min} min
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-tertiary mt-2">
+                    Con 30 min ofrece 9:00, 9:30, 10:00… Con 15 aprovecha mejor la agenda pero da más opciones al lead.
+                  </p>
+                </Section>
+
+                <Section title="Respiro entre citas" desc="Tiempo libre que queda antes y después de cada cita ya tomada">
                   <div className="flex flex-wrap gap-2">
                     {[0, 15, 30, 45, 60].map(min => (
                       <button
@@ -1879,7 +2045,7 @@ export default function Agent() {
                     ))}
                   </div>
                   <p className="text-[11px] text-tertiary mt-2">
-                    El agente consulta la agenda antes de ofrecer un horario: cruza las citas de FlowHub con lo que ya esté ocupado en Google Calendar.
+                    Solo pesa alrededor de las citas que ya existen; con la agenda vacía no quita horarios. El agente cruza las citas de FlowHub con lo ocupado en Google Calendar antes de ofrecer.
                   </p>
                 </Section>
 
@@ -1901,41 +2067,10 @@ export default function Agent() {
                   </p>
                 </Section>
 
-                <Section title="Horarios de atención" desc="Los únicos días y horas en que el agente puede agendar">
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {[['D', 0], ['L', 1], ['M', 2], ['X', 3], ['J', 4], ['V', 5], ['S', 6]].map(([letra, dia]) => {
-                      const dias = config.workingHours?.dias ?? [1, 2, 3, 4, 5]
-                      const activo = dias.includes(dia)
-                      return (
-                        <button key={dia}
-                          onClick={() => set('workingHours', {
-                            ...(config.workingHours || { desde: '09:00', hasta: '19:00' }),
-                            dias: activo ? dias.filter(d => d !== dia) : [...dias, dia].sort(),
-                          })}
-                          className={`w-9 h-9 rounded-lg text-xs font-bold border transition-all ${
-                            activo
-                              ? 'bg-accent-blue text-white border-accent-blue'
-                              : 'bg-surface-2 text-tertiary border-transparent hover:border-accent-blue/40'
-                          }`}>
-                          {letra}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-secondary">De</span>
-                    <input type="time" className="input text-sm w-32"
-                      value={config.workingHours?.desde || '09:00'}
-                      onChange={e => set('workingHours', { ...(config.workingHours || { dias: [1, 2, 3, 4, 5], hasta: '19:00' }), desde: e.target.value })} />
-                    <span className="text-[11px] text-secondary">a</span>
-                    <input type="time" className="input text-sm w-32"
-                      value={config.workingHours?.hasta || '19:00'}
-                      onChange={e => set('workingHours', { ...(config.workingHours || { dias: [1, 2, 3, 4, 5], desde: '09:00' }), hasta: e.target.value })} />
-                  </div>
-                  <p className="text-[11px] text-tertiary mt-2">
-                    Fuera de estos horarios el agente no ofrece nada, aunque el calendario esté libre.
-                  </p>
-                </Section>
+                <HorariosDeAtencion
+                  valor={config.workingHours}
+                  onChange={h => set('workingHours', h)}
+                />
 
                 {featureFlags.followup !== false && <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
                   <div className="flex items-center gap-3 mb-3">

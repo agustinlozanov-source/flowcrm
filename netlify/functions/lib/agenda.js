@@ -10,12 +10,46 @@
  * entiende las 9 de la mañana.
  */
 
+/* Horario de atención por día.
+ *
+ * Cada día tiene sus propios tramos, y pueden ser varios: una clínica que
+ * cierra al mediodía tiene dos. Un día sin tramos es un día cerrado.
+ *
+ * 0 = domingo.
+ */
 const HORARIO_POR_DEFECTO = {
-  // 0 = domingo. Lunes a viernes de 9 a 19, que es lo más común y lo que la
-  // organización puede cambiar desde la pantalla del agente.
-  dias: [1, 2, 3, 4, 5],
-  desde: '09:00',
-  hasta: '19:00',
+  porDia: {
+    1: [{ desde: '09:00', hasta: '19:00' }],
+    2: [{ desde: '09:00', hasta: '19:00' }],
+    3: [{ desde: '09:00', hasta: '19:00' }],
+    4: [{ desde: '09:00', hasta: '19:00' }],
+    5: [{ desde: '09:00', hasta: '19:00' }],
+  },
+}
+
+/** Acepta el formato viejo —un solo rango para varios días— y lo traduce.
+ *  Las organizaciones que ya lo tenían configurado así no se enteran. */
+function normalizarHorario(h) {
+  if (!h) return HORARIO_POR_DEFECTO
+  if (h.porDia) return h
+  const dias = h.dias || HORARIO_POR_DEFECTO.porDia
+  const tramo = [{ desde: h.desde || '09:00', hasta: h.hasta || '19:00' }]
+  return { porDia: Object.fromEntries((dias || []).map(d => [d, tramo])) }
+}
+
+/** Los tramos de atención de una fecha, ya como instantes. */
+function tramosDeLaFecha(fecha, horario, tz) {
+  const h = normalizarHorario(horario)
+  const dia = localDe(instanteDesdeLocal(fecha, '12:00', tz), tz).dia
+  return (h.porDia?.[dia] || [])
+    .filter(t => t?.desde && t?.hasta)
+    .map(t => ({
+      abre: instanteDesdeLocal(fecha, t.desde, tz),
+      cierra: instanteDesdeLocal(fecha, t.hasta, tz),
+      texto: `${t.desde} a ${t.hasta}`,
+    }))
+    .filter(t => t.cierra > t.abre)
+    .sort((a, b) => a.abre - b.abre)
 }
 
 /** Minutos que la zona horaria está corrida respecto de UTC en ese instante. */
@@ -72,30 +106,31 @@ function solapan(aIni, aFin, bIni, bFin) {
  * @param duracion  minutos que dura la cita a agendar
  * @param buffer    minutos mínimos entre una cita y la siguiente
  */
-function huecosDelDia({ fecha, ocupados = [], duracion = 30, buffer = 0, horario = HORARIO_POR_DEFECTO, tz = 'America/Mexico_City', ahora = new Date() }) {
-  const inicioJornada = instanteDesdeLocal(fecha, horario.desde || '09:00', tz)
-  const finJornada = instanteDesdeLocal(fecha, horario.hasta || '19:00', tz)
+function huecosDelDia({ fecha, ocupados = [], duracion = 30, buffer = 0, paso = 0, horario = HORARIO_POR_DEFECTO, tz = 'America/Mexico_City', ahora = new Date() }) {
+  const tramos = tramosDeLaFecha(fecha, horario, tz)
+  if (!tramos.length) return []
 
-  const dias = horario.dias || HORARIO_POR_DEFECTO.dias
-  if (!dias.includes(localDe(inicioJornada, tz).dia)) return []
-
-  // El paso es la duración más el buffer: si hay una a las 7:30 y el buffer es
-  // de 30, el siguiente arranque posible es a las 8, no a las 7:45.
-  const paso = Math.max(5, duracion + buffer)
+  // Cada cuánto puede empezar una cita. Es propio y no se deduce del buffer:
+  // con la agenda vacía no hay razón para ofrecer horarios espaciados.
+  const salto = Math.max(5, paso || duracion)
   const libres = []
 
-  for (let t = inicioJornada.getTime(); t + duracion * 60000 <= finJornada.getTime(); t += paso * 60000) {
-    const inicio = new Date(t)
-    const fin = new Date(t + duracion * 60000)
-    if (inicio <= ahora) continue // no se ofrece algo que ya pasó
+  for (const tramo of tramos) {
+    for (let t = tramo.abre.getTime(); t + duracion * 60000 <= tramo.cierra.getTime(); t += salto * 60000) {
+      const inicio = new Date(t)
+      const fin = new Date(t + duracion * 60000)
+      if (inicio <= ahora) continue // no se ofrece algo que ya pasó
 
-    const chocaCon = ocupados.some(o =>
-      solapan(
-        new Date(inicio.getTime() - buffer * 60000),
-        new Date(fin.getTime() + buffer * 60000),
-        o.inicio, o.fin,
-      ))
-    if (!chocaCon) libres.push({ inicio, fin, hora: localDe(inicio, tz).hora })
+      // El buffer solo pesa contra lo que ya está tomado: es el respiro entre
+      // una cita y la siguiente, no una forma de ralear la agenda.
+      const chocaCon = ocupados.some(o =>
+        solapan(
+          new Date(inicio.getTime() - buffer * 60000),
+          new Date(fin.getTime() + buffer * 60000),
+          o.inicio, o.fin,
+        ))
+      if (!chocaCon) libres.push({ inicio, fin, hora: localDe(inicio, tz).hora })
+    }
   }
 
   return libres
@@ -116,15 +151,19 @@ function estaLibre({ fecha, hora, duracion = 30, buffer = 0, horario = HORARIO_P
   const inicio = instanteDesdeLocal(fecha, hora, tz)
   const fin = new Date(inicio.getTime() + duracion * 60000)
 
-  const dias = horario.dias || HORARIO_POR_DEFECTO.dias
-  if (!dias.includes(localDe(inicio, tz).dia)) {
+  const tramos = tramosDeLaFecha(fecha, horario, tz)
+  if (!tramos.length) {
     return { libre: false, motivo: 'ese día no se atiende' }
   }
 
-  const abre = instanteDesdeLocal(fecha, horario.desde || '09:00', tz)
-  const cierra = instanteDesdeLocal(fecha, horario.hasta || '19:00', tz)
-  if (inicio < abre || fin > cierra) {
-    return { libre: false, motivo: `está fuera del horario de atención (${horario.desde || '09:00'} a ${horario.hasta || '19:00'})` }
+  // Tiene que entrar completa en UN tramo: una cita no puede empezar antes de
+  // cerrar al mediodía y terminar después de reabrir.
+  const entra = tramos.some(t => inicio >= t.abre && fin <= t.cierra)
+  if (!entra) {
+    return {
+      libre: false,
+      motivo: `está fuera del horario de atención (ese día se atiende de ${tramos.map(t => t.texto).join(' y de ')})`,
+    }
   }
   if (inicio <= ahora) {
     return { libre: false, motivo: 'ya pasó' }
@@ -139,6 +178,8 @@ function estaLibre({ fecha, hora, duracion = 30, buffer = 0, horario = HORARIO_P
 
 module.exports = {
   HORARIO_POR_DEFECTO,
+  normalizarHorario,
+  tramosDeLaFecha,
   estaLibre,
   offsetMinutos,
   instanteDesdeLocal,
@@ -210,8 +251,11 @@ async function configDeAgenda(db, orgId) {
   const agente = agentSnap.data() || {}
   return {
     tz: orgSnap.data()?.timezone || 'America/Mexico_City',
-    buffer: Number.isFinite(agente.meetingBuffer) ? agente.meetingBuffer : 30,
-    horario: agente.workingHours || HORARIO_POR_DEFECTO,
+    // Respiro entre una cita y la siguiente.
+    buffer: Number.isFinite(agente.meetingBuffer) ? agente.meetingBuffer : 15,
+    // Cada cuánto puede empezar una cita. Sin configurar, cada 30 minutos.
+    paso: Number.isFinite(agente.slotStep) ? agente.slotStep : 30,
+    horario: normalizarHorario(agente.workingHours),
   }
 }
 
@@ -236,11 +280,12 @@ async function ocupadosDelDia(db, orgId, fecha) {
 async function puedeAgendar(db, orgId, { fecha, hora, duracion = 30 }) {
   const { tz, buffer, horario } = await configDeAgenda(db, orgId)
   const ocupados = await ocupadosDelDia(db, orgId, fecha)
+  // El paso no entra acá: valida una hora concreta, no propone.
   return { ...estaLibre({ fecha, hora, duracion, buffer, horario, tz, ocupados }), tz }
 }
 
 async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
-  const { tz, buffer, horario } = await configDeAgenda(db, orgId)
+  const { tz, buffer, paso, horario } = await configDeAgenda(db, orgId)
 
   // Se pide el día entero en UTC para no perder citas por el corrimiento.
   const desde = new Date(`${fecha}T00:00:00Z`)
@@ -252,10 +297,10 @@ async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
   ])
 
   const slots = huecosDelDia({
-    fecha, duracion, buffer, horario, tz,
+    fecha, duracion, buffer, paso, horario, tz,
     ocupados: [...citas, ...google],
   })
-  return { slots, tz, buffer, horario }
+  return { slots, tz, buffer, paso, horario }
 }
 
 module.exports.ocupadosDelDia = ocupadosDelDia
