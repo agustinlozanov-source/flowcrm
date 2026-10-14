@@ -226,16 +226,23 @@ async function ejecutarHerramienta(nombre, input, ctx) {
 
   if (nombre === 'agendar_cita') {
     if (leadId === 'test') return 'Modo prueba: la cita no se creó realmente.'
-    const { instanteDesdeLocal, configDeAgenda, disponibilidad } = require('./lib/agenda')
+    const { instanteDesdeLocal, configDeAgenda, puedeAgendar, disponibilidad } = require('./lib/agenda')
     // db es el handle de arriba del archivo.
     const { tz } = await configDeAgenda(db, orgId)
-    const duracion = input.duracion || 30
+    // La misma duración con la que se ofreció. Si se usa otra, el paso de la
+    // grilla cambia y una hora recién ofrecida parece no existir.
+    const duracion = input.duracion || ctx.duracionOfrecida || 30
 
-    // Se vuelve a verificar antes de escribir: entre que el agente consultó y
-    // decidió, alguien pudo tomar ese hueco.
-    const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion })
-    if (!slots.some(x => x.hora === input.hora)) {
-      return `Ese horario ya no está libre. Los que quedan el ${input.fecha} son: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrece uno de esos.`
+    /* Se valida por choque, no por pertenecer a la grilla.
+     *
+     * La grilla es una forma de proponer horarios parejos y su paso depende de
+     * la duración: con 20 minutos da 17:20, con 30 no. Exigir que la hora
+     * estuviera en ella hacía que el agente ofreciera las 17:20 y un segundo
+     * después dijera que no existe. */
+    const chequeo = await puedeAgendar(db, orgId, { fecha: input.fecha, hora: input.hora, duracion })
+    if (!chequeo.libre) {
+      const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion })
+      return `No se puede agendar a las ${input.hora}: ${chequeo.motivo}. Horarios libres el ${input.fecha}: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrece uno de esos.`
     }
 
     const cuando = instanteDesdeLocal(input.fecha, input.hora, tz)

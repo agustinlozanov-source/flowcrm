@@ -101,8 +101,45 @@ function huecosDelDia({ fecha, ocupados = [], duracion = 30, buffer = 0, horario
   return libres
 }
 
+/**
+ * ¿Se puede agendar a esta hora exacta?
+ *
+ * Distinto de pedir que la hora esté en la grilla de huecos. La grilla sirve
+ * para OFRECER —son arranques parejos, cómodos de leer— y su paso depende de
+ * la duración: con 20 minutos da 11:30 y 12:20, con 30 da 11:00 y 12:00. Si
+ * se ofrece con una duración y se valida con otra, una hora recién ofrecida
+ * aparece como inexistente.
+ *
+ * Para validar lo único que importa es si choca con algo.
+ */
+function estaLibre({ fecha, hora, duracion = 30, buffer = 0, horario = HORARIO_POR_DEFECTO, tz = 'America/Mexico_City', ocupados = [], ahora = new Date() }) {
+  const inicio = instanteDesdeLocal(fecha, hora, tz)
+  const fin = new Date(inicio.getTime() + duracion * 60000)
+
+  const dias = horario.dias || HORARIO_POR_DEFECTO.dias
+  if (!dias.includes(localDe(inicio, tz).dia)) {
+    return { libre: false, motivo: 'ese día no se atiende' }
+  }
+
+  const abre = instanteDesdeLocal(fecha, horario.desde || '09:00', tz)
+  const cierra = instanteDesdeLocal(fecha, horario.hasta || '19:00', tz)
+  if (inicio < abre || fin > cierra) {
+    return { libre: false, motivo: `está fuera del horario de atención (${horario.desde || '09:00'} a ${horario.hasta || '19:00'})` }
+  }
+  if (inicio <= ahora) {
+    return { libre: false, motivo: 'ya pasó' }
+  }
+
+  const choca = ocupados.some(o =>
+    solapan(new Date(inicio.getTime() - buffer * 60000), new Date(fin.getTime() + buffer * 60000), o.inicio, o.fin))
+  if (choca) return { libre: false, motivo: 'se empalma con otra cita' }
+
+  return { libre: true }
+}
+
 module.exports = {
   HORARIO_POR_DEFECTO,
+  estaLibre,
   offsetMinutos,
   instanteDesdeLocal,
   localDe,
@@ -182,6 +219,26 @@ async function configDeAgenda(db, orgId) {
  * Huecos reales de un día, cruzando las tres fuentes.
  * @returns { slots: [{inicio, fin, hora}], tz, buffer, horario }
  */
+/** Lo ocupado de ese día, de las dos fuentes. Se separa de `disponibilidad`
+ *  porque validar una hora puntual necesita lo mismo pero sin la grilla. */
+async function ocupadosDelDia(db, orgId, fecha) {
+  const desde = new Date(`${fecha}T00:00:00Z`)
+  const hasta = new Date(desde.getTime() + 48 * 36e5)
+  const ventanaDesde = new Date(desde.getTime() - 24 * 36e5)
+  const [citas, google] = await Promise.all([
+    ocupadoEnFlowHub(db, orgId, ventanaDesde, hasta),
+    ocupadoEnGoogle(db, orgId, ventanaDesde, hasta),
+  ])
+  return [...citas, ...google]
+}
+
+/** Valida una hora concreta contra la agenda real. */
+async function puedeAgendar(db, orgId, { fecha, hora, duracion = 30 }) {
+  const { tz, buffer, horario } = await configDeAgenda(db, orgId)
+  const ocupados = await ocupadosDelDia(db, orgId, fecha)
+  return { ...estaLibre({ fecha, hora, duracion, buffer, horario, tz, ocupados }), tz }
+}
+
 async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
   const { tz, buffer, horario } = await configDeAgenda(db, orgId)
 
@@ -201,6 +258,8 @@ async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
   return { slots, tz, buffer, horario }
 }
 
+module.exports.ocupadosDelDia = ocupadosDelDia
+module.exports.puedeAgendar = puedeAgendar
 module.exports.ocupadoEnGoogle = ocupadoEnGoogle
 module.exports.ocupadoEnFlowHub = ocupadoEnFlowHub
 module.exports.configDeAgenda = configDeAgenda
