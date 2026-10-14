@@ -1178,6 +1178,61 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
 }
 
 // ─── PRODUCTS TAB ────────────────────────────────────────────────
+/* Minutos con atajos y campo libre.
+ *
+ * Los atajos cubren lo habitual; el campo es para el resto. Sin él, un
+ * consultorio que trabaja de 25 en 25 tenía que elegir el valor más parecido
+ * y vivir con una agenda que no es la suya.
+ */
+function Minutos({ valor, onChange, presets, min = 0, max = 240, sufijo = 'min' }) {
+  const esPreset = presets.includes(valor)
+  const [libre, setLibre] = useState(esPreset ? '' : String(valor ?? ''))
+
+  const acotar = (txt) => Math.max(min, Math.min(max, parseInt(txt, 10) || min))
+
+  const escribir = (txt) => {
+    setLibre(txt)
+    if (txt === '') return
+    onChange(acotar(txt))
+  }
+
+  const alSalir = () => {
+    if (libre === '') return
+    const n = acotar(libre)
+    setLibre(presets.includes(n) ? '' : String(n))
+    onChange(n)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {presets.map(p => (
+        <button key={p}
+          onClick={() => { onChange(p); setLibre('') }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+            valor === p
+              ? 'bg-accent-blue text-white border-accent-blue'
+              : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
+          }`}>
+          {p === 0 ? 'Sin respiro' : `${p} ${sufijo}`}
+        </button>
+      ))}
+      <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 transition-all ${
+        !esPreset ? 'border-accent-blue bg-accent-blue/[0.06]' : 'border-black/[0.1]'
+      }`}>
+        <input
+          type="number" min={min} max={max}
+          value={esPreset ? libre : (libre || valor || '')}
+          onChange={e => escribir(e.target.value)}
+          onBlur={alSalir}
+          placeholder="Otro"
+          className="w-[58px] bg-transparent outline-none text-xs font-semibold text-primary placeholder-tertiary text-center"
+        />
+        <span className="text-[11px] text-tertiary">{sufijo}</span>
+      </div>
+    </div>
+  )
+}
+
 /* ── HORARIOS DE ATENCIÓN ──────────────────────────────────────────
  *
  * Cada día con sus propios tramos. Varios por día, porque una clínica que
@@ -2008,42 +2063,23 @@ export default function Agent() {
                 </Section>
 
                 <Section title="Cada cuánto puede empezar una cita" desc="El agente ofrece horarios en múltiplos de este intervalo">
-                  <div className="flex flex-wrap gap-2">
-                    {[10, 15, 20, 30, 60].map(min => (
-                      <button
-                        key={min}
-                        onClick={() => set('slotStep', min)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          (config.slotStep ?? 30) === min
-                            ? 'bg-accent-blue text-white border-accent-blue'
-                            : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
-                        }`}
-                      >
-                        cada {min} min
-                      </button>
-                    ))}
-                  </div>
+                  <Minutos
+                    valor={config.slotStep ?? 30}
+                    onChange={v => set('slotStep', v)}
+                    presets={[10, 15, 20, 30, 60]}
+                    min={5}
+                  />
                   <p className="text-[11px] text-tertiary mt-2">
                     Con 30 min ofrece 9:00, 9:30, 10:00… Con 15 aprovecha mejor la agenda pero da más opciones al lead.
                   </p>
                 </Section>
 
                 <Section title="Respiro entre citas" desc="Tiempo libre que queda antes y después de cada cita ya tomada">
-                  <div className="flex flex-wrap gap-2">
-                    {[0, 15, 30, 45, 60].map(min => (
-                      <button
-                        key={min}
-                        onClick={() => set('meetingBuffer', min)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          config.meetingBuffer === min
-                            ? 'bg-accent-blue text-white border-accent-blue'
-                            : 'bg-surface-2 text-secondary border-transparent hover:border-accent-blue/40'
-                        }`}
-                      >
-                        {min === 0 ? 'Sin buffer' : `${min} min`}
-                      </button>
-                    ))}
-                  </div>
+                  <Minutos
+                    valor={config.meetingBuffer ?? 15}
+                    onChange={v => set('meetingBuffer', v)}
+                    presets={[0, 10, 15, 30, 45]}
+                  />
                   <p className="text-[11px] text-tertiary mt-2">
                     Solo pesa alrededor de las citas que ya existen; con la agenda vacía no quita horarios. El agente cruza las citas de FlowHub con lo ocupado en Google Calendar antes de ofrecer.
                   </p>
