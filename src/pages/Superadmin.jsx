@@ -8,7 +8,7 @@ import { db, auth } from '@/lib/firebase'
 import { syncAuthClaims } from '@/lib/authClaims'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck, Link } from 'lucide-react'
+import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck, Link, Mail } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
@@ -359,6 +359,10 @@ const css = `
   .sa-stat-sub { font-size: 13px; color: var(--gray-5); margin-top: 3px; }
 
   /* TABLE */
+  /* La tarjeta tiene overflow:hidden para redondear las esquinas, así que
+   * una tabla ancha se recortaba y se comía los botones del final. Este
+   * carril le devuelve el desplazamiento horizontal. */
+  .sa-table-scroll { overflow-x: auto; }
   .sa-table { width: 100%; border-collapse: collapse; }
   .sa-table th {
     padding: 10px 16px; text-align: left;
@@ -883,6 +887,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
           <div className="sa-card-title">Organizaciones ({orgs.length})</div>
           <Btn variant="white" onClick={openNew}>+ Nueva organización</Btn>
         </div>
+        <div className="sa-table-scroll">
         <table className="sa-table">
           <thead>
             <tr>
@@ -944,15 +949,15 @@ function Organizations({ orgs, resellers, onRefresh }) {
                   <span style={{ fontSize: 13, color: 'var(--gray-4)' }}>{org.status || 'active'}</span>
                 </td>
                 <td>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
                     <Btn sm variant="ghost" onClick={() => openEdit(org)}>Editar</Btn>
                     <Btn sm variant="ghost" onClick={() => resendAccess(org)} title="Enviar correo de acceso al administrador">
-                      📧 Reenviar acceso
+                      <Mail size={12} />
                     </Btn>
                     {!org.ownerId && (
                       <Btn sm variant="ghost" onClick={() => repairAuth(org)} disabled={repairing === org.id}
                         title="La org no tiene usuario en Firebase Auth. Haz clic para crearlo.">
-                        {repairing === org.id ? '...' : '🔑 Crear Auth'}
+                        {repairing === org.id ? '...' : <Key size={12} />}
                       </Btn>
                     )}
                     <Btn sm variant={org.status === 'active' ? 'danger' : 'ghost'} onClick={() => toggleStatus(org)}>
@@ -970,6 +975,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showModal && (
