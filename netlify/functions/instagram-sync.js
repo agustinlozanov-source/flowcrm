@@ -12,8 +12,6 @@ const ig = require('./lib/instagram')
 const POR_TANDA = 5          // peticiones de métricas en paralelo
 const MAXIMO = 25            // publicaciones por sincronización
 
-const div = (a, b) => (b > 0 ? a / b : null)
-
 function mediana(nums) {
   const xs = nums.filter(n => typeof n === 'number').sort((a, b) => a - b)
   if (!xs.length) return null
@@ -21,9 +19,18 @@ function mediana(nums) {
   return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2
 }
 
-/** Los derivados que importan, calculados contra los seguidores del momento. */
+/* Los derivados que importan, calculados contra los seguidores del momento.
+ *
+ * Una publicación de la que Instagram no devolvió nada NO es una publicación
+ * con cero: es una publicación sin datos. Son cosas distintas y confundirlas
+ * arrastra todas las medianas al suelo — una cuenta sana parece muerta porque
+ * sus fotos viejas, que nunca tuvieron métricas, votan como ceros. Por eso lo
+ * que no se sabe queda en null y se cae solo de los cálculos. */
 function derivados(m, seguidores) {
   const vistas = m.views ?? m.reach ?? 0
+  const hayDatos = vistas > 0
+  const entreVistas = (n) => (hayDatos && typeof n === 'number' ? n / vistas : null)
+
   return {
     vistas,
     alcance: m.reach ?? null,
@@ -35,11 +42,11 @@ function derivados(m, seguidores) {
     // Viene en milisegundos; en segundos se lee.
     tiempoMedio: m.ig_reels_avg_watch_time ? m.ig_reels_avg_watch_time / 1000 : null,
     // Compartidos entre vistas: el mejor predictor de viralidad que existe.
-    propagacion: div(m.shares ?? 0, vistas),
+    propagacion: entreVistas(m.shares),
     // Guardados entre vistas: dice si el video enseña algo o solo entretiene.
-    utilidad: div(m.saved ?? 0, vistas),
+    utilidad: entreVistas(m.saved),
     // Vistas entre seguidores: arriba de 1 el video salió de la audiencia.
-    multiplicador: div(vistas, seguidores),
+    multiplicador: hayDatos && seguidores > 0 ? vistas / seguidores : null,
   }
 }
 
