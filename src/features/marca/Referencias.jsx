@@ -1,0 +1,291 @@
+/* Biblioteca de referencias: videos ajenos que valen la pena emular.
+ *
+ * La técnica es emular lo que ya funcionó, así que primero hay que encontrar
+ * qué funcionó. Instagram no deja buscar publicaciones de otros por su API, ni
+ * por la oficial ni por la del proveedor: lo que sí deja es buscar CUENTAS por
+ * tema y después mirar sus reels. Por eso el flujo es de dos pasos, y acaba
+ * pareciéndose a como trabaja quien de verdad sabe: no persigue videos
+ * sueltos, sigue a gente.
+ */
+import { useState, useEffect, useMemo } from 'react'
+import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useAuthStore } from '@/store/authStore'
+import clsx from 'clsx'
+import toast from 'react-hot-toast'
+import {
+  Search, RefreshCw, Eye, Heart, MessageCircle, Clock, ExternalLink,
+  Hash, AtSign, Link2, Trash2, BadgeCheck, Music,
+} from 'lucide-react'
+
+const MODOS = [
+  { id: 'tema',    label: 'Por tema',    Icon: Hash,  marcador: 'dentistas, finanzas personales…' },
+  { id: 'creador', label: 'Por cuenta',  Icon: AtSign, marcador: '@cuenta que quieres emular' },
+  { id: 'url',     label: 'Por enlace',  Icon: Link2, marcador: 'pega la URL de un reel' },
+]
+
+const ORDENES = [
+  { id: 'vistas',      label: 'Más vistas' },
+  { id: 'interaccion', label: 'Más reacción' },
+  { id: 'fecha',       label: 'Más reciente' },
+]
+
+const miles = (n) => (typeof n === 'number' ? n.toLocaleString('es-MX') : '—')
+const corto = (n) => {
+  if (typeof n !== 'number') return '—'
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`
+  return String(n)
+}
+const duracion = (s) => (typeof s === 'number' ? `${Math.round(s)}s` : null)
+
+function useReferencias(orgId) {
+  const [referencias, setReferencias] = useState([])
+  const [cargando, setCargando] = useState(true)
+  useEffect(() => {
+    if (!orgId) { setCargando(false); return }
+    const q = query(
+      collection(db, 'organizations', orgId, 'references'),
+      orderBy('vistaEn', 'desc'),
+      limit(300)
+    )
+    const unsub = onSnapshot(q, snap => {
+      setReferencias(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setCargando(false)
+    }, err => { console.error('[referencias]', err); setCargando(false) })
+    return unsub
+  }, [orgId])
+  return { referencias, cargando }
+}
+
+// ─── TARJETA ──────────────────────────────────────────────────────
+function Tarjeta({ ref_, onBorrar }) {
+  const fecha = ref_.publicadoEn?.toDate?.()
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card overflow-hidden flex flex-col">
+      <a href={ref_.url} target="_blank" rel="noreferrer"
+        className="relative block aspect-[9/16] bg-surface-2 overflow-hidden group">
+        {ref_.miniatura
+          ? <img src={ref_.miniatura} alt="" className="w-full h-full object-cover" loading="lazy" />
+          : <div className="w-full h-full flex items-center justify-center text-tertiary text-[11px]">Sin miniatura</div>}
+        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="flex items-center gap-2.5 text-white text-[11px] font-bold">
+            <span className="flex items-center gap-1"><Eye size={11} /> {corto(ref_.vistas)}</span>
+            <span className="flex items-center gap-1"><Heart size={11} /> {corto(ref_.likes)}</span>
+            {duracion(ref_.duracion) && (
+              <span className="ml-auto flex items-center gap-1 opacity-80">
+                <Clock size={11} /> {duracion(ref_.duracion)}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <ExternalLink size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </a>
+
+      <div className="p-3 flex-1 flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {ref_.autor?.fotoURL && (
+            <img src={ref_.autor.fotoURL} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" loading="lazy" />
+          )}
+          <span className="text-[12px] font-semibold text-primary truncate">@{ref_.autor?.usuario}</span>
+          {ref_.autor?.verificado && <BadgeCheck size={12} className="text-accent-blue shrink-0" />}
+          <button onClick={() => onBorrar(ref_)} title="Quitar de la biblioteca"
+            className="ml-auto text-tertiary hover:text-accent-red shrink-0">
+            <Trash2 size={12} />
+          </button>
+        </div>
+
+        {ref_.texto && (
+          <p className="text-[11px] text-tertiary leading-snug line-clamp-2">{ref_.texto}</p>
+        )}
+
+        <div className="mt-auto pt-1.5 flex items-center gap-2 text-[11px] text-tertiary">
+          {typeof ref_.interaccion === 'number' && (
+            <span className="flex items-center gap-1 font-semibold text-secondary">
+              <MessageCircle size={11} /> {(ref_.interaccion * 100).toFixed(1)}%
+            </span>
+          )}
+          {fecha && <span className="ml-auto">{fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>}
+        </div>
+
+        {ref_.audio?.titulo && (
+          <div className="flex items-center gap-1 text-[10px] text-tertiary truncate">
+            <Music size={10} className="shrink-0" /> <span className="truncate">{ref_.audio.titulo}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── PANTALLA ─────────────────────────────────────────────────────
+export default function Referencias({ marcas }) {
+  const { org } = useAuthStore()
+  const orgId = org?.id
+  const { referencias, cargando } = useReferencias(orgId)
+
+  const [modo, setModo] = useState('tema')
+  const [texto, setTexto] = useState('')
+  const [buscando, setBuscando] = useState(false)
+  const [cuentas, setCuentas] = useState(null)
+  const [orden, setOrden] = useState('vistas')
+  const [minimo, setMinimo] = useState(0)
+  const [marcaId, setMarcaId] = useState('')
+
+  const marcaDelEscaneo = marcaId || marcas?.[0]?.id || null
+
+  const escanear = async (tipo, consulta) => {
+    if (!consulta?.trim()) { toast.error('Escribe algo que buscar'); return }
+    setBuscando(true)
+    if (tipo === 'tema') setCuentas(null)
+    try {
+      const res = await fetch('/.netlify/functions/scan-references', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, brandId: marcaDelEscaneo, tipo, consulta }),
+      })
+      const r = await res.json()
+      if (!res.ok || !r.ok) throw new Error(r.detalle || r.error || 'No se pudo escanear')
+
+      if (tipo === 'tema') {
+        setCuentas(r.cuentas || [])
+        if (!r.cuentas?.length) toast('Sin cuentas para ese tema')
+      } else {
+        toast.success(r.encontrados ? `${r.encontrados} referencias` : 'No se encontró nada')
+      }
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setBuscando(false)
+    }
+  }
+
+  const borrar = async (ref_) => {
+    await deleteDoc(doc(db, 'organizations', orgId, 'references', ref_.id))
+  }
+
+  const visibles = useMemo(() => {
+    const xs = referencias.filter(r => (r.vistas || 0) >= minimo)
+    const por = {
+      vistas: (a, b) => (b.vistas || 0) - (a.vistas || 0),
+      interaccion: (a, b) => (b.interaccion || 0) - (a.interaccion || 0),
+      fecha: (a, b) => (b.publicadoEn?.toMillis?.() || 0) - (a.publicadoEn?.toMillis?.() || 0),
+    }
+    return [...xs].sort(por[orden])
+  }, [referencias, orden, minimo])
+
+  const modoActual = MODOS.find(m => m.id === modo)
+
+  return (
+    <div>
+      {/* Buscador */}
+      <div className="bg-surface border border-border rounded-card shadow-card p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          {MODOS.map(m => (
+            <button key={m.id} onClick={() => { setModo(m.id); setCuentas(null) }}
+              className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-[12px] font-semibold transition-colors',
+                modo === m.id
+                  ? 'bg-accent-blue text-white'
+                  : 'bg-surface-2 border border-border text-secondary hover:text-primary')}>
+              <m.Icon size={13} /> {m.label}
+            </button>
+          ))}
+          {marcas?.length > 1 && (
+            <select value={marcaId} onChange={e => setMarcaId(e.target.value)}
+              title="A qué marca se le carga el consumo del escáner"
+              className="ml-auto px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary outline-none">
+              {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            value={texto} onChange={e => setTexto(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && escanear(modo, texto)}
+            placeholder={modoActual?.marcador}
+            className="flex-1 px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+          />
+          <button onClick={() => escanear(modo, texto)} disabled={buscando}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+            {buscando ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+            {buscando ? 'Buscando…' : 'Buscar'}
+          </button>
+        </div>
+
+        {modo === 'tema' && (
+          <p className="text-[11px] text-tertiary mt-2">
+            Buscar un tema devuelve cuentas, no videos — Instagram no deja buscar publicaciones ajenas.
+            Elige a quién quieres emular y traemos sus reels.
+          </p>
+        )}
+
+        {cuentas && (
+          <div className="mt-3 pt-3 border-t border-border">
+            {cuentas.length === 0 ? (
+              <p className="text-[12px] text-tertiary">Sin cuentas para ese tema.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {cuentas.map(c => (
+                  <button key={c.usuario} onClick={() => escanear('creador', c.usuario)} disabled={buscando}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary hover:text-primary disabled:opacity-50">
+                    {c.fotoURL && <img src={c.fotoURL} alt="" className="w-4 h-4 rounded-full object-cover" loading="lazy" />}
+                    @{c.usuario}
+                    {c.verificado && <BadgeCheck size={11} className="text-accent-blue" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Filtros */}
+      {referencias.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex items-center gap-1 bg-surface-2 border border-border rounded-btn p-0.5">
+            {ORDENES.map(o => (
+              <button key={o.id} onClick={() => setOrden(o.id)}
+                className={clsx('px-2.5 py-1 rounded-[6px] text-[12px] font-semibold transition-colors',
+                  orden === o.id ? 'bg-accent-blue text-white' : 'text-secondary hover:text-primary')}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <select value={minimo} onChange={e => setMinimo(Number(e.target.value))}
+            className="px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary outline-none">
+            <option value={0}>Todas</option>
+            <option value={10000}>Más de 10K vistas</option>
+            <option value={100000}>Más de 100K</option>
+            <option value={1000000}>Más de 1M</option>
+          </select>
+          <span className="text-[12px] text-tertiary ml-auto">
+            {visibles.length} de {referencias.length}
+          </span>
+        </div>
+      )}
+
+      {/* Board */}
+      {cargando ? (
+        <p className="text-[13px] text-tertiary">Cargando referencias…</p>
+      ) : referencias.length === 0 ? (
+        <div className="bg-surface border border-border rounded-card shadow-card p-10 text-center">
+          <Search size={26} className="text-tertiary mx-auto mb-3" />
+          <h2 className="font-display font-bold text-[15px] text-primary mb-1">La biblioteca está vacía</h2>
+          <p className="text-[13px] text-tertiary max-w-[460px] mx-auto">
+            Busca un tema para encontrar cuentas de ese nicho, escanea a alguien que ya te guste,
+            o pega el enlace de un reel que quieras emular.
+          </p>
+        </div>
+      ) : visibles.length === 0 ? (
+        <p className="text-[13px] text-tertiary">Ninguna referencia pasa ese filtro.</p>
+      ) : (
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {visibles.map(r => <Tarjeta key={r.id} ref_={r} onBorrar={borrar} />)}
+        </div>
+      )}
+    </div>
+  )
+}

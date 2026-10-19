@@ -14,6 +14,7 @@ import {
   AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
+import Referencias from '@/features/marca/Referencias'
 import { useTeam } from '@/hooks/useTeam'
 import { useAuthStore } from '@/store/authStore'
 
@@ -433,6 +434,7 @@ export default function MarcaPersonal() {
   const { members } = useTeam()
   const { user, org } = useAuthStore()
   const [abierta, setAbierta] = useState(null)
+  const [pestana, setPestana] = useState('marcas')
   const [params, setParams] = useSearchParams()
 
   // Instagram devuelve al usuario aquí con el resultado en la URL. Se avisa y
@@ -492,7 +494,7 @@ export default function MarcaPersonal() {
         />
       ) : (
         <>
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex items-center gap-3 mb-4">
             <div>
               <h1 className="font-display font-bold text-[20px] text-primary">Marca personal</h1>
               <p className="text-[13px] text-tertiary">
@@ -501,7 +503,7 @@ export default function MarcaPersonal() {
                   : 'Tus marcas'}
               </p>
             </div>
-            {puedeEditar && (
+            {puedeEditar && pestana === 'marcas' && (
               <button
                 onClick={() => setEditando('nueva')}
                 className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold"
@@ -511,7 +513,24 @@ export default function MarcaPersonal() {
             )}
           </div>
 
-          {marcas.length === 0 ? (
+          <div className="flex items-center gap-1 mb-5 border-b border-border">
+            {[
+              { id: 'marcas', label: 'Marcas' },
+              { id: 'referencias', label: 'Referencias' },
+            ].map(t => (
+              <button key={t.id} onClick={() => setPestana(t.id)}
+                className={clsx('px-3 py-2 text-[13px] font-semibold border-b-2 -mb-px transition-colors',
+                  pestana === t.id
+                    ? 'border-accent-blue text-primary'
+                    : 'border-transparent text-tertiary hover:text-secondary')}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {pestana === 'referencias' ? (
+            <Referencias marcas={marcas} />
+          ) : marcas.length === 0 ? (
             <div className="bg-surface border border-border rounded-card shadow-card p-10 text-center">
               <Instagram size={28} className="text-tertiary mx-auto mb-3" />
               <h2 className="font-display font-bold text-[15px] text-primary mb-1">
