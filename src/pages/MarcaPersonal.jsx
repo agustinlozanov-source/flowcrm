@@ -5,12 +5,13 @@
  * que abrir una cuenta por cada uno. Cada marca tiene un dueño, y el dueño
  * entra y ve solo la suya.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
-  AlertTriangle, Check, BarChart3, Users, Link2,
+  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import { useTeam } from '@/hooks/useTeam'
@@ -168,10 +169,217 @@ function FormularioDeMarca({ marca, miembros, onGuardar, onCerrar }) {
   )
 }
 
-// ─── FICHA ────────────────────────────────────────────────────────
-function FichaDeMarca({ marca, dueño, puedeEditar, onVolver, onEditar, onEliminar }) {
+// ─── CONEXIÓN ─────────────────────────────────────────────────────
+function PanelDeConexion({ marca, orgId }) {
   const estado = estadoDeConexion(marca)
   const dias = diasParaCaducar(marca)
+  const [pegando, setPegando] = useState(false)
+  const [token, setToken] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+
+  const conectarConToken = async () => {
+    if (!token.trim()) { toast.error('Pega el token'); return }
+    setTrabajando(true)
+    try {
+      const res = await fetch('/.netlify/functions/instagram-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, brandId: marca.id, token: token.trim() }),
+      })
+      const r = await res.json()
+      if (!res.ok || !r.ok) throw new Error(r.detalle || r.error || 'No se pudo conectar')
+      // El token no se queda en pantalla ni un segundo de más.
+      setToken('')
+      setPegando(false)
+      toast.success(`Conectada como @${r.username}`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Link2 size={15} className="text-tertiary" />
+        <h2 className="font-display font-bold text-[14px] text-primary">Instagram</h2>
+      </div>
+
+      {estado === CONECTADA && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-[13px] text-accent-green font-semibold">
+            <Check size={15} /> Conectada como @{marca.ig?.username || marca.handle}
+          </div>
+          {marca.ig?.seguidores != null && (
+            <p className="text-[12px] text-tertiary">
+              {marca.ig.seguidores.toLocaleString('es-MX')} seguidores
+            </p>
+          )}
+          {dias !== null && (
+            <p className={clsx('text-[12px]', dias <= 7 ? 'text-accent-amber' : 'text-tertiary')}>
+              {dias > 0
+                ? `La conexión se renueva en ${dias} ${dias === 1 ? 'día' : 'días'}.`
+                : 'La conexión caducó. Hay que generar un token nuevo.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {estado === CON_PROBLEMA && (
+        <div className="flex items-start gap-2 text-[13px] text-accent-amber mb-3">
+          <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+          <span>{marca.ig?.error || 'La conexión dejó de funcionar.'}</span>
+        </div>
+      )}
+
+      {estado !== CONECTADA && (
+        <>
+          <p className="text-[13px] text-secondary mb-3">
+            Sin conectar no hay métricas. La cuenta tiene que ser Business o Creator.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/.netlify/functions/instagram-auth?orgId=${orgId}&brandId=${marca.id}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold"
+            >
+              <Instagram size={15} /> Conectar con Instagram
+            </a>
+            <button
+              onClick={() => setPegando(v => !v)}
+              className="text-[12px] text-tertiary hover:text-primary underline underline-offset-2"
+            >
+              Pegar un token
+            </button>
+          </div>
+
+          {pegando && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-tertiary mb-1.5">
+                Token de acceso
+              </label>
+              <input
+                type="password" value={token} onChange={e => setToken(e.target.value)}
+                placeholder="IGAA…"
+                className="w-full px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+              />
+              <p className="text-[11px] text-tertiary mt-1.5">
+                El que genera la consola de Meta en “Generar tokens de acceso”. Se guarda
+                cifrado y no se vuelve a mostrar.
+              </p>
+              <button
+                onClick={conectarConToken} disabled={trabajando}
+                className="mt-2 px-3.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50"
+              >
+                {trabajando ? 'Comprobando…' : 'Conectar'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── RENDIMIENTO ──────────────────────────────────────────────────
+const pct = (n) => (typeof n === 'number' ? `${(n * 100).toFixed(1)}%` : '—')
+const num = (n) => (typeof n === 'number' ? Math.round(n).toLocaleString('es-MX') : '—')
+const veces = (n) => (typeof n === 'number' ? `${n.toFixed(2)}x` : '—')
+
+function Dato({ valor, titulo, pie }) {
+  return (
+    <div className="bg-surface-2 border border-border rounded-btn p-3">
+      <div className="font-display font-bold text-[20px] text-primary leading-none">{valor}</div>
+      <div className="text-[12px] font-semibold text-secondary mt-1.5">{titulo}</div>
+      <div className="text-[11px] text-tertiary mt-0.5 leading-snug">{pie}</div>
+    </div>
+  )
+}
+
+function PanelDeRendimiento({ marca, orgId }) {
+  const [sincronizando, setSincronizando] = useState(false)
+  const r = marca.resumen
+  const conectada = estadoDeConexion(marca) === CONECTADA
+
+  const sincronizar = async () => {
+    setSincronizando(true)
+    try {
+      const res = await fetch('/.netlify/functions/instagram-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, brandId: marca.id }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.detalle || data.error || 'No se pudo sincronizar')
+      toast.success(`${data.publicaciones} publicaciones analizadas`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSincronizando(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <BarChart3 size={15} className="text-tertiary" />
+        <h2 className="font-display font-bold text-[14px] text-primary">Rendimiento</h2>
+        {conectada && (
+          <button
+            onClick={sincronizar} disabled={sincronizando}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] font-semibold text-secondary hover:text-primary disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={sincronizando ? 'animate-spin' : undefined} />
+            {sincronizando ? 'Analizando…' : 'Actualizar'}
+          </button>
+        )}
+      </div>
+
+      {!conectada ? (
+        <p className="text-[13px] text-tertiary">
+          Cadencia, propagación y multiplicador de alcance aparecen en cuanto conectes Instagram.
+        </p>
+      ) : !r ? (
+        <p className="text-[13px] text-tertiary">
+          Todavía no se ha analizado nada. Dale a Actualizar.
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-2.5 grid-cols-2 lg:grid-cols-4">
+            <Dato
+              valor={r.publicadosUltimos30 ?? '—'}
+              titulo="Cadencia"
+              pie="Publicaciones en 30 días. Lo único que de verdad controlas."
+            />
+            <Dato
+              valor={num(r.medianaVistas)}
+              titulo="Vistas típicas"
+              pie="La mediana, no el promedio: un viral no te engaña."
+            />
+            <Dato
+              valor={pct(r.propagacionMedia)}
+              titulo="Propagación"
+              pie="Compartidos entre vistas. Predice viralidad mejor que los likes."
+            />
+            <Dato
+              valor={veces(r.multiplicadorMedio)}
+              titulo="Multiplicador"
+              pie="Vistas entre seguidores. Arriba de 1x saliste de tu audiencia."
+            />
+          </div>
+          {r.analizados != null && (
+            <p className="text-[11px] text-tertiary mt-2.5">
+              Sobre las últimas {r.analizados} publicaciones.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── FICHA ────────────────────────────────────────────────────────
+function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, onEliminar }) {
 
   return (
     <div className="max-w-[900px] mx-auto">
@@ -213,50 +421,8 @@ function FichaDeMarca({ marca, dueño, puedeEditar, onVolver, onEditar, onElimin
         </div>
       </div>
 
-      {/* Conexión */}
-      <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Link2 size={15} className="text-tertiary" />
-          <h2 className="font-display font-bold text-[14px] text-primary">Instagram</h2>
-        </div>
-
-        {estado === CONECTADA ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[13px] text-accent-green font-semibold">
-              <Check size={15} /> Conectada como @{marca.ig?.username || marca.handle}
-            </div>
-            {dias !== null && (
-              <p className={clsx('text-[12px]', dias <= 7 ? 'text-accent-amber' : 'text-tertiary')}>
-                {dias > 0
-                  ? `La conexión se renueva en ${dias} ${dias === 1 ? 'día' : 'días'}.`
-                  : 'La conexión caducó. Hay que generar un token nuevo.'}
-              </p>
-            )}
-          </div>
-        ) : estado === CON_PROBLEMA ? (
-          <div className="flex items-start gap-2 text-[13px] text-accent-amber">
-            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-            <span>{marca.ig?.error || 'La conexión dejó de funcionar. Hay que volver a conectarla.'}</span>
-          </div>
-        ) : (
-          <p className="text-[13px] text-secondary">
-            Esta marca todavía no está conectada, así que no tiene métricas.
-            La conexión se agrega en el siguiente paso.
-          </p>
-        )}
-      </div>
-
-      {/* Métricas — llegan cuando la marca esté conectada */}
-      <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
-        <div className="flex items-center gap-2 mb-3">
-          <BarChart3 size={15} className="text-tertiary" />
-          <h2 className="font-display font-bold text-[14px] text-primary">Rendimiento</h2>
-        </div>
-        <p className="text-[13px] text-tertiary">
-          Cadencia, propagación, multiplicador de alcance y eficiencia de seguidor.
-          Aparecen en cuanto la marca tenga Instagram conectado.
-        </p>
-      </div>
+      <PanelDeConexion marca={marca} orgId={orgId} />
+      <PanelDeRendimiento marca={marca} orgId={orgId} />
     </div>
   )
 }
@@ -265,8 +431,21 @@ function FichaDeMarca({ marca, dueño, puedeEditar, onVolver, onEditar, onElimin
 export default function MarcaPersonal() {
   const { marcas, cargando, veTodas, puedeEditar, crear, actualizar, eliminar } = useBrands()
   const { members } = useTeam()
-  const { user } = useAuthStore()
+  const { user, org } = useAuthStore()
   const [abierta, setAbierta] = useState(null)
+  const [params, setParams] = useSearchParams()
+
+  // Instagram devuelve al usuario aquí con el resultado en la URL. Se avisa y
+  // se limpia, para que un refresco no vuelva a cantar "conectada".
+  useEffect(() => {
+    const ig = params.get('ig')
+    if (!ig) return
+    if (ig === 'connected') toast.success('Instagram conectado')
+    else toast.error(params.get('msg') || 'No se pudo conectar con Instagram')
+    const limpio = new URLSearchParams(params)
+    limpio.delete('ig'); limpio.delete('msg')
+    setParams(limpio, { replace: true })
+  }, [params, setParams])
   const [editando, setEditando] = useState(null)   // objeto marca, o 'nueva'
 
   const nombreDelDueño = (marca) => {
@@ -304,6 +483,7 @@ export default function MarcaPersonal() {
       {marcaAbierta ? (
         <FichaDeMarca
           marca={marcaAbierta}
+          orgId={org?.id}
           dueño={nombreDelDueño(marcaAbierta)}
           puedeEditar={puedeEditar}
           onVolver={() => setAbierta(null)}
