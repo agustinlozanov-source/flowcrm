@@ -16,6 +16,8 @@ export const PERMISSIONS = {
   can_see_team_agenda:    { label: 'Ver agenda de todo el equipo',              group: 'Agenda'     },
   can_edit_any_lead:      { label: 'Editar información de leads ajenos',        group: 'Pipeline'   },
   can_export_data:        { label: 'Exportar contactos y catálogo',             group: 'Datos'      },
+  can_see_all_brands:     { label: 'Ver todas las marcas personales',           group: 'Marca personal' },
+  can_manage_brands:      { label: 'Crear y editar marcas personales',          group: 'Marca personal' },
 }
 
 // Default permissions by role
@@ -75,5 +77,7 @@ export function usePermissions() {
     canEditAnyLead:      can('can_edit_any_lead'),
     canDiscardAnyLead:   can('can_discard_any_lead'),
     canExportData:       can('can_export_data'),
+    canSeeAllBrands:     can('can_see_all_brands'),
+    canManageBrands:     can('can_manage_brands'),
   }
 }

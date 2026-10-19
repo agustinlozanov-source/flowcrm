@@ -28,6 +28,9 @@ const GATES = {
   importar:       { moduleId: 'import', featureFlag: 'import' },
   reportes:       { moduleId: 'analytics', permission: 'can_see_team_reports' },
   contenido:      { moduleId: 'content' },
+  // Módulo aparte, y sin permiso encima: el permiso decide cuántas marcas ve
+  // cada quien, no si entra — un socio tiene que poder ver la suya.
+  marcas:         { moduleId: 'brands' },
   landing:        { moduleId: 'landing', featureFlag: 'landing' },
   referidos:      { moduleId: 'referrals', featureFlag: 'referrals' },
   metas:          { moduleId: 'goals' },

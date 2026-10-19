@@ -12,6 +12,7 @@ export const ROUTES = {
   importar: '/import',
   reportes: '/analytics',
   contenido: '/content',
+  marcas: '/marcas',
   landing: '/landing',
   referidos: '/referrals',
   metas: '/goals',
