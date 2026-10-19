@@ -2,6 +2,7 @@
  * sidebar actual, para que no muestre de más:
  *
  *   moduleId    — módulos que la organización contrató
+ *   addon       — extras que se cobran aparte del plan
  *   permission  — permisos del usuario
  *   featureFlag — interruptor global
  *
@@ -28,9 +29,11 @@ const GATES = {
   importar:       { moduleId: 'import', featureFlag: 'import' },
   reportes:       { moduleId: 'analytics', permission: 'can_see_team_reports' },
   contenido:      { moduleId: 'content' },
-  // Módulo aparte, y sin permiso encima: el permiso decide cuántas marcas ve
-  // cada quien, no si entra — un socio tiene que poder ver la suya.
-  marcas:         { moduleId: 'brands' },
+  // Extra, no módulo de plan: se vende aparte y se enciende organización por
+  // organización desde el Superadmin. Sin permiso encima, porque el permiso
+  // decide cuántas marcas ve cada quien, no si entra: un socio tiene que
+  // poder ver la suya.
+  marcas:         { addon: 'brands' },
   landing:        { moduleId: 'landing', featureFlag: 'landing' },
   referidos:      { moduleId: 'referrals', featureFlag: 'referrals' },
   metas:          { moduleId: 'goals' },
@@ -50,10 +53,12 @@ export function useNavItems() {
   }, [])
 
   const modules = org?.modules
+  const addons = org?.addons || []
 
   const visible = item => {
     const gate = GATES[item.id] || {}
     if (gate.featureFlag && flags[gate.featureFlag] === false) return false
+    if (gate.addon && !addons.includes(gate.addon)) return false
     if (modules?.length > 0 && gate.moduleId && !modules.includes(gate.moduleId)) return false
     if (gate.permission && !can(gate.permission)) return false
     return true

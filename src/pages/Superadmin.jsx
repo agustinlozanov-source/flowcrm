@@ -14,6 +14,7 @@ import SupportTickets from './SupportTickets'
 import OnboardingResponses from './OnboardingResponses'
 import PipelineBuilder from './PipelineBuilder'
 import CompanyProfilesPanel from './CompanyProfilesPanel'
+import { ADDONS, tieneExtra } from '@/lib/addons'
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 // ─── DIAGNOSTICO CONFIG ───
@@ -806,6 +807,19 @@ function Organizations({ orgs, resellers, onRefresh }) {
     }
   }
 
+  /* Los extras se cobran aparte del plan, así que se encienden uno por uno y
+   * por organización. Cambiar de plan no los toca. */
+  const toggleAddon = async (org, addon) => {
+    const actuales = org.addons || []
+    const encendido = actuales.includes(addon.id)
+    const nuevos = encendido
+      ? actuales.filter(a => a !== addon.id)
+      : [...actuales, addon.id]
+    await updateDoc(doc(db, 'organizations', org.id), { addons: nuevos, updatedAt: serverTimestamp() })
+    toast.success(`${addon.nombre} ${encendido ? 'desactivado' : 'activado'} para ${org.name}`)
+    onRefresh()
+  }
+
   const toggleStatus = async (org) => {
     const newStatus = org.status === 'active' ? 'suspended' : 'active'
     await updateDoc(doc(db, 'organizations', org.id), { status: newStatus, updatedAt: serverTimestamp() })
@@ -876,6 +890,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
               <th>Organización</th>
               <th>Correo</th>
               <th>Plan</th>
+              <th>Extras</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -895,6 +910,34 @@ function Organizations({ orgs, resellers, onRefresh }) {
                     ? <Badge color="blue">{org.planName}</Badge>
                     : <span style={{ fontSize: 13, color: 'var(--gray-5)' }}>{org.plan || '—'}</span>
                   }
+                </td>
+                <td>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {ADDONS.map(addon => {
+                      const on = tieneExtra(org, addon.id)
+                      return (
+                        <button
+                          key={addon.id}
+                          onClick={() => toggleAddon(org, addon)}
+                          title={`${addon.nombre} — ${addon.descripcion}`}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '3px 9px', borderRadius: 999, cursor: 'pointer',
+                            fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                            border: `1px solid ${on ? 'var(--green)' : 'var(--gray-2)'}`,
+                            background: on ? 'rgba(0,200,83,0.12)' : 'transparent',
+                            color: on ? 'var(--green)' : 'var(--gray-4)',
+                          }}
+                        >
+                          <span style={{
+                            width: 6, height: 6, borderRadius: 999,
+                            background: on ? 'var(--green)' : 'var(--gray-3)',
+                          }} />
+                          {addon.nombre}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </td>
                 <td>
                   <span className="sa-dot" style={{ background: org.status === 'active' ? 'var(--green)' : 'var(--red)', marginRight: 5 }} />
@@ -923,7 +966,7 @@ function Organizations({ orgs, resellers, onRefresh }) {
               </tr>
             ))}
             {orgs.length === 0 && (
-              <tr><td colSpan={6}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
+              <tr><td colSpan={7}><div className="sa-empty"><div className="sa-empty-icon" style={{ display: "flex", justifyContent: "center" }}><Building2 size={32} strokeWidth={1.5} /></div><div className="sa-empty-text">Sin organizaciones — crea la primera</div></div></td></tr>
             )}
           </tbody>
         </table>
