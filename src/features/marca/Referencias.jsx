@@ -8,14 +8,14 @@
  * sueltos, sigue a gente.
  */
 import { useState, useEffect, useMemo } from 'react'
-import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore'
+import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc, writeBatch } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Search, RefreshCw, Eye, Heart, MessageCircle, Clock, ExternalLink,
-  Hash, AtSign, Link2, Trash2, BadgeCheck, Music,
+  Hash, AtSign, Link2, Trash2, BadgeCheck, Music, Eraser,
 } from 'lucide-react'
 
 const MODOS = [
@@ -158,6 +158,7 @@ export default function Referencias({ marcas }) {
   const [orden, setOrden] = useState('indice')
   const [umbral, setUmbral] = useState(0)
   const [marcaId, setMarcaId] = useState('')
+  const [vaciando, setVaciando] = useState(false)
 
   const marcaDelEscaneo = marcaId || marcas?.[0]?.id || null
 
@@ -201,6 +202,35 @@ export default function Referencias({ marcas }) {
     }
     return [...xs].sort(por[orden])
   }, [referencias, orden, umbral])
+
+  /* Borra lo que está a la vista, no toda la biblioteca a ciegas: si tienes
+   * filtrado "Triplicaron su media", vacías justo eso. Así se puede limpiar
+   * una cuenta que no sirvió sin perder el resto del trabajo. */
+  const vaciar = async () => {
+    const cuantas = visibles.length
+    if (!cuantas) return
+    const texto = cuantas === referencias.length
+      ? `¿Vaciar la biblioteca entera? Son ${cuantas} referencias y no se puede deshacer.`
+      : `¿Quitar las ${cuantas} referencias que estás viendo? El resto se queda.`
+    if (!window.confirm(texto)) return
+    setVaciando(true)
+    try {
+      // Firestore admite 500 operaciones por lote.
+      for (let i = 0; i < visibles.length; i += 450) {
+        const lote = writeBatch(db)
+        for (const r of visibles.slice(i, i + 450)) {
+          lote.delete(doc(db, 'organizations', orgId, 'references', r.id))
+        }
+        await lote.commit()
+      }
+      toast.success(`${cuantas} referencias quitadas`)
+    } catch (e) {
+      toast.error('No se pudieron borrar')
+      console.error(e)
+    } finally {
+      setVaciando(false)
+    }
+  }
 
   const modoActual = MODOS.find(m => m.id === modo)
 
@@ -288,6 +318,11 @@ export default function Referencias({ marcas }) {
           <span className="text-[12px] text-tertiary ml-auto">
             {visibles.length} de {referencias.length}
           </span>
+          <button onClick={vaciar} disabled={vaciando || !visibles.length}
+            title={visibles.length === referencias.length ? 'Vaciar la biblioteca' : 'Quitar las que estás viendo'}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] font-semibold text-tertiary hover:text-accent-red disabled:opacity-50">
+            <Eraser size={13} /> {vaciando ? 'Borrando…' : 'Vaciar'}
+          </button>
         </div>
       )}
 
