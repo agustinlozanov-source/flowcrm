@@ -22,7 +22,18 @@ function credencial() {
 
 function initDb() {
   if (!admin.apps.length) {
-    admin.initializeApp({ credential: admin.credential.cert(credencial()) })
+    const c = credencial()
+    // Un fallo de credencial es el más confuso de todos si no se nombra:
+    // sale un error genérico de Google y nadie sabe qué pieza falta.
+    const faltan = ['projectId', 'clientEmail', 'privateKey'].filter(k => !c[k])
+    if (faltan.length) {
+      throw new Error(`Credencial de Firebase incompleta: falta ${faltan.join(', ')}`)
+    }
+    try {
+      admin.initializeApp({ credential: admin.credential.cert(c) })
+    } catch (e) {
+      throw new Error(`Credencial de Firebase inválida: ${e.message}`)
+    }
   }
   return admin.firestore()
 }

@@ -19,10 +19,19 @@ exports.handler = async (event) => {
   const { orgId, brandId, piezaId } = JSON.parse(event.body || '{}')
   if (!orgId || !brandId || !piezaId) return responder(400, { error: 'FALTAN_DATOS' })
 
-  const db = initDb()
-  const piezaRef = db.collection('organizations').doc(orgId)
-    .collection('brands').doc(brandId)
-    .collection('piezas').doc(piezaId)
+  /* Arrancar la base iba fuera del try: si la credencial fallaba, el error
+   * se escapaba del manejador y Netlify devolvía un 502 pelado, sin una sola
+   * pista de qué había pasado. */
+  let piezaRef
+  try {
+    const db = initDb()
+    piezaRef = db.collection('organizations').doc(orgId)
+      .collection('brands').doc(brandId)
+      .collection('piezas').doc(piezaId)
+  } catch (e) {
+    console.error('sin base de datos:', e)
+    return responder(500, { error: 'SIN_BASE', detalle: e.message })
+  }
 
   try {
     const snap = await piezaRef.get()
@@ -30,11 +39,11 @@ exports.handler = async (event) => {
     const pieza = snap.data()
     if (!pieza.video?.url) return responder(400, { error: 'SIN_VIDEO' })
 
-    await piezaRef.set({ estado: 'transcribiendo', error: null }, { merge: true })
+    await piezaRef?.set({ estado: 'transcribiendo', error: null }, { merge: true })
 
     const t = await transcribir(pieza.video.url, { idioma: pieza.idioma })
 
-    await piezaRef.set({
+    await piezaRef?.set({
       estado: 'transcrita',
       transcripcion: {
         texto: t.texto,
@@ -53,7 +62,7 @@ exports.handler = async (event) => {
     console.error('transcribe error:', e)
     // Que la pieza lo diga en pantalla: si se queda en "transcribiendo" para
     // siempre, nadie sabe si está trabajando o si se murió.
-    await piezaRef.set({
+    await piezaRef?.set({
       estado: 'crudo',
       error: String(e.message || e).slice(0, 200),
     }, { merge: true }).catch(() => {})

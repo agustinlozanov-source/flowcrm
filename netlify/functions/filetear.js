@@ -147,10 +147,19 @@ exports.handler = async (event) => {
   const { orgId, brandId, piezaId } = JSON.parse(event.body || '{}')
   if (!orgId || !brandId || !piezaId) return responder(400, { error: 'FALTAN_DATOS' })
 
-  const db = initDb()
-  const piezaRef = db.collection('organizations').doc(orgId)
-    .collection('brands').doc(brandId)
-    .collection('piezas').doc(piezaId)
+  /* Arrancar la base iba fuera del try: si la credencial fallaba, el error
+   * se escapaba del manejador y Netlify devolvía un 502 pelado, sin una sola
+   * pista de qué había pasado. */
+  let piezaRef
+  try {
+    const db = initDb()
+    piezaRef = db.collection('organizations').doc(orgId)
+      .collection('brands').doc(brandId)
+      .collection('piezas').doc(piezaId)
+  } catch (e) {
+    console.error('sin base de datos:', e)
+    return responder(500, { error: 'SIN_BASE', detalle: e.message })
+  }
 
   try {
     const snap = await piezaRef.get()
@@ -233,7 +242,7 @@ Reglas:
     const quitado = todos.reduce((a, c) => a + (c.fin - c.inicio), 0)
     const duracion = pieza.video?.duracion || palabras[palabras.length - 1]?.fin || 0
 
-    await piezaRef.set({
+    await piezaRef?.set({
       estado: 'fileteada',
       fileteado: {
         cortes: todos,
@@ -257,7 +266,7 @@ Reglas:
     })
   } catch (e) {
     console.error('filetear error:', e)
-    await piezaRef.set({ error: String(e.message || e).slice(0, 200) }, { merge: true }).catch(() => {})
+    await piezaRef?.set({ error: String(e.message || e).slice(0, 200) }, { merge: true }).catch(() => {})
     return responder(400, { error: 'NO_SE_PUDO_FILETEAR', detalle: e.message })
   }
 }
