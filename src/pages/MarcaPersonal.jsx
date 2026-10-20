@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
+import Produccion from '@/features/marca/Produccion'
 import { useTeam } from '@/hooks/useTeam'
 import { useAuthStore } from '@/store/authStore'
 
@@ -517,6 +518,7 @@ export default function MarcaPersonal() {
             {[
               { id: 'marcas', label: 'Marcas' },
               { id: 'referencias', label: 'Referencias' },
+              { id: 'produccion', label: 'Producción' },
             ].map(t => (
               <button key={t.id} onClick={() => setPestana(t.id)}
                 className={clsx('px-3 py-2 text-[13px] font-semibold border-b-2 -mb-px transition-colors',
@@ -530,6 +532,8 @@ export default function MarcaPersonal() {
 
           {pestana === 'referencias' ? (
             <Referencias marcas={marcas} />
+          ) : pestana === 'produccion' ? (
+            <Produccion marcas={marcas} />
           ) : marcas.length === 0 ? (
             <div className="bg-surface border border-border rounded-card shadow-card p-10 text-center">
               <Instagram size={28} className="text-tertiary mx-auto mb-3" />
