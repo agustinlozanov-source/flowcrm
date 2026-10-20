@@ -18,6 +18,7 @@ import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
 import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
+import Linea from './Linea'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
   AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play,
@@ -81,7 +82,25 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const [fps, setFps] = useState(30)
   const [medidas, setMedidas] = useState({ ancho: 1080, alto: 1920 })
   const palabras = pieza.transcripcion?.palabras || []
-  const cortes = pieza.fileteado?.cortes || []
+  const guardados = pieza.fileteado?.cortes || []
+
+  /* Arrastrar un borde dispara decenas de cambios por segundo. Se trabaja
+   * sobre una copia local y se guarda cuando la mano se detiene. */
+  const [cortes, setCortes] = useState(guardados)
+  const porGuardar = useRef(null)
+  useEffect(() => { setCortes(guardados) }, [pieza.fileteado?.hechoEn, guardados.length])
+
+  const cambiarCortes = (nuevos) => {
+    setCortes(nuevos)
+    clearTimeout(porGuardar.current)
+    porGuardar.current = setTimeout(() => {
+      updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+        'fileteado.cortes': nuevos,
+        updatedAt: serverTimestamp(),
+      }).catch(e => console.error('no se pudieron guardar los cortes', e))
+    }, 500)
+  }
+  useEffect(() => () => clearTimeout(porGuardar.current), [])
 
   const activos = useMemo(() => cortes.filter(c => c.activo !== false), [cortes])
 
@@ -140,12 +159,8 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
 
   // Rescatar o volver a quitar un tramo. Se guarda al momento: es la decisión
   // de la persona sobre la propuesta de la máquina, y eso no se pierde.
-  const alternar = async (corte) => {
-    const nuevos = cortes.map(c => (c.id === corte.id ? { ...c, activo: c.activo === false } : c))
-    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
-      'fileteado.cortes': nuevos,
-      updatedAt: serverTimestamp(),
-    })
+  const alternar = (corte) => {
+    cambiarCortes(cortes.map(c => (c.id === corte.id ? { ...c, activo: c.activo === false } : c)))
   }
 
   const duracionReal = pieza.video?.duracion || palabras[palabras.length - 1]?.fin || 0
@@ -306,6 +321,20 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
       <button onClick={onVolver} className="flex items-center gap-1 text-[13px] text-tertiary hover:text-primary mb-4">
         <ChevronLeft size={15} /> Todas las piezas
       </button>
+
+      {palabras.length > 0 && (
+        <div className="mb-4">
+          <Linea
+            duracion={duracionReal}
+            audio={pieza.audio}
+            palabras={palabras}
+            cortes={cortes}
+            segundo={segundo}
+            onCambiar={cambiarCortes}
+            onIr={irA}
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr] items-start">
         {/* Video */}
