@@ -25,9 +25,20 @@ const MODOS = [
 ]
 
 const ORDENES = [
+  { id: 'indice',      label: 'Destacados' },
   { id: 'vistas',      label: 'Más vistas' },
   { id: 'interaccion', label: 'Más reacción' },
   { id: 'fecha',       label: 'Más reciente' },
+]
+
+/* Filtrar por vistas a secas solo deja pasar cuentas grandes. El índice mide
+ * cada video contra la mediana de su propia cuenta, así que un 3x es un 3x
+ * venga de quien venga. */
+const UMBRALES = [
+  { valor: 0,   label: 'Todas' },
+  { valor: 1.5, label: 'Superaron su media' },
+  { valor: 2,   label: 'Doblaron su media' },
+  { valor: 3,   label: 'Triplicaron su media' },
 ]
 
 const miles = (n) => (typeof n === 'number' ? n.toLocaleString('es-MX') : '—')
@@ -38,6 +49,11 @@ const corto = (n) => {
   return String(n)
 }
 const duracion = (s) => (typeof s === 'number' ? `${Math.round(s)}s` : null)
+const indiceTexto = (n) => (typeof n === 'number' ? `${n.toFixed(1)}×` : null)
+const colorIndice = (n) =>
+  n >= 3 ? 'bg-accent-green text-white'
+  : n >= 2 ? 'bg-accent-amber text-black'
+  : 'bg-black/60 text-white'
 
 function useReferencias(orgId) {
   const [referencias, setReferencias] = useState([])
@@ -68,6 +84,12 @@ function Tarjeta({ ref_, onBorrar }) {
         {ref_.miniatura
           ? <img src={ref_.miniatura} alt="" className="w-full h-full object-cover" loading="lazy" />
           : <div className="w-full h-full flex items-center justify-center text-tertiary text-[11px]">Sin miniatura</div>}
+        {indiceTexto(ref_.indice) && (
+          <span className={clsx('absolute top-2 right-2 px-1.5 py-0.5 rounded-[6px] text-[11px] font-bold',
+            colorIndice(ref_.indice))}>
+            {indiceTexto(ref_.indice)}
+          </span>
+        )}
         <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
           <div className="flex items-center gap-2.5 text-white text-[11px] font-bold">
             <span className="flex items-center gap-1"><Eye size={11} /> {corto(ref_.vistas)}</span>
@@ -91,6 +113,9 @@ function Tarjeta({ ref_, onBorrar }) {
           )}
           <span className="text-[12px] font-semibold text-primary truncate">@{ref_.autor?.usuario}</span>
           {ref_.autor?.verificado && <BadgeCheck size={12} className="text-accent-blue shrink-0" />}
+          {typeof ref_.autor?.seguidores === 'number' && (
+            <span className="text-[11px] text-tertiary shrink-0">{corto(ref_.autor.seguidores)}</span>
+          )}
           <button onClick={() => onBorrar(ref_)} title="Quitar de la biblioteca"
             className="ml-auto text-tertiary hover:text-accent-red shrink-0">
             <Trash2 size={12} />
@@ -130,8 +155,8 @@ export default function Referencias({ marcas }) {
   const [texto, setTexto] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [cuentas, setCuentas] = useState(null)
-  const [orden, setOrden] = useState('vistas')
-  const [minimo, setMinimo] = useState(0)
+  const [orden, setOrden] = useState('indice')
+  const [umbral, setUmbral] = useState(0)
   const [marcaId, setMarcaId] = useState('')
 
   const marcaDelEscaneo = marcaId || marcas?.[0]?.id || null
@@ -167,14 +192,15 @@ export default function Referencias({ marcas }) {
   }
 
   const visibles = useMemo(() => {
-    const xs = referencias.filter(r => (r.vistas || 0) >= minimo)
+    const xs = umbral ? referencias.filter(r => (r.indice || 0) >= umbral) : referencias
     const por = {
+      indice: (a, b) => (b.indice || 0) - (a.indice || 0),
       vistas: (a, b) => (b.vistas || 0) - (a.vistas || 0),
       interaccion: (a, b) => (b.interaccion || 0) - (a.interaccion || 0),
       fecha: (a, b) => (b.publicadoEn?.toMillis?.() || 0) - (a.publicadoEn?.toMillis?.() || 0),
     }
     return [...xs].sort(por[orden])
-  }, [referencias, orden, minimo])
+  }, [referencias, orden, umbral])
 
   const modoActual = MODOS.find(m => m.id === modo)
 
@@ -254,12 +280,10 @@ export default function Referencias({ marcas }) {
               </button>
             ))}
           </div>
-          <select value={minimo} onChange={e => setMinimo(Number(e.target.value))}
+          <select value={umbral} onChange={e => setUmbral(Number(e.target.value))}
+            title="El índice compara cada video contra la mediana de su propia cuenta"
             className="px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary outline-none">
-            <option value={0}>Todas</option>
-            <option value={10000}>Más de 10K vistas</option>
-            <option value={100000}>Más de 100K</option>
-            <option value={1000000}>Más de 1M</option>
+            {UMBRALES.map(u => <option key={u.valor} value={u.valor}>{u.label}</option>)}
           </select>
           <span className="text-[12px] text-tertiary ml-auto">
             {visibles.length} de {referencias.length}

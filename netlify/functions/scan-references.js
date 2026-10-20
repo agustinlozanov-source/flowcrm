@@ -10,6 +10,35 @@ const admin = require('firebase-admin')
 const { initDb } = require('./lib/firebase')
 const esc = require('./lib/escaner')
 
+function mediana(nums) {
+  const xs = nums.filter(n => typeof n === 'number' && n > 0).sort((a, b) => a - b)
+  if (!xs.length) return null
+  const m = Math.floor(xs.length / 2)
+  return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2
+}
+
+/* El índice: vistas del video entre la mediana de su propia cuenta.
+ *
+ * Filtrar por vistas a secas es la medida equivocada — solo deja pasar cuentas
+ * grandes. Un video de 200.000 vistas de alguien con millón y medio de
+ * seguidores fracasó: ni siquiera llegó a su gente. Uno de 40.000 de alguien
+ * con 3.000 se salió completamente de su audiencia, y ese es el que trae algo
+ * en el formato.
+ *
+ * Medido contra su propia cuenta, un 3x es un 3x venga de donde venga, y se
+ * puede comparar entre cuentas de cualquier tamaño. Solo tiene sentido cuando
+ * llega la tanda completa de un creador: un reel suelto no tiene contra qué
+ * compararse y se queda sin índice, que es más honesto que inventarle uno. */
+function conIndice(reels, seguidores) {
+  const base = mediana(reels.map(r => r.vistas))
+  return reels.map(r => ({
+    ...r,
+    autor: { ...r.autor, seguidores },
+    baseDeLaCuenta: base,
+    indice: base && r.vistas > 0 ? r.vistas / base : null,
+  }))
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
@@ -42,8 +71,20 @@ exports.handler = async (event) => {
       unidades += u.unidades || 0
       if (!u.id) return responder(404, { error: 'CUENTA_NO_ENCONTRADA' })
       const r = await esc.reelsDe(u.id, { profundidad: profundidad || 1 })
-      reels = r.reels
       unidades += r.unidades || 0
+
+      // Los seguidores no vienen con los reels y hay que pedirlos aparte.
+      // Si falla, seguimos: el índice es lo importante, el tamaño es contexto.
+      let seguidores = null
+      try {
+        const e = await esc.estadisticasDe(u.id)
+        seguidores = e.seguidores
+        unidades += e.unidades || 0
+      } catch (err) {
+        console.warn('scan-references: sin seguidores para', usuario, err.message)
+      }
+
+      reels = conIndice(r.reels, seguidores)
 
     } else if (tipo === 'url') {
       const codigo = esc.codigoDeUrl(consulta)

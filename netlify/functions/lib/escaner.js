@@ -102,6 +102,20 @@ async function idDeUsuario(usuario) {
   return { id: r.data?.pk || null, unidades: r.units_charged ?? null }
 }
 
+/* Seguidores de la cuenta. Va aparte porque el endpoint de perfil no los
+ * trae, y cuesta sus unidades. Vale la pena: sin saber el tamaño de la
+ * cuenta, un 4x no se puede leer — con 2.000 seguidores un solo compartido
+ * ajeno te produce ese 4x y no tiene nada que ver con cómo está hecho el
+ * video; con 300.000, casi seguro es el contenido. */
+async function estadisticasDe(userId) {
+  const r = await pedir('/instagram/user/basic-info', { user_id: userId })
+  const d = r.data || {}
+  return {
+    seguidores: typeof d.followers === 'number' ? d.followers : null,
+    unidades: r.units_charged ?? null,
+  }
+}
+
 async function reelsDe(userId, { profundidad = 1 } = {}) {
   const r = await pedir('/instagram/user/reels', { user_id: userId, depth: profundidad })
   const reels = (r.data?.reels || []).map(x => normalizar(x.media)).filter(Boolean)
@@ -128,5 +142,5 @@ function codigoDeUrl(url) {
 
 module.exports = {
   hayProveedor, normalizar, codigoDeUrl,
-  buscarTema, idDeUsuario, reelsDe, reelPorCodigo, reelsDeAudio,
+  buscarTema, idDeUsuario, estadisticasDe, reelsDe, reelPorCodigo, reelsDeAudio,
 }
