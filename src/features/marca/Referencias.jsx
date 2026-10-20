@@ -31,6 +31,19 @@ const ORDENES = [
   { id: 'fecha',       label: 'Más reciente' },
 ]
 
+/* Un video de hace seis meses puede tener un índice altísimo y ser inútil: el
+ * número es real —los reels se llevan casi todas sus vistas en los primeros
+ * días, no van sumando— pero el formato envejeció y ya no sirve de molde.
+ * Además, una cuenta que publica poco tiene sus últimos doce reels repartidos
+ * en año y medio, así que su media mezcla épocas que no se parecen. */
+const PERIODOS = [
+  { valor: 0,  label: 'Cualquier fecha' },
+  { valor: 7,  label: 'Última semana' },
+  { valor: 30, label: 'Último mes' },
+  { valor: 90, label: 'Últimos 3 meses' },
+  { valor: -1, label: 'Otro…' },
+]
+
 /* Filtrar por vistas a secas solo deja pasar cuentas grandes. El índice mide
  * cada video contra la mediana de su propia cuenta, así que un 3x es un 3x
  * venga de quien venga. */
@@ -132,7 +145,9 @@ function Tarjeta({ ref_, onBorrar }) {
               <MessageCircle size={11} /> {(ref_.interaccion * 100).toFixed(1)}%
             </span>
           )}
-          {fecha && <span className="ml-auto">{fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>}
+          {fecha && <span className="ml-auto">{fecha.toLocaleDateString('es-MX', fecha.getFullYear() === new Date().getFullYear()
+              ? { day: 'numeric', month: 'short' }
+              : { day: 'numeric', month: 'short', year: '2-digit' })}</span>}
         </div>
 
         {ref_.audio?.titulo && (
@@ -159,6 +174,8 @@ export default function Referencias({ marcas }) {
   const [umbral, setUmbral] = useState(0)
   const [marcaId, setMarcaId] = useState('')
   const [vaciando, setVaciando] = useState(false)
+  const [dias, setDias] = useState(0)
+  const [diasLibres, setDiasLibres] = useState('')
 
   const marcaDelEscaneo = marcaId || marcas?.[0]?.id || null
 
@@ -193,7 +210,12 @@ export default function Referencias({ marcas }) {
   }
 
   const visibles = useMemo(() => {
-    const xs = umbral ? referencias.filter(r => (r.indice || 0) >= umbral) : referencias
+    let xs = umbral ? referencias.filter(r => (r.indice || 0) >= umbral) : referencias
+    if (dias > 0) {
+      const desde = Date.now() - dias * 86400000
+      // Sin fecha no hay forma de saber si entra en la ventana; queda fuera.
+      xs = xs.filter(r => (r.publicadoEn?.toMillis?.() || 0) >= desde)
+    }
     const por = {
       indice: (a, b) => (b.indice || 0) - (a.indice || 0),
       vistas: (a, b) => (b.vistas || 0) - (a.vistas || 0),
@@ -201,7 +223,7 @@ export default function Referencias({ marcas }) {
       fecha: (a, b) => (b.publicadoEn?.toMillis?.() || 0) - (a.publicadoEn?.toMillis?.() || 0),
     }
     return [...xs].sort(por[orden])
-  }, [referencias, orden, umbral])
+  }, [referencias, orden, umbral, dias])
 
   /* Borra lo que está a la vista, no toda la biblioteca a ciegas: si tienes
    * filtrado "Triplicaron su media", vacías justo eso. Así se puede limpiar
@@ -310,6 +332,29 @@ export default function Referencias({ marcas }) {
               </button>
             ))}
           </div>
+          <select
+            value={PERIODOS.some(p => p.valor === dias) ? dias : -1}
+            onChange={e => {
+              const v = Number(e.target.value)
+              if (v === -1) { setDias(Number(diasLibres) || 14); setDiasLibres(String(Number(diasLibres) || 14)) }
+              else { setDias(v); setDiasLibres('') }
+            }}
+            className="px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary outline-none">
+            {PERIODOS.map(p => <option key={p.valor} value={p.valor}>{p.label}</option>)}
+          </select>
+
+          {!PERIODOS.some(p => p.valor === dias) || diasLibres !== '' ? (
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min="1" max="730" value={diasLibres}
+                onChange={e => { setDiasLibres(e.target.value); const n = Number(e.target.value); if (n > 0) setDias(Math.min(730, n)) }}
+                onBlur={() => { const n = Math.max(1, Math.min(730, Number(diasLibres) || 1)); setDiasLibres(String(n)); setDias(n) }}
+                className="w-16 px-2 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-primary outline-none focus:border-accent-blue"
+              />
+              <span className="text-[12px] text-tertiary">días</span>
+            </div>
+          ) : null}
+
           <select value={umbral} onChange={e => setUmbral(Number(e.target.value))}
             title="El índice compara cada video contra la mediana de su propia cuenta"
             className="px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] text-secondary outline-none">
