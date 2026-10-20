@@ -17,7 +17,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
-import { renderizar, guardar } from './render'
+import { renderizar, guardar, registro } from './render'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
   AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Clapperboard,
@@ -71,6 +71,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoFileRef = useRef(null)
   const [render, setRender] = useState(null)   // { aviso, progreso }
   const [borrador, setBorrador] = useState(true)
+  const [falloRender, setFalloRender] = useState(null)
   const [segundo, setSegundo] = useState(0)
   const [trabajando, setTrabajando] = useState(null)
   const [saltar, setSaltar] = useState(true)
@@ -195,6 +196,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     const segmentos = segmentosConservados(cortes, duracionReal)
     if (!segmentos.length) { toast.error('No queda nada que renderizar'); return }
     setRender({ aviso: 'Preparando…', progreso: 0 })
+    setFalloRender(null)
     try {
       const blob = await renderizar(file, segmentos, {
         alto: borrador ? 960 : null,
@@ -206,7 +208,10 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
       toast.success('Video generado')
     } catch (e) {
       console.error(e)
-      toast.error(e.message || 'No se pudo generar el video')
+      console.error('[ffmpeg]\n' + registro())
+      // En pantalla y no solo en un aviso que se va: este mensaje es lo
+      // único que explica por qué falló.
+      setFalloRender(e.message || 'No se pudo generar el video')
     } finally {
       setRender(null)
     }
@@ -320,6 +325,15 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                     <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                       <div className="h-full bg-accent-blue transition-[width]"
                         style={{ width: `${Math.round((render.progreso || 0) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {falloRender && (
+                  <div className="mb-2 p-2.5 rounded-btn bg-accent-red/10 border border-accent-red/30">
+                    <div className="flex items-start gap-1.5 text-[11px] text-accent-red leading-snug">
+                      <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                      <span className="break-words">{falloRender}</span>
                     </div>
                   </div>
                 )}

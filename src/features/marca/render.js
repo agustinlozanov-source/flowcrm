@@ -23,16 +23,36 @@ const FUNDIDO = 0.02
 
 let motor = null
 
-async function arrancar(alProgresar) {
+/* ffmpeg no lanza excepciones con mensaje: escupe el motivo por su registro y
+ * devuelve un código. Sin guardar ese registro, cualquier fallo llega aquí
+ * como un error vacío y no hay forma de saber qué pasó. */
+const bitacora = []
+
+async function arrancar() {
   if (motor) return motor
   const ff = new FFmpeg()
-  ff.on('log', ({ message }) => { if (message?.includes('Error')) console.warn('[ffmpeg]', message) })
-  await ff.load({
-    coreURL: await toBlobURL(`${CDN}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${CDN}/ffmpeg-core.wasm`, 'application/wasm'),
+  ff.on('log', ({ message }) => {
+    if (!message) return
+    bitacora.push(message)
+    if (bitacora.length > 400) bitacora.shift()
   })
+  try {
+    await ff.load({
+      coreURL: await toBlobURL(`${CDN}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${CDN}/ffmpeg-core.wasm`, 'application/wasm'),
+    })
+  } catch (e) {
+    throw new Error(`No se pudo cargar el motor de video (${e?.message || 'sin detalle'}). Puede ser la red o un bloqueador.`)
+  }
   motor = ff
   return ff
+}
+
+/** Lo último que dijo ffmpeg que parezca una explicación. */
+function ultimoMotivo() {
+  const pistas = bitacora.filter(l =>
+    /error|invalid|no such|unable|failed|out of memory|abort|does not contain/i.test(l))
+  return pistas.length ? pistas[pistas.length - 1] : bitacora[bitacora.length - 1] || ''
 }
 
 /** El filtro que recorta, le pone fundido a cada tramo y los pega. */
@@ -76,10 +96,15 @@ export async function renderizar(file, segmentos, {
   const salida = 'salida.mp4'
 
   alAvisar?.('Cargando el video…')
-  await ff.writeFile(entrada, await fetchFile(file))
+  try {
+    await ff.writeFile(entrada, await fetchFile(file))
+  } catch (e) {
+    throw new Error(`No se pudo cargar el video en el motor (${Math.round(file.size / 1e6)} MB). ${e?.message || ''}`)
+  }
 
   alAvisar?.(`Cortando ${segmentos.length} tramos…`)
-  await ff.exec([
+  bitacora.length = 0
+  const codigo = await ff.exec([
     '-i', entrada,
     '-filter_complex', filtro(segmentos, { alto }),
     '-map', '[v]', '-map', '[a]',
@@ -90,11 +115,26 @@ export async function renderizar(file, segmentos, {
     salida,
   ])
 
-  const datos = await ff.readFile(salida)
+  if (codigo !== 0) {
+    throw new Error(ultimoMotivo() || `ffmpeg terminó con código ${codigo}`)
+  }
+
+  let datos
+  try {
+    datos = await ff.readFile(salida)
+  } catch {
+    throw new Error(ultimoMotivo() || 'ffmpeg no dejó ningún archivo de salida')
+  }
+  if (!datos?.length) throw new Error(ultimoMotivo() || 'El archivo generado salió vacío')
   await ff.deleteFile(entrada).catch(() => {})
   await ff.deleteFile(salida).catch(() => {})
 
   return new Blob([datos.buffer], { type: 'video/mp4' })
+}
+
+/** Para enseñarle al usuario qué dijo ffmpeg cuando algo sale mal. */
+export function registro() {
+  return bitacora.slice(-40).join('\n')
 }
 
 export function guardar(blob, nombre) {
