@@ -17,7 +17,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
-import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
+import { decodificar, mezclar, aWav, aTiempoOriginal, aTiempoDeMontaje } from './mezcla'
 import Linea, { TIPOS } from './Linea'
 import Sonidos from './Sonidos'
 import { construir as construirSubtitulos, aSRT as subtitulosASRT } from './subtitulos'
@@ -340,6 +340,30 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     })
   }
 
+  /* La línea de tiempo es la del material crudo: ahí están los cortes y por
+   * eso se pueden mover. Los subtítulos viven en los tiempos del montaje, que
+   * es otro reloj — hay que traducirlos o se apelotonan al principio y no
+   * cuadran con la onda. */
+  const subtitulosEnCrudo = useMemo(() => {
+    if (!subtitulos.length) return []
+    const segmentos = segmentosConservados(cortes, duracionReal)
+    return subtitulos.map(t => ({
+      ...t,
+      desde: aTiempoOriginal(segmentos, t.desde),
+      hasta: aTiempoOriginal(segmentos, t.hasta),
+    }))
+  }, [subtitulos, cortes, duracionReal])
+
+  /* El subtítulo que toca ahora mismo, para enseñarlo encima del video. Sin
+   * esto no había forma de verlos: estaban en una lista y en una capa, pero
+   * nunca sobre la imagen, que es donde van a salir de verdad. */
+  const subtituloAhora = useMemo(() => {
+    if (!subtitulos.length) return null
+    const segmentos = segmentosConservados(cortes, duracionReal)
+    const t = aTiempoDeMontaje(segmentos, segundo)
+    return subtitulos.find(x => t >= x.desde && t <= x.hasta) || null
+  }, [subtitulos, cortes, duracionReal, segundo])
+
   const bajarWav = () => {
     if (!montaje) return
     const url = URL.createObjectURL(aWav(montaje))
@@ -448,15 +472,26 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
       <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)] items-start">
         <div className="bg-surface border border-border rounded-card shadow-card p-2">
           {pieza.video?.url ? (
-            <video
-              ref={videoRef}
-              src={pieza.video.url}
-              controls
-              onLoadedMetadata={e => setMedidas({ ancho: e.target.videoWidth, alto: e.target.videoHeight })}
-              onPlay={() => setReproduciendo(true)}
-              onPause={() => setReproduciendo(false)}
-              className="w-full rounded-btn bg-black"
-            />
+            <div className="relative">
+              <video
+                ref={videoRef}
+                src={pieza.video.url}
+                controls
+                onLoadedMetadata={e => setMedidas({ ancho: e.target.videoWidth, alto: e.target.videoHeight })}
+                onPlay={() => setReproduciendo(true)}
+                onPause={() => setReproduciendo(false)}
+                className="w-full rounded-btn bg-black"
+              />
+              {subtituloAhora && (
+                <div className="absolute inset-x-2 bottom-12 pointer-events-none text-center">
+                  <span className="inline-block px-1.5 py-0.5 rounded bg-black/70 text-white
+                                   text-[13px] font-bold leading-snug"
+                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                    {subtituloAhora.texto}
+                  </span>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="w-full aspect-[9/16] rounded-btn bg-surface-2 border border-border flex items-center justify-center text-[12px] text-tertiary text-center px-3">
               La subida del video no terminó
@@ -690,7 +725,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
           palabras={palabras}
           cortes={cortes}
           sonidos={sonidosLocales}
-          subtitulos={subtitulos}
+          subtitulos={subtitulosEnCrudo}
           segundo={segundo}
           onCambiarSonidos={cambiarSonidos}
           onCambiar={cambiarCortes}

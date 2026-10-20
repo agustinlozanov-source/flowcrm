@@ -145,6 +145,15 @@ export default function Linea({
     g.fillStyle = 'rgba(0,200,83,0.07)'
     for (const s of silencios) g.fillRect(aX(s.inicio), REGLA, Math.max(1, aX(s.fin - s.inicio)), ALTO)
 
+    /* Lo cortado se oscurece. El borde de color ya decía dónde está el tramo,
+     * pero no que ESO se va: apagando la onda debajo, el ojo entiende de un
+     * vistazo qué parte del material sigue viva. */
+    g.fillStyle = 'rgba(0,0,0,0.55)'
+    for (const c of cortes) {
+      if (c.activo === false) continue
+      g.fillRect(aX(c.inicio), REGLA, Math.max(1, aX(c.fin - c.inicio)), ALTO)
+    }
+
     // La regla
     const paso = pasoDeRegla(pxs)
     g.fillStyle = 'rgba(125,125,135,0.14)'
@@ -163,7 +172,7 @@ export default function Linea({
       g.fillStyle = 'rgba(125,125,135,0.25)'
       for (const p of palabras) g.fillRect(aX(p.inicio), REGLA + ALTO - 8, 1, 8)
     }
-  }, [anchoTotal, audio, palabras, silencios, pxs, aX, aT, duracion])
+  }, [anchoTotal, audio, palabras, silencios, cortes, pxs, aX, aT, duracion])
 
   // ── ratón ──
   const tiempoEn = (e) => {
