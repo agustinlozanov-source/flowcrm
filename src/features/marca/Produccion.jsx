@@ -17,9 +17,10 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
+import { renderizar, guardar } from './render'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines,
+  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Clapperboard,
 } from 'lucide-react'
 
 const ESTADOS = {
@@ -67,6 +68,9 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoRef = useRef(null)
   const audioRef = useRef(null)
   const [escuchando, setEscuchando] = useState(false)
+  const videoFileRef = useRef(null)
+  const [render, setRender] = useState(null)   // { aviso, progreso }
+  const [borrador, setBorrador] = useState(true)
   const [segundo, setSegundo] = useState(0)
   const [trabajando, setTrabajando] = useState(null)
   const [saltar, setSaltar] = useState(true)
@@ -182,6 +186,32 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     }
   }
 
+  /* El render pasa aquí, en esta máquina. El video no se sube a ningún
+   * servicio y no cuesta por minuto. A cambio, tarda: por eso el borrador a
+   * media resolución, que sirve para juzgar el corte en una fracción del
+   * tiempo. */
+  const generar = async (file) => {
+    if (!file) return
+    const segmentos = segmentosConservados(cortes, duracionReal)
+    if (!segmentos.length) { toast.error('No queda nada que renderizar'); return }
+    setRender({ aviso: 'Preparando…', progreso: 0 })
+    try {
+      const blob = await renderizar(file, segmentos, {
+        alto: borrador ? 960 : null,
+        calidad: borrador ? 'ultrafast' : 'veryfast',
+        alAvisar: aviso => setRender(r => ({ ...r, aviso })),
+        alProgresar: progreso => setRender(r => ({ ...r, progreso, aviso: 'Generando el video…' })),
+      })
+      guardar(blob, `${base}${borrador ? '-borrador' : ''}.mp4`)
+      toast.success('Video generado')
+    } catch (e) {
+      console.error(e)
+      toast.error(e.message || 'No se pudo generar el video')
+    } finally {
+      setRender(null)
+    }
+  }
+
   const irA = (s) => {
     if (!videoRef.current) return
     videoRef.current.currentTime = Math.max(0, s - 0.05)
@@ -276,6 +306,29 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                     {[24, 25, 30, 50, 60].map(v => <option key={v} value={v}>{v} fps</option>)}
                   </select>
                 </div>
+                <input ref={videoFileRef} type="file" accept="video/*" hidden
+                  onChange={e => { generar(e.target.files?.[0]); e.target.value = '' }} />
+
+                <button onClick={() => videoFileRef.current?.click()} disabled={!!render}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50 mb-2">
+                  {render ? <RefreshCw size={14} className="animate-spin" /> : <Clapperboard size={14} />}
+                  {render ? render.aviso : 'Generar el video'}
+                </button>
+
+                {render && (
+                  <div className="mb-2">
+                    <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                      <div className="h-full bg-accent-blue transition-[width]"
+                        style={{ width: `${Math.round((render.progreso || 0) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                  <input type="checkbox" checked={borrador} onChange={e => setBorrador(e.target.checked)} />
+                  <span className="text-[11px] text-secondary">Borrador rápido, a media resolución</span>
+                </label>
+
                 <div className="flex gap-2">
                   <button onClick={bajarXML}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
@@ -287,8 +340,9 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                   </button>
                 </div>
                 <p className="text-[11px] text-tertiary mt-2 leading-snug">
-                  Premiere va a pedirte dónde está el video: señálale el archivo original
-                  de tu disco una vez y la secuencia queda armada.
+                  El video se genera en esta computadora, así que te va a pedir el archivo
+                  original. No se sube a ningún lado. Cada corte lleva un fundido de audio
+                  para que no se oiga el empalme.
                 </p>
               </div>
             </div>
