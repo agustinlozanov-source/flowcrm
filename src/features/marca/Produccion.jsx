@@ -16,9 +16,10 @@ import { useAuthStore } from '@/store/authStore'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
+import { analizar } from './audio'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock, Scissors, Download,
+  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines,
 } from 'lucide-react'
 
 const ESTADOS = {
@@ -59,10 +60,13 @@ const TIPOS = {
   repeticion: { label: 'Repetida',    color: '#7c3aed' },
   arranque:   { label: 'Arranque',    color: '#00b8d9' },
   divagacion: { label: 'Divagación',  color: '#ff3b30' },
+  arrastre:   { label: 'Arrastre',    color: '#00c853' },
 }
 
 function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoRef = useRef(null)
+  const audioRef = useRef(null)
+  const [escuchando, setEscuchando] = useState(false)
   const [segundo, setSegundo] = useState(0)
   const [trabajando, setTrabajando] = useState(null)
   const [saltar, setSaltar] = useState(true)
@@ -117,7 +121,13 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
 
   const filetear = async () => {
     const r = await llamar('filetear', 'filetear')
-    if (r) toast.success(`${r.cortes} cortes · quedan ${reloj(r.duracionFinal)}`)
+    if (!r) return
+    toast.success(`${r.cortes} cortes · quedan ${reloj(r.duracionFinal)}`)
+    // Si no hubo dónde cortar limpio, mejor decirlo que dejar al usuario
+    // preguntándose por qué sigue ahí una muletilla obvia.
+    if (r.sinSitio) {
+      toast(`${r.sinSitio} ${r.sinSitio === 1 ? 'muletilla iba' : 'muletillas iban'} pegadas al habla: se dejaron para no partir palabras`)
+    }
   }
 
   // Rescatar o volver a quitar un tramo. Se guarda al momento: es la decisión
@@ -148,6 +158,28 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const bajarSRT = () => {
     if (!palabras.length) { toast.error('Hace falta la transcripción'); return }
     descargar(aSRT({ palabras, cortes, duracion: duracionReal }), `${base}.srt`)
+  }
+
+  /* Para las piezas que se subieron antes de que existiera el oído. No hace
+   * falta volver a subir el video: basta con señalar el mismo archivo del
+   * disco, se escucha aquí y se guarda el resultado. */
+  const escuchar = async (file) => {
+    if (!file) return
+    setEscuchando(true)
+    try {
+      const audio = await analizar(file)
+      await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+        audio,
+        'video.duracion': audio.duracion,
+        updatedAt: serverTimestamp(),
+      })
+      toast.success(`${audio.silencios.length} silencios encontrados`)
+    } catch (e) {
+      console.error(e)
+      toast.error('No se pudo leer el audio de ese archivo')
+    } finally {
+      setEscuchando(false)
+    }
   }
 
   const irA = (s) => {
@@ -256,6 +288,28 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
             </div>
           )}
 
+          {!pieza.audio && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <input ref={audioRef} type="file" accept="video/*,audio/*" hidden
+                onChange={e => { escuchar(e.target.files?.[0]); e.target.value = '' }} />
+              <button onClick={() => audioRef.current?.click()} disabled={escuchando}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary disabled:opacity-50">
+                {escuchando ? <RefreshCw size={13} className="animate-spin" /> : <AudioLines size={13} />}
+                {escuchando ? 'Escuchando…' : 'Escuchar el audio'}
+              </button>
+              <p className="text-[11px] text-tertiary mt-1.5 leading-snug">
+                Esta pieza se subió sin análisis de sonido, así que los cortes van a ciegas.
+                Señala el mismo archivo de tu disco y se arregla.
+              </p>
+            </div>
+          )}
+
+          {pieza.audio && (
+            <p className="text-[11px] text-tertiary mt-2 flex items-center gap-1.5">
+              <AudioLines size={11} /> {pieza.audio.silencios?.length || 0} silencios detectados
+            </p>
+          )}
+
           <div className="flex items-center gap-2 mt-3">
             {!palabras.length ? (
               <button onClick={transcribir} disabled={!!trabajando}
@@ -344,6 +398,7 @@ export default function Produccion({ marcas }) {
   const { piezas, cargando } = usePiezas(orgId, marcaId)
   const [abierta, setAbierta] = useState(null)
   const [subiendo, setSubiendo] = useState(0)
+  const [analizando, setAnalizando] = useState(false)
   const archivoRef = useRef(null)
 
   useEffect(() => {
@@ -363,6 +418,20 @@ export default function Produccion({ marcas }) {
       updatedAt: serverTimestamp(),
     })
 
+    // Se escucha el audio aquí, con el archivo todavía en la mano. Después
+    // habría que volver a bajarlo y pelearse con los permisos de origen
+    // cruzado; ahora es gratis.
+    let audio = null
+    try {
+      setAnalizando(true)
+      audio = await analizar(file)
+    } catch (err) {
+      console.warn('no se pudo analizar el audio:', err)
+      toast('No se pudo escuchar el audio; el fileteado irá solo con el texto')
+    } finally {
+      setAnalizando(false)
+    }
+
     const ruta = `organizations/${orgId}/brands/${marcaId}/piezas/${docRef.id}/${file.name}`
     const tarea = uploadBytesResumable(storageRef(storage, ruta), file)
     setSubiendo(1)
@@ -378,7 +447,8 @@ export default function Produccion({ marcas }) {
       async () => {
         const url = await getDownloadURL(tarea.snapshot.ref)
         await updateDoc(docRef, {
-          video: { url, ruta, nombre: file.name, peso: file.size },
+          video: { url, ruta, nombre: file.name, peso: file.size, duracion: audio?.duracion ?? null },
+          ...(audio ? { audio } : {}),
           updatedAt: serverTimestamp(),
         })
         setSubiendo(0)
@@ -430,9 +500,9 @@ export default function Produccion({ marcas }) {
         )}
         <input ref={archivoRef} type="file" accept="video/*" hidden
           onChange={e => { subir(e.target.files?.[0]); e.target.value = '' }} />
-        <button onClick={() => archivoRef.current?.click()} disabled={subiendo > 0}
+        <button onClick={() => archivoRef.current?.click()} disabled={subiendo > 0 || analizando}
           className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
-          <Upload size={15} /> {subiendo > 0 ? `Subiendo ${subiendo}%` : 'Subir grabación'}
+          <Upload size={15} /> {analizando ? 'Escuchando…' : subiendo > 0 ? `Subiendo ${subiendo}%` : 'Subir grabación'}
         </button>
       </div>
 

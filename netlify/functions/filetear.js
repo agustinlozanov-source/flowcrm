@@ -39,7 +39,22 @@ function entre(a, b) {
   return (a + b) / 2
 }
 
-function silencios(palabras) {
+/* Los silencios de verdad, los que midió el navegador al subir el video.
+ * Cuando no los hay —piezas viejas— se cae al método pobre: adivinarlos por
+ * el hueco entre palabras, que es lo que antes cortaba dentro del habla. */
+function pausas(audio, palabras) {
+  if (audio?.silencios?.length) {
+    return audio.silencios
+      .filter(s => s.fin - s.inicio >= PAUSA_MINIMA)
+      .map(s => ({
+        inicio: s.inicio + RESPIRO,
+        fin: s.fin - RESPIRO,
+        tipo: 'silencio',
+        motivo: `Silencio de ${(s.fin - s.inicio).toFixed(1)}s`,
+      }))
+      .filter(c => c.fin - c.inicio >= 0.3)
+  }
+
   const cortes = []
   for (let i = 1; i < palabras.length; i++) {
     const hueco = palabras[i].inicio - palabras[i - 1].fin
@@ -47,15 +62,49 @@ function silencios(palabras) {
     const inicio = palabras[i - 1].fin + RESPIRO
     const fin = palabras[i].inicio - RESPIRO
     if (fin - inicio < 0.3) continue
-    cortes.push({
-      inicio, fin,
-      tipo: 'silencio',
-      motivo: `Pausa de ${hueco.toFixed(1)}s`,
-      desdePalabra: i - 1,
-      hastaPalabra: i,
-    })
+    cortes.push({ inicio, fin, tipo: 'silencio', motivo: `Pausa de ${hueco.toFixed(1)}s` })
   }
   return cortes
+}
+
+/* Dónde se puede cortar entre dos instantes: el centro del silencio real que
+ * haya en medio. Si no hay silencio, devuelve null — y entonces NO se corta.
+ * Es preferible dejar una muletilla que partir una palabra. */
+function puntoDeCorte(silencios, desde, hasta) {
+  const dentro = (silencios || []).filter(s => s.fin > desde && s.inicio < hasta)
+  if (!dentro.length) return null
+  const mayor = dentro.reduce((a, b) => (b.fin - b.inicio > a.fin - a.inicio ? b : a))
+  return (Math.max(mayor.inicio, desde) + Math.min(mayor.fin, hasta)) / 2
+}
+
+/* Sonido que la transcripción no recogió: el "eeeh" arrastrado, la
+ * respiración, el chasquido. Ninguna de las dos fuentes lo ve por separado —
+ * el texto no lo escribió y el audio solo sabe que ahí suena algo. Cruzadas,
+ * salen solos. */
+function arrastres(audio, palabras) {
+  if (!audio?.silencios?.length) return []
+  const fuera = []
+  for (let i = 1; i < palabras.length; i++) {
+    const desde = palabras[i - 1].fin
+    const hasta = palabras[i].inicio
+    if (hasta - desde < 0.45) continue
+
+    const callado = audio.silencios.reduce((a, s) => {
+      const x = Math.max(desde, s.inicio)
+      const y = Math.min(hasta, s.fin)
+      return a + Math.max(0, y - x)
+    }, 0)
+    const conSonido = (hasta - desde) - callado
+    if (conSonido < 0.33) continue
+
+    fuera.push({
+      inicio: desde + 0.05,
+      fin: hasta - 0.05,
+      tipo: 'arrastre',
+      motivo: `${conSonido.toFixed(1)}s de sonido sin palabras`,
+    })
+  }
+  return fuera
 }
 
 const HERRAMIENTA = {
@@ -146,22 +195,38 @@ Reglas:
     const uso = res.content.find(c => c.type === 'tool_use')
     if (!uso) return responder(502, { error: 'SIN_CORTES' })
 
+    const audio = pieza.audio || null
+    const sil = audio?.silencios || []
+    let sinSitio = 0
+
     // Los segundos salen de nuestros datos, no de lo que diga el modelo.
     const delModelo = (uso.input.cortes || [])
       .filter(c => Number.isInteger(c.desdePalabra) && Number.isInteger(c.hastaPalabra))
       .filter(c => c.desdePalabra >= 0 && c.hastaPalabra < palabras.length && c.hastaPalabra >= c.desdePalabra)
-      .map(c => ({
-        // El punto medio del silencio anterior y del posterior, no el borde
-        // de la palabra.
-        inicio: entre(palabras[c.desdePalabra - 1]?.fin, palabras[c.desdePalabra].inicio),
-        fin: entre(palabras[c.hastaPalabra].fin, palabras[c.hastaPalabra + 1]?.inicio),
-        tipo: c.tipo,
-        motivo: c.motivo,
-        desdePalabra: c.desdePalabra,
-        hastaPalabra: c.hastaPalabra,
-      }))
+      .map(c => {
+        const antes = palabras[c.desdePalabra - 1]?.fin
+        const despues = palabras[c.hastaPalabra + 1]?.inicio
+        const a = palabras[c.desdePalabra].inicio
+        const b = palabras[c.hastaPalabra].fin
 
-    const todos = [...silencios(palabras), ...delModelo]
+        // Con oído: se corta en el silencio real. Sin silencio en ningún
+        // lado, no se corta — eso es lo que partía palabras.
+        const ini = sil.length ? puntoDeCorte(sil, antes ?? 0, a) : entre(antes, a)
+        const fin = sil.length ? puntoDeCorte(sil, b, despues ?? b + 1) : entre(b, despues)
+        if (sil.length && ini === null && fin === null) { sinSitio++; return null }
+
+        return {
+          inicio: ini ?? a,
+          fin: fin ?? b,
+          tipo: c.tipo,
+          motivo: c.motivo,
+          desdePalabra: c.desdePalabra,
+          hastaPalabra: c.hastaPalabra,
+        }
+      })
+      .filter(Boolean)
+
+    const todos = [...pausas(audio, palabras), ...arrastres(audio, palabras), ...delModelo]
       .sort((a, b) => a.inicio - b.inicio)
       .map((c, i) => ({ ...c, id: `c${i}`, activo: true }))
 
@@ -173,6 +238,8 @@ Reglas:
       fileteado: {
         cortes: todos,
         resumen: uso.input.resumen || '',
+        conOido: Boolean(sil.length),
+        sinSitio,
         duracionOriginal: duracion,
         duracionFinal: Math.max(0, duracion - quitado),
         hechoEn: admin.firestore.FieldValue.serverTimestamp(),
@@ -182,6 +249,8 @@ Reglas:
 
     return responder(200, {
       ok: true,
+      conOido: Boolean(sil.length),
+      sinSitio,
       cortes: todos.length,
       quitado,
       duracionFinal: Math.max(0, duracion - quitado),
