@@ -11,11 +11,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc, writeBatch } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
+import Guion from './Guion'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Search, RefreshCw, Eye, Heart, MessageCircle, Clock, ExternalLink,
-  Hash, AtSign, Link2, Trash2, BadgeCheck, Music, Eraser,
+  Hash, AtSign, Link2, Trash2, BadgeCheck, Music, Eraser, Sparkles,
 } from 'lucide-react'
 
 const MODOS = [
@@ -88,7 +89,7 @@ function useReferencias(orgId) {
 }
 
 // ─── TARJETA ──────────────────────────────────────────────────────
-function Tarjeta({ ref_, onBorrar }) {
+function Tarjeta({ ref_, onBorrar, onGuion }) {
   const fecha = ref_.publicadoEn?.toDate?.()
   return (
     <div className="bg-surface border border-border rounded-card shadow-card overflow-hidden flex flex-col">
@@ -155,6 +156,11 @@ function Tarjeta({ ref_, onBorrar }) {
             <Music size={10} className="shrink-0" /> <span className="truncate">{ref_.audio.titulo}</span>
           </div>
         )}
+
+        <button onClick={() => onGuion(ref_)}
+          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[11px] font-bold text-secondary hover:text-primary hover:border-border-strong transition-colors">
+          <Sparkles size={12} /> Mi versión
+        </button>
       </div>
     </div>
   )
@@ -175,6 +181,7 @@ export default function Referencias({ marcas }) {
   const [marcaId, setMarcaId] = useState('')
   const [vaciando, setVaciando] = useState(false)
   const [dias, setDias] = useState(0)
+  const [guionDe, setGuionDe] = useState(null)
   const [diasLibres, setDiasLibres] = useState('')
 
   const marcaDelEscaneo = marcaId || marcas?.[0]?.id || null
@@ -387,8 +394,12 @@ export default function Referencias({ marcas }) {
         <p className="text-[13px] text-tertiary">Ninguna referencia pasa ese filtro.</p>
       ) : (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          {visibles.map(r => <Tarjeta key={r.id} ref_={r} onBorrar={borrar} />)}
+          {visibles.map(r => <Tarjeta key={r.id} ref_={r} onBorrar={borrar} onGuion={setGuionDe} />)}
         </div>
+      )}
+
+      {guionDe && (
+        <Guion referencia={guionDe} marcas={marcas} onCerrar={() => setGuionDe(null)} />
       )}
     </div>
   )
