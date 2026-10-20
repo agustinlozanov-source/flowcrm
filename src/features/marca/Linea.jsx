@@ -11,8 +11,10 @@ import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import clsx from 'clsx'
 import { ZoomIn, ZoomOut, Scissors, Trash2, Magnet, Play, Pause, SkipBack } from 'lucide-react'
 
-const ALTO = 96
+const ALTO = 96         // la pista de voz
 const REGLA = 18        // la franja de arriba con los tiempos
+const PISTA = 34        // cada capa de debajo
+const ETIQUETAS = 74    // la columna de nombres, fuera del desplazamiento
 const BORDE = 7           // píxeles de agarre en el borde de un tramo
 const IMAN = 0.12         // a cuánto se pega el borde al silencio más cercano
 
@@ -64,6 +66,7 @@ function imantar(t, silencios, activo) {
 
 export default function Linea({
   duracion, audio, palabras = [], cortes = [], segundo = 0,
+  sonidos = [], onCambiarSonidos,
   onCambiar, onIr, onPlay, sonando = false,
   saltando = true, onSaltar,
 }) {
@@ -212,6 +215,24 @@ export default function Linea({
 
   const alSoltar = () => { arrastre.current = null }
 
+  /* Los sonidos se mueven agarrándolos y llevándolos. Se pegan al silencio
+   * igual que los cortes: un golpe suena mejor justo donde la voz calla. */
+  const sonidoArrastrado = useRef(null)
+  const agarrarSonido = (e, s) => {
+    e.stopPropagation()
+    const r = lienzo.current.getBoundingClientRect()
+    sonidoArrastrado.current = { id: s.id, desfase: (e.clientX - r.left) - aX(s.en) }
+  }
+  const moverSonido = (e) => {
+    if (!sonidoArrastrado.current || !onCambiarSonidos) return
+    const r = lienzo.current.getBoundingClientRect()
+    const { id, desfase } = sonidoArrastrado.current
+    const crudo = aT(Math.max(0, e.clientX - r.left - desfase))
+    const en = imantar(Math.min(duracion, crudo), silencios, iman)
+    onCambiarSonidos(sonidos.map(s => (s.id === id ? { ...s, en } : s)))
+  }
+  const soltarSonido = () => { sonidoArrastrado.current = null }
+
   /* El teclado es la mitad del oficio: con el ratón se encuadra y con las
    * teclas se afina. Nada de esto se activa si estás escribiendo en un campo. */
   useEffect(() => {
@@ -268,6 +289,8 @@ export default function Linea({
     const der = izq + car.clientWidth
     if (x < izq + 40 || x > der - 40) car.scrollLeft = Math.max(0, x - car.clientWidth / 2)
   }, [segundo, aX])
+
+  const hayCapaSonidos = sonidos.length > 0
 
   const quitado = useMemo(
     () => cortes.filter(c => c.activo !== false).reduce((a, c) => a + (c.fin - c.inicio), 0),
@@ -345,40 +368,79 @@ export default function Linea({
         </div>
       )}
 
-      <div ref={carril} className="relative overflow-x-auto overflow-y-hidden rounded-btn bg-surface-2 border border-border">
-        <div className="relative" style={{ width: anchoTotal, height: ALTO + REGLA }}>
-          <canvas
-            ref={lienzo}
-            onMouseDown={alBajar}
-            onMouseMove={alMover}
-            onMouseUp={alSoltar}
-            onMouseLeave={alSoltar}
-            className="absolute inset-0 cursor-crosshair"
-          />
+      <div className="flex rounded-btn bg-surface-2 border border-border overflow-hidden">
+        {/* Los nombres de las capas viven fuera del desplazamiento: si se
+            fueran con el carril, al moverse no sabrías qué estás mirando. */}
+        <div className="shrink-0 border-r border-border" style={{ width: ETIQUETAS }}>
+          <div style={{ height: REGLA }} />
+          <div className="flex items-center px-2 text-[10px] font-bold uppercase tracking-wide text-tertiary"
+            style={{ height: ALTO }}>Voz</div>
+          {hayCapaSonidos && (
+            <div className="flex items-center px-2 border-t border-border text-[10px] font-bold uppercase tracking-wide text-tertiary"
+              style={{ height: PISTA }}>Sonidos</div>
+          )}
+        </div>
 
-          {cortes.map(c => {
-            const color = COLORES[c.tipo] || COLORES.manual
-            const fuera = c.activo === false
-            return (
-              <div
-                key={c.id}
-                title={`${TIPOS[c.tipo]?.nombre || 'Corte'} · ${c.motivo || ''} · ${(c.fin - c.inicio).toFixed(2)}s`}
-                className={clsx('absolute bottom-0 pointer-events-none border-x-2',
-                  seleccion === c.id && 'ring-2 ring-white/60')}
-                style={{
-                  top: REGLA,
-                  left: aX(c.inicio),
-                  width: Math.max(2, aX(c.fin - c.inicio)),
-                  background: fuera ? 'transparent' : `${color}33`,
-                  borderColor: color,
-                  opacity: fuera ? 0.35 : 1,
-                }}
-              />
-            )
-          })}
+        <div ref={carril} className="relative overflow-x-auto overflow-y-hidden flex-1">
+          <div
+            className="relative"
+            style={{ width: anchoTotal, height: REGLA + ALTO + (hayCapaSonidos ? PISTA : 0) }}
+            onMouseMove={e => { alMover(e); moverSonido(e) }}
+            onMouseUp={() => { alSoltar(); soltarSonido() }}
+            onMouseLeave={() => { alSoltar(); soltarSonido() }}
+          >
+            <canvas
+              ref={lienzo}
+              onMouseDown={alBajar}
+              className="absolute top-0 left-0 cursor-crosshair"
+            />
 
-          <div className="absolute top-0 bottom-0 w-px bg-accent-blue pointer-events-none"
-            style={{ left: aX(segundo) }} />
+            {cortes.map(c => {
+              const color = COLORES[c.tipo] || COLORES.manual
+              const fuera = c.activo === false
+              return (
+                <div
+                  key={c.id}
+                  title={`${TIPOS[c.tipo]?.nombre || 'Corte'} · ${c.motivo || ''} · ${(c.fin - c.inicio).toFixed(2)}s`}
+                  className={clsx('absolute pointer-events-none border-x-2',
+                    seleccion === c.id && 'ring-2 ring-white/60')}
+                  style={{
+                    top: REGLA,
+                    height: ALTO,
+                    left: aX(c.inicio),
+                    width: Math.max(2, aX(c.fin - c.inicio)),
+                    background: fuera ? 'transparent' : `${color}33`,
+                    borderColor: color,
+                    opacity: fuera ? 0.35 : 1,
+                  }}
+                />
+              )
+            })}
+
+            {hayCapaSonidos && (
+              <div className="absolute left-0 border-t border-border"
+                style={{ top: REGLA + ALTO, height: PISTA, width: anchoTotal }}>
+                {sonidos.map(s => (
+                  <div
+                    key={s.id}
+                    onMouseDown={e => agarrarSonido(e, s)}
+                    title={`${s.nombre} · ${reloj(s.en)} — arrástralo para moverlo`}
+                    className="absolute top-1 bottom-1 rounded-[4px] bg-accent-green/25 border border-accent-green
+                               flex items-center px-1.5 cursor-grab active:cursor-grabbing overflow-hidden"
+                    style={{
+                      left: aX(s.en),
+                      width: Math.max(26, aX(s.duracion || 0.6)),
+                    }}
+                  >
+                    <span className="text-[10px] font-bold text-accent-green truncate">{s.nombre}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="absolute top-0 bottom-0 w-px bg-accent-blue pointer-events-none z-10"
+              style={{ left: aX(segundo) }} />
+          </div>
         </div>
       </div>
 

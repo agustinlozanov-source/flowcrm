@@ -297,6 +297,24 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     })
   }
 
+  /* Arrastrar un sonido por la capa dispara muchos cambios seguidos, igual
+   * que mover el borde de un corte: copia local y se guarda al soltar. */
+  const [sonidosLocales, setSonidosLocales] = useState(pieza.sonidos || [])
+  const sonidosPorGuardar = useRef(null)
+  useEffect(() => { setSonidosLocales(pieza.sonidos || []) }, [(pieza.sonidos || []).length])
+
+  const cambiarSonidos = (nuevos) => {
+    setSonidosLocales(nuevos)
+    clearTimeout(sonidosPorGuardar.current)
+    sonidosPorGuardar.current = setTimeout(() => {
+      updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+        sonidos: nuevos,
+        updatedAt: serverTimestamp(),
+      }).catch(e => console.error('no se pudieron guardar los sonidos', e))
+    }, 500)
+  }
+  useEffect(() => () => clearTimeout(sonidosPorGuardar.current), [])
+
   const bajarWav = () => {
     if (!montaje) return
     const url = URL.createObjectURL(aWav(montaje))
@@ -359,6 +377,8 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
             palabras={palabras}
             cortes={cortes}
             segundo={segundo}
+            sonidos={sonidosLocales}
+            onCambiarSonidos={cambiarSonidos}
             onCambiar={cambiarCortes}
             onIr={irA}
             onPlay={alternarPlay}
@@ -578,13 +598,13 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
 
       {palabras.length > 0 && (
         <>
-          {!!(pieza.sonidos || []).length && (
+          {!!sonidosLocales.length && (
             <div className="bg-surface border border-border rounded-card shadow-card p-4 mt-4">
               <h2 className="font-display font-bold text-[14px] text-primary mb-2">
                 Sonidos en esta pieza
               </h2>
               <div className="flex flex-wrap gap-2">
-                {pieza.sonidos.map(s => (
+                {sonidosLocales.map(s => (
                   <span key={s.id}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px]">
                     <button onClick={() => irA(s.en)} className="font-semibold text-primary hover:text-accent-blue">
