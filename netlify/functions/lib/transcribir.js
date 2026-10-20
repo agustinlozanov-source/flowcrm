@@ -25,6 +25,10 @@ async function pedir(modelo, url, idioma) {
     punctuate: 'true',
     smart_format: 'true',
     paragraphs: 'true',
+    // Por defecto se las come, y para nosotros son justo lo que hay que
+    // cortar: si no vienen escritas no tienen segundo, y sin segundo no hay
+    // forma de quitarlas del video aunque el texto se lea perfecto.
+    filler_words: 'true',
   })
   const res = await fetch(`${BASE}?${p}`, {
     method: 'POST',

@@ -17,13 +17,14 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock,
+  AlertTriangle, Trash2, Clock, Scissors,
 } from 'lucide-react'
 
 const ESTADOS = {
   crudo:         { label: 'Sin transcribir', color: 'text-tertiary',    punto: 'bg-tertiary' },
   transcribiendo:{ label: 'Transcribiendo…', color: 'text-accent-blue', punto: 'bg-accent-blue' },
   transcrita:    { label: 'Transcrita',      color: 'text-accent-green',punto: 'bg-accent-green' },
+  fileteada:     { label: 'Fileteada',       color: 'text-accent-green',punto: 'bg-accent-green' },
 }
 
 const reloj = (s) => {
@@ -51,35 +52,79 @@ function usePiezas(orgId, brandId) {
 }
 
 // ─── FICHA ────────────────────────────────────────────────────────
+const TIPOS = {
+  silencio:   { label: 'Pausa',       color: '#6e6e73' },
+  muletilla:  { label: 'Muletilla',   color: '#f59e0b' },
+  repeticion: { label: 'Repetida',    color: '#7c3aed' },
+  arranque:   { label: 'Arranque',    color: '#00b8d9' },
+  divagacion: { label: 'Divagación',  color: '#ff3b30' },
+}
+
 function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoRef = useRef(null)
   const [segundo, setSegundo] = useState(0)
-  const [transcribiendo, setTranscribiendo] = useState(false)
+  const [trabajando, setTrabajando] = useState(null)
+  const [saltar, setSaltar] = useState(true)
   const palabras = pieza.transcripcion?.palabras || []
+  const cortes = pieza.fileteado?.cortes || []
 
-  // La palabra que suena ahora. Se busca en cada latido del video: con
-  // quinientas palabras es instantáneo y evita guardar estado duplicado.
+  const activos = useMemo(() => cortes.filter(c => c.activo !== false), [cortes])
+
+  // La palabra que suena ahora. Se busca en cada latido: con setecientas
+  // palabras es instantáneo y evita guardar estado duplicado.
   const actual = useMemo(() => {
     if (!palabras.length) return -1
     return palabras.findIndex(p => segundo >= p.inicio && segundo < p.fin)
   }, [palabras, segundo])
 
-  const transcribir = async () => {
-    setTranscribiendo(true)
+  // Qué palabras caen dentro de un corte, y qué pausas van entre cuáles.
+  const { cortadas, pausas } = useMemo(() => {
+    const cortadas = new Map()
+    const pausas = new Map()
+    for (const c of cortes) {
+      if (c.tipo === 'silencio') { pausas.set(c.hastaPalabra, c); continue }
+      for (let i = c.desdePalabra; i <= c.hastaPalabra; i++) cortadas.set(i, c)
+    }
+    return { cortadas, pausas }
+  }, [cortes])
+
+  const llamar = async (ruta, etiqueta) => {
+    setTrabajando(etiqueta)
     try {
-      const res = await fetch('/.netlify/functions/transcribe', {
+      const res = await fetch(`/.netlify/functions/${ruta}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orgId, brandId, piezaId: pieza.id }),
       })
       const r = await res.json()
-      if (!res.ok || !r.ok) throw new Error(r.detalle || r.error || 'No se pudo transcribir')
-      toast.success(`${r.palabras} palabras`)
+      if (!res.ok || !r.ok) throw new Error(r.detalle || r.error || 'No se pudo')
+      return r
     } catch (e) {
       toast.error(e.message)
+      return null
     } finally {
-      setTranscribiendo(false)
+      setTrabajando(null)
     }
+  }
+
+  const transcribir = async () => {
+    const r = await llamar('transcribe', 'transcribir')
+    if (r) toast.success(`${r.palabras} palabras`)
+  }
+
+  const filetear = async () => {
+    const r = await llamar('filetear', 'filetear')
+    if (r) toast.success(`${r.cortes} cortes · quedan ${reloj(r.duracionFinal)}`)
+  }
+
+  // Rescatar o volver a quitar un tramo. Se guarda al momento: es la decisión
+  // de la persona sobre la propuesta de la máquina, y eso no se pierde.
+  const alternar = async (corte) => {
+    const nuevos = cortes.map(c => (c.id === corte.id ? { ...c, activo: c.activo === false } : c))
+    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+      'fileteado.cortes': nuevos,
+      updatedAt: serverTimestamp(),
+    })
   }
 
   const irA = (s) => {
@@ -88,7 +133,19 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     videoRef.current.play()
   }
 
+  // La vista previa no renderiza nada: el reproductor salta los tramos
+  // cortados sobre el archivo original.
+  const latido = (e) => {
+    const t = e.target.currentTime
+    if (saltar) {
+      const dentro = activos.find(c => t >= c.inicio && t < c.fin - 0.05)
+      if (dentro) { e.target.currentTime = dentro.fin; return }
+    }
+    setSegundo(t)
+  }
+
   const estado = ESTADOS[pieza.estado] || ESTADOS.crudo
+  const f = pieza.fileteado
 
   return (
     <div>
@@ -104,7 +161,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               ref={videoRef}
               src={pieza.video.url}
               controls
-              onTimeUpdate={e => setSegundo(e.target.currentTime)}
+              onTimeUpdate={latido}
               className="w-full rounded-btn bg-black"
             />
           ) : (
@@ -112,6 +169,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               La subida del video no terminó
             </div>
           )}
+
           <div className="flex items-center gap-2 mt-3">
             <span className={clsx('w-1.5 h-1.5 rounded-full', estado.punto)} />
             <span className={clsx('text-[12px] font-semibold', estado.color)}>{estado.label}</span>
@@ -122,6 +180,27 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
             )}
           </div>
 
+          {f && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <div className="flex items-baseline gap-2">
+                <span className="font-display font-bold text-[18px] text-primary">{reloj(f.duracionOriginal)}</span>
+                <span className="text-tertiary">→</span>
+                <span className="font-display font-bold text-[18px] text-accent-green">
+                  {reloj(f.duracionOriginal - activos.reduce((a, c) => a + (c.fin - c.inicio), 0))}
+                </span>
+              </div>
+              <p className="text-[11px] text-tertiary mt-0.5">
+                {activos.length} de {cortes.length} cortes activos
+              </p>
+              {f.resumen && <p className="text-[12px] text-secondary mt-2 leading-snug">{f.resumen}</p>}
+
+              <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                <input type="checkbox" checked={saltar} onChange={e => setSaltar(e.target.checked)} />
+                <span className="text-[12px] text-secondary">Saltar los cortes al reproducir</span>
+              </label>
+            </div>
+          )}
+
           {pieza.error && (
             <div className="flex items-start gap-2 mt-3 text-[12px] text-accent-amber">
               <AlertTriangle size={13} className="shrink-0 mt-0.5" /> {pieza.error}
@@ -129,11 +208,19 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
           )}
 
           <div className="flex items-center gap-2 mt-3">
-            <button onClick={transcribir} disabled={transcribiendo}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
-              {transcribiendo ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
-              {transcribiendo ? 'Transcribiendo…' : palabras.length ? 'Transcribir de nuevo' : 'Transcribir'}
-            </button>
+            {!palabras.length ? (
+              <button onClick={transcribir} disabled={!!trabajando}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+                {trabajando === 'transcribir' ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
+                {trabajando === 'transcribir' ? 'Transcribiendo…' : 'Transcribir'}
+              </button>
+            ) : (
+              <button onClick={filetear} disabled={!!trabajando}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+                {trabajando === 'filetear' ? <RefreshCw size={14} className="animate-spin" /> : <Scissors size={14} />}
+                {trabajando === 'filetear' ? 'Fileteando…' : f ? 'Filetear de nuevo' : 'Filetear'}
+              </button>
+            )}
             <button onClick={onBorrar} title="Eliminar la pieza"
               className="w-9 h-9 rounded-btn flex items-center justify-center text-tertiary hover:text-accent-red hover:bg-surface-2">
               <Trash2 size={15} />
@@ -143,30 +230,54 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
 
         {/* Transcripción */}
         <div className="bg-surface border border-border rounded-card shadow-card p-4">
-          <h2 className="font-display font-bold text-[14px] text-primary mb-3">Transcripción</h2>
+          <h2 className="font-display font-bold text-[14px] text-primary mb-1">Transcripción</h2>
           {!palabras.length ? (
-            <p className="text-[13px] text-tertiary">
+            <p className="text-[13px] text-tertiary mt-2">
               Todavía no hay texto. Dale a Transcribir y aparece aquí, con cada palabra
               pegada a su segundo del video.
             </p>
           ) : (
             <>
               <p className="text-[11px] text-tertiary mb-2">
-                {palabras.length} palabras · haz clic en cualquiera para saltar ahí
+                {palabras.length} palabras · clic en una palabra para saltar ahí
+                {cortes.length > 0 && ' · clic en lo tachado para rescatarlo'}
               </p>
-              <div className="max-h-[480px] overflow-y-auto pr-1 leading-[1.9]">
-                {palabras.map((p, i) => (
-                  <span
-                    key={i}
-                    onClick={() => irA(p.inicio)}
-                    className={clsx('cursor-pointer rounded px-0.5 text-[14px] transition-colors',
-                      i === actual
-                        ? 'bg-accent-blue text-white'
-                        : 'text-primary hover:bg-surface-2')}
-                  >
-                    {p.texto}{' '}
-                  </span>
-                ))}
+              <div className="max-h-[520px] overflow-y-auto pr-1 leading-[2.1]">
+                {palabras.map((p, i) => {
+                  const pausa = pausas.get(i)
+                  const corte = cortadas.get(i)
+                  const fuera = corte && corte.activo !== false
+                  return (
+                    <span key={i}>
+                      {pausa && (
+                        <span
+                          onClick={() => alternar(pausa)}
+                          title={`${pausa.motivo} — clic para ${pausa.activo === false ? 'quitarla' : 'conservarla'}`}
+                          className={clsx('inline-block mx-0.5 px-1 rounded text-[10px] font-bold cursor-pointer align-middle',
+                            pausa.activo === false
+                              ? 'bg-surface-2 text-tertiary line-through'
+                              : 'bg-accent-amber/20 text-accent-amber')}
+                        >
+                          {(pausa.fin - pausa.inicio).toFixed(1)}s
+                        </span>
+                      )}
+                      <span
+                        onClick={() => (corte ? alternar(corte) : irA(p.inicio))}
+                        title={corte ? `${TIPOS[corte.tipo]?.label}: ${corte.motivo}` : undefined}
+                        className={clsx('cursor-pointer rounded px-0.5 text-[14px] transition-colors',
+                          i === actual && !fuera
+                            ? 'bg-accent-blue text-white'
+                            : fuera
+                              ? 'text-tertiary line-through decoration-accent-red/60'
+                              : corte
+                                ? 'text-secondary bg-surface-2'
+                                : 'text-primary hover:bg-surface-2')}
+                      >
+                        {p.texto}{' '}
+                      </span>
+                    </span>
+                  )
+                })}
               </div>
             </>
           )}
