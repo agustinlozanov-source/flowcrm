@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect } from 'react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
-import { Search, Play, Pause, Plus, RefreshCw, Volume2 } from 'lucide-react'
+import { Search, Play, Pause, Plus, RefreshCw } from 'lucide-react'
 
 /* Freesound está etiquetado en inglés, así que las categorías traducen por
  * dentro. Quien edita piensa en "transición", no en "whoosh". */
@@ -72,12 +72,8 @@ export default function Sonidos({ onAgregar, enSegundo }) {
   }
 
   return (
-    <div className="bg-surface border border-border rounded-card shadow-card p-4 mt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Volume2 size={15} className="text-tertiary" />
-        <h2 className="font-display font-bold text-[14px] text-primary">Sonidos</h2>
-        <span className="ml-auto text-[11px] text-tertiary">Dominio público · uso libre</span>
-      </div>
+    <div>
+      <p className="text-[11px] text-tertiary mb-2">Dominio público · uso libre</p>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         {CATEGORIAS.map(c => (
@@ -107,7 +103,7 @@ export default function Sonidos({ onAgregar, enSegundo }) {
       )}
 
       {sonidos.length > 0 && (
-        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-h-[320px] overflow-y-auto pr-1">
+        <div className="grid gap-2 grid-cols-1 xl:grid-cols-2 max-h-[240px] overflow-y-auto pr-1">
           {sonidos.map(s => (
             <div key={s.id} className="flex items-center gap-2 bg-surface-2 border border-border rounded-btn p-2">
               <button onClick={() => oir(s)}

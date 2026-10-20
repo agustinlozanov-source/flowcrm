@@ -62,6 +62,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoRef = useRef(null)
   const audioRef = useRef(null)
   const [escuchando, setEscuchando] = useState(false)
+  const [panel, setPanel] = useState('transcripcion')
   const videoFileRef = useRef(null)
   const [montando, setMontando] = useState(false)
   const [montaje, setMontaje] = useState(null)   // AudioBuffer del audio ya cortado
@@ -364,34 +365,64 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const f = pieza.fileteado
 
   return (
-    <div>
-      <button onClick={onVolver} className="flex items-center gap-1 text-[13px] text-tertiary hover:text-primary mb-4">
-        <ChevronLeft size={15} /> Todas las piezas
-      </button>
+    <div className="flex flex-col gap-3">
+      {/* Cabecera: volver, qué es esto, y los dos pasos del proceso */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={onVolver} className="flex items-center gap-1 text-[13px] text-tertiary hover:text-primary">
+          <ChevronLeft size={15} /> Todas las piezas
+        </button>
+        <span className="font-display font-bold text-[15px] text-primary truncate max-w-[280px]">
+          {pieza.titulo}
+        </span>
+        <span className={clsx('flex items-center gap-1.5 text-[12px] font-semibold', estado.color)}>
+          <span className={clsx('w-1.5 h-1.5 rounded-full', estado.punto)} /> {estado.label}
+        </span>
 
-      {palabras.length > 0 && (
-        <div className="mb-4">
-          <Linea
-            duracion={duracionReal}
-            audio={pieza.audio}
-            palabras={palabras}
-            cortes={cortes}
-            segundo={segundo}
-            sonidos={sonidosLocales}
-            onCambiarSonidos={cambiarSonidos}
-            onCambiar={cambiarCortes}
-            onIr={irA}
-            onPlay={alternarPlay}
-            sonando={reproduciendo}
-            saltando={saltar}
-            onSaltar={setSaltar}
-          />
+        <div className="ml-auto flex items-center gap-2">
+          {!pieza.audio && (
+            <>
+              <input ref={audioRef} type="file" accept="video/*,audio/*" hidden
+                onChange={e => { escuchar(e.target.files?.[0]); e.target.value = '' }} />
+              <button onClick={() => audioRef.current?.click()} disabled={escuchando}
+                title="Esta pieza se subió sin análisis de sonido: señala el mismo archivo del disco"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary disabled:opacity-50">
+                {escuchando ? <RefreshCw size={13} className="animate-spin" /> : <AudioLines size={13} />}
+                {escuchando ? 'Escuchando…' : 'Escuchar el audio'}
+              </button>
+            </>
+          )}
+
+          {!palabras.length ? (
+            <button onClick={transcribir} disabled={!!trabajando}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-accent-blue text-white text-[12px] font-bold disabled:opacity-50">
+              {trabajando === 'transcribir' ? <RefreshCw size={13} className="animate-spin" /> : <FileText size={13} />}
+              {trabajando === 'transcribir' ? 'Transcribiendo…' : 'Transcribir'}
+            </button>
+          ) : (
+            <button onClick={filetear} disabled={!!trabajando}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-accent-blue text-white text-[12px] font-bold disabled:opacity-50">
+              {trabajando === 'filetear' ? <RefreshCw size={13} className="animate-spin" /> : <Scissors size={13} />}
+              {trabajando === 'filetear' ? 'Fileteando…' : f ? 'Filetear de nuevo' : 'Filetear'}
+            </button>
+          )}
+
+          <button onClick={onBorrar} title="Eliminar la pieza"
+            className="w-8 h-8 rounded-btn flex items-center justify-center text-tertiary hover:text-accent-red hover:bg-surface-2">
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+
+      {pieza.error && (
+        <div className="flex items-start gap-2 text-[12px] text-accent-amber">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" /> {pieza.error}
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr] items-start">
-        {/* Video */}
-        <div className="bg-surface border border-border rounded-card shadow-card p-4">
+      {/* Visor y herramientas, uno al lado del otro: editar es mirar y tocar
+          al mismo tiempo, no bajar la página a buscar el botón. */}
+      <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)] items-start">
+        <div className="bg-surface border border-border rounded-card shadow-card p-2">
           {pieza.video?.url ? (
             <video
               ref={videoRef}
@@ -403,225 +434,208 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               className="w-full rounded-btn bg-black"
             />
           ) : (
-            <div className="w-full aspect-video rounded-btn bg-surface-2 border border-border flex items-center justify-center text-[12px] text-tertiary">
+            <div className="w-full aspect-[9/16] rounded-btn bg-surface-2 border border-border flex items-center justify-center text-[12px] text-tertiary text-center px-3">
               La subida del video no terminó
             </div>
           )}
 
-          <div className="flex items-center gap-2 mt-3">
-            <span className={clsx('w-1.5 h-1.5 rounded-full', estado.punto)} />
-            <span className={clsx('text-[12px] font-semibold', estado.color)}>{estado.label}</span>
-            {pieza.video?.duracion && (
-              <span className="ml-auto flex items-center gap-1 text-[12px] text-tertiary">
-                <Clock size={12} /> {reloj(pieza.video.duracion)}
-              </span>
-            )}
-          </div>
-
-          {f && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <div className="flex items-baseline gap-2">
-                <span className="font-display font-bold text-[18px] text-primary">{reloj(f.duracionOriginal)}</span>
-                <span className="text-tertiary">→</span>
-                <span className="font-display font-bold text-[18px] text-accent-green">
-                  {reloj(f.duracionOriginal - activos.reduce((a, c) => a + (c.fin - c.inicio), 0))}
-                </span>
-              </div>
-              <p className="text-[11px] text-tertiary mt-0.5">
-                {activos.length} de {cortes.length} cortes activos
-              </p>
-              {f.resumen && <p className="text-[12px] text-secondary mt-2 leading-snug">{f.resumen}</p>}
-
-              <div className="mt-3 pt-3 border-t border-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-tertiary">Exportar</span>
-                  <select value={fps} onChange={e => setFps(Number(e.target.value))}
-                    title="Los cuadros por segundo de tu material. Si los cortes salen corridos, es esto."
-                    className="ml-auto px-2 py-1 rounded-btn bg-surface-2 border border-border text-[11px] text-secondary outline-none">
-                    {[24, 25, 30, 50, 60].map(v => <option key={v} value={v}>{v} fps</option>)}
-                  </select>
-                </div>
-                <input ref={videoFileRef} type="file" accept="video/*" hidden
-                  onChange={e => { montar(e.target.files?.[0]); e.target.value = '' }} />
-
-                {!montaje ? (
-                  <button onClick={() => videoFileRef.current?.click()} disabled={montando}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50 mb-2">
-                    {montando ? <RefreshCw size={14} className="animate-spin" /> : <AudioLines size={14} />}
-                    {montando ? 'Montando el audio…' : 'Montar el audio'}
-                  </button>
-                ) : (
-                  <div className="flex gap-2 mb-2">
-                    <button onClick={sonando ? pararMontaje : oir}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold">
-                      <Play size={14} /> {sonando ? 'Parar' : 'Oír el montaje'}
-                    </button>
-                    <button onClick={bajarWav} title="Descargar el audio del montaje"
-                      className="px-3 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
-                      <Download size={13} />
-                    </button>
-                  </div>
-                )}
-
-                {falloRender && (
-                  <div className="mb-2 p-2.5 rounded-btn bg-accent-red/10 border border-accent-red/30">
-                    <div className="flex items-start gap-1.5 text-[11px] text-accent-red leading-snug">
-                      <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-                      <span className="break-words">{falloRender}</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <button onClick={bajarXML}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
-                    <Download size={13} /> Premiere
-                  </button>
-                  <button onClick={bajarSRT}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
-                    <Download size={13} /> Subtítulos
-                  </button>
-                </div>
-                <p className="text-[11px] text-tertiary mt-2 leading-snug">
-                  El audio del montaje se arma aquí, con un fundido en cada empalme para que
-                  no chasquee. Óyelo para juzgar el corte de verdad, y bájalo para ponerlo en
-                  Premiere sobre la secuencia del XML.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {pieza.error && (
-            <div className="flex items-start gap-2 mt-3 text-[12px] text-accent-amber">
-              <AlertTriangle size={13} className="shrink-0 mt-0.5" /> {pieza.error}
-            </div>
-          )}
-
-          {!pieza.audio && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <input ref={audioRef} type="file" accept="video/*,audio/*" hidden
-                onChange={e => { escuchar(e.target.files?.[0]); e.target.value = '' }} />
-              <button onClick={() => audioRef.current?.click()} disabled={escuchando}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary disabled:opacity-50">
-                {escuchando ? <RefreshCw size={13} className="animate-spin" /> : <AudioLines size={13} />}
-                {escuchando ? 'Escuchando…' : 'Escuchar el audio'}
-              </button>
-              <p className="text-[11px] text-tertiary mt-1.5 leading-snug">
-                Esta pieza se subió sin análisis de sonido, así que los cortes van a ciegas.
-                Señala el mismo archivo de tu disco y se arregla.
-              </p>
-            </div>
-          )}
-
-          {pieza.audio && (
-            <p className="text-[11px] text-tertiary mt-2 flex items-center gap-1.5">
-              <AudioLines size={11} /> {pieza.audio.silencios?.length || 0} silencios detectados
-            </p>
-          )}
-
-          <div className="flex items-center gap-2 mt-3">
-            {!palabras.length ? (
-              <button onClick={transcribir} disabled={!!trabajando}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
-                {trabajando === 'transcribir' ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
-                {trabajando === 'transcribir' ? 'Transcribiendo…' : 'Transcribir'}
-              </button>
-            ) : (
-              <button onClick={filetear} disabled={!!trabajando}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
-                {trabajando === 'filetear' ? <RefreshCw size={14} className="animate-spin" /> : <Scissors size={14} />}
-                {trabajando === 'filetear' ? 'Fileteando…' : f ? 'Filetear de nuevo' : 'Filetear'}
-              </button>
-            )}
-            <button onClick={onBorrar} title="Eliminar la pieza"
-              className="w-9 h-9 rounded-btn flex items-center justify-center text-tertiary hover:text-accent-red hover:bg-surface-2">
-              <Trash2 size={15} />
-            </button>
+          <div className="flex items-center gap-2 px-1 pt-2 text-[11px] text-tertiary">
+            {pieza.audio && <span className="flex items-center gap-1"><AudioLines size={11} /> {pieza.audio.silencios?.length || 0} silencios</span>}
+            {pieza.video?.duracion && <span className="ml-auto flex items-center gap-1"><Clock size={11} /> {reloj(pieza.video.duracion)}</span>}
           </div>
         </div>
 
-        {/* Transcripción */}
-        <div className="bg-surface border border-border rounded-card shadow-card p-4">
-          <h2 className="font-display font-bold text-[14px] text-primary mb-1">Transcripción</h2>
-          {!palabras.length ? (
-            <p className="text-[13px] text-tertiary mt-2">
-              Todavía no hay texto. Dale a Transcribir y aparece aquí, con cada palabra
-              pegada a su segundo del video.
-            </p>
-          ) : (
-            <>
-              <p className="text-[11px] text-tertiary mb-2">
-                {palabras.length} palabras · clic en una palabra para saltar ahí
-                {cortes.length > 0 && ' · clic en lo tachado para rescatarlo'}
-              </p>
-              <div className="max-h-[520px] overflow-y-auto pr-1 leading-[2.1]">
-                {palabras.map((p, i) => {
-                  const pausa = pausas.get(i)
-                  const corte = cortadas.get(i)
-                  const fuera = corte && corte.activo !== false
-                  return (
-                    <span key={i}>
-                      {pausa && (
-                        <span
-                          onClick={() => alternar(pausa)}
-                          title={`${pausa.motivo} — clic para ${pausa.activo === false ? 'quitarla' : 'conservarla'}`}
-                          className={clsx('inline-block mx-0.5 px-1 rounded text-[10px] font-bold cursor-pointer align-middle',
-                            pausa.activo === false
-                              ? 'bg-surface-2 text-tertiary line-through'
-                              : 'bg-accent-amber/20 text-accent-amber')}
-                        >
-                          {(pausa.fin - pausa.inicio).toFixed(1)}s
+        <div className="bg-surface border border-border rounded-card shadow-card">
+          <div className="flex items-center gap-1 px-3 pt-2 border-b border-border">
+            {[
+              { id: 'transcripcion', label: 'Transcripción' },
+              { id: 'sonidos', label: 'Sonidos' },
+              { id: 'montaje', label: 'Montaje' },
+            ].map(t => (
+              <button key={t.id} onClick={() => setPanel(t.id)}
+                className={clsx('px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors',
+                  panel === t.id ? 'border-accent-blue text-primary' : 'border-transparent text-tertiary hover:text-secondary')}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-3 max-h-[420px] overflow-y-auto">
+            {panel === 'transcripcion' && (
+              !palabras.length ? (
+                <p className="text-[13px] text-tertiary">
+                  Todavía no hay texto. Dale a Transcribir y aparece aquí, con cada palabra
+                  pegada a su segundo del video.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-tertiary mb-2">
+                    {palabras.length} palabras · clic en una palabra para saltar ahí
+                    {cortes.length > 0 && ' · clic en lo tachado para rescatarlo'}
+                  </p>
+                  <div className="leading-[2.1]">
+                    {palabras.map((p, i) => {
+                      const pausa = pausas.get(i)
+                      const corte = cortadas.get(i)
+                      const fuera = corte && corte.activo !== false
+                      return (
+                        <span key={i}>
+                          {pausa && (
+                            <span
+                              onClick={() => alternar(pausa)}
+                              title={`${pausa.motivo} — clic para ${pausa.activo === false ? 'quitarla' : 'conservarla'}`}
+                              className={clsx('inline-block mx-0.5 px-1 rounded text-[10px] font-bold cursor-pointer align-middle',
+                                pausa.activo === false
+                                  ? 'bg-surface-2 text-tertiary line-through'
+                                  : 'bg-accent-amber/20 text-accent-amber')}
+                            >
+                              {(pausa.fin - pausa.inicio).toFixed(1)}s
+                            </span>
+                          )}
+                          <span
+                            onClick={() => (corte ? alternar(corte) : irA(p.inicio))}
+                            title={corte ? `${TIPOS[corte.tipo]?.nombre}: ${corte.motivo}` : undefined}
+                            className={clsx('cursor-pointer rounded px-0.5 text-[14px] transition-colors',
+                              i === actual && !fuera
+                                ? 'bg-accent-blue text-white'
+                                : fuera
+                                  ? 'text-tertiary line-through decoration-accent-red/60'
+                                  : corte
+                                    ? 'text-secondary bg-surface-2'
+                                    : 'text-primary hover:bg-surface-2')}
+                          >
+                            {p.texto}{' '}
+                          </span>
                         </span>
-                      )}
-                      <span
-                        onClick={() => (corte ? alternar(corte) : irA(p.inicio))}
-                        title={corte ? `${TIPOS[corte.tipo]?.nombre}: ${corte.motivo}` : undefined}
-                        className={clsx('cursor-pointer rounded px-0.5 text-[14px] transition-colors',
-                          i === actual && !fuera
-                            ? 'bg-accent-blue text-white'
-                            : fuera
-                              ? 'text-tertiary line-through decoration-accent-red/60'
-                              : corte
-                                ? 'text-secondary bg-surface-2'
-                                : 'text-primary hover:bg-surface-2')}
-                      >
-                        {p.texto}{' '}
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            )}
+
+            {panel === 'sonidos' && (
+              <>
+                {!!sonidosLocales.length && (
+                  <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-border">
+                    {sonidosLocales.map(s => (
+                      <span key={s.id}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-btn bg-surface-2 border border-border text-[11px]">
+                        <button onClick={() => irA(s.en)} className="font-semibold text-primary hover:text-accent-blue">
+                          {s.nombre}
+                        </button>
+                        <span className="text-tertiary">{reloj(s.en)}</span>
+                        <button onClick={() => quitarSonido(s.id)} className="text-tertiary hover:text-accent-red">
+                          <X size={11} />
+                        </button>
                       </span>
-                    </span>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                    ))}
+                  </div>
+                )}
+                <Sonidos onAgregar={agregarSonido} enSegundo={segundo} />
+              </>
+            )}
+
+            {panel === 'montaje' && (
+              !f ? (
+                <p className="text-[13px] text-tertiary">
+                  Primero hay que filetear. El montaje es el video ya cortado.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-display font-bold text-[20px] text-primary">{reloj(f.duracionOriginal)}</span>
+                      <span className="text-tertiary">→</span>
+                      <span className="font-display font-bold text-[20px] text-accent-green">
+                        {reloj(f.duracionOriginal - activos.reduce((a, c) => a + (c.fin - c.inicio), 0))}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-tertiary mt-0.5">
+                      {activos.length} de {cortes.length} cortes activos
+                    </p>
+                    {f.resumen && <p className="text-[12px] text-secondary mt-1.5 leading-snug">{f.resumen}</p>}
+                  </div>
+
+                  <input ref={videoFileRef} type="file" accept="video/*" hidden
+                    onChange={e => { montar(e.target.files?.[0]); e.target.value = '' }} />
+
+                  {!montaje ? (
+                    <button onClick={() => videoFileRef.current?.click()} disabled={montando}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+                      {montando ? <RefreshCw size={14} className="animate-spin" /> : <AudioLines size={14} />}
+                      {montando ? 'Montando el audio…' : 'Montar el audio'}
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={sonando ? pararMontaje : oir}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold">
+                        <Play size={14} /> {sonando ? 'Parar' : 'Oír el montaje'}
+                      </button>
+                      <button onClick={bajarWav} title="Descargar el audio del montaje"
+                        className="px-3 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                        <Download size={13} />
+                      </button>
+                    </div>
+                  )}
+
+                  {falloRender && (
+                    <div className="p-2.5 rounded-btn bg-accent-red/10 border border-accent-red/30">
+                      <div className="flex items-start gap-1.5 text-[11px] text-accent-red leading-snug">
+                        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                        <span className="break-words">{falloRender}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-3 border-t border-border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-tertiary">Llevar a Premiere</span>
+                      <select value={fps} onChange={e => setFps(Number(e.target.value))}
+                        title="Los cuadros por segundo de tu material. Si los cortes salen corridos, es esto."
+                        className="ml-auto px-2 py-1 rounded-btn bg-surface-2 border border-border text-[11px] text-secondary outline-none">
+                        {[24, 25, 30, 50, 60].map(v => <option key={v} value={v}>{v} fps</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={bajarXML}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                        <Download size={13} /> Secuencia
+                      </button>
+                      <button onClick={bajarSRT}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                        <Download size={13} /> Subtítulos
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-tertiary mt-2 leading-snug">
+                      El audio del montaje lleva un fundido en cada empalme. Bájalo y ponlo sobre
+                      la secuencia, silenciando la pista original.
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
         </div>
       </div>
 
+      {/* La línea de tiempo, abajo y a todo lo ancho */}
       {palabras.length > 0 && (
-        <>
-          {!!sonidosLocales.length && (
-            <div className="bg-surface border border-border rounded-card shadow-card p-4 mt-4">
-              <h2 className="font-display font-bold text-[14px] text-primary mb-2">
-                Sonidos en esta pieza
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {sonidosLocales.map(s => (
-                  <span key={s.id}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px]">
-                    <button onClick={() => irA(s.en)} className="font-semibold text-primary hover:text-accent-blue">
-                      {s.nombre}
-                    </button>
-                    <span className="text-tertiary">{reloj(s.en)}</span>
-                    <button onClick={() => quitarSonido(s.id)} className="text-tertiary hover:text-accent-red">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Sonidos onAgregar={agregarSonido} enSegundo={segundo} />
-        </>
+        <Linea
+          duracion={duracionReal}
+          audio={pieza.audio}
+          palabras={palabras}
+          cortes={cortes}
+          sonidos={sonidosLocales}
+          segundo={segundo}
+          onCambiarSonidos={cambiarSonidos}
+          onCambiar={cambiarCortes}
+          onIr={irA}
+          onPlay={alternarPlay}
+          sonando={reproduciendo}
+          saltando={saltar}
+          onSaltar={setSaltar}
+        />
       )}
     </div>
   )
