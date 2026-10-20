@@ -19,9 +19,10 @@ import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
 import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
 import Linea, { TIPOS } from './Linea'
+import Sonidos from './Sonidos'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play,
+  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play, X,
 } from 'lucide-react'
 
 const ESTADOS = {
@@ -267,6 +268,34 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   }
 
   useEffect(() => pararMontaje, [])
+
+  /* Los sonidos se guardan con el segundo donde van, no pegados a nada: la
+   * línea de tiempo los dibujará como una capa aparte y se podrán mover. */
+  const agregarSonido = async (s) => {
+    const puesto = {
+      id: `s${Date.now()}`,
+      fuente: 'freesound',
+      idExterno: s.id,
+      nombre: s.nombre,
+      autor: s.autor,
+      url: s.audio,
+      duracion: s.duracion ?? null,
+      en: Math.max(0, segundo),
+    }
+    const nuevos = [...(pieza.sonidos || []), puesto]
+    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+      sonidos: nuevos,
+      updatedAt: serverTimestamp(),
+    })
+    toast.success(`"${s.nombre}" en ${reloj(puesto.en)}`)
+  }
+
+  const quitarSonido = async (id) => {
+    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+      sonidos: (pieza.sonidos || []).filter(x => x.id !== id),
+      updatedAt: serverTimestamp(),
+    })
+  }
 
   const bajarWav = () => {
     if (!montaje) return
@@ -546,6 +575,34 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
           )}
         </div>
       </div>
+
+      {palabras.length > 0 && (
+        <>
+          {!!(pieza.sonidos || []).length && (
+            <div className="bg-surface border border-border rounded-card shadow-card p-4 mt-4">
+              <h2 className="font-display font-bold text-[14px] text-primary mb-2">
+                Sonidos en esta pieza
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {pieza.sonidos.map(s => (
+                  <span key={s.id}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px]">
+                    <button onClick={() => irA(s.en)} className="font-semibold text-primary hover:text-accent-blue">
+                      {s.nombre}
+                    </button>
+                    <span className="text-tertiary">{reloj(s.en)}</span>
+                    <button onClick={() => quitarSonido(s.id)} className="text-tertiary hover:text-accent-red">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Sonidos onAgregar={agregarSonido} enSegundo={segundo} />
+        </>
+      )}
     </div>
   )
 }
