@@ -9,9 +9,10 @@
  */
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import clsx from 'clsx'
-import { ZoomIn, ZoomOut, Scissors, Trash2, Magnet } from 'lucide-react'
+import { ZoomIn, ZoomOut, Scissors, Trash2, Magnet, Play, Pause, SkipBack } from 'lucide-react'
 
 const ALTO = 96
+const REGLA = 18        // la franja de arriba con los tiempos
 const BORDE = 7           // píxeles de agarre en el borde de un tramo
 const IMAN = 0.12         // a cuánto se pega el borde al silencio más cercano
 
@@ -29,6 +30,15 @@ const reloj = (s) => {
   if (!Number.isFinite(s)) return '0:00'
   const m = Math.floor(s / 60)
   return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+}
+
+/* Cada cuánto poner una marca, según cuánto se vea. Sin esto la regla queda
+ * ilegible: o tres números en cuatro minutos, o doscientos pegados. */
+function pasoDeRegla(pxs) {
+  for (const p of [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300]) {
+    if (p * pxs >= 70) return p
+  }
+  return 600
 }
 
 /* Pega un instante al borde de silencio más cercano. Es lo que hace que un
@@ -49,7 +59,8 @@ function imantar(t, silencios, activo) {
 
 export default function Linea({
   duracion, audio, palabras = [], cortes = [], segundo = 0,
-  onCambiar, onIr,
+  onCambiar, onIr, onPlay, sonando = false,
+  saltando = true, onSaltar,
 }) {
   const lienzo = useRef(null)
   const carril = useRef(null)
@@ -85,16 +96,16 @@ export default function Linea({
     if (!c) return
     const dpr = window.devicePixelRatio || 1
     c.width = anchoTotal * dpr
-    c.height = ALTO * dpr
+    c.height = (ALTO + REGLA) * dpr
     c.style.width = `${anchoTotal}px`
-    c.style.height = `${ALTO}px`
+    c.style.height = `${ALTO + REGLA}px`
     const g = c.getContext('2d')
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
-    g.clearRect(0, 0, anchoTotal, ALTO)
+    g.clearRect(0, 0, anchoTotal, ALTO + REGLA)
 
     const env = audio?.envolvente || []
     const hz = audio?.hz || 25
-    const medio = ALTO / 2
+    const medio = REGLA + ALTO / 2
 
     // La onda
     g.fillStyle = 'rgba(125,125,135,0.45)'
@@ -105,7 +116,7 @@ export default function Linea({
         if (i < 0 || i >= env.length) continue
         let pico = 0
         for (let k = 0; k < paso; k++) pico = Math.max(pico, env[i + k] || 0)
-        const h = (pico / 100) * (medio - 4)
+        const h = (pico / 100) * (ALTO / 2 - 4)
         g.fillRect(x, medio - h, 1, h * 2)
       }
     } else {
@@ -114,14 +125,27 @@ export default function Linea({
 
     // Los silencios reales, de fondo
     g.fillStyle = 'rgba(0,200,83,0.07)'
-    for (const s of silencios) g.fillRect(aX(s.inicio), 0, Math.max(1, aX(s.fin - s.inicio)), ALTO)
+    for (const s of silencios) g.fillRect(aX(s.inicio), REGLA, Math.max(1, aX(s.fin - s.inicio)), ALTO)
+
+    // La regla
+    const paso = pasoDeRegla(pxs)
+    g.fillStyle = 'rgba(125,125,135,0.14)'
+    g.fillRect(0, 0, anchoTotal, REGLA)
+    g.fillStyle = 'rgba(160,160,170,0.9)'
+    g.font = '10px Inter, system-ui, sans-serif'
+    g.textBaseline = 'middle'
+    for (let t = 0; t <= duracion; t += paso) {
+      const x = aX(t)
+      g.fillRect(x, REGLA - 5, 1, 5)
+      g.fillText(reloj(t), x + 3, REGLA / 2)
+    }
 
     // Marcas de palabra, para ver dónde se puede cortar sin partir nada
     if (pxs > 30) {
       g.fillStyle = 'rgba(125,125,135,0.25)'
-      for (const p of palabras) g.fillRect(aX(p.inicio), ALTO - 8, 1, 8)
+      for (const p of palabras) g.fillRect(aX(p.inicio), REGLA + ALTO - 8, 1, 8)
     }
-  }, [anchoTotal, audio, palabras, silencios, pxs, aX, aT])
+  }, [anchoTotal, audio, palabras, silencios, pxs, aX, aT, duracion])
 
   // ── ratón ──
   const tiempoEn = (e) => {
@@ -142,6 +166,9 @@ export default function Linea({
 
   const alBajar = (e) => {
     const t = tiempoEn(e)
+    const r0 = lienzo.current.getBoundingClientRect()
+    // En la regla solo se mueve la aguja: ahí no se crean ni se agarran tramos.
+    if (e.clientY - r0.top < REGLA) { onIr?.(t); setSeleccion(null); return }
     const r = lienzo.current.getBoundingClientRect()
     const golpe = queHayEn(t, e.clientX - r.left)
 
@@ -180,19 +207,62 @@ export default function Linea({
 
   const alSoltar = () => { arrastre.current = null }
 
+  /* El teclado es la mitad del oficio: con el ratón se encuadra y con las
+   * teclas se afina. Nada de esto se activa si estás escribiendo en un campo. */
   useEffect(() => {
-    const quitar = (e) => {
-      if (e.key !== 'Backspace' && e.key !== 'Delete') return
-      if (!seleccion) return
+    const tecla = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return
-      e.preventDefault()
-      ahora.current = ahora.current.filter(c => c.id !== seleccion)
-      onCambiar?.(ahora.current)
-      setSeleccion(null)
+      if (document.activeElement?.isContentEditable) return
+
+      if (e.code === 'Space') { e.preventDefault(); onPlay?.(); return }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        const salto = e.shiftKey ? 1 : 0.1
+        const d = e.key === 'ArrowLeft' ? -salto : salto
+        onIr?.(Math.max(0, Math.min(duracion, segundo + d)))
+        return
+      }
+      if (e.key === 'Home') { e.preventDefault(); onIr?.(0); return }
+      if (e.key === 'End') { e.preventDefault(); onIr?.(duracion); return }
+
+      // Cortar en la aguja: un tramo nuevo de medio segundo, listo para
+      // estirarlo. Es más rápido que buscar el sitio con el ratón.
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        const inicio = imantar(segundo, silencios, iman)
+        const nuevo = {
+          id: `m${Date.now()}`,
+          inicio, fin: Math.min(duracion, inicio + 0.5),
+          tipo: 'manual', motivo: 'Corte a mano', activo: true,
+        }
+        ahora.current = [...ahora.current, nuevo]
+        onCambiar?.(ahora.current)
+        setSeleccion(nuevo.id)
+        return
+      }
+
+      if ((e.key === 'Backspace' || e.key === 'Delete') && seleccion) {
+        e.preventDefault()
+        ahora.current = ahora.current.filter(c => c.id !== seleccion)
+        onCambiar?.(ahora.current)
+        setSeleccion(null)
+      }
     }
-    window.addEventListener('keydown', quitar)
-    return () => window.removeEventListener('keydown', quitar)
-  }, [seleccion, cortes, onCambiar])
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [seleccion, onCambiar, onPlay, onIr, segundo, duracion, silencios, iman])
+
+  /* Con zoom, la aguja se va de la pantalla enseguida. El carril la sigue,
+   * pero solo cuando se sale: moverlo en cada cuadro marea. */
+  useEffect(() => {
+    const car = carril.current
+    if (!car) return
+    const x = aX(segundo)
+    const izq = car.scrollLeft
+    const der = izq + car.clientWidth
+    if (x < izq + 40 || x > der - 40) car.scrollLeft = Math.max(0, x - car.clientWidth / 2)
+  }, [segundo, aX])
 
   const quitado = useMemo(
     () => cortes.filter(c => c.activo !== false).reduce((a, c) => a + (c.fin - c.inicio), 0),
@@ -202,10 +272,30 @@ export default function Linea({
   return (
     <div className="bg-surface border border-border rounded-card shadow-card p-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <h2 className="font-display font-bold text-[14px] text-primary">Línea de tiempo</h2>
-        <span className="text-[12px] text-tertiary">
-          {reloj(duracion)} → <span className="text-accent-green font-semibold">{reloj(duracion - quitado)}</span>
+        <button onClick={() => onPlay?.()} title="Espacio"
+          className="w-8 h-8 rounded-btn bg-accent-blue text-white flex items-center justify-center shrink-0">
+          {sonando ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}
+        </button>
+        <button onClick={() => onIr?.(0)} title="Volver al principio (Inicio)"
+          className="w-8 h-8 rounded-btn bg-surface-2 border border-border flex items-center justify-center text-tertiary hover:text-primary shrink-0">
+          <SkipBack size={14} />
+        </button>
+
+        <span className="font-display font-bold text-[15px] text-primary tabular-nums">
+          {reloj(segundo)}
         </span>
+        <span className="text-[12px] text-tertiary">
+          / {reloj(duracion)} → <span className="text-accent-green font-semibold">{reloj(duracion - quitado)}</span>
+        </span>
+
+        {onSaltar && (
+          <button onClick={() => onSaltar(!saltando)}
+            title="Al reproducir, brincar los tramos cortados"
+            className={clsx('flex items-center gap-1 px-2 py-1 rounded-btn text-[11px] font-bold border',
+              saltando ? 'bg-accent-green/15 text-accent-green border-accent-green/40' : 'bg-surface-2 border-border text-tertiary')}>
+            <Scissors size={12} /> Saltar cortes
+          </button>
+        )}
 
         <button onClick={() => setIman(v => !v)} title="Pegar los bordes al silencio más cercano"
           className={clsx('ml-auto flex items-center gap-1 px-2 py-1 rounded-btn text-[11px] font-bold border',
@@ -230,7 +320,7 @@ export default function Linea({
       </div>
 
       <div ref={carril} className="relative overflow-x-auto overflow-y-hidden rounded-btn bg-surface-2 border border-border">
-        <div className="relative" style={{ width: anchoTotal, height: ALTO }}>
+        <div className="relative" style={{ width: anchoTotal, height: ALTO + REGLA }}>
           <canvas
             ref={lienzo}
             onMouseDown={alBajar}
@@ -247,9 +337,10 @@ export default function Linea({
               <div
                 key={c.id}
                 title={`${c.motivo || ''} · ${(c.fin - c.inicio).toFixed(2)}s`}
-                className={clsx('absolute top-0 bottom-0 pointer-events-none border-x-2',
+                className={clsx('absolute bottom-0 pointer-events-none border-x-2',
                   seleccion === c.id && 'ring-2 ring-white/60')}
                 style={{
+                  top: REGLA,
                   left: aX(c.inicio),
                   width: Math.max(2, aX(c.fin - c.inicio)),
                   background: fuera ? 'transparent' : `${color}33`,
@@ -266,9 +357,10 @@ export default function Linea({
       </div>
 
       <p className="text-[11px] text-tertiary mt-2 leading-snug">
-        Clic para mover la aguja · arrastra los bordes de un tramo para ajustarlo ·
-        <strong> shift + arrastrar</strong> crea un corte nuevo · selecciona y <strong>Supr</strong> lo quita.
-        Con el imán puesto, los bordes se pegan solos al silencio más cercano.
+        <strong>Espacio</strong> reproduce · <strong>←→</strong> mueve la aguja (con shift, un segundo) ·
+        <strong>S</strong> corta donde esté la aguja · <strong>Supr</strong> quita el tramo seleccionado ·
+        <strong>shift + arrastrar</strong> crea uno nuevo. Con el imán puesto los bordes se pegan
+        solos al silencio más cercano.
       </p>
     </div>
   )

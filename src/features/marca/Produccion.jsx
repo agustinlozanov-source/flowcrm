@@ -73,6 +73,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const [montando, setMontando] = useState(false)
   const [montaje, setMontaje] = useState(null)   // AudioBuffer del audio ya cortado
   const [sonando, setSonando] = useState(false)
+  const [reproduciendo, setReproduciendo] = useState(false)
   const [falloRender, setFalloRender] = useState(null)
   const audioCtxRef = useRef(null)
   const fuenteRef = useRef(null)
@@ -285,8 +286,15 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
 
   const irA = (s) => {
     if (!videoRef.current) return
-    videoRef.current.currentTime = Math.max(0, s - 0.05)
-    videoRef.current.play()
+    videoRef.current.currentTime = Math.max(0, s)
+    setSegundo(s)
+  }
+
+  const alternarPlay = () => {
+    const v = videoRef.current
+    if (!v) return
+    if (v.paused) v.play().catch(() => {})
+    else v.pause()
   }
 
   /* La vista previa no renderiza nada: el reproductor salta los tramos
@@ -332,6 +340,10 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
             segundo={segundo}
             onCambiar={cambiarCortes}
             onIr={irA}
+            onPlay={alternarPlay}
+            sonando={reproduciendo}
+            saltando={saltar}
+            onSaltar={setSaltar}
           />
         </div>
       )}
@@ -345,6 +357,8 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               src={pieza.video.url}
               controls
               onLoadedMetadata={e => setMedidas({ ancho: e.target.videoWidth, alto: e.target.videoHeight })}
+              onPlay={() => setReproduciendo(true)}
+              onPause={() => setReproduciendo(false)}
               className="w-full rounded-btn bg-black"
             />
           ) : (
@@ -376,11 +390,6 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                 {activos.length} de {cortes.length} cortes activos
               </p>
               {f.resumen && <p className="text-[12px] text-secondary mt-2 leading-snug">{f.resumen}</p>}
-
-              <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                <input type="checkbox" checked={saltar} onChange={e => setSaltar(e.target.checked)} />
-                <span className="text-[12px] text-secondary">Saltar los cortes al reproducir</span>
-              </label>
 
               <div className="mt-3 pt-3 border-t border-border">
                 <div className="flex items-center gap-2 mb-2">
