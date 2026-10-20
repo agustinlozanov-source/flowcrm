@@ -15,6 +15,16 @@ const ALTO = 96         // la pista de voz
 const REGLA = 18        // la franja de arriba con los tiempos
 const PISTA = 34        // cada capa de debajo
 const ETIQUETAS = 74    // la columna de nombres, fuera del desplazamiento
+
+/* Las capas se dibujan siempre, aunque estén vacías. Enseñar solo las que
+ * tienen algo deja la impresión de que falta la mitad del editor: no se ve
+ * dónde va a ir cada cosa. Las que todavía no existen se marcan como tales en
+ * vez de esconderse. */
+const CAPAS = [
+  { id: 'sonidos',    nombre: 'Sonidos' },
+  { id: 'musica',     nombre: 'Música',     pendiente: true },
+  { id: 'subtitulos', nombre: 'Subtítulos', pendiente: true },
+]
 const BORDE = 7           // píxeles de agarre en el borde de un tramo
 const IMAN = 0.12         // a cuánto se pega el borde al silencio más cercano
 
@@ -290,8 +300,6 @@ export default function Linea({
     if (x < izq + 40 || x > der - 40) car.scrollLeft = Math.max(0, x - car.clientWidth / 2)
   }, [segundo, aX])
 
-  const hayCapaSonidos = sonidos.length > 0
-
   const quitado = useMemo(
     () => cortes.filter(c => c.activo !== false).reduce((a, c) => a + (c.fin - c.inicio), 0),
     [cortes]
@@ -375,16 +383,20 @@ export default function Linea({
           <div style={{ height: REGLA }} />
           <div className="flex items-center px-2 text-[10px] font-bold uppercase tracking-wide text-tertiary"
             style={{ height: ALTO }}>Voz</div>
-          {hayCapaSonidos && (
-            <div className="flex items-center px-2 border-t border-border text-[10px] font-bold uppercase tracking-wide text-tertiary"
-              style={{ height: PISTA }}>Sonidos</div>
-          )}
+          {CAPAS.map(c => (
+            <div key={c.id}
+              className={clsx('flex items-center gap-1 px-2 border-t border-border text-[10px] font-bold uppercase tracking-wide',
+                c.pendiente ? 'text-tertiary/40' : 'text-tertiary')}
+              style={{ height: PISTA }}>
+              {c.nombre}
+            </div>
+          ))}
         </div>
 
         <div ref={carril} className="relative overflow-x-auto overflow-y-hidden flex-1">
           <div
             className="relative"
-            style={{ width: anchoTotal, height: REGLA + ALTO + (hayCapaSonidos ? PISTA : 0) }}
+            style={{ width: anchoTotal, height: REGLA + ALTO + CAPAS.length * PISTA }}
             onMouseMove={e => { alMover(e); moverSonido(e) }}
             onMouseUp={() => { alSoltar(); soltarSonido() }}
             onMouseLeave={() => { alSoltar(); soltarSonido() }}
@@ -417,10 +429,20 @@ export default function Linea({
               )
             })}
 
-            {hayCapaSonidos && (
-              <div className="absolute left-0 border-t border-border"
-                style={{ top: REGLA + ALTO, height: PISTA, width: anchoTotal }}>
-                {sonidos.map(s => (
+            {CAPAS.map((c, i) => (
+              <div key={c.id} className="absolute left-0 border-t border-border"
+                style={{ top: REGLA + ALTO + i * PISTA, height: PISTA, width: anchoTotal }}>
+                {c.pendiente && (
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-tertiary/40">
+                    pendiente
+                  </span>
+                )}
+              </div>
+            ))}
+
+            <div className="absolute left-0"
+              style={{ top: REGLA + ALTO, height: PISTA, width: anchoTotal }}>
+              {sonidos.map(s => (
                   <div
                     key={s.id}
                     onMouseDown={e => agarrarSonido(e, s)}
@@ -434,9 +456,8 @@ export default function Linea({
                   >
                     <span className="text-[10px] font-bold text-accent-green truncate">{s.nombre}</span>
                   </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
 
             <div className="absolute top-0 bottom-0 w-px bg-accent-blue pointer-events-none z-10"
               style={{ left: aX(segundo) }} />
