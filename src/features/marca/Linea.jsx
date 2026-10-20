@@ -23,7 +23,7 @@ const ETIQUETAS = 74    // la columna de nombres, fuera del desplazamiento
 const CAPAS = [
   { id: 'sonidos',    nombre: 'Sonidos' },
   { id: 'musica',     nombre: 'Música',     pendiente: true },
-  { id: 'subtitulos', nombre: 'Subtítulos', pendiente: true },
+  { id: 'subtitulos', nombre: 'Subtítulos' },
 ]
 const BORDE = 7           // píxeles de agarre en el borde de un tramo
 const IMAN = 0.12         // a cuánto se pega el borde al silencio más cercano
@@ -76,7 +76,7 @@ function imantar(t, silencios, activo) {
 
 export default function Linea({
   duracion, audio, palabras = [], cortes = [], segundo = 0,
-  sonidos = [], onCambiarSonidos,
+  sonidos = [], onCambiarSonidos, subtitulos = [],
   onCambiar, onIr, onPlay, sonando = false,
   saltando = true, onSaltar,
 }) {
@@ -432,6 +432,17 @@ export default function Linea({
             {CAPAS.map((c, i) => (
               <div key={c.id} className="absolute left-0 border-t border-border"
                 style={{ top: REGLA + ALTO + i * PISTA, height: PISTA, width: anchoTotal }}>
+                {c.id === 'subtitulos' && subtitulos.map(t => (
+                  <div key={t.id}
+                    onClick={() => onIr?.(t.desde)}
+                    title={t.texto}
+                    className="absolute top-1 bottom-1 rounded-[3px] bg-accent-blue/20 border border-accent-blue/60
+                               flex items-center px-1 overflow-hidden cursor-pointer hover:bg-accent-blue/30"
+                    style={{ left: aX(t.desde), width: Math.max(8, aX(t.hasta - t.desde)) }}
+                  >
+                    <span className="text-[9px] text-accent-blue truncate">{t.texto}</span>
+                  </div>
+                ))}
                 {c.pendiente && (
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-tertiary/40">
                     pendiente

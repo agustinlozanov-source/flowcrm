@@ -20,6 +20,7 @@ import { analizar } from './audio'
 import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
 import Linea, { TIPOS } from './Linea'
 import Sonidos from './Sonidos'
+import { construir as construirSubtitulos, aSRT as subtitulosASRT } from './subtitulos'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
   AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play, X,
@@ -174,6 +175,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   }
 
   const bajarSRT = () => {
+    if (subtitulos.length) { descargar(subtitulosASRT(subtitulos), `${base}.srt`); return }
     if (!palabras.length) { toast.error('Hace falta la transcripción'); return }
     descargar(aSRT({ palabras, cortes, duracion: duracionReal }), `${base}.srt`)
   }
@@ -316,6 +318,28 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   }
   useEffect(() => () => clearTimeout(sonidosPorGuardar.current), [])
 
+  /* Los subtítulos se guardan, no se recalculan cada vez: en cuanto corriges
+   * una palabra mal oída, esa corrección es tuya y no puede perderse porque
+   * alguien mueva un corte. Se regeneran solo cuando tú lo pides. */
+  const subtitulos = pieza.subtitulos || []
+
+  const generarSubtitulos = async () => {
+    const nuevos = construirSubtitulos(palabras, cortes, duracionReal)
+    if (!nuevos.length) { toast.error('No hay texto para subtitular'); return }
+    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+      subtitulos: nuevos,
+      updatedAt: serverTimestamp(),
+    })
+    toast.success(`${nuevos.length} subtítulos`)
+  }
+
+  const corregirSubtitulo = async (id, texto) => {
+    await updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+      subtitulos: subtitulos.map(t => (t.id === id ? { ...t, texto } : t)),
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   const bajarWav = () => {
     if (!montaje) return
     const url = URL.createObjectURL(aWav(montaje))
@@ -450,6 +474,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
             {[
               { id: 'transcripcion', label: 'Transcripción' },
               { id: 'sonidos', label: 'Sonidos' },
+              { id: 'subtitulos', label: 'Subtítulos' },
               { id: 'montaje', label: 'Montaje' },
             ].map(t => (
               <button key={t.id} onClick={() => setPanel(t.id)}
@@ -534,6 +559,44 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                 )}
                 <Sonidos onAgregar={agregarSonido} enSegundo={segundo} />
               </>
+            )}
+
+            {panel === 'subtitulos' && (
+              !palabras.length ? (
+                <p className="text-[13px] text-tertiary">Primero hay que transcribir.</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-[11px] text-tertiary">
+                      {subtitulos.length
+                        ? `${subtitulos.length} líneas · corrige el texto si oyó mal`
+                        : 'Se arman solos desde la transcripción, ya con los cortes aplicados.'}
+                    </p>
+                    <button onClick={generarSubtitulos}
+                      className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                      <RefreshCw size={12} /> {subtitulos.length ? 'Rehacer' : 'Generar'}
+                    </button>
+                  </div>
+
+                  {subtitulos.length > 0 && (
+                    <div className="space-y-1">
+                      {subtitulos.map(t => (
+                        <div key={t.id} className="flex items-start gap-2">
+                          <button onClick={() => irA(t.desde)}
+                            className="shrink-0 w-11 pt-1 text-[11px] text-tertiary hover:text-accent-blue tabular-nums text-right">
+                            {reloj(t.desde)}
+                          </button>
+                          <input
+                            defaultValue={t.texto}
+                            onBlur={e => { if (e.target.value !== t.texto) corregirSubtitulo(t.id, e.target.value) }}
+                            className="flex-1 px-2 py-1 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )
             )}
 
             {panel === 'montaje' && (
@@ -627,6 +690,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
           palabras={palabras}
           cortes={cortes}
           sonidos={sonidosLocales}
+          subtitulos={subtitulos}
           segundo={segundo}
           onCambiarSonidos={cambiarSonidos}
           onCambiar={cambiarCortes}
