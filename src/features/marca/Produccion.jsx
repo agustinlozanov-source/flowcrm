@@ -18,7 +18,7 @@ import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
 import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
-import Linea from './Linea'
+import Linea, { TIPOS } from './Linea'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
   AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play,
@@ -56,14 +56,6 @@ function usePiezas(orgId, brandId) {
 }
 
 // ─── FICHA ────────────────────────────────────────────────────────
-const TIPOS = {
-  silencio:   { label: 'Pausa',       color: '#6e6e73' },
-  muletilla:  { label: 'Muletilla',   color: '#f59e0b' },
-  repeticion: { label: 'Repetida',    color: '#7c3aed' },
-  arranque:   { label: 'Arranque',    color: '#00b8d9' },
-  divagacion: { label: 'Divagación',  color: '#ff3b30' },
-  arrastre:   { label: 'Arrastre',    color: '#00c853' },
-}
 
 function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const videoRef = useRef(null)
@@ -534,7 +526,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                       )}
                       <span
                         onClick={() => (corte ? alternar(corte) : irA(p.inicio))}
-                        title={corte ? `${TIPOS[corte.tipo]?.label}: ${corte.motivo}` : undefined}
+                        title={corte ? `${TIPOS[corte.tipo]?.nombre}: ${corte.motivo}` : undefined}
                         className={clsx('cursor-pointer rounded px-0.5 text-[14px] transition-colors',
                           i === actual && !fuera
                             ? 'bg-accent-blue text-white'

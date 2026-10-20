@@ -16,15 +16,20 @@ const REGLA = 18        // la franja de arriba con los tiempos
 const BORDE = 7           // píxeles de agarre en el borde de un tramo
 const IMAN = 0.12         // a cuánto se pega el borde al silencio más cercano
 
-const COLORES = {
-  silencio:   '#6e6e73',
-  muletilla:  '#f59e0b',
-  repeticion: '#7c3aed',
-  arranque:   '#00b8d9',
-  divagacion: '#ff3b30',
-  arrastre:   '#00c853',
-  manual:     '#ff3b30',
+/* Cada clase de corte con su color y su nombre. El de a mano tenía el mismo
+ * rojo que las divagaciones y no había forma de distinguirlos: ahora va en
+ * magenta, que no se parece a nada de lo que propone la máquina. */
+export const TIPOS = {
+  silencio:   { color: '#6e6e73', nombre: 'Pausa',      explica: 'Silencio largo entre frases' },
+  muletilla:  { color: '#f59e0b', nombre: 'Muletilla',  explica: '"este", "o sea", relleno' },
+  arrastre:   { color: '#00c853', nombre: 'Arrastre',   explica: 'Sonido sin palabras: "eeeh", respiración' },
+  repeticion: { color: '#7c3aed', nombre: 'Repetida',   explica: 'Dijo lo mismo más de una vez' },
+  arranque:   { color: '#00b8d9', nombre: 'Arranque',   explica: 'Empezó, se trabó y volvió a empezar' },
+  divagacion: { color: '#ff3b30', nombre: 'Divagación', explica: 'Se fue del tema y volvió' },
+  manual:     { color: '#ff2d92', nombre: 'A mano',     explica: 'Lo cortaste tú' },
 }
+
+const COLORES = Object.fromEntries(Object.entries(TIPOS).map(([k, v]) => [k, v.color]))
 
 const reloj = (s) => {
   if (!Number.isFinite(s)) return '0:00'
@@ -319,6 +324,27 @@ export default function Linea({
         )}
       </div>
 
+      {!!cortes.length && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+          {Object.entries(TIPOS).map(([clave, t]) => {
+            const n = cortes.filter(c => (c.tipo || 'manual') === clave).length
+            if (!n) return null
+            return (
+              <span key={clave} title={t.explica}
+                className="flex items-center gap-1.5 text-[11px] text-tertiary cursor-default">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0"
+                  style={{ background: `${t.color}55`, border: `1.5px solid ${t.color}` }} />
+                <span className="text-secondary font-semibold">{t.nombre}</span>
+                <span>{n}</span>
+              </span>
+            )
+          })}
+          <span className="text-[11px] text-tertiary ml-auto">
+            Todo lo de color se quita del video. Pasa el ratón por encima para ver por qué.
+          </span>
+        </div>
+      )}
+
       <div ref={carril} className="relative overflow-x-auto overflow-y-hidden rounded-btn bg-surface-2 border border-border">
         <div className="relative" style={{ width: anchoTotal, height: ALTO + REGLA }}>
           <canvas
@@ -336,7 +362,7 @@ export default function Linea({
             return (
               <div
                 key={c.id}
-                title={`${c.motivo || ''} · ${(c.fin - c.inicio).toFixed(2)}s`}
+                title={`${TIPOS[c.tipo]?.nombre || 'Corte'} · ${c.motivo || ''} · ${(c.fin - c.inicio).toFixed(2)}s`}
                 className={clsx('absolute bottom-0 pointer-events-none border-x-2',
                   seleccion === c.id && 'ring-2 ring-white/60')}
                 style={{
