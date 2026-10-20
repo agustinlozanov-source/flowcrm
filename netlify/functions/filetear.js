@@ -19,10 +19,25 @@ const { initDb } = require('./lib/firebase')
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// Una pausa por debajo de esto es respirar; por encima, es un hueco.
-const PAUSA_MINIMA = 0.7
+/* Una pausa por debajo de esto es respirar, y respirar se queda. A 0.7s era
+ * demasiado agresivo: a una persona hablando a cámara le quitaba veinte
+ * pausas en cuatro minutos y quedaba dando brincos. */
+const PAUSA_MINIMA = 1.2
 // No se corta a hueso: queda un respiro a cada lado o suena atropellado.
-const RESPIRO = 0.15
+const RESPIRO = 0.3
+
+/* Dónde cortar entre dos palabras.
+ *
+ * Los tiempos que da el reconocimiento son aproximados: suele marcar el final
+ * de una palabra un pelo antes de que termine el sonido. Cortar justo en ese
+ * borde se come la cola de la palabra. Un editor humano corta en medio del
+ * silencio que hay entre las dos, y eso es lo que hacemos: el punto medio
+ * entre donde acaba una y empieza la siguiente. */
+function entre(a, b) {
+  if (a == null) return b
+  if (b == null) return a
+  return (a + b) / 2
+}
 
 function silencios(palabras) {
   const cortes = []
@@ -31,7 +46,7 @@ function silencios(palabras) {
     if (hueco <= PAUSA_MINIMA) continue
     const inicio = palabras[i - 1].fin + RESPIRO
     const fin = palabras[i].inicio - RESPIRO
-    if (fin - inicio < 0.25) continue
+    if (fin - inicio < 0.3) continue
     cortes.push({
       inicio, fin,
       tipo: 'silencio',
@@ -136,8 +151,10 @@ Reglas:
       .filter(c => Number.isInteger(c.desdePalabra) && Number.isInteger(c.hastaPalabra))
       .filter(c => c.desdePalabra >= 0 && c.hastaPalabra < palabras.length && c.hastaPalabra >= c.desdePalabra)
       .map(c => ({
-        inicio: palabras[c.desdePalabra].inicio,
-        fin: palabras[c.hastaPalabra].fin,
+        // El punto medio del silencio anterior y del posterior, no el borde
+        // de la palabra.
+        inicio: entre(palabras[c.desdePalabra - 1]?.fin, palabras[c.desdePalabra].inicio),
+        fin: entre(palabras[c.hastaPalabra].fin, palabras[c.hastaPalabra + 1]?.inicio),
         tipo: c.tipo,
         motivo: c.motivo,
         desdePalabra: c.desdePalabra,
