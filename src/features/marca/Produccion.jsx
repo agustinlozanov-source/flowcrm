@@ -17,10 +17,10 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import { analizar } from './audio'
-import { renderizar, guardar, registro } from './render'
+import { decodificar, mezclar, aWav, aTiempoOriginal } from './mezcla'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Clapperboard,
+  AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play,
 } from 'lucide-react'
 
 const ESTADOS = {
@@ -69,9 +69,12 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const audioRef = useRef(null)
   const [escuchando, setEscuchando] = useState(false)
   const videoFileRef = useRef(null)
-  const [render, setRender] = useState(null)   // { aviso, progreso }
-  const [borrador, setBorrador] = useState(true)
+  const [montando, setMontando] = useState(false)
+  const [montaje, setMontaje] = useState(null)   // AudioBuffer del audio ya cortado
+  const [sonando, setSonando] = useState(false)
   const [falloRender, setFalloRender] = useState(null)
+  const audioCtxRef = useRef(null)
+  const fuenteRef = useRef(null)
   const [segundo, setSegundo] = useState(0)
   const [trabajando, setTrabajando] = useState(null)
   const [saltar, setSaltar] = useState(true)
@@ -187,34 +190,82 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     }
   }
 
-  /* El render pasa aquí, en esta máquina. El video no se sube a ningún
-   * servicio y no cuesta por minuto. A cambio, tarda: por eso el borrador a
-   * media resolución, que sirve para juzgar el corte en una fracción del
-   * tiempo. */
-  const generar = async (file) => {
+  /* Monta el audio del video ya cortado, en un solo trozo y con fundido en
+   * cada empalme. Esto es lo que mata el chasquido: la vista previa saltaba
+   * sobre el archivo original y cada salto era un corte a cuchillo.
+   *
+   * Se hace fuera de tiempo real: cuatro minutos tardan un par de segundos. */
+  const montar = async (file) => {
     if (!file) return
     const segmentos = segmentosConservados(cortes, duracionReal)
-    if (!segmentos.length) { toast.error('No queda nada que renderizar'); return }
-    setRender({ aviso: 'Preparando…', progreso: 0 })
+    if (!segmentos.length) { toast.error('No queda nada que montar'); return }
+    setMontando(true)
     setFalloRender(null)
     try {
-      const blob = await renderizar(file, segmentos, {
-        alto: borrador ? 960 : null,
-        calidad: borrador ? 'ultrafast' : 'veryfast',
-        alAvisar: aviso => setRender(r => ({ ...r, aviso })),
-        alProgresar: progreso => setRender(r => ({ ...r, progreso, aviso: 'Generando el video…' })),
-      })
-      guardar(blob, `${base}${borrador ? '-borrador' : ''}.mp4`)
-      toast.success('Video generado')
+      const crudo = await decodificar(file)
+      const mezcla = await mezclar(crudo, segmentos)
+      setMontaje(mezcla)
+      toast.success(`Audio montado · ${reloj(mezcla.duration)}`)
     } catch (e) {
       console.error(e)
-      console.error('[ffmpeg]\n' + registro())
-      // En pantalla y no solo en un aviso que se va: este mensaje es lo
-      // único que explica por qué falló.
-      setFalloRender(e.message || 'No se pudo generar el video')
+      setFalloRender(e.message || 'No se pudo montar el audio')
     } finally {
-      setRender(null)
+      setMontando(false)
     }
+  }
+
+  /* Reproduce el montaje: el audio va de corrido desde la mezcla y el video
+   * lo sigue, saltando solo en los cortes. El reloj manda es el del audio,
+   * que es el único preciso. */
+  const oir = () => {
+    if (!montaje || !videoRef.current) return
+    pararMontaje()
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    audioCtxRef.current = ctx
+    const fuente = ctx.createBufferSource()
+    fuente.buffer = montaje
+    fuente.connect(ctx.destination)
+    fuenteRef.current = fuente
+
+    const segmentos = segmentosConservados(cortes, duracionReal)
+    const v = videoRef.current
+    v.muted = true
+    const t0 = ctx.currentTime + 0.1
+    fuente.start(t0)
+    v.play()
+    setSonando(true)
+
+    let pedido
+    const seguir = () => {
+      if (!fuenteRef.current) return
+      pedido = requestAnimationFrame(seguir)
+      const t = ctx.currentTime - t0
+      if (t < 0) return
+      const destino = aTiempoOriginal(segmentos, t)
+      if (Math.abs(v.currentTime - destino) > 0.08) v.currentTime = destino
+      setSegundo(destino)
+    }
+    pedido = requestAnimationFrame(seguir)
+    fuente.onended = () => { cancelAnimationFrame(pedido); pararMontaje() }
+  }
+
+  const pararMontaje = () => {
+    try { fuenteRef.current?.stop() } catch { /* ya estaba parada */ }
+    fuenteRef.current = null
+    try { audioCtxRef.current?.close() } catch { /* ok */ }
+    audioCtxRef.current = null
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.muted = false }
+    setSonando(false)
+  }
+
+  useEffect(() => pararMontaje, [])
+
+  const bajarWav = () => {
+    if (!montaje) return
+    const url = URL.createObjectURL(aWav(montaje))
+    const a = document.createElement('a')
+    a.href = url; a.download = `${base}.wav`; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
   }
 
   const irA = (s) => {
@@ -312,20 +363,24 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                   </select>
                 </div>
                 <input ref={videoFileRef} type="file" accept="video/*" hidden
-                  onChange={e => { generar(e.target.files?.[0]); e.target.value = '' }} />
+                  onChange={e => { montar(e.target.files?.[0]); e.target.value = '' }} />
 
-                <button onClick={() => videoFileRef.current?.click()} disabled={!!render}
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50 mb-2">
-                  {render ? <RefreshCw size={14} className="animate-spin" /> : <Clapperboard size={14} />}
-                  {render ? render.aviso : 'Generar el video'}
-                </button>
-
-                {render && (
-                  <div className="mb-2">
-                    <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                      <div className="h-full bg-accent-blue transition-[width]"
-                        style={{ width: `${Math.round((render.progreso || 0) * 100)}%` }} />
-                    </div>
+                {!montaje ? (
+                  <button onClick={() => videoFileRef.current?.click()} disabled={montando}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50 mb-2">
+                    {montando ? <RefreshCw size={14} className="animate-spin" /> : <AudioLines size={14} />}
+                    {montando ? 'Montando el audio…' : 'Montar el audio'}
+                  </button>
+                ) : (
+                  <div className="flex gap-2 mb-2">
+                    <button onClick={sonando ? pararMontaje : oir}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-btn bg-accent-blue text-white text-[13px] font-bold">
+                      <Play size={14} /> {sonando ? 'Parar' : 'Oír el montaje'}
+                    </button>
+                    <button onClick={bajarWav} title="Descargar el audio del montaje"
+                      className="px-3 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                      <Download size={13} />
+                    </button>
                   </div>
                 )}
 
@@ -338,11 +393,6 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                   </div>
                 )}
 
-                <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input type="checkbox" checked={borrador} onChange={e => setBorrador(e.target.checked)} />
-                  <span className="text-[11px] text-secondary">Borrador rápido, a media resolución</span>
-                </label>
-
                 <div className="flex gap-2">
                   <button onClick={bajarXML}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
@@ -354,9 +404,9 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                   </button>
                 </div>
                 <p className="text-[11px] text-tertiary mt-2 leading-snug">
-                  El video se genera en esta computadora, así que te va a pedir el archivo
-                  original. No se sube a ningún lado. Cada corte lleva un fundido de audio
-                  para que no se oiga el empalme.
+                  El audio del montaje se arma aquí, con un fundido en cada empalme para que
+                  no chasquee. Óyelo para juzgar el corte de verdad, y bájalo para ponerlo en
+                  Premiere sobre la secuencia del XML.
                 </p>
               </div>
             </div>
