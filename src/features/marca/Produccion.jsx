@@ -15,9 +15,10 @@ import { db, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
+import { segmentosConservados, aXML, aSRT, descargar } from './exportar'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
-  AlertTriangle, Trash2, Clock, Scissors,
+  AlertTriangle, Trash2, Clock, Scissors, Download,
 } from 'lucide-react'
 
 const ESTADOS = {
@@ -65,6 +66,8 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const [segundo, setSegundo] = useState(0)
   const [trabajando, setTrabajando] = useState(null)
   const [saltar, setSaltar] = useState(true)
+  const [fps, setFps] = useState(30)
+  const [medidas, setMedidas] = useState({ ancho: 1080, alto: 1920 })
   const palabras = pieza.transcripcion?.palabras || []
   const cortes = pieza.fileteado?.cortes || []
 
@@ -127,6 +130,26 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     })
   }
 
+  const duracionReal = pieza.video?.duracion || palabras[palabras.length - 1]?.fin || 0
+  const base = (pieza.titulo || 'pieza').replace(/[^\w\-]+/g, '-').toLowerCase()
+
+  const bajarXML = () => {
+    const segmentos = segmentosConservados(cortes, duracionReal)
+    if (!segmentos.length) { toast.error('No queda nada que exportar'); return }
+    descargar(aXML({
+      segmentos,
+      nombre: pieza.titulo || 'Pieza',
+      archivo: pieza.video?.nombre || 'video.mp4',
+      fps, ancho: medidas.ancho, alto: medidas.alto,
+      duracionTotal: duracionReal,
+    }), `${base}.xml`, 'application/xml')
+  }
+
+  const bajarSRT = () => {
+    if (!palabras.length) { toast.error('Hace falta la transcripción'); return }
+    descargar(aSRT({ palabras, cortes, duracion: duracionReal }), `${base}.srt`)
+  }
+
   const irA = (s) => {
     if (!videoRef.current) return
     videoRef.current.currentTime = Math.max(0, s - 0.05)
@@ -162,6 +185,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               src={pieza.video.url}
               controls
               onTimeUpdate={latido}
+              onLoadedMetadata={e => setMedidas({ ancho: e.target.videoWidth, alto: e.target.videoHeight })}
               className="w-full rounded-btn bg-black"
             />
           ) : (
@@ -198,6 +222,31 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                 <input type="checkbox" checked={saltar} onChange={e => setSaltar(e.target.checked)} />
                 <span className="text-[12px] text-secondary">Saltar los cortes al reproducir</span>
               </label>
+
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-tertiary">Exportar</span>
+                  <select value={fps} onChange={e => setFps(Number(e.target.value))}
+                    title="Los cuadros por segundo de tu material. Si los cortes salen corridos, es esto."
+                    className="ml-auto px-2 py-1 rounded-btn bg-surface-2 border border-border text-[11px] text-secondary outline-none">
+                    {[24, 25, 30, 50, 60].map(v => <option key={v} value={v}>{v} fps</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={bajarXML}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                    <Download size={13} /> Premiere
+                  </button>
+                  <button onClick={bajarSRT}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-btn bg-surface-2 border border-border text-[12px] font-bold text-secondary hover:text-primary">
+                    <Download size={13} /> Subtítulos
+                  </button>
+                </div>
+                <p className="text-[11px] text-tertiary mt-2 leading-snug">
+                  Premiere va a pedirte dónde está el video: señálale el archivo original
+                  de tu disco una vez y la secuencia queda armada.
+                </p>
+              </div>
             </div>
           )}
 
