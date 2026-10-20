@@ -188,16 +188,29 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
     videoRef.current.play()
   }
 
-  // La vista previa no renderiza nada: el reproductor salta los tramos
-  // cortados sobre el archivo original.
-  const latido = (e) => {
-    const t = e.target.currentTime
-    if (saltar) {
-      const dentro = activos.find(c => t >= c.inicio && t < c.fin - 0.05)
-      if (dentro) { e.target.currentTime = dentro.fin; return }
+  /* La vista previa no renderiza nada: el reproductor salta los tramos
+   * cortados sobre el archivo original.
+   *
+   * Va por cuadro de pantalla y no por el evento de tiempo del video, que
+   * solo llega cuatro veces por segundo: con ese se colaba hasta un cuarto de
+   * segundo de lo que debería estar cortado, y la previa sonaba peor de lo
+   * que realmente queda. */
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    let pedido
+    const mirar = () => {
+      pedido = requestAnimationFrame(mirar)
+      const t = v.currentTime
+      if (saltar && !v.paused) {
+        const dentro = activos.find(c => t >= c.inicio && t < c.fin - 0.02)
+        if (dentro) { v.currentTime = dentro.fin; return }
+      }
+      setSegundo(t)
     }
-    setSegundo(t)
-  }
+    pedido = requestAnimationFrame(mirar)
+    return () => cancelAnimationFrame(pedido)
+  }, [saltar, activos, pieza.video?.url])
 
   const estado = ESTADOS[pieza.estado] || ESTADOS.crudo
   const f = pieza.fileteado
@@ -216,7 +229,6 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
               ref={videoRef}
               src={pieza.video.url}
               controls
-              onTimeUpdate={latido}
               onLoadedMetadata={e => setMedidas({ ancho: e.target.videoWidth, alto: e.target.videoHeight })}
               className="w-full rounded-btn bg-black"
             />
