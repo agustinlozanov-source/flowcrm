@@ -28,3 +28,6 @@ dist-ssr
 
 # Netlify
 .netlify
+
+# credencial de firebase: la escribe el build desde el entorno
+netlify/functions/lib/credenciales.json

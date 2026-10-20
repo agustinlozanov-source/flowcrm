@@ -5,15 +5,13 @@ const { initializeApp, cert, getApps } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const OpenAI = require('openai')
 
+const { credencial } = require('./lib/credencial')
+
 // ─── INIT ───
 function initFirebase() {
   if (getApps().length) return getFirestore()
   initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+    credential: cert(credencial()),
   })
   return getFirestore()
 }

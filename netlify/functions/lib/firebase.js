@@ -2,16 +2,27 @@
 // si se inicializa al cargar el módulo, una credencial mal configurada tumba
 // la función entera antes de poder devolver un error legible.
 const admin = require('firebase-admin')
+// Escrito por scripts/credenciales.mjs antes de compilar, y empotrado aquí por
+// el empaquetador. Va en un archivo y no en variables de entorno porque Lambda
+// solo admite 4 KB de variables para TODAS las funciones, y la clave privada
+// se comía casi la mitad.
+const delPaquete = require('./credenciales.json')
+
+/* El entorno sigue valiendo: así la cosa funciona tanto si las variables están
+ * puestas como si solo está el archivo, y migrar de una a otra no deja un
+ * hueco en el que nada arranca. */
+function credencial() {
+  const privateKey = delPaquete.privateKey || process.env.FIREBASE_PRIVATE_KEY || ''
+  return {
+    projectId: delPaquete.projectId || process.env.FIREBASE_PROJECT_ID,
+    clientEmail: delPaquete.clientEmail || process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: privateKey.replace(/\\n/g, '\n'),
+  }
+}
 
 function initDb() {
   if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    })
+    admin.initializeApp({ credential: admin.credential.cert(credencial()) })
   }
   return admin.firestore()
 }

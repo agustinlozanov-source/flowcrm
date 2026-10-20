@@ -17,6 +17,7 @@
  */
 
 const admin = require('firebase-admin')
+const { credencial, hayCredencial } = require('./lib/credencial')
 const crypto = require('crypto')
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'
@@ -36,11 +37,7 @@ const LOCKOUT_MS = 15 * 60 * 1000
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+    credential: admin.credential.cert(credencial()),
   })
 }
 
@@ -64,7 +61,7 @@ exports.handler = async (event) => {
     return reply(405, { error: 'Method not allowed' })
   }
 
-  if (!process.env.FIREBASE_PRIVATE_KEY) {
+  if (!hayCredencial()) {
     console.error('[profile-session] faltan credenciales de firebase-admin')
     return reply(500, { error: 'Servicio no configurado' })
   }

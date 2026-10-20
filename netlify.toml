@@ -4,6 +4,12 @@
 
 [build.environment]
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+  # La credencial de Firebase viaja ahora dentro del paquete de las funciones
+  # y no como variable de entorno: Lambda solo admite 4 KB de variables para
+  # todas las funciones juntas, y esta clave se comia casi la mitad. El
+  # rastreador de secretos la encontraria en el paquete y tumbaria el
+  # despliegue, asi que se le dice que esa ya esta puesta a proposito.
+  SECRETS_SCAN_OMIT_KEYS = "FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL"
 
 [functions]
   node_bundler = "esbuild"

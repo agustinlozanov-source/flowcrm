@@ -24,6 +24,7 @@
  */
 
 const admin = require('firebase-admin')
+const { credencial, hayCredencial } = require('./lib/credencial')
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'
 
@@ -37,11 +38,7 @@ const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' }
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+    credential: admin.credential.cert(credencial()),
   })
 }
 
@@ -58,7 +55,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return reply(405, { error: 'Method not allowed' })
   }
-  if (!process.env.FIREBASE_PRIVATE_KEY) {
+  if (!hayCredencial()) {
     console.error('[change-owner-email] faltan credenciales de firebase-admin')
     return reply(500, { error: 'Servicio no configurado' })
   }
