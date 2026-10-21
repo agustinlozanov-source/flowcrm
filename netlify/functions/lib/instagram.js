@@ -176,6 +176,19 @@ function marcaRef(db, orgId, brandId) {
 
 async function guardarConexion(db, orgId, brandId, { token, perfil: datos, admin }) {
   const ahora = admin.firestore.FieldValue.serverTimestamp()
+  const igUserId = String(datos.user_id || datos.id || '')
+
+  /* Índice de cuenta → organización y marca.
+   *
+   * Cuando Meta avisa de un mensaje, lo único que manda es el id de la cuenta
+   * que lo recibió. Sin esta tabla habría que recorrer todas las
+   * organizaciones para saber de quién es. Se escribe aquí, que es el único
+   * momento en que se conoce el vínculo. */
+  if (igUserId) {
+    await db.collection('_ig_cuentas').doc(igUserId).set({
+      orgId, brandId, username: datos.username || '', actualizadoEn: ahora,
+    })
+  }
   await marcaRef(db, orgId, brandId).collection('privado').doc('instagram').set({
     token: cifrar(token),
     guardadoEn: ahora,
@@ -197,6 +210,54 @@ async function guardarConexion(db, orgId, brandId, { token, perfil: datos, admin
   }, { merge: true })
 }
 
+/** De quién es la cuenta que recibió el evento. */
+async function cuentaDeInstagram(db, igUserId) {
+  if (!igUserId) return null
+  const snap = await db.collection('_ig_cuentas').doc(String(igUserId)).get()
+  return snap.exists ? snap.data() : null
+}
+
+/* Meta firma cada webhook con el secreto de la app. Sin comprobarlo,
+ * cualquiera que sepa la URL puede inventarse mensajes de clientes. */
+function verificarFirma(cuerpoCrudo, firma) {
+  const secreto = process.env.IG_APP_SECRET
+  if (!secreto || !firma) return false
+  const esperada = 'sha256=' + crypto.createHmac('sha256', secreto).update(cuerpoCrudo, 'utf8').digest('hex')
+  const a = Buffer.from(esperada)
+  const b = Buffer.from(firma)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+// ── Mensajes y comentarios ───────────────────────────────────────────────
+async function enviarMensaje(token, destinatario, texto) {
+  return pedir(`${BASE}/me/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recipient: destinatario,
+      message: { text: String(texto).slice(0, 950) },
+      access_token: token,
+    }),
+  })
+}
+
+/* La respuesta privada a un comentario es el mecanismo del "comenta X y te
+ * mando el PDF". Hay una sola por comentario y NO abre la conversación: hasta
+ * que la persona conteste, no se le puede escribir otra vez. Por eso ese
+ * primer mensaje tiene que llevar ya lo prometido y una pregunta. */
+async function respuestaPrivada(token, comentarioId, texto) {
+  return enviarMensaje(token, { comment_id: String(comentarioId) }, texto)
+}
+
+async function responderComentario(token, comentarioId, texto) {
+  const p = new URLSearchParams({ message: String(texto).slice(0, 2000), access_token: token })
+  return pedir(`${BASE}/${comentarioId}/replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: p.toString(),
+  })
+}
+
 async function leerToken(db, orgId, brandId) {
   const snap = await marcaRef(db, orgId, brandId).collection('privado').doc('instagram').get()
   if (!snap.exists) return null
@@ -214,7 +275,8 @@ async function anotarError(db, orgId, brandId, mensaje) {
 
 module.exports = {
   BASE, SCOPE, DIAS_DE_VIDA,
-  marcaRef, guardarConexion, leerToken, anotarError,
+  marcaRef, guardarConexion, leerToken, anotarError, cuentaDeInstagram,
+  verificarFirma, enviarMensaje, respuestaPrivada, responderComentario,
   appUrl, redirectUri, authUrl,
   cifrar, descifrar,
   canjearCodigo, aTokenLargo, renovarToken,

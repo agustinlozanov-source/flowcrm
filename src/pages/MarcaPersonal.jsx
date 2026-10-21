@@ -11,7 +11,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
-  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw,
+  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
@@ -302,6 +302,107 @@ function PanelDeConexion({ marca, orgId }) {
   )
 }
 
+// ─── COMENTARIOS ──────────────────────────────────────────────────
+/* El "comenta X y te mando el PDF".
+ *
+ * Hay dos reglas de Instagram que condicionan todo esto y por eso están
+ * dichas en pantalla: solo se puede mandar UN privado por comentario, y ese
+ * privado NO abre la conversación. Hasta que la persona conteste, no se le
+ * puede escribir otra vez — así que ese mensaje tiene que llevar ya lo
+ * prometido y una pregunta que invite a responder. */
+function PanelDeComentarios({ marca, onGuardar }) {
+  const inicial = marca.comentarios || {}
+  const [activo, setActivo] = useState(Boolean(inicial.activo))
+  const [palabra, setPalabra] = useState(inicial.palabra || '')
+  const [publica, setPublica] = useState(inicial.respuestaPublica || '')
+  const [privada, setPrivada] = useState(inicial.respuestaPrivada || '')
+  const [guardando, setGuardando] = useState(false)
+
+  const guardar = async () => {
+    setGuardando(true)
+    try {
+      await onGuardar({
+        comentarios: {
+          activo,
+          palabra: palabra.trim(),
+          respuestaPublica: publica.trim(),
+          respuestaPrivada: privada.trim(),
+        },
+      })
+      toast.success('Guardado')
+    } catch {
+      toast.error('No se pudo guardar')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <MessageSquare size={15} className="text-tertiary" />
+        <h2 className="font-display font-bold text-[14px] text-primary">Comentarios</h2>
+        <label className="ml-auto flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={activo} onChange={e => setActivo(e.target.checked)} />
+          <span className="text-[12px] text-secondary">Activo</span>
+        </label>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-tertiary mb-1.5">
+            Palabra que lo dispara
+          </label>
+          <input
+            value={palabra} onChange={e => setPalabra(e.target.value)}
+            placeholder="GUIA"
+            className="w-full px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+          />
+          <p className="text-[11px] text-tertiary mt-1.5">
+            Si lo dejas vacío responde a todos los comentarios.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-tertiary mb-1.5">
+            Respuesta en el hilo
+          </label>
+          <input
+            value={publica} onChange={e => setPublica(e.target.value)}
+            placeholder="¡Te lo acabo de mandar por privado! 📩"
+            className="w-full px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+          />
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-tertiary mb-1.5">
+            Mensaje privado
+          </label>
+          <textarea
+            value={privada} onChange={e => setPrivada(e.target.value)} rows={3}
+            placeholder="Aquí tienes la guía: ejemplo.com/guia&#10;&#10;¿Qué es lo que más se te complica hoy?"
+            className="w-full px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue resize-none"
+          />
+          <div className="flex items-start gap-1.5 mt-2 text-[11px] text-accent-amber leading-snug">
+            <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+            <span>
+              Instagram deja <strong>un solo privado por comentario</strong>, y ese mensaje
+              no abre la conversación: hasta que la persona conteste, el agente no puede
+              escribirle. Mete el enlace <strong>y</strong> una pregunta — esa respuesta es
+              la que le abre la puerta.
+            </span>
+          </div>
+        </div>
+
+        <button onClick={guardar} disabled={guardando}
+          className="px-4 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── RENDIMIENTO ──────────────────────────────────────────────────
 const pct = (n) => (typeof n === 'number' ? `${(n * 100).toFixed(1)}%` : '—')
 const num = (n) => (typeof n === 'number' ? Math.round(n).toLocaleString('es-MX') : '—')
@@ -400,7 +501,7 @@ function PanelDeRendimiento({ marca, orgId }) {
 }
 
 // ─── FICHA ────────────────────────────────────────────────────────
-function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, onEliminar }) {
+function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, onEliminar, onActualizar }) {
 
   return (
     <div className="max-w-[900px] mx-auto">
@@ -449,6 +550,9 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
 
       <PanelDeConexion marca={marca} orgId={orgId} />
       <PanelDeRendimiento marca={marca} orgId={orgId} />
+      {estadoDeConexion(marca) === CONECTADA && (
+        <PanelDeComentarios marca={marca} onGuardar={onActualizar} />
+      )}
     </div>
   )
 }
@@ -517,6 +621,7 @@ export default function MarcaPersonal() {
           onVolver={() => setAbierta(null)}
           onEditar={() => setEditando(marcaAbierta)}
           onEliminar={() => borrar(marcaAbierta)}
+          onActualizar={cambios => actualizar(marcaAbierta.id, cambios)}
         />
       ) : (
         <>
