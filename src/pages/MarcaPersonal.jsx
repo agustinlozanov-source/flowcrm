@@ -244,6 +244,24 @@ function PanelDeConexion({ marca, orgId }) {
                 : 'La conexión caducó. Hay que generar un token nuevo.'}
             </p>
           )}
+
+          {/* Los permisos se conceden al hacer login, así que una cuenta
+              conectada se queda con los que pidió aquel día. Cuando la app
+              empieza a pedir más —mensajes, comentarios—, la única forma de
+              que el token los tenga es volver a pasar por la pantalla de
+              Instagram. Sin este botón la única salida era borrar la marca,
+              que además se lleva el pipeline y la regla de comentarios. */}
+          <div className="pt-2">
+            <a
+              href={`/.netlify/functions/instagram-auth?orgId=${orgId}&brandId=${marca.id}`}
+              className="inline-flex items-center gap-1.5 text-[12px] text-tertiary hover:text-primary underline underline-offset-2"
+            >
+              <Instagram size={13} /> Volver a conectar
+            </a>
+            <p className="text-[11px] text-tertiary mt-1">
+              No borra nada. Sirve para renovar los permisos cuando Instagram pide unos nuevos.
+            </p>
+          </div>
         </div>
       )}
 
