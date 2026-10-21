@@ -143,15 +143,24 @@ export function usePipeline() {
   // Active leads — in configurable stages (not system stages, not discarded)
   const activeLeads = leads.filter(l => !l.systemStage && !l.discarded)
 
-  const filteredLeads = activePipelineId === '__all__'
-    ? activeLeads
-    : activePipelineId
-      ? activeLeads.filter(l => l.pipelineId === activePipelineId)
-      : activeLeads.filter(l => !l.pipelineId)
+  /* El mismo filtro para todo lo que se pinta en el tablero. Vivía repetido
+   * y con dos criterios distintos. */
+  const delPipeline = (lista) =>
+    activePipelineId === '__all__'
+      ? lista
+      : activePipelineId
+        ? lista.filter(l => l.pipelineId === activePipelineId)
+        : lista.filter(l => !l.pipelineId)
 
-  // System stage leads — always shown regardless of pipeline filter
-  const systemLeads = leads.filter(l => l.systemStage && !l.discarded)
-  const discardedLeads = leads.filter(l => l.discarded)
+  const filteredLeads = delPipeline(activeLeads)
+
+  /* Las etapas de sistema —handoff, oportunidad, cierre— se mostraban
+   * IGNORANDO el pipeline activo. Con un solo pipeline era inofensivo; con
+   * varios significa ver en tu tablero los leads de otro, y entre socios
+   * distintos eso es ver los clientes del vecino. Ahora filtran igual que el
+   * resto. */
+  const systemLeads = delPipeline(leads.filter(l => l.systemStage && !l.discarded))
+  const discardedLeads = delPipeline(leads.filter(l => l.discarded))
 
   const leadsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = filteredLeads.filter(l => l.stageId === stage.id)
