@@ -1,7 +1,7 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, saveAttachments, destinoInicial } = require('./lib/firebase')
+const { initDb, saveAttachments, destinoInicial, pipelineDeLaCuenta } = require('./lib/firebase')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
@@ -22,20 +22,6 @@ async function claim(db, id, data) {
   } catch {
     return false
   }
-}
-
-/* A qué pipeline va lo que entra por una cuenta.
- *
- * La organización puede llevar un mapa `ruteo` indexado por id de cuenta:
- * cada cuenta conectada apunta a su pipeline. De ahí sale todo lo demás — el
- * nombre del agente, sus instrucciones, sus documentos y su scoring ya se
- * resuelven por pipeline.
- *
- * Sin mapa se cae al primer pipeline, que es lo que se hacía siempre. */
-async function pipelineDeLaCuenta(db, orgId, accountId) {
-  if (!accountId) return null
-  const org = await db.collection('organizations').doc(orgId).get()
-  return org.data()?.ruteo?.[accountId]?.pipelineId || null
 }
 
 async function resolveOrg(db, payload) {

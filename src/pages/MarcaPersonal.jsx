@@ -17,6 +17,7 @@ import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, 
 import Referencias from '@/features/marca/Referencias'
 import Produccion from '@/features/marca/Produccion'
 import { useTeam } from '@/hooks/useTeam'
+import { usePipeline } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
 
 const NICHOS_SUGERIDOS = [
@@ -72,18 +73,19 @@ function TarjetaDeMarca({ marca, dueño, onAbrir }) {
 }
 
 // ─── FORMULARIO ───────────────────────────────────────────────────
-function FormularioDeMarca({ marca, miembros, onGuardar, onCerrar }) {
+function FormularioDeMarca({ marca, miembros, pipelines, onGuardar, onCerrar }) {
   const [nombre, setNombre] = useState(marca?.nombre || '')
   const [handle, setHandle] = useState(marca?.handle || '')
   const [nicho, setNicho] = useState(marca?.nicho || '')
   const [ownerUserId, setOwnerUserId] = useState(marca?.ownerUserId || '')
+  const [pipelineId, setPipelineId] = useState(marca?.pipelineId || '')
   const [guardando, setGuardando] = useState(false)
 
   const guardar = async () => {
     if (!nombre.trim()) { toast.error('Ponle un nombre a la marca'); return }
     setGuardando(true)
     try {
-      await onGuardar({ nombre, handle, nicho, ownerUserId })
+      await onGuardar({ nombre, handle, nicho, ownerUserId, pipelineId })
       onCerrar()
     } catch (err) {
       console.error(err)
@@ -136,6 +138,23 @@ function FormularioDeMarca({ marca, miembros, onGuardar, onCerrar }) {
             <datalist id="nichos-marca">
               {NICHOS_SUGERIDOS.map(n => <option key={n} value={n} />)}
             </datalist>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-tertiary mb-1.5">Pipeline</label>
+            <select
+              value={pipelineId} onChange={e => setPipelineId(e.target.value)}
+              className="w-full px-3 py-2 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue"
+            >
+              <option value="">Sin pipeline</option>
+              {(pipelines || []).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-tertiary mt-1.5">
+              Aquí caen los mensajes de esta cuenta, y de aquí salen el nombre del agente,
+              sus instrucciones y su scoring.
+            </p>
           </div>
 
           <div>
@@ -402,6 +421,11 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
               {marca.handle ? `@${marca.handle}` : 'Sin cuenta de Instagram'}
               {marca.nicho && ` · ${marca.nicho}`}
             </div>
+            {!marca.pipelineId && (
+              <div className="flex items-center gap-1.5 mt-1 text-[12px] text-accent-amber">
+                <AlertTriangle size={12} /> Sin pipeline: los mensajes de esta cuenta no sabrían a dónde ir
+              </div>
+            )}
             {dueño && (
               <div className="flex items-center gap-1.5 mt-1 text-[12px] text-tertiary">
                 <Users size={12} /> {dueño}
@@ -433,6 +457,7 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
 export default function MarcaPersonal() {
   const { marcas, cargando, veTodas, puedeEditar, crear, actualizar, eliminar } = useBrands()
   const { members } = useTeam()
+  const { pipelines } = usePipeline()
   const { user, org } = useAuthStore()
   const [abierta, setAbierta] = useState(null)
   const [pestana, setPestana] = useState('marcas')
@@ -572,6 +597,7 @@ export default function MarcaPersonal() {
         <FormularioDeMarca
           marca={editando === 'nueva' ? null : editando}
           miembros={members}
+          pipelines={pipelines}
           onGuardar={guardar}
           onCerrar={() => setEditando(null)}
         />

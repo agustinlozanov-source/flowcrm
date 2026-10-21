@@ -85,4 +85,30 @@ async function destinoInicial(db, orgId, pipelinePreferido = null) {
   return { pipelineId, stageId: ordenadas[0]?.id || null }
 }
 
-module.exports = { initDb, saveAttachments, destinoInicial }
+/* A qué pipeline pertenece lo que entra por una cuenta.
+ *
+ * Primero se busca la marca que tiene conectada esa cuenta de Instagram: la
+ * marca es el nudo donde se atan el dueño, la cuenta y el pipeline, así que
+ * preguntarle a ella evita mantener una copia del mapa en otro sitio y que
+ * las dos se desincronicen.
+ *
+ * Si no hay marca —las cuentas que entran por Zernio no lo son— se mira el
+ * mapa `ruteo` de la organización. Y si tampoco, se cae al primer pipeline,
+ * que es lo que se hacía siempre.
+ */
+async function pipelineDeLaCuenta(db, orgId, cuentaId) {
+  if (!cuentaId) return null
+  const orgRef = db.collection('organizations').doc(orgId)
+
+  const marcas = await orgRef.collection('brands')
+    .where('ig.userId', '==', String(cuentaId)).limit(1).get()
+  if (!marcas.empty) {
+    const pid = marcas.docs[0].data().pipelineId
+    if (pid) return pid
+  }
+
+  const org = await orgRef.get()
+  return org.data()?.ruteo?.[cuentaId]?.pipelineId || null
+}
+
+module.exports = { initDb, saveAttachments, destinoInicial, pipelineDeLaCuenta }

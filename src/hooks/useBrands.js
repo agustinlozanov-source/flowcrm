@@ -89,6 +89,7 @@ export function useBrands() {
       nombre: datos.nombre?.trim() || '',
       handle: limpiarHandle(datos.handle),
       nicho: datos.nicho?.trim() || '',
+      pipelineId: datos.pipelineId || null,
       ownerUserId: datos.ownerUserId || userId,
       activa: true,
       // El consumo del escáner se mide por marca: el grow operator necesita
