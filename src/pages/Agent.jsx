@@ -925,7 +925,7 @@ function PipelineScoringEditor({ data, onChange }) {
 // Self-contained: pipeline tabs + document upload/list + textarea per pipeline
 const ACCEPTED_TYPES_KB = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
 
-function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, distribuidorConfig }) {
+function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, nombres, onNombres, nombrePorDefecto, distribuidorConfig }) {
   const [activeId, setActiveId] = useState(null)
   const [files, setFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(false)
@@ -1091,6 +1091,19 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, dist
           </Section>
 
           {/* Manual instructions for this pipeline */}
+          <Section title="Nombre del agente" desc={`Con quién habla la gente en "${activePipeline?.name || ''}"`}>
+            <input
+              value={(nombres && activeId && nombres[activeId]) || ''}
+              onChange={e => onNombres?.({ ...(nombres || {}), [activeId]: e.target.value })}
+              placeholder={nombrePorDefecto || 'Sofía'}
+              className="input text-[13px]"
+            />
+            <p className="text-[11.5px] text-gray-500 mt-1.5">
+              Si lo dejas vacío usa “{nombrePorDefecto || 'Sofía'}”, el nombre general.
+              Con varias marcas en la misma cuenta conviene que cada una tenga el suyo.
+            </p>
+          </Section>
+
           <Section title="Instrucciones manuales" desc={`Texto libre que el agente usa como contexto para "${activePipeline?.name || ''}"`}>
             <textarea
               value={currentInstructions}
@@ -1908,6 +1921,7 @@ export default function Agent() {
     agentName: 'Sofía',
     responseDelay: 3,
     customInstructions: {},
+    agentNames: {},
     enabledProductIds: [],
     scoring: {},
     meetingBuffer: 15,
@@ -1942,6 +1956,7 @@ export default function Agent() {
         setConfig(c => ({
           ...c,
           agentName: data.agentName ?? c.agentName,
+          agentNames: data.agentNames ?? c.agentNames,
           responseDelay: data.responseDelay ?? c.responseDelay,
           customInstructions: (data.customInstructions !== undefined)
             ? (typeof data.customInstructions === 'object' && !Array.isArray(data.customInstructions)
@@ -2209,6 +2224,9 @@ export default function Agent() {
                   pipelines={pipelines}
                   instructions={config.customInstructions}
                   onChange={v => set('customInstructions', v)}
+                  nombres={config.agentNames}
+                  onNombres={v => set('agentNames', v)}
+                  nombrePorDefecto={config.agentName}
                   distribuidorConfig={distribuidorConfig}
                 />
               </>

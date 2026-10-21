@@ -827,6 +827,15 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     } catch {}
   }
 
+  /* El nombre del agente también se resuelve por pipeline. Con una sola
+   * organización llevando varias marcas personales, el asistente de cada una
+   * tiene que presentarse con su propio nombre — si no, el mismo "Sofía"
+   * contesta en cuatro cuentas distintas y se nota. */
+  const nombrePorPipeline = pipelineId && agentConfig.agentNames?.[pipelineId]
+  if (nombrePorPipeline) {
+    agentConfig = { ...agentConfig, agentName: nombrePorPipeline }
+  }
+
   // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
   const rawInstructions = agentConfig.customInstructions
   if (typeof rawInstructions === 'object' && rawInstructions !== null && !Array.isArray(rawInstructions)) {
