@@ -16,7 +16,23 @@ const OAUTH_TOKEN = 'https://api.instagram.com/oauth/access_token'
 
 // instagram_business_basic da perfil y publicaciones; _manage_insights es el
 // que trae los números. Sin el segundo la conexión funciona y no mide nada.
-const SCOPE = 'instagram_business_basic,instagram_business_manage_insights'
+//
+// _manage_messages y _manage_comments son los que faltaban, y su ausencia no
+// se nota hasta que algo falla raro: la suscripción al webhook se acepta igual
+// y `subscribed_apps` contesta `messages, comments` como si todo estuviera
+// bien, pero el token de la cuenta no está autorizado para esos campos, así
+// que Meta no despacha nada y leer el inbox devuelve "Application does not
+// have permission". Todo verde y nada funcionando.
+//
+// Ojo: cambiar esto no arregla las cuentas ya conectadas. El permiso se
+// concede en el momento del login, así que cada marca tiene que volver a
+// conectarse para que su token nazca con los cuatro.
+const SCOPE = [
+  'instagram_business_basic',
+  'instagram_business_manage_insights',
+  'instagram_business_manage_messages',
+  'instagram_business_manage_comments',
+].join(',')
 
 /** El token largo de Instagram vive 60 días. */
 const DIAS_DE_VIDA = 60
