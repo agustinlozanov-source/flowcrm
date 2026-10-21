@@ -187,7 +187,13 @@ exports.handler = async (event) => {
   }
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
-  const crudo = event.body || ''
+  /* Netlify puede entregar el cuerpo en base64 según el tipo de contenido.
+   * La firma se calcula sobre los bytes originales, así que comprobarla sobre
+   * el texto codificado falla siempre — y el síntoma sería idéntico a que
+   * Meta no llamara: un 401 silencioso por cada evento real. */
+  const crudo = event.isBase64Encoded
+    ? Buffer.from(event.body || '', 'base64').toString('utf8')
+    : (event.body || '')
   const h = event.headers || {}
   const firma = h['x-hub-signature-256'] || h['X-Hub-Signature-256'] || ''
   if (!ig.verificarFirma(crudo, firma)) {
