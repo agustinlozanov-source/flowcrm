@@ -21,6 +21,8 @@ import { decodificar, mezclar, aWav, aTiempoOriginal, aTiempoDeMontaje } from '.
 import Linea, { TIPOS } from './Linea'
 import Sonidos from './Sonidos'
 import { construir as construirSubtitulos, aSRT as subtitulosASRT } from './subtitulos'
+import EstiloSubtitulos from './EstiloSubtitulos'
+import { aCss, POR_DEFECTO as ESTILO_POR_DEFECTO } from './estilo'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
   AlertTriangle, Trash2, Clock, Scissors, Download, AudioLines, Play, X,
@@ -64,6 +66,8 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   const audioRef = useRef(null)
   const [escuchando, setEscuchando] = useState(false)
   const [panel, setPanel] = useState('transcripcion')
+  const visorRef = useRef(null)
+  const [anchoVisor, setAnchoVisor] = useState(260)
   const videoFileRef = useRef(null)
   const [montando, setMontando] = useState(false)
   const [montaje, setMontaje] = useState(null)   // AudioBuffer del audio ya cortado
@@ -357,12 +361,59 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
   /* El subtítulo que toca ahora mismo, para enseñarlo encima del video. Sin
    * esto no había forma de verlos: estaban en una lista y en una capa, pero
    * nunca sobre la imagen, que es donde van a salir de verdad. */
+  /* El tamaño va en porcentaje del ancho del video, así que hay que saber
+   * cuánto mide el visor: lo que se ve aquí es lo que va a salir allá. */
+  useEffect(() => {
+    const el = visorRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([x]) => setAnchoVisor(x.contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [pieza.video?.url])
+
+  const estilo = { ...ESTILO_POR_DEFECTO, ...(pieza.estiloSubtitulos || {}) }
+  const estiloPorGuardar = useRef(null)
+  const [estiloLocal, setEstiloLocal] = useState(estilo)
+  useEffect(() => { setEstiloLocal({ ...ESTILO_POR_DEFECTO, ...(pieza.estiloSubtitulos || {}) }) },
+    [pieza.estiloSubtitulos])
+
+  const cambiarEstilo = (nuevo) => {
+    setEstiloLocal(nuevo)
+    clearTimeout(estiloPorGuardar.current)
+    estiloPorGuardar.current = setTimeout(() => {
+      updateDoc(doc(db, 'organizations', orgId, 'brands', brandId, 'piezas', pieza.id), {
+        estiloSubtitulos: nuevo,
+        updatedAt: serverTimestamp(),
+      }).catch(e => console.error('no se pudo guardar el estilo', e))
+    }, 600)
+  }
+  useEffect(() => () => clearTimeout(estiloPorGuardar.current), [])
+
+  const css = useMemo(() => aCss(estiloLocal, anchoVisor), [estiloLocal, anchoVisor])
+
   const subtituloAhora = useMemo(() => {
     if (!subtitulos.length) return null
     const segmentos = segmentosConservados(cortes, duracionReal)
     const t = aTiempoDeMontaje(segmentos, segundo)
     return subtitulos.find(x => t >= x.desde && t <= x.hasta) || null
   }, [subtitulos, cortes, duracionReal, segundo])
+
+  const subtituloEnCrudoAhora = useMemo(
+    () => subtitulosEnCrudo.find(x => segundo >= x.desde && segundo <= x.hasta) || null,
+    [subtitulosEnCrudo, segundo]
+  )
+
+  /* Las palabras del subtítulo que suena, para poder encender la que toca.
+   * Se sacan del crudo descartando las cortadas, que es exactamente el
+   * conjunto con el que se armó ese subtítulo. */
+  const palabrasDelSubtitulo = useMemo(() => {
+    if (!subtituloEnCrudoAhora) return []
+    const fuera = cortes.filter(c => c.activo !== false)
+    return palabras.filter(p =>
+      p.inicio >= subtituloEnCrudoAhora.desde - 0.01 &&
+      p.fin <= subtituloEnCrudoAhora.hasta + 0.01 &&
+      !fuera.some(c => p.inicio < c.fin && p.fin > c.inicio))
+  }, [subtituloEnCrudoAhora, palabras, cortes])
 
   const bajarWav = () => {
     if (!montaje) return
@@ -472,7 +523,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
       <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)] items-start">
         <div className="bg-surface border border-border rounded-card shadow-card p-2">
           {pieza.video?.url ? (
-            <div className="relative">
+            <div className="relative" ref={visorRef}>
               <video
                 ref={videoRef}
                 src={pieza.video.url}
@@ -483,11 +534,19 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                 className="w-full rounded-btn bg-black"
               />
               {subtituloAhora && (
-                <div className="absolute inset-x-2 bottom-12 pointer-events-none text-center">
-                  <span className="inline-block px-1.5 py-0.5 rounded bg-black/70 text-white
-                                   text-[13px] font-bold leading-snug"
-                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-                    {subtituloAhora.texto}
+                <div className={clsx('absolute inset-x-2 pointer-events-none text-center',
+                  css.posicion === 'centro' ? 'top-1/2 -translate-y-1/2' : 'bottom-[12%]')}>
+                  <span className="inline-block" style={css.caja}>
+                    {css.resalta && palabrasDelSubtitulo.length
+                      ? palabrasDelSubtitulo.map((p, i) => {
+                          const suena = segundo >= p.inicio && segundo < p.fin
+                          return (
+                            <span key={i} style={suena ? css.resaltada : undefined}>
+                              {p.texto}{i < palabrasDelSubtitulo.length - 1 ? ' ' : ''}
+                            </span>
+                          )
+                        })
+                      : subtituloAhora.texto}
                   </span>
                 </div>
               )}
@@ -612,6 +671,12 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                       <RefreshCw size={12} /> {subtitulos.length ? 'Rehacer' : 'Generar'}
                     </button>
                   </div>
+
+                  {subtitulos.length > 0 && (
+                    <div className="mb-3 pb-3 border-b border-border">
+                      <EstiloSubtitulos estilo={estiloLocal} onCambiar={cambiarEstilo} />
+                    </div>
+                  )}
 
                   {subtitulos.length > 0 && (
                     <div className="space-y-1">
