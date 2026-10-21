@@ -42,6 +42,8 @@ exports.handler = async (event) => {
     const datos = await ig.perfil(token)
     const db = initDb()
     await ig.guardarConexion(db, orgId, brandId, { token, perfil: datos, admin })
+    await ig.suscribirEventos(token)
+      .catch(e => console.warn('instagram-callback: no se pudo suscribir a los eventos:', e.message))
 
     return volver('connected')
   } catch (e) {

@@ -202,7 +202,10 @@ exports.handler = async (event) => {
       const igUserId = String(entrada.id || '')
       const cuenta = await ig.cuentaDeInstagram(db, igUserId)
       if (!cuenta) {
-        console.warn(`[instagram-webhook] cuenta ${igUserId} sin marca conectada`)
+        console.warn(
+          `[instagram-webhook] la cuenta ${igUserId} no está en el índice. ` +
+          `Si la marca existe, basta con darle a Actualizar en su ficha: eso lo reescribe.`
+        )
         continue
       }
       cuenta.igUserId = igUserId

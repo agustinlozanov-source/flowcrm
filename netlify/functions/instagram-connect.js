@@ -38,6 +38,8 @@ exports.handler = async (event) => {
     const datos = await ig.perfil(tokenFinal)
 
     await ig.guardarConexion(db, orgId, brandId, { token: tokenFinal, perfil: datos, admin })
+    await ig.suscribirEventos(tokenFinal)
+      .catch(e => console.warn('instagram-connect: no se pudo suscribir a los eventos:', e.message))
 
     return responder(200, {
       ok: true,

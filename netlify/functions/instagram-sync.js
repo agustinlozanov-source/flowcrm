@@ -70,6 +70,18 @@ exports.handler = async (event) => {
 
     const datos = await ig.perfil(token)
     const seguidores = datos.followers_count ?? 0
+
+    /* Reparar mientras se sincroniza, que es el botón que ya se usa: las
+     * cuentas conectadas antes de que existieran el índice y la suscripción
+     * se quedaron sin ellos, y el síntoma es un webhook que nunca recibe
+     * nada. Ninguna de las dos cosas molesta si ya estaban. */
+    await ig.anotarCuenta(db, {
+      igUserId: String(datos.user_id || datos.id || ''),
+      orgId, brandId, username: datos.username, admin,
+    }).catch(e => console.warn('instagram-sync: no se pudo anotar la cuenta:', e.message))
+
+    await ig.suscribirEventos(token)
+      .catch(e => console.warn('instagram-sync: no se pudo suscribir a los eventos:', e.message))
     const medios = await ig.publicaciones(token, MAXIMO)
 
     // En tandas: veinticinco peticiones seguidas no caben en el tiempo que

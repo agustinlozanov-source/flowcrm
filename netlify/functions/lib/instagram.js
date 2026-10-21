@@ -210,6 +210,17 @@ async function guardarConexion(db, orgId, brandId, { token, perfil: datos, admin
   }, { merge: true })
 }
 
+/* Reescribe el índice cuenta → organización y marca. Las cuentas conectadas
+ * antes de que este índice existiera no lo tienen, y sin él el webhook recibe
+ * el evento pero no sabe de quién es. */
+async function anotarCuenta(db, { igUserId, orgId, brandId, username, admin }) {
+  if (!igUserId) return
+  await db.collection('_ig_cuentas').doc(String(igUserId)).set({
+    orgId, brandId, username: username || '',
+    actualizadoEn: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true })
+}
+
 /** De quién es la cuenta que recibió el evento. */
 async function cuentaDeInstagram(db, igUserId) {
   if (!igUserId) return null
@@ -226,6 +237,17 @@ function verificarFirma(cuerpoCrudo, firma) {
   const a = Buffer.from(esperada)
   const b = Buffer.from(firma)
   return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/* Pide a Meta que mande los eventos de esta cuenta. Autorizar la app no
+ * basta: hay que suscribirla explícitamente, y sin eso el webhook queda
+ * verificado pero nunca recibe nada. */
+async function suscribirEventos(token) {
+  const p = new URLSearchParams({
+    subscribed_fields: 'messages,comments',
+    access_token: token,
+  })
+  return pedir(`${BASE}/me/subscribed_apps?${p}`, { method: 'POST' })
 }
 
 // ── Mensajes y comentarios ───────────────────────────────────────────────
@@ -277,6 +299,7 @@ module.exports = {
   BASE, SCOPE, DIAS_DE_VIDA,
   marcaRef, guardarConexion, leerToken, anotarError, cuentaDeInstagram,
   verificarFirma, enviarMensaje, respuestaPrivada, responderComentario,
+  suscribirEventos, anotarCuenta,
   appUrl, redirectUri, authUrl,
   cifrar, descifrar,
   canjearCodigo, aTokenLargo, renovarToken,
