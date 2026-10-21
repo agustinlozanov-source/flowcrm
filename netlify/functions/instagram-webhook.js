@@ -217,16 +217,35 @@ exports.handler = async (event) => {
     })),
   }))
 
+  let db
   try {
-    const db = initDb()
+    db = initDb()
+
+    /* Se guarda el evento tal cual llegó. Los registros de Netlify se pierden
+     * o no se asocian a la petición, y sin ver lo que Meta manda de verdad no
+     * hay forma de saber por qué se descarta. Esto se lee después desde el
+     * diagnóstico. */
+    await db.collection('_ig_crudos').add({
+      cuerpo: JSON.stringify(cuerpo).slice(0, 20000),
+      recibidoEn: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => {})
+  } catch (e) {
+    console.error('[instagram-webhook] sin base de datos:', e)
+    return { statusCode: 200, body: 'EVENT_RECEIVED' }
+  }
+
+  try {
     for (const entrada of cuerpo.entry || []) {
       const igUserId = String(entrada.id || '')
       const cuenta = await ig.cuentaDeInstagram(db, igUserId)
       if (!cuenta) {
-        console.warn(
-          `[instagram-webhook] la cuenta ${igUserId} no está en el índice. ` +
-          `Si la marca existe, basta con darle a Actualizar en su ficha: eso lo reescribe.`
-        )
+        /* Queda anotado en la base, no solo en el registro: así se puede
+         * comparar el id que manda Meta con el que tenemos guardado, que es
+         * justo donde se rompe si no coinciden. */
+        await db.collection('_ig_crudos').add({
+          problema: `cuenta ${igUserId} no está en el índice`,
+          recibidoEn: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {})
         continue
       }
       cuenta.igUserId = igUserId

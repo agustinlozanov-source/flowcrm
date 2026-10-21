@@ -16,6 +16,27 @@ exports.handler = async (event) => {
     return { statusCode: 403, body: 'Forbidden' }
   }
 
+  /* Con ?crudos=1 devuelve lo último que mandó Meta, tal cual. Es lo que
+   * permite comparar el id de cuenta que trae el evento con el que tenemos
+   * guardado — donde se rompe todo si no coinciden. */
+  if (q.crudos) {
+    const db = initDb()
+    const snap = await db.collection('_ig_crudos')
+      .orderBy('recibidoEn', 'desc').limit(Number(q.crudos) || 5).get()
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(snap.docs.map(d => {
+        const x = d.data()
+        return {
+          cuando: x.recibidoEn?.toDate?.()?.toISOString() || null,
+          problema: x.problema || null,
+          cuerpo: x.cuerpo ? JSON.parse(x.cuerpo) : null,
+        }
+      }), null, 2),
+    }
+  }
+
   const handle = String(q.handle || '').replace(/^@/, '').toLowerCase()
   if (!handle) return { statusCode: 400, body: 'Falta ?handle=' }
 
