@@ -17,6 +17,17 @@
 [functions."get-org-analytics"]
   timeout = 26
 
+# El agente carga su configuracion, el conocimiento, el catalogo y la agenda,
+# y despues conversa con el modelo encadenando hasta seis pasos de
+# herramientas. Diez segundos no alcanzan, y al cortarse Netlify devuelve un
+# 502 con HTML: el navegador intenta leerlo como datos, falla, y en pantalla
+# sale "error al conectar" sin mas pistas.
+[functions."agent-manager"]
+  timeout = 26
+
+[functions."instagram-sync"]
+  timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

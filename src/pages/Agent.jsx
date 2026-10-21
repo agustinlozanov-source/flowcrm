@@ -464,7 +464,19 @@ function TestPanel({ orgId, config, pipelines = [] }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'chat', orgId, leadId: 'test', message: userMsg, pipelineId: selectedPipelineId }),
       })
-      const data = await res.json()
+      /* Si la función se corta por tiempo, Netlify responde HTML y esto
+       * revienta al leerlo como datos. Antes se tragaba el motivo y en
+       * pantalla salía "error al conectar", que no dice nada. */
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(res.status === 502
+          ? 'El agente tardó demasiado y se cortó la conexión.'
+          : `El servidor respondió ${res.status} sin datos.`)
+      }
+      if (!res.ok) throw new Error(data.error || `El servidor respondió ${res.status}.`)
+
       // El simulador no tiene canal de entrega: los adjuntos reales los manda
       // el webhook de WhatsApp. Acá se listan para poder verificar que el
       // agente eligió los recursos correctos.
@@ -473,8 +485,8 @@ function TestPanel({ orgId, config, pipelines = [] }) {
         text: data.response || 'Sin respuesta',
         resources: data.shareResources || [],
       }])
-    } catch {
-      setMessages(m => [...m, { role: 'agent', text: 'Error al conectar con el agente.' }])
+    } catch (e) {
+      setMessages(m => [...m, { role: 'agent', text: e.message || 'Error al conectar con el agente.' }])
     } finally { setLoading(false) }
   }
 
