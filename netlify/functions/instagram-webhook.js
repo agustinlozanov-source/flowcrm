@@ -35,8 +35,14 @@ async function buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId }) {
     const heredado = docs.find(d => !d.data().cuentaId)
     const elegido = mismo || heredado
     if (elegido) {
-      if (!elegido.data().cuentaId) await elegido.ref.update({ cuentaId })
-      return { id: elegido.id, ...elegido.data() }
+      const datos = elegido.data()
+      const parche = {}
+      if (!datos.cuentaId) parche.cuentaId = cuentaId
+      // Los leads que entraron antes de que supiéramos preguntar el nombre
+      // se quedaron en "Sin nombre"; en cuanto se sabe, se arregla solo.
+      if (nombre && (!datos.name || datos.name === 'Sin nombre')) parche.name = nombre
+      if (Object.keys(parche).length) await elegido.ref.update(parche)
+      return { id: elegido.id, ...datos, ...parche }
     }
   }
 
@@ -97,7 +103,24 @@ async function alLlegarMensaje(db, cuenta, evento) {
   const cuentaId = String(evento.recipient?.id || '')
   if (!usuarioId || !cuentaId) return
 
-  const lead = await buscarOCrearLead(db, orgId, { usuarioId, cuentaId })
+  /* Sin token no se puede contestar, pero el mensaje tiene que entrar igual:
+   * perder la respuesta es molesto, perder el mensaje es grave. */
+  const token = await ig.leerToken(db, orgId, brandId).catch(() => null)
+  if (!token) console.error('[instagram-webhook] la marca no tiene token: entra sin respuesta')
+
+  /* El aviso solo trae el id de quien escribe. Sin esta consulta el lead nace
+   * como "Sin nombre" y en el inbox no se sabe con quién estás hablando. */
+  let nombre = null
+  if (token) {
+    try {
+      const quien = await ig.perfilDeUsuario(token, usuarioId)
+      nombre = quien.name || (quien.username ? `@${quien.username}` : null)
+    } catch (e) {
+      console.warn('[instagram-webhook] no se pudo saber quién escribió:', e.message)
+    }
+  }
+
+  const lead = await buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId })
   await tocarLead(db, orgId, lead.id, { texto, delLead: true })
 
   if (lead.agentPaused) return
@@ -106,9 +129,7 @@ async function alLlegarMensaje(db, cuenta, evento) {
   const respuesta = await preguntarAlAgente(orgId, lead.id, texto)
   if (!respuesta) return
 
-  const token = await ig.leerToken(db, orgId, brandId)
-  if (!token) { console.error('[instagram-webhook] la marca no tiene token'); return }
-
+  if (!token) return
   await ig.enviarMensaje(token, { id: usuarioId }, respuesta)
   await tocarLead(db, orgId, lead.id, { texto: respuesta, delLead: false })
 }

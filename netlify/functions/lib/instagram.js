@@ -159,6 +159,21 @@ async function publicaciones(token, limite = 25) {
  * comentario o de un mensaje preguntando cada tanto, sin depender de que Meta
  * nos avise. */
 
+/* Quién es quien escribe.
+ *
+ * El aviso de un mensaje trae el id del remitente y nada más — ni nombre ni
+ * usuario —, así que el lead nacía como "Sin nombre". Los comentarios sí
+ * traen el usuario, de ahí que solo se notara en los DM. Esto lo pregunta.
+ * Necesita instagram_business_manage_messages, que es justo lo que al token
+ * le faltaba. */
+async function perfilDeUsuario(token, igsid) {
+  const p = new URLSearchParams({
+    fields: 'name,username,profile_pic',
+    access_token: token,
+  })
+  return pedir(`${BASE}/${igsid}?${p}`)
+}
+
 /** Comentarios de UNA publicación, del más nuevo al más viejo. */
 async function comentariosDe(token, mediaId, limite = 25) {
   const p = new URLSearchParams({
@@ -368,5 +383,5 @@ module.exports = {
   cifrar, descifrar,
   canjearCodigo, aTokenLargo, renovarToken,
   perfil, publicaciones, metricasDe,
-  comentariosDe, conversaciones, mensajesDe,
+  comentariosDe, conversaciones, mensajesDe, perfilDeUsuario,
 }
