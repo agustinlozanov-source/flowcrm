@@ -122,6 +122,7 @@ async function alLlegarComentario(db, cuenta, valor) {
   const { orgId, brandId } = cuenta
   const texto = valor.text || ''
   const comentarioId = valor.id
+  console.log(`[instagram-webhook] comentario "${texto}" de ${valor.from?.username || '?'}`)
   const autorId = String(valor.from?.id || '')
   const cuentaId = String(cuenta.igUserId || '')
 
@@ -130,10 +131,13 @@ async function alLlegarComentario(db, cuenta, valor) {
 
   const marca = await ig.marcaRef(db, orgId, brandId).get()
   const reglas = marca.data()?.comentarios
-  if (!reglas?.activo) return
+  if (!reglas?.activo) { console.log('[instagram-webhook] la regla está apagada'); return }
 
   const gatillo = String(reglas.palabra || '').trim().toLowerCase()
-  if (gatillo && !texto.toLowerCase().includes(gatillo)) return
+  if (gatillo && !texto.toLowerCase().includes(gatillo)) {
+    console.log(`[instagram-webhook] sin la palabra "${gatillo}" — se ignora`)
+    return
+  }
 
   const token = await ig.leerToken(db, orgId, brandId)
   if (!token) return
@@ -195,6 +199,17 @@ exports.handler = async (event) => {
    * y acabamos procesando lo mismo varias veces. El trabajo va después. */
   let cuerpo
   try { cuerpo = JSON.parse(crudo) } catch { return { statusCode: 200, body: 'OK' } }
+
+  /* Deja constancia de TODA llamada. Sin esto, "no pasó nada" puede ser que
+   * Meta no llamó o que llamó y nos callamos, y son problemas opuestos. */
+  console.log('[instagram-webhook] recibido:', JSON.stringify({
+    objeto: cuerpo.object,
+    entradas: (cuerpo.entry || []).map(e => ({
+      id: e.id,
+      mensajes: (e.messaging || []).length,
+      cambios: (e.changes || []).map(c => c.field),
+    })),
+  }))
 
   try {
     const db = initDb()
