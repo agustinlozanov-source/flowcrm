@@ -55,4 +55,34 @@ async function saveAttachments(db, orgId, leadId, sent = [], channel = 'whatsapp
   }
 }
 
-module.exports = { initDb, saveAttachments }
+/* Dónde nace un lead: su pipeline y la primera etapa DE ESE pipeline.
+ *
+ * Las tres puertas de entrada —Zernio, Meta y los formularios— elegían la
+ * primera etapa de cualquier pipeline, no la del suyo. Con un solo pipeline
+ * nunca se notó; en cuanto hay varios, mete leads en etapas ajenas y el
+ * tablero deja de significar nada.
+ *
+ * La etapa se ordena en memoria a propósito: filtrar y ordenar a la vez
+ * exigiría un índice compuesto en Firestore, y si falta, esto explota en
+ * producción justo cuando entra un lead.
+ */
+async function destinoInicial(db, orgId, pipelinePreferido = null) {
+  const orgRef = db.collection('organizations').doc(orgId)
+
+  let pipelineId = pipelinePreferido
+  if (!pipelineId) {
+    const pipelines = await orgRef.collection('pipelines').limit(1).get()
+    pipelineId = pipelines.empty ? null : pipelines.docs[0].id
+  }
+  if (!pipelineId) return { pipelineId: null, stageId: null }
+
+  const etapas = await orgRef.collection('pipeline_stages')
+    .where('pipelineId', '==', pipelineId).get()
+  const ordenadas = etapas.docs
+    .map(d => ({ id: d.id, orden: d.data().order ?? 0 }))
+    .sort((a, b) => a.orden - b.orden)
+
+  return { pipelineId, stageId: ordenadas[0]?.id || null }
+}
+
+module.exports = { initDb, saveAttachments, destinoInicial }

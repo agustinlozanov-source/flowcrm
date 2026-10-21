@@ -1,22 +1,31 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
+const { destinoInicial } = require('./lib/firebase')
 const Anthropic = require('@anthropic-ai/sdk')
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(credencial()),
-  })
+/* Perezoso a propósito. Arrancar Firebase al cargar el módulo hace que una
+ * credencial mal puesta tumbe la función ANTES de que pueda responder nada:
+ * Netlify devuelve un 502 mudo y, en un webhook, eso es perder mensajes de
+ * clientes sin enterarse. Dentro del manejador, en cambio, el error se
+ * registra y se puede contestar. */
+let base = null
+function laBase() {
+  if (!base) {
+    if (!admin.apps.length) {
+      admin.initializeApp({ credential: admin.credential.cert(credencial()) })
+    }
+    base = admin.firestore()
+  }
+  return base
 }
-
-const db = admin.firestore()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── GLOBAL ATOMIC MESSAGE DEDUP LOCK ──
 async function checkAndLockMessage(msgId) {
   if (!msgId) return false
-  const lockRef = db.collection('_global_msg_locks').doc(String(msgId))
+  const lockRef = laBase().collection('_global_msg_locks').doc(String(msgId))
   try {
-    const alreadyProcessed = await db.runTransaction(async t => {
+    const alreadyProcessed = await laBase().runTransaction(async t => {
       const snap = await t.get(lockRef)
       if (snap.exists) return true
       t.set(lockRef, { ts: admin.firestore.FieldValue.serverTimestamp() })
@@ -71,21 +80,20 @@ async function findOrCreateLead(orgId, contact) {
     }
   }
 
-  // Get first pipeline stage
-  const stagesSnap = await db
-    .collection('organizations').doc(orgId)
-    .collection('pipeline_stages')
-    .orderBy('order').limit(1).get()
-  const stageId = stagesSnap.empty ? null : stagesSnap.docs[0].id
+  // El lead nace en su pipeline y en la primera etapa DE ese pipeline. Antes
+  // no se le asignaba pipeline ninguno, así que se quedaba sin scoring y sin
+  // las instrucciones propias de su embudo.
+  const { pipelineId: pipelineInicial, stageId } = await destinoInicial(laBase(), orgId)
 
   // Create new lead
-  const ref = await db.collection('organizations').doc(orgId).collection('leads').add({
+  const ref = await laBase().collection('organizations').doc(orgId).collection('leads').add({
     name: name || 'Sin nombre',
     phone: phone || '',
     email: email || '',
     company: '',
     source: channel,
     stageId,
+    pipelineId: pipelineInicial,
     score: 0,
     assignedTo: null,
     channelIds: { [channel]: channelUserId },
@@ -99,7 +107,7 @@ async function findOrCreateLead(orgId, contact) {
 
 // ── SAVE MESSAGE ──
 async function saveMessage(orgId, leadId, { text, channel, role, channelMsgId }) {
-  await db.collection('organizations').doc(orgId)
+  await laBase().collection('organizations').doc(orgId)
     .collection('leads').doc(leadId)
     .collection('conversations').add({
       text,
@@ -111,7 +119,7 @@ async function saveMessage(orgId, leadId, { text, channel, role, channelMsgId })
     })
 
   // Update lead lastMessage
-  await db.collection('organizations').doc(orgId)
+  await laBase().collection('organizations').doc(orgId)
     .collection('leads').doc(leadId)
     .update({
       lastMessage: text,
@@ -124,14 +132,14 @@ async function saveMessage(orgId, leadId, { text, channel, role, channelMsgId })
 
 // ── GET AGENT CONFIG ──
 async function getAgentConfig(orgId) {
-  const snap = await db.collection('organizations').doc(orgId)
+  const snap = await laBase().collection('organizations').doc(orgId)
     .collection('settings').doc('agent').get()
   return snap.exists ? snap.data() : { autoRespond: false, personality: 'amigable' }
 }
 
 // ── GET CONVERSATION HISTORY ──
 async function getConversationHistory(orgId, leadId) {
-  const snap = await db.collection('organizations').doc(orgId)
+  const snap = await laBase().collection('organizations').doc(orgId)
     .collection('leads').doc(leadId)
     .collection('conversations')
     .orderBy('createdAt', 'desc')
@@ -153,7 +161,7 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     const history = await getConversationHistory(orgId, lead.id)
 
     // RAG content
-    const filesSnap = await db.collection('organizations').doc(orgId)
+    const filesSnap = await laBase().collection('organizations').doc(orgId)
       .collection('agent_files').where('status', '==', 'ready').get()
     const ragContent = filesSnap.docs.map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
 
@@ -180,14 +188,14 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     let stageName = 'Sin etapa'
     if (lead.stageId) {
       try {
-        const stageSnap = await db.collection('organizations').doc(orgId).collection('pipeline_stages').doc(lead.stageId).get()
+        const stageSnap = await laBase().collection('organizations').doc(orgId).collection('pipeline_stages').doc(lead.stageId).get()
         if (stageSnap.exists) stageName = stageSnap.data().name
       } catch {}
     }
     let pipelineName = ''
     if (pipelineId) {
       try {
-        const pipelineSnap = await db.collection('organizations').doc(orgId).collection('pipelines').doc(pipelineId).get()
+        const pipelineSnap = await laBase().collection('organizations').doc(orgId).collection('pipelines').doc(pipelineId).get()
         if (pipelineSnap.exists) pipelineName = pipelineSnap.data().name || ''
       } catch {}
     }
@@ -197,7 +205,7 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     if (agentConfig.enabledProductIds?.length) {
       try {
         const productSnaps = await Promise.all(agentConfig.enabledProductIds.map(id =>
-          db.collection('organizations').doc(orgId).collection('products').doc(id).get()
+          laBase().collection('organizations').doc(orgId).collection('products').doc(id).get()
         ))
         const products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
         if (products.length) productsSection = `\nPRODUCTOS:\n${products.map(p =>
@@ -209,7 +217,7 @@ async function agentAutoReply(orgId, lead, incomingText, channel) {
     // Resources section
     let resourcesSection = ''
     try {
-      const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources').get()
+      const resourcesSnap = await laBase().collection('organizations').doc(orgId).collection('agent_resources').get()
       const resources = resourcesSnap.docs.map(d => d.data()).filter(r => r.url)
       if (resources.length) resourcesSection = `\nRECURSOS DISPONIBLES:\n${resources.map(r =>
         `- [${(r.type || '').toUpperCase()}] "${r.name}": ${r.url}`
@@ -283,7 +291,7 @@ ${scoringKeys}
           const delta = Object.values(parsed.scoring).reduce((sum, s) => sum + (s.delta || 0), 0)
           if (delta !== 0) {
             const newScore = Math.max(0, Math.min(100, (lead.score || 0) + delta))
-            await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id).update({
+            await laBase().collection('organizations').doc(orgId).collection('leads').doc(lead.id).update({
               score: newScore,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             })

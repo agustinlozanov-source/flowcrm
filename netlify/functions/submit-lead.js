@@ -1,14 +1,23 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
+const { destinoInicial } = require('./lib/firebase')
 
 // Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(credencial()),
-  })
+/* Perezoso a propósito. Arrancar Firebase al cargar el módulo hace que una
+ * credencial mal puesta tumbe la función ANTES de que pueda responder nada:
+ * Netlify devuelve un 502 mudo y, en un webhook, eso es perder mensajes de
+ * clientes sin enterarse. Dentro del manejador, en cambio, el error se
+ * registra y se puede contestar. */
+let base = null
+function laBase() {
+  if (!base) {
+    if (!admin.apps.length) {
+      admin.initializeApp({ credential: admin.credential.cert(credencial()) })
+    }
+    base = admin.firestore()
+  }
+  return base
 }
-
-const db = admin.firestore()
 
 exports.handler = async (event) => {
   // Allow CORS for landing page domains
@@ -45,13 +54,9 @@ exports.handler = async (event) => {
     // Get first stage if no target specified
     let stageId = targetStageId
     if (!stageId) {
-      const stagesSnap = await db
-        .collection('organizations').doc(orgId)
-        .collection('pipeline_stages')
-        .orderBy('order', 'asc')
-        .limit(1)
-        .get()
-      if (!stagesSnap.empty) stageId = stagesSnap.docs[0].id
+      // La primera etapa DEL pipeline que toca, no la primera de cualquiera.
+      const destino = await destinoInicial(laBase(), orgId)
+      stageId = destino.stageId
     }
 
     // Create lead

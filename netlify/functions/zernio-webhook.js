@@ -1,7 +1,7 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, saveAttachments } = require('./lib/firebase')
+const { initDb, saveAttachments, destinoInicial } = require('./lib/firebase')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
@@ -22,6 +22,20 @@ async function claim(db, id, data) {
   } catch {
     return false
   }
+}
+
+/* A qué pipeline va lo que entra por una cuenta.
+ *
+ * La organización puede llevar un mapa `ruteo` indexado por id de cuenta:
+ * cada cuenta conectada apunta a su pipeline. De ahí sale todo lo demás — el
+ * nombre del agente, sus instrucciones, sus documentos y su scoring ya se
+ * resuelven por pipeline.
+ *
+ * Sin mapa se cae al primer pipeline, que es lo que se hacía siempre. */
+async function pipelineDeLaCuenta(db, orgId, accountId) {
+  if (!accountId) return null
+  const org = await db.collection('organizations').doc(orgId).get()
+  return org.data()?.ruteo?.[accountId]?.pipelineId || null
 }
 
 async function resolveOrg(db, payload) {
@@ -66,12 +80,26 @@ async function resolveOrg(db, payload) {
 
 // Mismo criterio que el inbound de Meta: primero por id de canal, después por
 // teléfono, y si no existe se crea en la primera etapa del pipeline.
-async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId }) {
+async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId, cuentaId }) {
   const leads = db.collection('organizations').doc(orgId).collection('leads')
 
   if (channelUserId) {
-    const byChannel = await leads.where(`channelIds.${channel}`, '==', channelUserId).limit(1).get()
-    if (!byChannel.empty) return { id: byChannel.docs[0].id, ...byChannel.docs[0].data() }
+    /* La misma persona puede escribirle a dos cuentas de la organización, y
+     * eso son dos relaciones distintas, no una. Se busca entre los que ya
+     * escribieron por este canal y se queda con el de esta cuenta — o con uno
+     * antiguo que todavía no tenga cuenta anotada, para no partir en dos a los
+     * leads de antes. */
+    const porCanal = await leads.where(`channelIds.${channel}`, '==', channelUserId).limit(10).get()
+    if (!porCanal.empty) {
+      const docs = porCanal.docs
+      const mismo = cuentaId ? docs.find(d => d.data().cuentaId === cuentaId) : null
+      const heredado = docs.find(d => !d.data().cuentaId)
+      const elegido = mismo || (cuentaId ? heredado : docs[0])
+      if (elegido) {
+        if (cuentaId && !elegido.data().cuentaId) await elegido.ref.update({ cuentaId })
+        return { id: elegido.id, ...elegido.data() }
+      }
+    }
   }
   if (phone) {
     const byPhone = await leads.where('phone', '==', phone).limit(1).get()
@@ -82,11 +110,8 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
     }
   }
 
-  const orgRef = db.collection('organizations').doc(orgId)
-  const [stages, pipelines] = await Promise.all([
-    orgRef.collection('pipeline_stages').orderBy('order').limit(1).get(),
-    orgRef.collection('pipelines').limit(1).get(),
-  ])
+  const preferido = await pipelineDeLaCuenta(db, orgId, cuentaId)
+  const { pipelineId, stageId } = await destinoInicial(db, orgId, preferido)
 
   const ref = await leads.add({
     name: name || 'Sin nombre',
@@ -94,8 +119,9 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
     email: '',
     company: '',
     source: channel,
-    stageId: stages.empty ? null : stages.docs[0].id,
-    pipelineId: pipelines.empty ? null : pipelines.docs[0].id,
+    cuentaId: cuentaId || null,
+    stageId,
+    pipelineId,
     score: 0,
     assignedTo: null,
     channelIds: channelUserId ? { [channel]: channelUserId } : {},
@@ -149,6 +175,9 @@ async function handleMessageReceived(db, payload) {
     name: msg.sender?.name || conv.participantName || null,
     channel,
     channelUserId: conv.id,
+    // A cuál de las cuentas de la organización le escribieron. De aquí sale
+    // el pipeline, y del pipeline sale con qué voz contesta el agente.
+    cuentaId: accountIdOf(payload),
   })
   await touchLead(db, orgId, lead.id, { text, channel, fromLead: true })
 
