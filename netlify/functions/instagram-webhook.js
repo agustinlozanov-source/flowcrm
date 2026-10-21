@@ -162,10 +162,24 @@ exports.handler = async (event) => {
   // Meta verifica la URL una vez, con un token que elegimos nosotros.
   if (event.httpMethod === 'GET') {
     const q = event.queryStringParameters || {}
-    if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === process.env.IG_VERIFY_TOKEN) {
+    const esperado = process.env.IG_VERIFY_TOKEN
+    const recibido = q['hub.verify_token']
+
+    if (q['hub.mode'] === 'subscribe' && recibido && recibido === esperado) {
       return { statusCode: 200, body: q['hub.challenge'] || '' }
     }
-    return { statusCode: 403, body: 'Forbidden' }
+
+    /* Un "Forbidden" pelado no dice si falta la variable, si el valor no
+     * coincide o si llegó cortada. Esto lo distingue sin enseñar el valor:
+     * solo si existe y cuántos caracteres tiene. */
+    const pista = !esperado
+      ? 'Falta IG_VERIFY_TOKEN en el entorno de la función. Revisa que su alcance incluya Functions y vuelve a desplegar.'
+      : !recibido
+        ? 'No llegó hub.verify_token en la URL.'
+        : `El token no coincide. El del entorno tiene ${esperado.length} caracteres; el recibido, ${recibido.length}.`
+
+    console.warn('[instagram-webhook] verificación rechazada:', pista)
+    return { statusCode: 403, body: `Forbidden — ${pista}` }
   }
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
