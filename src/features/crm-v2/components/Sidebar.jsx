@@ -120,9 +120,14 @@ export default function Sidebar({
         </nav>
       ))}
 
-      {!collapsed && pipelines.length > 0 && (
+      {!collapsed && onNewPipeline && (
         <div className="pv2-sidebar__nav">
           <div className="pv2-sidebar__label">Pipelines</div>
+          {pipelines.length === 0 && (
+            <div className="pv2-pipeline-item" style={{ opacity: 0.5, cursor: 'default' }}>
+              Todavía ninguno
+            </div>
+          )}
           {pipelines.map(p => (
             <button
               key={p.id}

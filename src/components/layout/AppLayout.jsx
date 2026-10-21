@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import SupportChat from './SupportChat'
 import Sidebar from '@/features/crm-v2/components/Sidebar'
 import { useNavItems } from '@/features/crm-v2/useNavItems'
+import { usePipeline } from '@/hooks/usePipeline'
 import { ROUTES, esRediseñada } from '@/features/crm-v2/routes'
 import '@/features/crm-v2/crm-v2.css'
 
@@ -229,6 +230,33 @@ export default function AppLayout() {
   const { t } = useLang()
   const groups = useNavItems()
 
+  /* Los pipelines en la barra lateral. El rediseño dejó la sección dibujada
+   * pero sin nadie que le pasara los datos, así que no aparecía nunca — y con
+   * ella se fue la única forma de crear un pipeline sin irse a la pantalla
+   * vieja. Ahora que cada marca personal necesita el suyo, hace falta. */
+  const { pipelines, activePipelineId, setActivePipelineId, createPipeline } = usePipeline()
+
+  const nuevoPipeline = async () => {
+    const nombre = window.prompt('Nombre del pipeline')
+    if (!nombre?.trim()) return
+    try {
+      // Tres etapas para empezar: sin etapas, un pipeline no recibe leads.
+      const id = await createPipeline({
+        name: nombre.trim(),
+        stages: [
+          { name: 'Nuevo', color: '#6366f1', scoreMin: 0, scoreMax: 33 },
+          { name: 'En conversación', color: '#f59e0b', scoreMin: 34, scoreMax: 66 },
+          { name: 'Listo para cerrar', color: '#00c853', scoreMin: 67, scoreMax: 100 },
+        ],
+      })
+      if (id) { setActivePipelineId?.(id); navigate('/pipeline') }
+      toast.success(`Pipeline "${nombre.trim()}" creado`)
+    } catch (e) {
+      console.error(e)
+      toast.error('No se pudo crear el pipeline')
+    }
+  }
+
   // Claro por defecto: el marco nuevo envuelve pantallas que son claras, y
   // arrancar en oscuro dejaba la costura a la vista en todas ellas.
   const [theme, setTheme] = useState(() => {
@@ -264,6 +292,10 @@ export default function AppLayout() {
         onToggleCollapse={() => setCollapsed(v => !v)}
         logo={theme === 'light' ? '/logo.png' : '/flowhub-logo2.png'}
         onNavigate={id => ROUTES[id] && navigate(ROUTES[id])}
+        pipelines={pipelines}
+        activePipeline={activePipelineId}
+        onSelectPipeline={id => { setActivePipelineId?.(id); navigate('/pipeline') }}
+        onNewPipeline={nuevoPipeline}
         badge={isAdmin ? <><Shield size={11} /> Administrador</> : null}
         user={{
           name: memberData?.name || user?.displayName || user?.email || 'Usuario',
