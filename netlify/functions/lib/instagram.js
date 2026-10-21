@@ -250,6 +250,12 @@ async function suscribirEventos(token) {
   return pedir(`${BASE}/me/subscribed_apps?${p}`, { method: 'POST' })
 }
 
+/** A qué está suscrita la app para esta cuenta. Sirve para comprobarlo. */
+async function suscritoA(token) {
+  const p = new URLSearchParams({ access_token: token })
+  return pedir(`${BASE}/me/subscribed_apps?${p}`)
+}
+
 // ── Mensajes y comentarios ───────────────────────────────────────────────
 async function enviarMensaje(token, destinatario, texto) {
   return pedir(`${BASE}/me/messages`, {
@@ -299,7 +305,7 @@ module.exports = {
   BASE, SCOPE, DIAS_DE_VIDA,
   marcaRef, guardarConexion, leerToken, anotarError, cuentaDeInstagram,
   verificarFirma, enviarMensaje, respuestaPrivada, responderComentario,
-  suscribirEventos, anotarCuenta,
+  suscribirEventos, suscritoA, anotarCuenta,
   appUrl, redirectUri, authUrl,
   cifrar, descifrar,
   canjearCodigo, aTokenLargo, renovarToken,
