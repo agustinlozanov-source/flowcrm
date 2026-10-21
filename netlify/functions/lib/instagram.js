@@ -135,6 +135,48 @@ async function publicaciones(token, limite = 25) {
   return r.data || []
 }
 
+/* Sondeo: preguntar en vez de esperar el aviso.
+ *
+ * Los webhooks de Instagram exigen Acceso avanzado, que es un trámite de
+ * revisión con Meta. Leer, en cambio, es lo que el token ya hace todo el
+ * tiempo. Si estas lecturas responden, el sistema puede enterarse de un
+ * comentario o de un mensaje preguntando cada tanto, sin depender de que Meta
+ * nos avise. */
+
+/** Comentarios de UNA publicación, del más nuevo al más viejo. */
+async function comentariosDe(token, mediaId, limite = 25) {
+  const p = new URLSearchParams({
+    fields: 'id,text,username,timestamp,like_count',
+    limit: String(limite),
+    access_token: token,
+  })
+  const r = await pedir(`${BASE}/${mediaId}/comments?${p}`)
+  return r.data || []
+}
+
+/** Conversaciones del inbox. Es el equivalente a abrir los DM. */
+async function conversaciones(token, limite = 25) {
+  const p = new URLSearchParams({
+    platform: 'instagram',
+    fields: 'id,updated_time,participants',
+    limit: String(limite),
+    access_token: token,
+  })
+  const r = await pedir(`${BASE}/me/conversations?${p}`)
+  return r.data || []
+}
+
+/** Mensajes de una conversación. */
+async function mensajesDe(token, conversacionId, limite = 25) {
+  const p = new URLSearchParams({
+    fields: 'id,created_time,from,to,message',
+    limit: String(limite),
+    access_token: token,
+  })
+  const r = await pedir(`${BASE}/${conversacionId}/messages?${p}`)
+  return r.data || []
+}
+
 // Las métricas no son las mismas para un reel que para una foto, y la API
 // rechaza la petición entera si una sola métrica no aplica. Por eso se pide
 // por tandas y se va recortando en lugar de darse por vencido.
@@ -310,4 +352,5 @@ module.exports = {
   cifrar, descifrar,
   canjearCodigo, aTokenLargo, renovarToken,
   perfil, publicaciones, metricasDe,
+  comentariosDe, conversaciones, mensajesDe,
 }

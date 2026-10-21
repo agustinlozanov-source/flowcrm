@@ -4,6 +4,9 @@
 // de una en una a ciegas cuesta más que preguntarlas todas juntas.
 //
 //   /.netlify/functions/instagram-diagnostico?handle=coach.lozano&token=EL_DE_VERIFICACION
+//
+// Con &sondeo=1 prueba además si se puede leer comentarios y mensajes sin
+// webhook, que es el plan B mientras Meta no dé Acceso avanzado.
 const { initDb } = require('./lib/firebase')
 const ig = require('./lib/instagram')
 
@@ -101,6 +104,49 @@ exports.handler = async (event) => {
         campos.length ? `Campos activos: ${campos.join(', ')}` : 'La app NO está suscrita a esta cuenta: Meta no va a mandar nada.')
     } catch (e) {
       paso('suscripcion', false, `No se pudo consultar: ${e.message}`)
+    }
+
+    /* 4b · ¿Podemos enterarnos SIN webhook?
+     *
+     * Los webhooks exigen Acceso avanzado de Meta, que es un trámite. Leer no.
+     * Si estas dos lecturas responden con el token que ya tenemos, el sistema
+     * puede sondear cada tanto y funcionar igual, sin esperar a Meta. Se pide
+     * con ?sondeo=1 porque gasta varias llamadas a la API. */
+    if (q.sondeo) {
+      // Comentarios: se prueba sobre la publicación más reciente que tenga.
+      try {
+        const medios = await ig.publicaciones(token, 10)
+        const conComentarios = medios.find(m => (m.comments_count || 0) > 0) || medios[0]
+        if (!conComentarios) {
+          paso('leer-comentarios', false, 'La cuenta no tiene publicaciones para probar.')
+        } else {
+          const lista = await ig.comentariosDe(token, conComentarios.id, 10)
+          paso('leer-comentarios', true,
+            `SÍ se pueden leer. ${lista.length} comentario(s) en ${conComentarios.permalink || conComentarios.id}` +
+            (lista[0] ? ` · el último: "${lista[0].text}" de @${lista[0].username}` : ''))
+        }
+      } catch (e) {
+        paso('leer-comentarios', false, `NO se pueden leer: ${e.message}`)
+      }
+
+      // Mensajes: la lista de conversaciones y el último mensaje de la primera.
+      try {
+        const convs = await ig.conversaciones(token, 10)
+        if (!convs.length) {
+          paso('leer-mensajes', true, 'SÍ se puede leer el inbox, pero está vacío. Mándate un DM y vuelve a correr esto.')
+        } else {
+          let detalle = `SÍ se puede leer. ${convs.length} conversación(es).`
+          try {
+            const msgs = await ig.mensajesDe(token, convs[0].id, 3)
+            if (msgs[0]) detalle += ` El último mensaje: "${msgs[0].message}" de ${msgs[0].from?.username || msgs[0].from?.id || '?'}`
+          } catch (e) {
+            detalle += ` Pero los mensajes de adentro no: ${e.message}`
+          }
+          paso('leer-mensajes', true, detalle)
+        }
+      } catch (e) {
+        paso('leer-mensajes', false, `NO se puede leer el inbox: ${e.message}`)
+      }
     }
 
     // 5 · Las reglas de comentarios
