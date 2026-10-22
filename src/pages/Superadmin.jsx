@@ -1196,6 +1196,7 @@ const EMPTY_PLAN = {
   // El precio de Stripe vive en el plan, no en cada cliente. Uno por moneda:
   // la organización dice en cuál paga y el checkout toma el que toca.
   stripePriceIdUSD: '', stripePriceIdMXN: '',
+  stripePriceIdUSDAnual: '', stripePriceIdMXNAnual: '',
 }
 
 // PLANS
@@ -1488,6 +1489,23 @@ function Plans() {
                 value={planForm.stripePriceIdMXN || ''}
                 onChange={e => setPlanForm(f => ({ ...f, stripePriceIdMXN: e.target.value.trim() }))} />
               <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>El precio en pesos del mismo producto</div>
+            </div>
+          </div>
+
+          {/* El anual no es el mensual por doce —son diez meses—, así que en
+              Stripe es un precio propio y necesita su propio identificador. */}
+          <div className="sa-form-row" style={{ marginBottom: 14 }}>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Stripe Price ID — USD anual</label>
+              <input className="sa-form-input" type="text" placeholder="price_…"
+                value={planForm.stripePriceIdUSDAnual || ''}
+                onChange={e => setPlanForm(f => ({ ...f, stripePriceIdUSDAnual: e.target.value.trim() }))} />
+            </div>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Stripe Price ID — MXN anual</label>
+              <input className="sa-form-input" type="text" placeholder="price_…"
+                value={planForm.stripePriceIdMXNAnual || ''}
+                onChange={e => setPlanForm(f => ({ ...f, stripePriceIdMXNAnual: e.target.value.trim() }))} />
             </div>
           </div>
 

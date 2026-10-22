@@ -57,7 +57,7 @@ exports.handler = async (event) => {
       let precio, moneda
       try {
         ({ precio, moneda } = await resolverPrecio(db, orgId, {
-          explicito: stripePriceId, monedaPedida: currency, orgData,
+          explicito: stripePriceId, monedaPedida: currency, ciclo: billingCycle, orgData,
         }))
       } catch (e) {
         return { statusCode: 400, body: JSON.stringify({ error: e.message }) }

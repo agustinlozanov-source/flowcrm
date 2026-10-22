@@ -19,7 +19,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
   try {
-    const { orgId, stripePriceId, ownerEmail, orgName, currency } = JSON.parse(event.body)
+    const { orgId, stripePriceId, ownerEmail, orgName, currency, billingCycle } = JSON.parse(event.body)
 
     if (!orgId || !ownerEmail) {
       return { statusCode: 400, body: JSON.stringify({ error: 'orgId y ownerEmail son requeridos' }) }
@@ -32,7 +32,7 @@ exports.handler = async (event) => {
     let precio, moneda
     try {
       ({ precio, moneda } = await resolverPrecio(db, orgId, {
-        explicito: stripePriceId, monedaPedida: currency, orgData,
+        explicito: stripePriceId, monedaPedida: currency, ciclo: billingCycle, orgData,
       }))
     } catch (e) {
       return { statusCode: 400, body: JSON.stringify({ error: e.message }) }
