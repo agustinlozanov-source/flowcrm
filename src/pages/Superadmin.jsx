@@ -4452,9 +4452,12 @@ function BillingPanel({ orgs }) {
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      await navigator.clipboard.writeText(data.url)
-      toast.success('¡Link copiado al portapapeles! Envíaselo al cliente.')
+      // Se copia igual por comodidad, pero ya no es la única copia: queda
+      // guardado y visible en la ficha de la organización.
+      await navigator.clipboard.writeText(data.url).catch(() => {})
+      toast.success('Enlace listo y copiado — también queda guardado en la ficha')
       setShowSetupModal(false)
+      await loadReceipts(selected)
     } catch (err) { toast.error(err.message) }
     setCheckoutLoading(false)
   }
@@ -4730,6 +4733,42 @@ function BillingPanel({ orgs }) {
                   {c.sub && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{c.sub}</div>}
                 </div>
               ))}
+
+                {/* ── Tarjeta: enlace de pago pendiente ──
+                    Antes el enlace solo se copiaba al portapapeles y la
+                    ventana se cerraba: copiabas cualquier otra cosa y lo
+                    perdías sin forma de recuperarlo. Ahora queda aquí. */}
+                {selected.stripeCheckoutUrl && !selected.stripeSubscriptionId && (
+                  <div style={{ gridColumn: '1 / -1', background: 'rgba(26,171,153,0.07)', border: '1px solid rgba(26,171,153,0.3)', borderRadius: 12, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                      <Link size={16} style={{ color: '#1aab99' }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                        Enlace de pago · mándaselo al cliente
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input readOnly value={selected.stripeCheckoutUrl}
+                        onFocus={e => e.target.select()}
+                        style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#cbd5e1', fontSize: 12, padding: '8px 10px', fontFamily: 'monospace' }} />
+                      <button onClick={() => { navigator.clipboard.writeText(selected.stripeCheckoutUrl); toast.success('Copiado') }}
+                        style={{ background: 'linear-gradient(135deg,#1aab99,#3533cd)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700, padding: '9px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        Copiar
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 6 }}>
+                      {(() => {
+                        // Stripe les pone 24 horas. Mejor decirlo que mandar
+                        // un enlace muerto y que el cliente vea un error.
+                        const horas = selected.stripeCheckoutCreatedAt
+                          ? Math.floor((Date.now() - new Date(selected.stripeCheckoutCreatedAt)) / 3600000)
+                          : null
+                        if (horas === null) return 'Caduca a las 24 horas de generado.'
+                        if (horas >= 24) return '⚠️ Caducado — genera uno nuevo.'
+                        return `Generado hace ${horas === 0 ? 'menos de una hora' : `${horas} h`} · caduca a las 24 h.`
+                      })()}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Tarjeta: Leads del mes ── */}
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${overLimit ? 'rgba(239,68,68,0.4)' : nearLimit ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 12, padding: '14px 16px' }}>

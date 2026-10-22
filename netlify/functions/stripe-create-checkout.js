@@ -71,9 +71,19 @@ exports.handler = async (event) => {
       metadata: { orgId },
     })
 
-    // Guardar el sessionId en Firestore para referencia
+    /* Se guarda el enlace entero, no solo el id.
+     *
+     * Antes solo se copiaba al portapapeles y la ventana se cerraba: si
+     * copiabas cualquier otra cosa antes de pegarlo, el enlace se perdía y
+     * no había forma de recuperarlo. Guardado, la ficha de la organización
+     * lo puede volver a mostrar.
+     *
+     * Stripe les pone caducidad —24 horas— así que se anota también cuándo
+     * se generó, para no mandarle a un cliente un enlace ya muerto. */
     await orgRef.update({
       stripeCheckoutSessionId: session.id,
+      stripeCheckoutUrl: session.url,
+      stripeCheckoutCreatedAt: new Date().toISOString(),
       billingStatus: 'pending_checkout',
     })
 
