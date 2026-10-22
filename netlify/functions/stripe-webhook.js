@@ -180,11 +180,61 @@ exports.handler = async (event) => {
           .where('stripeCustomerId', '==', customerId).limit(1).get()
         if (orgSnap.empty) break
 
-        await orgSnap.docs[0].ref.update({
+        const orgCancelada = orgSnap.docs[0]
+        await orgCancelada.ref.update({
           stripeSubscriptionStatus: 'cancelled',
           billingStatus: 'cancelled',
           stripeSubscriptionId: null,
+          canceladaEn: new Date().toISOString(),
+          motivoCancelacion: data.cancellation_details?.feedback || null,
+          comentarioCancelacion: data.cancellation_details?.comment || null,
         })
+
+        /* Avisarle al dueño del negocio, en el momento.
+         *
+         * El portal de Stripe deja al cliente cancelarse solo —y está bien
+         * que así sea—, pero hasta ahora eso ocurría en silencio: la
+         * organización quedaba marcada como cancelada y nadie se enteraba
+         * hasta entrar a mirar. Enterarse el mismo día es la diferencia entre
+         * poder llamar y recuperar al cliente, o descubrirlo un mes después.
+         *
+         * El destinatario sale del superadmin guardado en la base, no de una
+         * variable de entorno: así no hay un correo que mantener en dos sitios.
+         */
+        try {
+          const admins = await db.collection('users').where('role', '==', 'superadmin').limit(1).get()
+          const para = admins.empty ? null : admins.docs[0].data()?.email
+          if (!para) {
+            console.warn('[stripe-webhook] canceló una org y no hay superadmin con correo a quien avisar')
+          } else {
+            const o = orgCancelada.data()
+            const motivo = data.cancellation_details?.feedback || 'no lo dijo'
+            const comentario = data.cancellation_details?.comment
+            await fetch(`${process.env.URL || 'https://flowhubcrm.app'}/.netlify/functions/send-email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'custom',
+                to: para,
+                data: {
+                  subject: `Canceló ${o.name || orgCancelada.id}`,
+                  bodyHtml: [
+                    `<b>${o.name || orgCancelada.id}</b> acaba de cancelar desde el portal de Stripe.`,
+                    `Plan: ${o.planName || o.planId || '—'}`,
+                    `Motivo que dio: ${motivo}`,
+                    comentario ? `Lo que escribió: "${comentario}"` : null,
+                    `Contacto: ${o.ownerEmail || '—'}`,
+                    'Sigue teniendo acceso hasta que termine el periodo que ya pagó.',
+                  ].filter(Boolean).map(l => `<p style="margin:0 0 14px;font-size:15px;color:#3a3a3c;line-height:1.6;">${l}</p>`).join(''),
+                },
+              }),
+            })
+          }
+        } catch (e) {
+          // Que no se caiga el webhook por no poder mandar un correo: lo
+          // importante —marcar la organización— ya ocurrió arriba.
+          console.error('[stripe-webhook] no se pudo avisar la cancelación:', e.message)
+        }
         break
       }
 
