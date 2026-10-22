@@ -1,13 +1,15 @@
-// netlify/functions/get-monthly-leads-count.js
-// Cuenta leads NUEVOS en el mes (createdAt dentro del rango).
-// Una sola query a Firestore — sin iterar subdocumentos.
-// Si la org tiene leadsIncluidos en su plan, envía email de alerta al 80% y al 100%.
+// Consumo de UNA organización, para cuando se abre su ficha en el panel.
+//
+// La cuenta real la hace lib/consumo.js, que comparte con la tarea diaria
+// medir-consumo. Esto es solo la puerta HTTP: tenerlo duplicado era lo que
+// hacía que la pantalla y las alertas pudieran discrepar.
 //
 // Body  : { orgId: string, year?: number, month?: number }
 // Return: { orgId, year, month, leadsCount, prevYear, prevMonth, prevLeadsCount, leadsIncluidos, pct, lastUpdated }
 
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
+const { medirOrg } = require('./lib/consumo')
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -16,31 +18,12 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore()
-const APP_URL = process.env.URL || 'https://app.flowhubcrm.app'
-
 const CORS = {
   'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' }
-
-// ── Enviar email de alerta vía send-email ────────────────────────────────────
-async function sendLimitAlert({ to, orgName, leadsCount, leadsIncluidos, pct }) {
-  try {
-    await fetch(`${APP_URL}/.netlify/functions/send-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'lead_limit_warning',
-        to,
-        data: { orgName, leadsCount, leadsIncluidos, pct },
-      }),
-    })
-  } catch (err) {
-    console.error('[leads-count] Error enviando alerta email:', err.message)
-  }
-}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' }
@@ -58,102 +41,9 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'orgId is required' }) }
   }
 
-  // Default: mes actual (hora de México, UTC-6)
-  const now   = new Date()
-  const mxNow = new Date(now.getTime() - 6 * 60 * 60 * 1000)
-  const year  = Number.isInteger(body.year)  ? body.year  : mxNow.getUTCFullYear()
-  const month = Number.isInteger(body.month) ? body.month : mxNow.getUTCMonth() + 1  // 1–12
-
-  if (month < 1 || month > 12) {
-    return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'month must be 1–12' }) }
-  }
-
-  // Rango [start, end) del mes — Timestamps de Firestore
-  const start = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month - 1, 1)))
-  const end   = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month, 1)))
-
-  // Mes anterior: [prevStart, start)
-  const prevMonth = month === 1 ? 12 : month - 1
-  const prevYear  = month === 1 ? year - 1 : year
-  const prevStart = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(prevYear, prevMonth - 1, 1)))
-
   try {
-    const leadsCol = db
-      .collection('organizations').doc(orgId.trim())
-      .collection('leads')
-
-    // ── 1. Leads creados en el mes actual y en el mes anterior ────────────────
-    const [leadsSnap, prevLeadsSnap] = await Promise.all([
-      leadsCol.where('createdAt', '>=', start).where('createdAt', '<', end).get(),
-      leadsCol.where('createdAt', '>=', prevStart).where('createdAt', '<', start).get(),
-    ])
-
-    const leadsCount     = leadsSnap.size
-    const prevLeadsCount = prevLeadsSnap.size
-
-    // ── 2. Leer plan de la org para saber si hay límite ───────────────────────
-    const orgSnap = await db.collection('organizations').doc(orgId.trim()).get()
-    const orgData = orgSnap.data() || {}
-    const ownerEmail = orgData.ownerEmail || null
-    const orgName    = orgData.name || orgId
-
-    /* El cupo vive bajo dos nombres y por eso este medidor no servía.
-     *
-     * El Superadmin guarda el plan con `maxLeads` —es el campo del formulario—
-     * y aquí se leía solo `leadsIncluidos`. Para todo plan creado o editado
-     * desde el panel eso daba null, así que no había porcentaje, no había
-     * "340 de 500", y las alertas de 80% y 100% nunca se dispararon pese a
-     * estar completas.
-     *
-     * Se aceptan los dos y gana el que exista. Arregla los planes de hoy sin
-     * migrar nada. Unificar los nombres queda pendiente y es aparte. */
-    let leadsIncluidos = null
-    if (orgData.planId) {
-      const plan = (await db.collection('plans').doc(orgData.planId).get()).data() || {}
-      const cupo = plan.leadsIncluidos ?? plan.maxLeads ?? null
-      // 0 y 999999 son "sin límite" en el panel; tratarlos como cupo real
-      // mandaría una alerta de 100% a todo el mundo.
-      leadsIncluidos = (cupo === null || cupo === 0 || cupo >= 999999) ? null : cupo
-    }
-
-    // ── 3. Calcular porcentaje y disparar alerta si corresponde ───────────────
-    const pct = leadsIncluidos ? Math.round((leadsCount / leadsIncluidos) * 100) : null
-
-    if (leadsIncluidos && ownerEmail) {
-      // Leer alertas ya enviadas este mes para no repetir
-      const alertKey = `leads_${year}_${String(month).padStart(2, '0')}`
-      const sentAlerts = orgData.sentLeadAlerts || {}
-
-      const shouldAlert80  = pct >= 80  && pct < 100 && !sentAlerts[`${alertKey}_80`]
-      const shouldAlert100 = pct >= 100 && !sentAlerts[`${alertKey}_100`]
-
-      if (shouldAlert80 || shouldAlert100) {
-        const alertLevel = shouldAlert100 ? '100' : '80'
-        await sendLimitAlert({ to: ownerEmail, orgName, leadsCount, leadsIncluidos, pct })
-        // Marcar alerta como enviada para no repetir
-        await db.collection('organizations').doc(orgId.trim()).update({
-          [`sentLeadAlerts.${alertKey}_${alertLevel}`]: new Date().toISOString(),
-        })
-        console.log(`[leads-count] Alerta ${alertLevel}% enviada a ${ownerEmail} (org: ${orgName}, ${leadsCount}/${leadsIncluidos})`)
-      }
-    }
-
-    return {
-      statusCode: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify({
-        orgId: orgId.trim(),
-        year,
-        month,
-        leadsCount,
-        prevYear,
-        prevMonth,
-        prevLeadsCount,
-        leadsIncluidos,
-        pct,
-        lastUpdated: new Date().toISOString(),
-      }),
-    }
+    const r = await medirOrg(db, orgId.trim(), { year: body.year, month: body.month })
+    return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify(r) }
   } catch (err) {
     console.error('[get-monthly-leads-count] Error:', err.message)
     return {

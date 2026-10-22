@@ -28,6 +28,14 @@
 [functions."instagram-sync"]
   timeout = 26
 
+# Mide el consumo de todas las organizaciones y dispara las alertas de cupo.
+# Antes esto solo pasaba al abrir una organizacion en el panel, asi que una
+# cuenta podia pasarse del limite durante semanas sin que nadie se enterara.
+# A las 9 UTC: 3 de la manana en Mexico, con el dia anterior ya cerrado.
+[functions."medir-consumo"]
+  schedule = "0 9 * * *"
+  timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
