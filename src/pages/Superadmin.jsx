@@ -1197,6 +1197,8 @@ const EMPTY_PLAN = {
   // la organización dice en cuál paga y el checkout toma el que toca.
   stripePriceIdUSD: '', stripePriceIdMXN: '',
   stripePriceIdUSDAnual: '', stripePriceIdMXNAnual: '',
+  // Lo que se cobra por cada lead por encima del cupo.
+  precioLeadExtraMXN: 0, precioLeadExtraUSD: 0,
 }
 
 // PLANS
@@ -1489,6 +1491,24 @@ function Plans() {
                 value={planForm.stripePriceIdMXN || ''}
                 onChange={e => setPlanForm(f => ({ ...f, stripePriceIdMXN: e.target.value.trim() }))} />
               <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>El precio en pesos del mismo producto</div>
+            </div>
+          </div>
+
+          {/* Lo que se cobra por cada lead por encima del cupo del plan. Al
+              cierre de cada mes se agrega como una linea a la proxima factura
+              del cliente. En cero, no se cobra excedente. */}
+          <div className="sa-form-row" style={{ marginBottom: 14 }}>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Lead extra — MXN</label>
+              <input className="sa-form-input" type="number" min="0" step="0.5" placeholder="0 = no se cobra"
+                value={planForm.precioLeadExtraMXN || ''}
+                onChange={e => setPlanForm(f => ({ ...f, precioLeadExtraMXN: e.target.value ? parseFloat(e.target.value) : 0 }))} />
+            </div>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Lead extra — USD</label>
+              <input className="sa-form-input" type="number" min="0" step="0.5" placeholder="0 = no se cobra"
+                value={planForm.precioLeadExtraUSD || ''}
+                onChange={e => setPlanForm(f => ({ ...f, precioLeadExtraUSD: e.target.value ? parseFloat(e.target.value) : 0 }))} />
             </div>
           </div>
 
