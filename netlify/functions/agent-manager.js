@@ -922,7 +922,24 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,
-        system: systemPrompt,
+        /* El prompt del sistema se arma UNA vez antes del bucle, así que las
+         * seis vueltas lo mandan byte a byte igual. Sin caché se cobraba
+         * entero seis veces; con el punto de corte aquí, la primera vuelta lo
+         * escribe (1.25x) y las otras cinco lo leen (0.1x).
+         *
+         * Va en el bloque de sistema y no arriba porque las herramientas se
+         * renderizan ANTES que el sistema: una marca aquí cachea las dos cosas
+         * juntas. Y el final de `turnos` cambia en cada vuelta, así que un
+         * corte automático caería después de lo que nunca se reutiliza.
+         *
+         * TTL de 5 minutos a propósito: las seis vueltas ocurren en segundos y
+         * cada lectura reinicia el reloj. El de una hora cuesta el doble de
+         * escritura y aquí no compraría nada. */
+        system: [{
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        }],
         messages: turnos,
         // Salida estructurada: con strict, la API garantiza que los argumentos
         // validen contra el esquema. Pedir JSON dentro del texto fallaba cuando
@@ -935,6 +952,18 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         tools: [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
         tool_choice: { type: 'any' },
       })
+
+      /* Sin esto no hay manera de saber si la caché sirve: un prompt que no
+       * llega al mínimo cacheable, o cualquier byte que cambie, fallan en
+       * silencio — no dan error, simplemente se cobra todo. */
+      const u = response.usage || {}
+      console.log('[agent] tokens:', JSON.stringify({
+        paso,
+        nuevos: u.input_tokens,
+        escritos: u.cache_creation_input_tokens,
+        leidos: u.cache_read_input_tokens,
+        salida: u.output_tokens,
+      }))
 
       const usos = response.content.filter(b => b.type === 'tool_use')
       const respuesta = usos.find(u => u.name === RESPONSE_TOOL.name)
