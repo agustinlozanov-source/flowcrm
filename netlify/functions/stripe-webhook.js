@@ -1,9 +1,11 @@
 // Handles Stripe webhooks:
+// - invoice.created            → cobra el excedente de leads del ciclo que cierra
 // - invoice.payment_succeeded  → mark org as paid, save receipt
 // - invoice.payment_failed     → flag org, send alert
 // - customer.subscription.deleted → mark org as cancelled
 
 const Stripe = require('stripe')
+const { medirOrg } = require('./lib/consumo')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
 
@@ -36,6 +38,84 @@ exports.handler = async (event) => {
 
   try {
     switch (stripeEvent.type) {
+
+      /* ── Factura en borrador: aquí se cobra el excedente de leads ─────────
+       *
+       * Cuando a un cliente le toca renovar, Stripe prepara la factura y
+       * espera cerca de una hora antes de cobrarla. En esa ventana manda este
+       * aviso y la factura todavía se puede editar: es el único momento en el
+       * que se le puede agregar el excedente al mismo cargo.
+       *
+       * Cada cliente dispara su propio aviso el día que le corresponde, que
+       * es justo lo que una tarea programada no podía hacer: el ciclo de cada
+       * uno empieza el día que se suscribió, no el 1 del mes.
+       *
+       * El `invoice` en el item es obligatorio. Sin él, Stripe lo guarda como
+       * pendiente y lo cobra en la factura SIGUIENTE — un mes tarde y sobre
+       * el periodo equivocado.
+       */
+      case 'invoice.created': {
+        // Solo las renovaciones. La primera factura no tiene periodo previo
+        // que medir, y las manuales o de prorrateo no llevan excedente.
+        if (data.billing_reason !== 'subscription_cycle') break
+        /* La suscripción de una factura cambió de sitio: antes colgaba de
+         * `invoice.subscription` y ahora de `parent.subscription_details`.
+         * Se aceptan los dos para no depender de la versión de API con la
+         * que Stripe firme el aviso. */
+        const suscripcion = data.subscription || data.parent?.subscription_details?.subscription
+        if (!suscripcion) break
+
+        const orgSnap = await db.collection('organizations')
+          .where('stripeCustomerId', '==', data.customer).limit(1).get()
+        if (orgSnap.empty) break
+        const orgDoc = orgSnap.docs[0]
+        const org = orgDoc.data()
+
+        /* El periodo que se cobra es el que la factura misma declara: el que
+         * acaba de cerrarse. No se recalcula por nuestra cuenta — si Stripe
+         * movió el ciclo por un cambio de plan, su número es el bueno. */
+        const desde = new Date(data.period_start * 1000)
+        const hasta = new Date(data.period_end * 1000)
+        const clave = desde.toISOString().slice(0, 10)
+
+        // Stripe reintenta los avisos. Sin esto, un reintento le cobraría dos
+        // veces el mismo excedente al mismo cliente.
+        if (org.excedenteCobrado?.[clave]) {
+          console.log(`[stripe-webhook] excedente de ${clave} ya cobrado a ${org.name}`)
+          break
+        }
+
+        const r = await medirOrg(db, orgDoc.id, { desde, hasta, avisos: false })
+        if (!r.excedente || r.excedente <= 0) break
+
+        const moneda = (org.currency || 'MXN').toUpperCase()
+        const plan = org.planId ? (await db.collection('plans').doc(org.planId).get()).data() || {} : {}
+        const porLead = moneda === 'USD' ? plan.precioLeadExtraUSD : plan.precioLeadExtraMXN
+
+        if (!porLead || porLead <= 0) {
+          console.warn(`[stripe-webhook] ${org.name}: ${r.excedente} leads de más y el plan no tiene precio por lead extra en ${moneda}`)
+          break
+        }
+
+        const item = await stripe.invoiceItems.create({
+          customer: data.customer,
+          invoice: data.id,
+          currency: moneda.toLowerCase(),
+          amount: Math.round(r.excedente * porLead * 100),
+          description: `${r.excedente.toLocaleString('es-MX')} leads adicionales · $${Number(porLead).toLocaleString('es-MX')} ${moneda} c/u`,
+          metadata: { orgId: orgDoc.id, periodo: clave, leads: String(r.excedente) },
+        })
+
+        await orgDoc.ref.update({
+          [`excedenteCobrado.${clave}`]: {
+            invoiceItemId: item.id, invoiceId: data.id,
+            leads: r.excedente, porLead, moneda,
+            cobradoEn: new Date().toISOString(),
+          },
+        })
+        console.log(`[stripe-webhook] ${org.name}: ${r.excedente} leads × ${porLead} ${moneda} → ${item.id}`)
+        break
+      }
 
       // ── Payment succeeded ──────────────────────────────────────────────────
       case 'invoice.payment_succeeded': {

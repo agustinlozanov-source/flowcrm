@@ -36,13 +36,6 @@
   schedule = "0 9 * * *"
   timeout = 26
 
-# Cobra los leads que se pasaron del plan del mes que acaba de cerrar. El dia
-# 2 y no el 1: le da al medidor diario una corrida completa sobre el mes ya
-# cerrado antes de convertirlo en dinero.
-[functions."cobrar-excedente"]
-  schedule = "0 10 2 * *"
-  timeout = 26
-
 [[redirects]]
   from = "/*"
   to = "/index.html"

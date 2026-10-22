@@ -5,12 +5,17 @@
  * ninguna alerta: el aviso dependía de que Agustín entrara a mirar.
  *
  * Deja el resultado escrito en la organización (`consumo`) para que la
- * pantalla lo muestre sin tener que contar de nuevo, y es la base de lo que
- * después se le reporta a Stripe para cobrar los leads extra.
+ * pantalla lo muestre sin tener que contar de nuevo.
+ *
+ * El cobro del excedente NO vive aquí: lo dispara Stripe cuando le toca
+ * renovar a cada cliente (aviso `invoice.created`), porque el ciclo de cada
+ * uno empieza el día que se suscribió y no hay ningún día del calendario que
+ * sirva para todos.
  */
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
-const { medirOrg, mesActual } = require('./lib/consumo')
+const Stripe = require('stripe')
+const { medirOrg, mesActual, periodoDe } = require('./lib/consumo')
 
 let base = null
 function laBase() {
@@ -25,6 +30,7 @@ function laBase() {
 
 exports.handler = async () => {
   const db = laBase()
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
   const { year, month } = mesActual()
 
   const orgs = await db.collection('organizations').get()
@@ -35,10 +41,16 @@ exports.handler = async () => {
    * de Firestore. La tarea corre de noche: no hay prisa. */
   for (const org of orgs.docs) {
     try {
-      const r = await medirOrg(db, org.id, { year, month })
+      /* El cupo se cuenta en el ciclo del cliente —del día que pagó al día
+       * que le vuelven a cobrar—, no del 1 al 31. Quien todavía no tiene
+       * suscripción no tiene ciclo, y para ése el mes calendario es lo único
+       * que hay. */
+      const ciclo = await periodoDe(stripe, org.data().stripeSubscriptionId).catch(() => null)
+      const r = await medirOrg(db, org.id, ciclo ? { ...ciclo, year, month } : { year, month })
       await org.ref.update({
         consumo: {
           year: r.year, month: r.month,
+          desde: r.periodo.desde, hasta: r.periodo.hasta, porCiclo: r.periodo.porCiclo,
           leads: r.leadsCount,
           incluidos: r.leadsIncluidos,
           pct: r.pct,

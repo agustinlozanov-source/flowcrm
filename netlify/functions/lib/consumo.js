@@ -18,6 +18,28 @@ function mesActual() {
   return { year: mx.getUTCFullYear(), month: mx.getUTCMonth() + 1 }
 }
 
+/* El periodo que de verdad importa es el del cliente, no el del calendario.
+ *
+ * El cupo de leads se paga por mes de suscripción: quien se dio de alta el 17
+ * tiene su mes del 17 al 17. Contarlo del 1 al 31 lo rompía por los dos
+ * lados — si entraba el 25 tenía 300 leads para seis días, y el día 1 se le
+ * reiniciaba el cupo a mitad de su periodo pagado.
+ *
+ * Stripe guarda ese periodo en el ÍTEM de la suscripción, no en la
+ * suscripción: `sub.items.data[0].current_period_start`. Leerlo del objeto de
+ * arriba devuelve undefined y el cálculo sale mal sin dar error.
+ */
+async function periodoDe(stripe, subscriptionId) {
+  if (!subscriptionId) return null
+  const sub = await stripe.subscriptions.retrieve(subscriptionId)
+  const item = sub.items?.data?.[0]
+  if (!item?.current_period_start || !item?.current_period_end) return null
+  return {
+    desde: new Date(item.current_period_start * 1000),
+    hasta: new Date(item.current_period_end * 1000),
+  }
+}
+
 async function avisar({ to, orgName, leadsCount, leadsIncluidos, pct }) {
   try {
     await fetch(`${APP_URL}/.netlify/functions/send-email`, {
@@ -41,16 +63,29 @@ async function avisar({ to, orgName, leadsCount, leadsIncluidos, pct }) {
  *
  * @param {boolean} opciones.avisos  false para solo medir, sin mandar correos.
  */
-async function medirOrg(db, orgId, { year, month, avisos = true } = {}) {
+async function medirOrg(db, orgId, { year, month, desde, hasta, avisos = true } = {}) {
+  /* Dos formas de delimitar el periodo, y la buena es la primera:
+   *   - `desde`/`hasta`: el ciclo real de la suscripción del cliente.
+   *   - `year`/`month`: mes calendario, para organizaciones que todavía no
+   *     tienen suscripción y por lo tanto no tienen ciclo propio.
+   */
+  const porCiclo = desde instanceof Date && hasta instanceof Date
   const hoy = mesActual()
   year = Number.isInteger(year) ? year : hoy.year
   month = Number.isInteger(month) ? month : hoy.month
 
-  const start = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month - 1, 1)))
-  const end = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(year, month, 1)))
+  const ini = porCiclo ? desde : new Date(Date.UTC(year, month - 1, 1))
+  const fin = porCiclo ? hasta : new Date(Date.UTC(year, month, 1))
+  // El periodo anterior, del mismo largo, para la comparación.
+  const iniPrevio = porCiclo
+    ? new Date(ini.getTime() - (fin.getTime() - ini.getTime()))
+    : new Date(Date.UTC(month === 1 ? year - 1 : year, (month === 1 ? 12 : month - 1) - 1, 1))
+
+  const start = admin.firestore.Timestamp.fromDate(ini)
+  const end = admin.firestore.Timestamp.fromDate(fin)
+  const prevStart = admin.firestore.Timestamp.fromDate(iniPrevio)
   const prevMonth = month === 1 ? 12 : month - 1
   const prevYear = month === 1 ? year - 1 : year
-  const prevStart = admin.firestore.Timestamp.fromDate(new Date(Date.UTC(prevYear, prevMonth - 1, 1)))
 
   const orgRef = db.collection('organizations').doc(orgId)
   const leadsCol = orgRef.collection('leads')
@@ -83,7 +118,13 @@ async function medirOrg(db, orgId, { year, month, avisos = true } = {}) {
   // el mismo correo todos los días a quien se pasó del cupo.
   let alertaEnviada = null
   if (avisos && leadsIncluidos && orgData.ownerEmail) {
-    const clave = `leads_${year}_${String(month).padStart(2, '0')}`
+    // La clave de deduplicación cuelga del inicio del ciclo, no del mes: si
+    // colgara del mes, un cliente cuyo ciclo cruza dos meses recibiría la
+    // misma alerta dos veces, y uno cuyo ciclo cae entero dentro de un mes no
+    // la recibiría en el ciclo siguiente.
+    const clave = porCiclo
+      ? `leads_${ini.toISOString().slice(0, 10)}`
+      : `leads_${year}_${String(month).padStart(2, '0')}`
     const yaMandadas = orgData.sentLeadAlerts || {}
     const nivel = pct >= 100 ? '100' : (pct >= 80 ? '80' : null)
 
@@ -102,6 +143,7 @@ async function medirOrg(db, orgId, { year, month, avisos = true } = {}) {
 
   return {
     orgId, year, month,
+    periodo: { desde: ini.toISOString(), hasta: fin.toISOString(), porCiclo },
     leadsCount, prevYear, prevMonth, prevLeadsCount,
     leadsIncluidos, pct, excedente, alertaEnviada,
     orgName: orgData.name || orgId,
@@ -109,4 +151,4 @@ async function medirOrg(db, orgId, { year, month, avisos = true } = {}) {
   }
 }
 
-module.exports = { medirOrg, mesActual }
+module.exports = { medirOrg, mesActual, periodoDe }
