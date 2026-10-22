@@ -20,9 +20,13 @@ const ETIQUETAS = 74    // la columna de nombres, fuera del desplazamiento
  * tienen algo deja la impresión de que falta la mitad del editor: no se ve
  * dónde va a ir cada cosa. Las que todavía no existen se marcan como tales en
  * vez de esconderse. */
+/* Solo quedan los subtítulos.
+ *
+ * Sonidos y música salieron del editor: poner un sonido en el segundo exacto,
+ * recortarlo y bajarle el volumen es edición fina, y eso se hace en Premiere,
+ * que para eso está. Lo que FlowHub aporta es la transcripción y los cortes.
+ * Las capas vuelven cambiando EDICION_FINA en Produccion.jsx. */
 const CAPAS = [
-  { id: 'sonidos',    nombre: 'Sonidos' },
-  { id: 'musica',     nombre: 'Música',     pendiente: true },
   { id: 'subtitulos', nombre: 'Subtítulos' },
 ]
 const BORDE = 7           // píxeles de agarre en el borde de un tramo

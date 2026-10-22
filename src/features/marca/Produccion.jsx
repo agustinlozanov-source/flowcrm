@@ -22,6 +22,21 @@ import Linea, { TIPOS } from './Linea'
 import Sonidos from './Sonidos'
 import { construir as construirSubtitulos, aSRT as subtitulosASRT } from './subtitulos'
 import EstiloSubtitulos from './EstiloSubtitulos'
+
+/* Qué hace FlowHub de un video y qué no.
+ *
+ * Lo que aporta es transcribir y encontrar los cortes: eso toma horas a mano
+ * y nadie más lo hace sabiendo de tus clientes. Lo demás —poner un sonido en
+ * el segundo exacto, recortarlo, bajarle el volumen, diseñar la tipografía de
+ * los subtítulos— es edición fina, y una línea de tiempo en un navegador no le
+ * va a ganar a Premiere en eso. Era trabajo de mantener que no devolvía nada.
+ *
+ * La salida es XML + SRT + WAV, y el diseño se hace en Premiere, donde además
+ * queda como preset para todos los videos siguientes.
+ *
+ * El código de sonidos, música y estilo de subtítulos se queda donde está: no
+ * estorba apagado y volver a encenderlo es cambiar este false. */
+const EDICION_FINA = false
 import { aCss, POR_DEFECTO as ESTILO_POR_DEFECTO } from './estilo'
 import {
   Upload, Film, RefreshCw, ChevronLeft, FileText,
@@ -567,10 +582,10 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
           <div className="flex items-center gap-1 px-3 pt-2 border-b border-border">
             {[
               { id: 'transcripcion', label: 'Transcripción' },
-              { id: 'sonidos', label: 'Sonidos' },
+              EDICION_FINA && { id: 'sonidos', label: 'Sonidos' },
               { id: 'subtitulos', label: 'Subtítulos' },
               { id: 'montaje', label: 'Montaje' },
-            ].map(t => (
+            ].filter(Boolean).map(t => (
               <button key={t.id} onClick={() => setPanel(t.id)}
                 className={clsx('px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors',
                   panel === t.id ? 'border-accent-blue text-primary' : 'border-transparent text-tertiary hover:text-secondary')}>
@@ -672,7 +687,7 @@ function FichaDePieza({ pieza, orgId, brandId, onVolver, onBorrar }) {
                     </button>
                   </div>
 
-                  {subtitulos.length > 0 && (
+                  {EDICION_FINA && subtitulos.length > 0 && (
                     <div className="mb-3 pb-3 border-b border-border">
                       <EstiloSubtitulos estilo={estiloLocal} onCambiar={cambiarEstilo} />
                     </div>
