@@ -4403,7 +4403,7 @@ function BillingPanel({ orgs }) {
   }
 
   const createSubscription = async () => {
-        if (!setupForm.ownerEmail) return toast.error('Email requerido')
+    if (!setupForm.ownerEmail) return toast.error('Email requerido')
     setSaving(true)
     try {
       const res = await fetch('/.netlify/functions/stripe-create-customer', {

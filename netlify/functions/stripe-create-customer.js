@@ -4,6 +4,7 @@
 
 const Stripe = require('stripe')
 const admin = require('firebase-admin')
+const { resolverPrecio } = require('./lib/precio')
 const { credencial } = require('./lib/credencial')
 
 if (!admin.apps.length) {
@@ -19,7 +20,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
 
   try {
-    const { orgId, orgName, ownerEmail, stripePriceId, paymentMethodId, billingCycle } = JSON.parse(event.body)
+    const { orgId, orgName, ownerEmail, stripePriceId, paymentMethodId, billingCycle, currency } = JSON.parse(event.body)
 
     if (!orgId || !ownerEmail) {
       return { statusCode: 400, body: JSON.stringify({ error: 'orgId and ownerEmail are required' }) }
@@ -50,30 +51,61 @@ exports.handler = async (event) => {
       })
     }
 
-    // ── 3. Create subscription if priceId provided ────────────────────────────
+    // ── 3. Crear o cambiar la suscripción ─────────────────────────────────────
     let subscription = null
-    if (stripePriceId) {
-      // Cancel any existing active subscription first
-      if (orgData.stripeSubscriptionId) {
-        try {
-          await stripe.subscriptions.cancel(orgData.stripeSubscriptionId)
-        } catch (_) {}
+    {
+      let precio, moneda
+      try {
+        ({ precio, moneda } = await resolverPrecio(db, orgId, {
+          explicito: stripePriceId, monedaPedida: currency, orgData,
+        }))
+      } catch (e) {
+        return { statusCode: 400, body: JSON.stringify({ error: e.message }) }
       }
 
-      subscription = await stripe.subscriptions.create({
-        customer: customerId,
-        items: [{ price: stripePriceId }],
-        payment_behavior: 'default_incomplete',
-        payment_settings: { save_default_payment_method: 'on_subscription' },
-        expand: ['latest_invoice.payment_intent'],
-        metadata: { orgId, billingCycle: billingCycle || 'monthly' },
-      })
+      /* Subir o bajar de plan se hace actualizando la suscripción, no
+       * cancelándola y creando otra.
+       *
+       * Cancelar y recrear cobraba el plan nuevo completo desde el día uno sin
+       * devolver lo ya pagado del viejo, y además movía la fecha de corte a
+       * hoy. Actualizando, Stripe prorratea la diferencia y respeta el ciclo.
+       *
+       * La excepción es la moneda: Stripe no deja cambiarla en una suscripción
+       * viva, así que ahí sí hay que cancelar y volver a empezar. */
+      const cambiaMoneda = orgData.currency && orgData.currency.toUpperCase() !== moneda
+      const vigente = orgData.stripeSubscriptionId
+
+      if (vigente && !cambiaMoneda) {
+        const actual = await stripe.subscriptions.retrieve(vigente)
+        if (['active', 'trialing', 'past_due'].includes(actual.status)) {
+          subscription = await stripe.subscriptions.update(vigente, {
+            items: [{ id: actual.items.data[0].id, price: precio }],
+            proration_behavior: 'create_prorations',
+            metadata: { orgId, billingCycle: billingCycle || 'monthly' },
+          })
+        }
+      }
+
+      if (!subscription) {
+        if (vigente) {
+          try { await stripe.subscriptions.cancel(vigente) } catch (_) {}
+        }
+        subscription = await stripe.subscriptions.create({
+          customer: customerId,
+          items: [{ price: precio }],
+          payment_behavior: 'default_incomplete',
+          payment_settings: { save_default_payment_method: 'on_subscription' },
+          expand: ['latest_invoice.payment_intent'],
+          metadata: { orgId, billingCycle: billingCycle || 'monthly' },
+        })
+      }
 
       // Save to Firestore
       await orgRef.update({
+        currency: moneda,
         stripeSubscriptionId: subscription.id,
         stripeSubscriptionStatus: subscription.status,
-        stripePriceId,
+        stripePriceId: precio,
         billingCycle: billingCycle || 'monthly',
         nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
         billingUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -3,6 +3,7 @@
 
 const Stripe = require('stripe')
 const admin = require('firebase-admin')
+const { resolverPrecio } = require('./lib/precio')
 const { credencial } = require('./lib/credencial')
 
 if (!admin.apps.length) {
@@ -28,50 +29,18 @@ exports.handler = async (event) => {
     const orgSnap = await orgRef.get()
     const orgData = orgSnap.data() || {}
 
-    /* El precio vive en el plan, no en el cliente.
-     *
-     * Antes había que pegar el Price ID a mano por organización, así que el
-     * mismo plan podía quedar cobrando distinto en dos cuentas sin que nadie
-     * lo notara. Ahora se resuelve: el plan guarda su Price ID en cada moneda
-     * y la organización dice en cuál paga.
-     *
-     * Stripe amarra al cliente a una moneda en cuanto tiene suscripción
-     * activa, así que esto se decide una vez y no se cambia sin cancelar.
-     *
-     * El Price ID explícito sigue aceptándose y manda sobre el del plan: hace
-     * falta para casos sueltos y para no romper lo que ya está andando. */
-    let precio = stripePriceId || null
-    const moneda = (currency || orgData.currency || 'MXN').toUpperCase()
+    let precio, moneda
+    try {
+      ({ precio, moneda } = await resolverPrecio(db, orgId, {
+        explicito: stripePriceId, monedaPedida: currency, orgData,
+      }))
+    } catch (e) {
+      return { statusCode: 400, body: JSON.stringify({ error: e.message }) }
+    }
 
     // Queda escrita en la organización: a partir de aquí Stripe la amarra, y
     // el resto del sistema necesita saber en qué moneda factura este cliente.
     if (moneda !== orgData.currency) await orgRef.update({ currency: moneda })
-
-    if (!precio) {
-      if (!orgData.planId) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'La organización no tiene plan asignado y no se mandó un Price ID' }) }
-      }
-      const plan = (await db.collection('plans').doc(orgData.planId).get()).data() || {}
-      precio = moneda === 'USD' ? plan.stripePriceIdUSD : plan.stripePriceIdMXN
-      if (!precio) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({ error: `El plan "${plan.name || orgData.planId}" no tiene Price ID de Stripe en ${moneda}. Configúralo en Superadmin → Planes.` }),
-        }
-      }
-    }
-
-    // Crear o recuperar Customer en Stripe
-    let customerId = orgData.stripeCustomerId
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: ownerEmail,
-        name: orgName || orgData.name,
-        metadata: { orgId, source: 'flowhub_superadmin' },
-      })
-      customerId = customer.id
-      await orgRef.update({ stripeCustomerId: customerId })
-    }
 
     const appUrl = process.env.APP_URL || 'https://flowhubcrm.app'
 
