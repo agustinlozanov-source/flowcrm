@@ -97,10 +97,23 @@ exports.handler = async (event) => {
     const ownerEmail = orgData.ownerEmail || null
     const orgName    = orgData.name || orgId
 
+    /* El cupo vive bajo dos nombres y por eso este medidor no servía.
+     *
+     * El Superadmin guarda el plan con `maxLeads` —es el campo del formulario—
+     * y aquí se leía solo `leadsIncluidos`. Para todo plan creado o editado
+     * desde el panel eso daba null, así que no había porcentaje, no había
+     * "340 de 500", y las alertas de 80% y 100% nunca se dispararon pese a
+     * estar completas.
+     *
+     * Se aceptan los dos y gana el que exista. Arregla los planes de hoy sin
+     * migrar nada. Unificar los nombres queda pendiente y es aparte. */
     let leadsIncluidos = null
     if (orgData.planId) {
-      const planSnap = await db.collection('plans').doc(orgData.planId).get()
-      leadsIncluidos = planSnap.data()?.leadsIncluidos ?? null
+      const plan = (await db.collection('plans').doc(orgData.planId).get()).data() || {}
+      const cupo = plan.leadsIncluidos ?? plan.maxLeads ?? null
+      // 0 y 999999 son "sin límite" en el panel; tratarlos como cupo real
+      // mandaría una alerta de 100% a todo el mundo.
+      leadsIncluidos = (cupo === null || cupo === 0 || cupo >= 999999) ? null : cupo
     }
 
     // ── 3. Calcular porcentaje y disparar alerta si corresponde ───────────────
