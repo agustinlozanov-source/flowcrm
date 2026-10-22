@@ -5,6 +5,107 @@ import { db, auth, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
+import { REGIMENES, USOS_CFDI, rfcValido, normalizarRfc, faltaParaFacturar } from '@/lib/fiscal'
+
+/* Los datos fiscales del cliente, capturados por él mismo.
+ *
+ * En CFDI 4.0 el RFC, el régimen, el código postal y la razón social del
+ * receptor tienen que coincidir EXACTAMENTE con lo que el SAT tiene
+ * registrado, o el timbrado se rechaza. Por eso los captura el cliente
+ * mirando su Constancia de Situación Fiscal, y no nosotros de oído por
+ * teléfono: un acento o una abreviatura de más y la factura no sale.
+ */
+function DatosFiscales({ org, orgId }) {
+  const [f, setF] = useState({
+    rfc: '', razonSocial: '', regimen: '', cp: '', usoCfdi: 'G03',
+    ...(org?.fiscal || {}),
+  })
+  const [guardando, setGuardando] = useState(false)
+  useEffect(() => { if (org?.fiscal) setF(v => ({ ...v, ...org.fiscal })) }, [org?.fiscal])
+
+  const rfcMal = f.rfc && !rfcValido(f.rfc)
+  const falta = faltaParaFacturar(f)
+
+  const guardar = async () => {
+    if (rfcMal) return toast.error('El RFC no tiene una forma válida')
+    setGuardando(true)
+    try {
+      await setDoc(doc(db, 'organizations', orgId),
+        { fiscal: { ...f, rfc: normalizarRfc(f.rfc), actualizadoEn: new Date().toISOString() } },
+        { merge: true })
+      toast.success('Datos fiscales guardados')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const campo = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-gray-400'
+  const etiqueta = 'block text-xs font-medium text-gray-500 mb-1.5'
+
+  return (
+    <Section title="Datos de facturación" description="Para poder emitirte tu factura (CFDI)">
+      <div className="p-4 rounded-xl border border-gray-100 bg-white space-y-4">
+        <p className="text-xs text-gray-500">
+          Cópialos tal cual de tu Constancia de Situación Fiscal. Si alguno no coincide
+          con lo que tiene el SAT, la factura no se puede emitir.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={etiqueta}>RFC</label>
+            <input className={clsx(campo, rfcMal && 'border-red-400')} value={f.rfc}
+              onChange={e => setF(v => ({ ...v, rfc: e.target.value.toUpperCase() }))}
+              placeholder="XAXX010101000" maxLength={13} />
+            {rfcMal && <div className="text-[11px] text-red-600 mt-1">Son 12 caracteres para empresa, 13 para persona física.</div>}
+          </div>
+          <div>
+            <label className={etiqueta}>Código postal fiscal</label>
+            <input className={campo} value={f.cp} inputMode="numeric" maxLength={5}
+              onChange={e => setF(v => ({ ...v, cp: e.target.value.replace(/\D/g, '') }))}
+              placeholder="87300" />
+          </div>
+        </div>
+
+        <div>
+          <label className={etiqueta}>Razón social o nombre</label>
+          <input className={campo} value={f.razonSocial}
+            onChange={e => setF(v => ({ ...v, razonSocial: e.target.value }))}
+            placeholder="Como aparece en tu constancia, sin S.A. de C.V." />
+          <div className="text-[11px] text-gray-400 mt-1">Sin el régimen de capital: va "MI EMPRESA", no "MI EMPRESA SA DE CV".</div>
+        </div>
+
+        <div>
+          <label className={etiqueta}>Régimen fiscal</label>
+          <select className={campo} value={f.regimen} onChange={e => setF(v => ({ ...v, regimen: e.target.value }))}>
+            <option value="">Elige el tuyo</option>
+            {REGIMENES.map(r => <option key={r.clave} value={r.clave}>{r.clave} — {r.nombre}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className={etiqueta}>Uso de la factura</label>
+          <select className={campo} value={f.usoCfdi} onChange={e => setF(v => ({ ...v, usoCfdi: e.target.value }))}>
+            {USOS_CFDI.map(u => <option key={u.clave} value={u.clave}>{u.clave} — {u.nombre}</option>)}
+          </select>
+          <div className="text-[11px] text-gray-400 mt-1">Si no sabes cuál, "Gastos en general" es lo habitual.</div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[11px] text-gray-400">
+            {falta.length === 0 ? '✓ Listo para facturar' : `Falta: ${falta.join(', ')}`}
+          </span>
+          <button onClick={guardar} disabled={guardando}
+            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
+            {guardando ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </Section>
+  )
+}
 
 /* Suscripción, vista por el propio cliente.
  *
@@ -670,6 +771,7 @@ export default function Settings() {
       {/* La facturación solo la ve quien administra la cuenta: un vendedor no
           tiene por qué ver el precio ni abrir el portal de pagos. */}
       {memberData?.role === 'admin' && <Suscripcion org={org} orgId={orgId} />}
+      {memberData?.role === 'admin' && <DatosFiscales org={org} orgId={orgId} />}
 
       {/* ── Cuenta ── */}
       <Section title="Cuenta" description="Información básica de tu organización">
