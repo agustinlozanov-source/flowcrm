@@ -42,6 +42,19 @@ exports.handler = async (event) => {
     // el resto del sistema necesita saber en qué moneda factura este cliente.
     if (moneda !== orgData.currency) await orgRef.update({ currency: moneda })
 
+    // Crear o recuperar el Customer en Stripe. Se guarda en la organización
+    // para que el mismo cliente no se duplique en cada intento de cobro.
+    let customerId = orgData.stripeCustomerId
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: ownerEmail,
+        name: orgName || orgData.name,
+        metadata: { orgId, source: 'flowhub_superadmin' },
+      })
+      customerId = customer.id
+      await orgRef.update({ stripeCustomerId: customerId })
+    }
+
     const appUrl = process.env.APP_URL || 'https://flowhubcrm.app'
 
     // Crear Checkout Session en modo subscription
