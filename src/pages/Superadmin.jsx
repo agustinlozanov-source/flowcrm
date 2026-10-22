@@ -1193,6 +1193,9 @@ const MODULE_TAGS = ['CRM', 'Tools']
 const EMPTY_PLAN = {
   name: '', color: '#0066ff', monthlyUSD: 49, annualUSD: 41, monthlyMXN: 0,
   maxUsers: 1, maxLeads: 500, features: [], status: 'active',
+  // El precio de Stripe vive en el plan, no en cada cliente. Uno por moneda:
+  // la organización dice en cuál paga y el checkout toma el que toca.
+  stripePriceIdUSD: '', stripePriceIdMXN: '',
 }
 
 // PLANS
@@ -1467,6 +1470,25 @@ function Plans() {
               <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Deja en 0 si no se vende por Mercado Pago</div>
             </div>
             <div style={{ flex: 1 }} />
+          </div>
+
+          {/* Los Price ID de Stripe, uno por moneda. Sin esto el checkout no
+              sabe qué cobrar y la organización no puede pagar. */}
+          <div className="sa-form-row" style={{ marginBottom: 14 }}>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Stripe Price ID — USD</label>
+              <input className="sa-form-input" type="text" placeholder="price_1AbCdEf…"
+                value={planForm.stripePriceIdUSD || ''}
+                onChange={e => setPlanForm(f => ({ ...f, stripePriceIdUSD: e.target.value.trim() }))} />
+              <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>Stripe → Products → este plan → el precio en USD</div>
+            </div>
+            <div className="sa-form-group" style={{ margin: 0 }}>
+              <label className="sa-form-label">Stripe Price ID — MXN</label>
+              <input className="sa-form-input" type="text" placeholder="price_1XyZ…"
+                value={planForm.stripePriceIdMXN || ''}
+                onChange={e => setPlanForm(f => ({ ...f, stripePriceIdMXN: e.target.value.trim() }))} />
+              <div style={{ fontSize: 11, color: 'var(--gray-4)', marginTop: 3 }}>El precio en pesos del mismo producto</div>
+            </div>
           </div>
 
           {/* Límites */}
@@ -4292,7 +4314,7 @@ function BillingPanel({ orgs }) {
   const [loadingReceipts, setLoadingReceipts] = useState(false)
   const [showSetupModal, setShowSetupModal] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
-  const [setupForm, setSetupForm] = useState({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: '' })
+  const [setupForm, setSetupForm] = useState({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: '', currency: 'MXN' })
   const [manualForm, setManualForm] = useState({ amount: '', currency: 'USD', note: '' })
   const [saving, setSaving] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -4381,13 +4403,12 @@ function BillingPanel({ orgs }) {
   }
 
   const createSubscription = async () => {
-    if (!setupForm.stripePriceId) return toast.error('Ingresa el Stripe Price ID')
-    if (!setupForm.ownerEmail) return toast.error('Email requerido')
+        if (!setupForm.ownerEmail) return toast.error('Email requerido')
     setSaving(true)
     try {
       const res = await fetch('/.netlify/functions/stripe-create-customer', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail, stripePriceId: setupForm.stripePriceId, billingCycle: setupForm.billingCycle }),
+        body: JSON.stringify({ orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail, stripePriceId: setupForm.stripePriceId, billingCycle: setupForm.billingCycle, currency: setupForm.currency }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -4621,7 +4642,7 @@ function BillingPanel({ orgs }) {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
                 <BtnAction onClick={() => syncStatus(selected)} icon={<RefreshCw size={13} />}>Sincronizar</BtnAction>
                 <BtnAction onClick={() => { setManualForm({ amount: '', currency: 'USD', note: '' }); setShowManualModal(true) }} icon={<Plus size={13} />}>Pago manual</BtnAction>
-                <BtnAction variant="primary" onClick={() => { setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '' }); setSetupProvider('stripe'); setMpPlanId(''); setShowSetupModal(true) }} icon={<CreditCard size={13} />}>
+                <BtnAction variant="primary" onClick={() => { setSetupForm({ stripePriceId: '', billingCycle: 'monthly', ownerEmail: selected.ownerEmail || '', currency: selected.currency || 'MXN' }); setSetupProvider('stripe'); setMpPlanId(''); setShowSetupModal(true) }} icon={<CreditCard size={13} />}>
                   {selected.stripeSubscriptionId ? 'Cambiar plan' : 'Crear suscripción'}
                 </BtnAction>
                 {selected.stripeSubscriptionId && (
@@ -4813,9 +4834,26 @@ function BillingPanel({ orgs }) {
             {/* ── STRIPE ── */}
             {setupProvider === 'stripe' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Stripe amarra al cliente a una moneda en cuanto tiene
+                    suscripción activa: cambiarla después obliga a cancelar y
+                    volver a suscribir. Por eso se elige aquí, una vez. */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Moneda del cliente *</label>
+                  <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 4 }}>
+                    {['MXN', 'USD'].map(m => (
+                      <button key={m} type="button" onClick={() => setSetupForm(f => ({ ...f, currency: m }))}
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                          background: setupForm.currency === m ? 'linear-gradient(135deg,#1aab99,#3533cd)' : 'transparent',
+                          color: setupForm.currency === m ? '#fff' : '#64748b' }}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>No se puede cambiar después sin cancelar la suscripción.</div>
+                </div>
                 {[
                   { label: 'Email del cliente *', key: 'ownerEmail', placeholder: 'cliente@empresa.com', type: 'text' },
-                  { label: 'Stripe Price ID *', key: 'stripePriceId', placeholder: 'price_1AbCdEfGhIjKlMnO…', type: 'text', hint: 'Stripe Dashboard → Products → tu plan → Price ID' },
+                  { label: 'Stripe Price ID', key: 'stripePriceId', placeholder: 'Vacío = el del plan', type: 'text', hint: 'Déjalo vacío y toma el del plan en la moneda elegida. Llénalo solo para un caso suelto.' },
                 ].map(field => (
                   <div key={field.key}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>{field.label}</label>
