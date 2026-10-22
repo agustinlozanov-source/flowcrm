@@ -27,9 +27,14 @@ function buildSystemPrompt(config, ragContent, products, scoringConfig, leadCont
   }).format(new Date())
   const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
 
+  // La fecha sale a su propio bloque: es el único renglón de la agenda que
+  // cambia, y arrastraba todo lo demás con él.
+  const fechaSection = `
+FECHA DE HOY:
+Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.`
+
   const agendaSection = `
 AGENDA:
-Hoy es ${hoy} (${hoyISO}), zona horaria ${tz}.
 - Los mensajes del historial que empiezan con una fecha entre corchetes son de OTRO día. Lo que ahí se dijo —"mañana", "el martes", "esta semana"— se contaba desde esa fecha, no desde hoy. Calcula siempre desde la fecha de hoy.
 - Antes de decir "mañana" o "hoy" por una cita ya agendada, compara su fecha con la de hoy.
 - Si el lead quiere una cita, consulta la agenda ANTES de ofrecer cualquier horario. Nunca inventes disponibilidad ni prometas un horario sin haberlo verificado.
@@ -117,7 +122,21 @@ ${resources.map(r =>
     ? `\nROUTING — IDENTIFICACIÓN DEL FLUJO:\nEste lead aún no tiene un flujo de ventas asignado. Tu primera tarea es identificarlo con 1-2 preguntas naturales sobre su situación o interés. NO menciones los nombres técnicos de los flujos al lead.\n\nFlujos disponibles (solo para tu referencia interna):\n${allPipelines.map(p => `  • ${p.name}${p.purpose ? ` — ${p.purpose}` : ''} [ID: ${p.id}]`).join('\n')}\n\nCuando identifiques el flujo, incluye en el JSON: "detectedPipelineId": "id_aqui". Si no tienes información suficiente aún, deja "detectedPipelineId": null.`
     : ''
 
-  return `Eres ${agentName}, un agente de ventas especializado.
+  /* Bloques, no un documento.
+   *
+   * `donde` dice si el bloque se puede cachear, y de ahí sale el orden: todo
+   * lo que va en 'base' se junta y se manda con la marca de caché; lo de
+   * 'final' va después, sin marca, y se cobra entero cada vez.
+   *
+   * Un bloque entra en 'base' solo si su texto es idéntico para todos los
+   * leads de un mismo pipeline. Basta un dato del lead adentro —o que el
+   * bloque a veces esté y a veces no— para que el sistema lo lea como un
+   * prompt distinto y deje de reutilizar TODO lo que venga después. Por eso
+   * esto se declara y no se deduce: quien agregue un bloque nuevo tiene que
+   * decidirlo, en vez de pegarlo en medio sin darse cuenta.
+   */
+  return [
+    { id: 'identidad', donde: 'base', texto: `Eres ${agentName}, un agente de ventas especializado.
 
 INSTRUCCIONES PRINCIPALES:
 - Responde siempre en español, de forma breve (máximo 3-4 oraciones)
@@ -125,20 +144,32 @@ INSTRUCCIONES PRINCIPALES:
 - Termina siempre con una pregunta o llamada a acción concreta
 - Adapta tu tono al del lead (formal/informal)
 - Habla en español de México, de "tú". Nunca uses voseo rioplatense ("vos", "tenés", "reservás", "podés"): no es como habla tu cliente ni como hablan sus pacientes
-- Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano
+- Tu objetivo es calificar al lead y prepararlo para una llamada con el vendedor humano` },
 
-${agendaSection}
-${productsSection}
-${scoringSection}
-${leadSection}
-${routingSection}
-${resourcesSection}
+    { id: 'agenda', donde: 'base', texto: agendaSection },
+    { id: 'productos', donde: 'base', texto: productsSection },
+    { id: 'scoring', donde: 'base', texto: scoringSection },
+    { id: 'recursos', donde: 'base', texto: resourcesSection },
 
+    { id: 'conocimiento', donde: 'base', texto: `
 BASE DE CONOCIMIENTO:
-${ragContent || 'No hay documentos cargados aún.'}
+${ragContent || 'No hay documentos cargados aún.'}` },
 
-${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
+    { id: 'instrucciones', donde: 'base', texto: customInstructions ? `
+INSTRUCCIONES ADICIONALES:
+${customInstructions}` : '' },
 
+    // El ruteo a veces está y a veces no, según si el lead ya tiene pipeline.
+    // Un bloque que aparece y desaparece es, para la caché, un prompt distinto.
+    { id: 'routing', donde: 'final', texto: routingSection },
+
+    { id: 'fecha', donde: 'final', texto: fechaSection },
+    { id: 'lead', donde: 'final', texto: leadSection },
+
+    /* Texto estable, pero va al final a propósito: es el contrato de salida y
+     * lo último que se lee pesa más. Son unos cientos de tokens sin cachear a
+     * cambio de no arriesgar que el agente deje de llamar a la herramienta. */
+    { id: 'formato', donde: 'final', texto: `
 FORMATO DE RESPUESTA IMPORTANTE:
 Responde SIEMPRE llamando a la herramienta "responder". No escribas texto suelto.
 - "response": el mensaje visible para el lead
@@ -147,9 +178,38 @@ Responde SIEMPRE llamando a la herramienta "responder". No escribas texto suelto
 - "suggestHandoff": true si el lead está listo para una llamada con el vendedor
 - "detectedProductId": id del producto si mostró interés en uno específico, null si no
 - "detectedPipelineId": id del flujo si lograste identificarlo (solo en modo routing), null si no
-- "shareResources": ids de los recursos tipo archivo, imagen o video a adjuntar en este mensaje
-- "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.`
+- "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.` },
+  ]
 }
+
+/* Arma el campo `system` de la API a partir de los bloques.
+ *
+ * Dos bloques de texto y no uno: el primero lleva la marca de caché y junta
+ * todo lo reutilizable, el segundo lleva lo que cambia. El corte tiene que
+ * caer exactamente entre los dos, porque la caché se aprovecha desde el
+ * principio hasta el primer byte distinto y nada más.
+ *
+ * Los vacíos se descartan antes de unir: un bloque que a veces es '' y a
+ * veces no cambiaría los saltos de línea y, con eso, el prefijo entero.
+ */
+function aSystem(bloques) {
+  const texto = donde => bloques
+    .filter(b => b.donde === donde && b.texto && b.texto.trim())
+    .map(b => b.texto.trim())
+    .join('\n\n')
+
+  const base = texto('base')
+  const final = texto('final')
+
+  const system = [{
+    type: 'text',
+    text: base,
+    cache_control: { type: 'ephemeral' },
+  }]
+  if (final) system.push({ type: 'text', text: final })
+  return system
+}
+
 
 // ── HERRAMIENTA DE RESPUESTA ──────────────────────────────────────
 // El scoring va como arreglo y no como objeto de claves dinámicas: un esquema
@@ -893,7 +953,8 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     console.warn('[agent] sin config de agenda:', e.message)
   }
 
-  const systemPrompt = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId, agendaInfo)
+  const bloques = buildSystemPrompt(agentConfig, ragContent, products, scoringConfig, leadContext, resources, allPipelines, pipelineId, agendaInfo)
+  const systemBloques = aSystem(bloques)
 
   // Load conversation history
   const history = await getConversationHistory(orgId, leadId, agendaInfo.tz)
@@ -935,11 +996,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
          * TTL de 5 minutos a propósito: las seis vueltas ocurren en segundos y
          * cada lectura reinicia el reloj. El de una hora cuesta el doble de
          * escritura y aquí no compraría nada. */
-        system: [{
-          type: 'text',
-          text: systemPrompt,
-          cache_control: { type: 'ephemeral' },
-        }],
+        system: systemBloques,
         messages: turnos,
         // Salida estructurada: con strict, la API garantiza que los argumentos
         // validen contra el esquema. Pedir JSON dentro del texto fallaba cuando
