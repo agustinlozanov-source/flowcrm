@@ -24,6 +24,27 @@ exports.handler = async (event) => {
     const orgSnap = await orgRef.get()
     const orgData = orgSnap.data() || {}
 
+    /* ── Portal de facturación ─────────────────────────────────────────────
+     *
+     * La página que Stripe aloja para que el propio cliente cambie su
+     * tarjeta, vea su historial y descargue sus facturas. Construir todo eso
+     * a mano sería semanas de trabajo y encima obligaría a guardar datos de
+     * tarjeta de nuestro lado, que es justo lo que no queremos.
+     *
+     * Lo pide el cliente desde sus Ajustes, no el superadmin, así que la
+     * sesión dura poco y se devuelve para abrirla al instante. */
+    if (action === 'portal') {
+      if (!orgData.stripeCustomerId) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Esta organización todavía no tiene cuenta en Stripe.' }) }
+      }
+      const appUrl = process.env.URL || 'https://flowhubcrm.app'
+      const sesion = await stripe.billingPortal.sessions.create({
+        customer: orgData.stripeCustomerId,
+        return_url: `${appUrl}/ajustes`,
+      })
+      return { statusCode: 200, body: JSON.stringify({ url: sesion.url }) }
+    }
+
     // ── Cancel subscription ────────────────────────────────────────────────
     if (action === 'cancel') {
       if (orgData.stripeSubscriptionId) {

@@ -6,6 +6,130 @@ import { useAuthStore } from '@/store/authStore'
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import toast from 'react-hot-toast'
 
+/* Suscripción, vista por el propio cliente.
+ *
+ * Antes el enlace de pago se generaba en el Superadmin y viajaba por
+ * WhatsApp, así que el cliente no tenía dónde ver qué plan tiene, cuánto
+ * lleva consumido ni cuándo le toca pagar — y para cambiar su tarjeta había
+ * que pedírselo a mano.
+ *
+ * Lo que toca dinero —tarjeta, facturas, historial— no se construye aquí: se
+ * manda al portal que aloja Stripe. Hacerlo a mano obligaría a guardar datos
+ * de tarjeta de nuestro lado, que es exactamente lo que no queremos.
+ */
+function Suscripcion({ org, orgId }) {
+  const [plan, setPlan] = useState(null)
+  const [abriendo, setAbriendo] = useState(false)
+
+  useEffect(() => {
+    if (!org?.planId) return
+    getDoc(doc(db, 'plans', org.planId)).then(d => d.exists() && setPlan(d.data()))
+  }, [org?.planId])
+
+  const abrirPortal = async () => {
+    setAbriendo(true)
+    try {
+      const res = await fetch('/.netlify/functions/stripe-billing-action', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'portal', orgId }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      window.location.href = data.url
+    } catch (e) {
+      toast.error(e.message)
+      setAbriendo(false)
+    }
+  }
+
+  const consumo = org?.consumo || {}
+  const usados = consumo.leads ?? 0
+  const incluidos = consumo.incluidos ?? null
+  const pct = incluidos ? Math.min(100, Math.round((usados / incluidos) * 100)) : null
+  const pasado = incluidos && usados > incluidos
+  const cerca = pct !== null && pct >= 80 && !pasado
+
+  const moneda = (org?.currency || 'MXN').toUpperCase()
+  const precio = moneda === 'USD' ? plan?.monthlyUSD : plan?.monthlyMXN
+  const activa = Boolean(org?.stripeSubscriptionId)
+
+  const fecha = org?.nextBillingDate
+    ? new Date(org.nextBillingDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
+
+  return (
+    <Section title="Suscripción" description="Tu plan, tu consumo y tu facturación">
+      <div className="p-4 rounded-xl border border-gray-100 bg-white space-y-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">{plan?.name || org?.planName || 'Sin plan'}</div>
+            {precio > 0 && (
+              <div className="text-xs text-gray-500 mt-0.5">
+                ${Number(precio).toLocaleString('es-MX')} {moneda} / mes
+              </div>
+            )}
+          </div>
+          <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${activa ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+            {activa ? 'Activa' : 'Sin activar'}
+          </span>
+        </div>
+
+        {/* El consumo lo escribe la tarea diaria; si nunca ha corrido para
+            esta organización, no se inventa un número. */}
+        {incluidos !== null && (
+          <div>
+            <div className="flex justify-between items-baseline mb-1.5">
+              <span className="text-xs text-gray-500">Leads este mes</span>
+              <span className={`text-sm font-semibold ${pasado ? 'text-red-600' : cerca ? 'text-amber-600' : 'text-gray-900'}`}>
+                {usados.toLocaleString('es-MX')} / {incluidos.toLocaleString('es-MX')}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className={`h-full rounded-full ${pasado ? 'bg-red-500' : cerca ? 'bg-amber-500' : 'bg-green-500'}`}
+                style={{ width: `${pct}%` }} />
+            </div>
+            {pasado && (
+              <div className="text-[11px] text-red-600 mt-1.5">
+                Llevas {(usados - incluidos).toLocaleString('es-MX')} leads por encima de tu plan.
+              </div>
+            )}
+          </div>
+        )}
+
+        {fecha && activa && (
+          <div className="flex justify-between items-center pt-1">
+            <span className="text-xs text-gray-500">Próximo cobro</span>
+            <span className="text-sm text-gray-900">{fecha}</span>
+          </div>
+        )}
+
+        <div className="pt-1">
+          {activa ? (
+            <button onClick={abrirPortal} disabled={abriendo}
+              className="w-full px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
+              {abriendo ? 'Abriendo…' : 'Gestionar mi facturación'}
+            </button>
+          ) : org?.stripeCheckoutUrl ? (
+            <a href={org.stripeCheckoutUrl} target="_blank" rel="noreferrer"
+              className="block w-full px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-semibold text-center">
+              Activar mi suscripción
+            </a>
+          ) : (
+            <div className="text-xs text-gray-400 text-center py-2">
+              Tu suscripción todavía no está configurada. Escríbenos y la activamos.
+            </div>
+          )}
+          {activa && (
+            <div className="text-[11px] text-gray-400 mt-2 text-center">
+              Cambia tu tarjeta, descarga tus facturas y revisa tu historial.
+            </div>
+          )}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 // ── Channel card ──────────────────────────────────────────────────────────────
 function ChannelCard({ icon, name, description, connected, onConnect, onDisconnect, loading }) {
   return (
@@ -542,6 +666,10 @@ export default function Settings() {
           </div>
         )}
       </Section>
+
+      {/* La facturación solo la ve quien administra la cuenta: un vendedor no
+          tiene por qué ver el precio ni abrir el portal de pagos. */}
+      {memberData?.role === 'admin' && <Suscripcion org={org} orgId={orgId} />}
 
       {/* ── Cuenta ── */}
       <Section title="Cuenta" description="Información básica de tu organización">
