@@ -16,6 +16,7 @@ import {
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
 import Produccion from '@/features/marca/Produccion'
+import Publicar from '../features/marca/Publicar'
 import { useTeam } from '@/hooks/useTeam'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
@@ -667,6 +668,7 @@ export default function MarcaPersonal() {
               { id: 'marcas', label: 'Marcas' },
               { id: 'referencias', label: 'Referencias' },
               { id: 'produccion', label: 'Producción' },
+              { id: 'publicar', label: 'Publicar' },
             ].map(t => (
               <button key={t.id} onClick={() => setPestana(t.id)}
                 className={clsx('px-3 py-2 text-[13px] font-semibold border-b-2 -mb-px transition-colors',
@@ -682,6 +684,8 @@ export default function MarcaPersonal() {
             <Referencias marcas={marcas} />
           ) : pestana === 'produccion' ? (
             <Produccion marcas={marcas} />
+          ) : pestana === 'publicar' ? (
+            <PanelPublicar marcas={marcas} orgId={org?.id} />
           ) : marcas.length === 0 ? (
             <div className="bg-surface border border-border rounded-card shadow-card p-10 text-center">
               <Instagram size={28} className="text-tertiary mx-auto mb-3" />
@@ -725,6 +729,48 @@ export default function MarcaPersonal() {
           onCerrar={() => setEditando(null)}
         />
       )}
+    </div>
+  )
+}
+
+/* Publicar es por marca, así que hay que elegir cuál antes de nada. Mismo
+ * criterio que el resto del módulo: si solo hay una, no se pregunta. */
+function PanelPublicar({ marcas, orgId }) {
+  const conectadas = marcas.filter(m => m.ig?.userId)
+  const [elegida, setElegida] = useState(conectadas[0]?.id || null)
+
+  if (conectadas.length === 0) {
+    return (
+      <div className="bg-surface border border-border rounded-card shadow-card p-10 text-center">
+        <Instagram size={28} className="text-tertiary mx-auto mb-3" />
+        <h2 className="font-display font-bold text-[15px] text-primary mb-1">
+          Ninguna marca tiene Instagram conectado
+        </h2>
+        <p className="text-[13px] text-tertiary max-w-[420px] mx-auto">
+          Conecta una cuenta desde la pestaña Marcas y vuelve aquí.
+        </p>
+      </div>
+    )
+  }
+
+  const marca = conectadas.find(m => m.id === elegida) || conectadas[0]
+
+  return (
+    <div className="space-y-4">
+      {conectadas.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {conectadas.map(m => (
+            <button key={m.id} onClick={() => setElegida(m.id)}
+              className={clsx('px-3 py-1.5 rounded-btn text-[12px] font-bold border transition-colors',
+                m.id === marca.id
+                  ? 'bg-accent-blue text-white border-accent-blue'
+                  : 'bg-surface-2 text-secondary border-border hover:text-primary')}>
+              @{m.ig?.username || m.handle}
+            </button>
+          ))}
+        </div>
+      )}
+      <Publicar orgId={orgId} marca={marca} />
     </div>
   )
 }

@@ -163,6 +163,52 @@ async function publicaciones(token, limite = 25) {
  * comentario o de un mensaje preguntando cada tanto, sin depender de que Meta
  * nos avise. */
 
+/* Publicar.
+ *
+ * Instagram no acepta que le subas el archivo: le das una URL pública y él la
+ * descarga. Por eso el video tiene que estar en Storage con su enlace de
+ * descarga antes de llamar aquí.
+ *
+ * Y es en dos tiempos. Primero se crea un contenedor, que Instagram procesa
+ * por su cuenta —un reel puede tardar minutos—, y solo cuando termina se
+ * publica. Publicar antes de tiempo devuelve un error que no dice gran cosa,
+ * así que hay que preguntar por el estado hasta que diga FINISHED.
+ *
+ * El contenedor caduca a las 24 horas si no se publica.
+ */
+async function crearContenedor(token, igUserId, datos) {
+  const p = new URLSearchParams({ access_token: token })
+  for (const [k, v] of Object.entries(datos)) {
+    if (v !== undefined && v !== null && v !== '') p.set(k, String(v))
+  }
+  return pedir(`${BASE}/${igUserId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: p.toString(),
+  })
+}
+
+/** IN_PROGRESS | FINISHED | ERROR | EXPIRED | PUBLISHED */
+async function estadoContenedor(token, contenedorId) {
+  const p = new URLSearchParams({ fields: 'status_code,status', access_token: token })
+  return pedir(`${BASE}/${contenedorId}?${p}`)
+}
+
+async function publicarContenedor(token, igUserId, contenedorId) {
+  const p = new URLSearchParams({ creation_id: String(contenedorId), access_token: token })
+  return pedir(`${BASE}/${igUserId}/media_publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: p.toString(),
+  })
+}
+
+/** Cuántas publicaciones le quedan a la cuenta en las últimas 24 horas. */
+async function cupoDePublicacion(token, igUserId) {
+  const p = new URLSearchParams({ fields: 'config,quota_usage', access_token: token })
+  return pedir(`${BASE}/${igUserId}/content_publishing_limit?${p}`)
+}
+
 /* Quién es quien escribe.
  *
  * El aviso de un mensaje trae el id del remitente y nada más — ni nombre ni
@@ -388,4 +434,5 @@ module.exports = {
   canjearCodigo, aTokenLargo, renovarToken,
   perfil, publicaciones, metricasDe,
   comentariosDe, conversaciones, mensajesDe, perfilDeUsuario,
+  crearContenedor, estadoContenedor, publicarContenedor, cupoDePublicacion,
 }
