@@ -4438,13 +4438,17 @@ function BillingPanel({ orgs }) {
 
   const generateCheckoutLink = async () => {
     if (!selected) return
-    if (!setupForm.stripePriceId) return toast.error('Ingresa el Stripe Price ID primero')
     if (!setupForm.ownerEmail) return toast.error('Email requerido')
     setCheckoutLoading(true)
     try {
+      // El Price ID va vacío a propósito cuando se usa el del plan; la moneda
+      // y el ciclo son los que deciden cuál de los cuatro toca.
       const res = await fetch('/.netlify/functions/stripe-create-checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail, stripePriceId: setupForm.stripePriceId }),
+        body: JSON.stringify({
+          orgId: selected.id, orgName: selected.name, ownerEmail: setupForm.ownerEmail,
+          stripePriceId: setupForm.stripePriceId, currency: setupForm.currency, billingCycle: setupForm.billingCycle,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
