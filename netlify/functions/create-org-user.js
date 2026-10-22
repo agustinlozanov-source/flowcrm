@@ -42,6 +42,31 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'orgData o existingOrgId son requeridos' }) }
     }
 
+    /* El seguro: dar de alta una organización con el correo de un superadmin
+     * lo destruía.
+     *
+     * Si el correo ya existía, el bloque de abajo le cambiaba la contraseña
+     * por la que se tecleó en el formulario, y más adelante le escribía
+     * `role: 'admin'` encima del de superadmin. O sea: creabas una org con tu
+     * propio correo y perdías el panel y el acceso de un golpe, sin aviso.
+     *
+     * Se corta antes de tocar nada. No es un caso de uso legítimo: un
+     * superadmin que quiera entrar a una org lo hace desde el panel, no
+     * dándose de alta como cliente. */
+    const yaExiste = await admin.auth().getUserByEmail(email).catch(() => null)
+    if (yaExiste) {
+      const perfil = await db.collection('users').doc(yaExiste.uid).get()
+      const rol = perfil.data()?.role
+      if (rol === 'superadmin') {
+        return {
+          statusCode: 409,
+          body: JSON.stringify({
+            error: `${email} es la cuenta de superadmin. Darla de alta aquí le cambiaría la contraseña y le quitaría el panel. Usa otro correo.`,
+          }),
+        }
+      }
+    }
+
     // 1. Create (or fetch) user in Firebase Auth using Admin SDK (does NOT sign in)
     let uid
     try {
