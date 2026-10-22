@@ -32,6 +32,10 @@ const SCOPE = [
   'instagram_business_manage_insights',
   'instagram_business_manage_messages',
   'instagram_business_manage_comments',
+  // Publicar. Se pide desde ya aunque el módulo todavía no exista: el permiso
+  // se concede al conectar, así que agregarlo después obligaría a cada marca
+  // a reconectarse una segunda vez.
+  'instagram_business_content_publish',
 ].join(',')
 
 /** El token largo de Instagram vive 60 días. */
