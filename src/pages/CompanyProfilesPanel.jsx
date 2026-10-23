@@ -34,7 +34,13 @@ export default function CompanyProfilesPanel() {
     const q = query(collection(db, 'company_profiles'), orderBy('createdAt', 'desc'))
     const unsub = onSnapshot(q,
       snap => { setProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false) },
-      () => setLoading(false),
+      e => {
+        // Una lista que se queda vacía por un error de permisos se ve igual
+        // que una lista vacía de verdad. No es lo mismo.
+        console.error('[perfiles] no se pudo leer la lista:', e)
+        toast.error(`No se pudieron cargar los perfiles: ${e.message}`)
+        setLoading(false)
+      },
     )
     return () => unsub()
   }, [])
@@ -74,8 +80,11 @@ export default function CompanyProfilesPanel() {
       })
       setForm({ companyName: '', clientName: '', clientEmail: '' })
       toast.success(`Perfil creado — código de acceso: ${accessPassword}`)
-    } catch {
-      toast.error('No se pudo crear el perfil')
+    } catch (e) {
+      // El motivo, no un "no se pudo": casi siempre son las reglas de
+      // Firestore o la sesión caducada, y sin verlo no hay forma de saberlo.
+      console.error('[perfiles] no se pudo crear:', e)
+      toast.error(e?.message || 'No se pudo crear el perfil')
     } finally {
       setCreating(false)
     }
