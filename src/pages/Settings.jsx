@@ -8,58 +8,88 @@ import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { REGIMENES, USOS_CFDI, rfcValido, normalizarRfc, faltaParaFacturar } from '@/lib/fiscal'
 
-/* Sus facturas, para que no dependa del correo.
+/* El historial de cobros: una línea por pago.
  *
- * El CFDI le llega por correo al pagar, pero un correo se borra, se va a spam
- * o se pierde en el cierre de mes. Teniéndolas aquí no tiene que escribirle a
- * nadie para pedir una copia.
+ * El pago y su factura vivían separados —el recibo de Stripe por un lado, el
+ * CFDI por otro— y para el cliente eso son dos listas que tiene que cruzar a
+ * mano. Lo que él quiere saber es una sola cosa: qué le cobraron, cuándo, por
+ * qué periodo, y dónde está el papel.
  *
- * Los archivos no se guardan de nuestro lado: se piden al proveedor cuando se
- * descargan. Ya viven en el PAC y en el SAT, y nunca cambian.
+ * Los archivos no se guardan de nuestro lado: el recibo lo sirve Stripe y el
+ * CFDI se le pide al PAC al descargar. Ya viven ahí y nunca cambian.
  */
-function MisFacturas({ orgId }) {
+function HistorialDeCobros({ orgId }) {
+  const [recibos, setRecibos] = useState([])
   const [facturas, setFacturas] = useState([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
     if (!orgId) return
-    const q = query(
-      collection(db, 'organizations', orgId, 'facturas'),
-      orderBy('createdAt', 'desc'), limit(24),
+    const sub = (nombre, set) => onSnapshot(
+      query(collection(db, 'organizations', orgId, nombre), orderBy('createdAt', 'desc'), limit(24)),
+      snap => { set(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setCargando(false) },
+      e => { console.error(`[${nombre}]`, e); setCargando(false) },
     )
-    const corta = onSnapshot(q,
-      snap => { setFacturas(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setCargando(false) },
-      e => { console.error('[facturas]', e); setCargando(false) },
-    )
-    return () => corta()
+    const a = sub('billing_receipts', setRecibos)
+    const b = sub('facturas', setFacturas)
+    return () => { a(); b() }
   }, [orgId])
 
-  if (cargando || facturas.length === 0) return null
+  if (cargando || recibos.length === 0) return null
+
+  // La factura se encuentra por el cobro de Stripe que la originó.
+  const facturaDe = id => facturas.find(f => f.stripeInvoiceId === id)
+
+  const fecha = v => {
+    const d = v?.toDate?.() || (v ? new Date(v) : null)
+    return d ? d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  }
 
   const bajar = (f, formato) =>
     `/.netlify/functions/factura-descargar?orgId=${orgId}&facturaId=${f.facturapiId}&formato=${formato}`
 
   return (
-    <Section title="Mis facturas" description="Tus CFDI, para descargar cuando los necesites">
+    <Section title="Historial de cobros" description="Qué te cobramos, cuándo, y el comprobante de cada uno">
       <div className="rounded-xl border border-gray-100 bg-white divide-y divide-gray-50">
-        {facturas.map(f => (
-          <div key={f.id} className="flex items-center gap-3 p-4">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-gray-900">
-                {f.folio || f.uuid?.slice(0, 8)}
-                {/* Una factura de sandbox no vale ante el SAT: si alguna vez
-                    se cuela una, que se note. */}
-                {f.prueba && <span className="ml-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">PRUEBA</span>}
+        {recibos.map(r => {
+          const f = facturaDe(r.invoiceId)
+          return (
+            <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-gray-900">
+                  ${Number(r.amountPaid || 0).toLocaleString('es-MX')} {r.currency || 'MXN'}
+                  {f?.prueba && <span className="ml-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">PRUEBA</span>}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {fecha(r.createdAt)}
+                  {r.periodStart && r.periodEnd && ` · cubre ${fecha(r.periodStart)} – ${fecha(r.periodEnd)}`}
+                </div>
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                {f.createdAt?.toDate?.()?.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) || '—'}
-                {' · '}${Number(f.total || 0).toLocaleString('es-MX')} MXN
-              </div>
+
+              {r.hostedUrl && (
+                <a href={r.hostedUrl} target="_blank" rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                  Recibo
+                </a>
+              )}
+
+              {f ? (
+                <>
+                  <a href={bajar(f, 'pdf')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                    Factura PDF
+                  </a>
+                  <a href={bajar(f, 'xml')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                    XML
+                  </a>
+                </>
+              ) : (
+                /* Decir por qué no está, en vez de dejar un hueco. Casi siempre
+                   es que faltaban datos fiscales cuando se cobró. */
+                <span className="text-[11px] text-amber-700">Factura pendiente</span>
+              )}
             </div>
-            <a href={bajar(f, 'pdf')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">PDF</a>
-            <a href={bajar(f, 'xml')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">XML</a>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </Section>
   )
@@ -857,7 +887,7 @@ export default function Settings() {
           tiene por qué ver el precio ni abrir el portal de pagos. */}
       {memberData?.role === 'admin' && <Suscripcion org={org} orgId={orgId} />}
       {memberData?.role === 'admin' && <DatosFiscales org={org} orgId={orgId} />}
-      {memberData?.role === 'admin' && <MisFacturas orgId={orgId} />}
+      {memberData?.role === 'admin' && <HistorialDeCobros orgId={orgId} />}
 
       {/* ── Cuenta ── */}
       <Section title="Cuenta" description="Información básica de tu organización">
