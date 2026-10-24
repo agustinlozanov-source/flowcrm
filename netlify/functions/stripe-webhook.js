@@ -6,6 +6,7 @@
 
 const Stripe = require('stripe')
 const { medirOrg } = require('./lib/consumo')
+const facturacion = require('./lib/facturacion')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
 
@@ -150,6 +151,72 @@ exports.handler = async (event) => {
             status: 'paid',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           })
+
+        /* Y su factura, timbrada y enviada, sin que nadie mande un correo.
+         *
+         * Era la fricción que motivó todo esto: el cliente pagaba y después
+         * tenía que pedir su factura por WhatsApp. Ahora pagó, y le llega.
+         *
+         * Va después de guardar el recibo y en su propio try: si el timbrado
+         * falla —un RFC mal capturado, el SAT caído—, el pago ya quedó
+         * registrado y la suscripción activa. Nunca al revés. */
+        try {
+          const org = orgDoc.data()
+          const fiscal = org.fiscal || {}
+          const yaFacturada = (await db.collection('organizations').doc(orgId)
+            .collection('facturas').where('stripeInvoiceId', '==', data.id).limit(1).get())
+
+          if (!yaFacturada.empty) {
+            console.log(`[stripe-webhook] ${data.id} ya tiene CFDI`)
+          } else {
+            const mes = new Date((data.period_start || data.created) * 1000)
+              .toLocaleDateString('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+
+            const cfdi = await facturacion.emitir({
+              fiscal,
+              concepto: {
+                descripcion: `Suscripción FlowHub CRM · ${org.planName || 'Plan'} · ${mes}`,
+                total: data.amount_paid / 100,
+              },
+              email: org.ownerEmail,
+            })
+
+            await facturacion.enviarPorCorreo(cfdi.id, org.ownerEmail)
+              .catch(e => console.error('[stripe-webhook] timbrada pero no se pudo enviar:', e.message))
+
+            await db.collection('organizations').doc(orgId).collection('facturas').add({
+              facturapiId: cfdi.id,
+              uuid: cfdi.uuid,
+              folio: `${cfdi.series || ''}${cfdi.folio_number || ''}`,
+              total: cfdi.total,
+              status: cfdi.status,
+              verificacion: cfdi.verification_url,
+              // Marca si salió del entorno de pruebas: una factura de sandbox
+              // no tiene valor fiscal y no debe confundirse con una real.
+              prueba: facturacion.esPrueba(),
+              stripeInvoiceId: data.id,
+              enviadaA: org.ownerEmail || null,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+
+            await orgDoc.ref.update({ facturaPendiente: admin.firestore.FieldValue.delete() })
+            console.log(`[stripe-webhook] CFDI ${cfdi.uuid} para ${org.name}`)
+          }
+        } catch (e) {
+          /* Queda anotado como pendiente con el motivo exacto, sea que falten
+           * datos fiscales o que el SAT esté caído. El panel lo muestra y se
+           * puede timbrar después sin perder el pago. Un CFDI con datos
+           * adivinados sería peor que ninguno. */
+          console.error('[stripe-webhook] no se pudo timbrar:', e.message)
+          await orgDoc.ref.update({
+            facturaPendiente: {
+              stripeInvoiceId: data.id,
+              total: data.amount_paid / 100,
+              motivo: e.message,
+              desde: new Date().toISOString(),
+            },
+          }).catch(() => {})
+        }
         break
       }
 
