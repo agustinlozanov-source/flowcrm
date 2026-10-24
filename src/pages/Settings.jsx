@@ -25,7 +25,15 @@ function DatosFiscales({ org, orgId }) {
   useEffect(() => { if (org?.fiscal) setF(v => ({ ...v, ...org.fiscal })) }, [org?.fiscal])
 
   const rfcMal = f.rfc && !rfcValido(f.rfc)
-  const falta = faltaParaFacturar(f)
+  /* Lo que importa es lo GUARDADO, no lo escrito.
+   *
+   * Antes el "✓ Listo" se calculaba sobre el formulario, así que aparecía en
+   * cuanto terminabas de teclear — y quien cerraba sin guardar se iba creyendo
+   * que ya estaba. */
+  const falta = faltaParaFacturar(org?.fiscal || {})
+  const guardado = org?.fiscal || {}
+  const sinGuardar = ['rfc', 'razonSocial', 'regimen', 'cp', 'usoCfdi']
+    .some(k => (f[k] || '') !== (guardado[k] || ''))
 
   const guardar = async () => {
     if (rfcMal) return toast.error('El RFC no tiene una forma válida')
@@ -96,9 +104,11 @@ function DatosFiscales({ org, orgId }) {
 
         <div className="flex items-center justify-between pt-1">
           <span className="text-[11px] text-gray-400">
-            {falta.length === 0
-              ? '✓ Listo — tus facturas llegarán a tu correo al pagar'
-              : `Falta: ${falta.join(', ')}`}
+            {sinGuardar
+              ? '⚠︎ Tienes cambios sin guardar'
+              : falta.length === 0
+                ? '✓ Listo — tus facturas llegarán a tu correo al pagar'
+                : `Falta: ${falta.join(', ')}`}
           </span>
           <button onClick={guardar} disabled={guardando}
             className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
