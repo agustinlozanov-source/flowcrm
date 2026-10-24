@@ -109,7 +109,17 @@ function DatosFiscales({ org, orgId }) {
     ...(org?.fiscal || {}),
   })
   const [guardando, setGuardando] = useState(false)
-  useEffect(() => { if (org?.fiscal) setF(v => ({ ...v, ...org.fiscal })) }, [org?.fiscal])
+
+  /* Lo último que se guardó, para saber si hay cambios.
+   *
+   * No se compara contra `org.fiscal` directo: ese dato viene del estado de
+   * la aplicación y puede no haberse refrescado justo después de guardar, así
+   * que el botón se quedaría encendido como si faltara algo. La referencia la
+   * movemos nosotros al guardar con éxito. */
+  const [base, setBase] = useState(org?.fiscal || {})
+  useEffect(() => {
+    if (org?.fiscal) { setF(v => ({ ...v, ...org.fiscal })); setBase(org.fiscal) }
+  }, [org?.fiscal])
 
   const rfcMal = f.rfc && !rfcValido(f.rfc)
   /* Lo que importa es lo GUARDADO, no lo escrito.
@@ -117,18 +127,20 @@ function DatosFiscales({ org, orgId }) {
    * Antes el "✓ Listo" se calculaba sobre el formulario, así que aparecía en
    * cuanto terminabas de teclear — y quien cerraba sin guardar se iba creyendo
    * que ya estaba. */
-  const falta = faltaParaFacturar(org?.fiscal || {})
-  const guardado = org?.fiscal || {}
-  const sinGuardar = ['rfc', 'razonSocial', 'regimen', 'cp', 'usoCfdi']
-    .some(k => (f[k] || '') !== (guardado[k] || ''))
+  const CAMPOS = ['rfc', 'razonSocial', 'regimen', 'cp', 'usoCfdi']
+  const falta = faltaParaFacturar(base)
+  const sinGuardar = CAMPOS.some(k => (f[k] || '') !== (base[k] || ''))
 
   const guardar = async () => {
     if (rfcMal) return toast.error('El RFC no tiene una forma válida')
     setGuardando(true)
     try {
+      const limpio = { ...f, rfc: normalizarRfc(f.rfc) }
       await setDoc(doc(db, 'organizations', orgId),
-        { fiscal: { ...f, rfc: normalizarRfc(f.rfc), actualizadoEn: new Date().toISOString() } },
+        { fiscal: { ...limpio, actualizadoEn: new Date().toISOString() } },
         { merge: true })
+      setF(limpio)
+      setBase(limpio)
       toast.success('Datos fiscales guardados')
     } catch (e) {
       toast.error(e.message)
@@ -197,9 +209,15 @@ function DatosFiscales({ org, orgId }) {
                 ? '✓ Listo — tus facturas llegarán a tu correo al pagar'
                 : `Falta: ${falta.join(', ')}`}
           </span>
-          <button onClick={guardar} disabled={guardando}
-            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
-            {guardando ? 'Guardando…' : 'Guardar'}
+          {/* Vivo solo cuando hay algo que guardar. Un botón siempre
+              encendido no distingue "falta guardar" de "ya está", que es
+              justo lo que hay que saber de un vistazo. */}
+          <button onClick={guardar} disabled={guardando || !sinGuardar}
+            className={clsx('px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
+              sinGuardar && !guardando
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-400 cursor-default')}>
+            {guardando ? 'Guardando…' : sinGuardar ? 'Guardar' : 'Guardado'}
           </button>
         </div>
       </div>
