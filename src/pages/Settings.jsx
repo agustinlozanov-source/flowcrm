@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, auth, storage } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
@@ -7,6 +7,63 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { REGIMENES, USOS_CFDI, rfcValido, normalizarRfc, faltaParaFacturar } from '@/lib/fiscal'
+
+/* Sus facturas, para que no dependa del correo.
+ *
+ * El CFDI le llega por correo al pagar, pero un correo se borra, se va a spam
+ * o se pierde en el cierre de mes. Teniéndolas aquí no tiene que escribirle a
+ * nadie para pedir una copia.
+ *
+ * Los archivos no se guardan de nuestro lado: se piden al proveedor cuando se
+ * descargan. Ya viven en el PAC y en el SAT, y nunca cambian.
+ */
+function MisFacturas({ orgId }) {
+  const [facturas, setFacturas] = useState([])
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    if (!orgId) return
+    const q = query(
+      collection(db, 'organizations', orgId, 'facturas'),
+      orderBy('createdAt', 'desc'), limit(24),
+    )
+    const corta = onSnapshot(q,
+      snap => { setFacturas(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setCargando(false) },
+      e => { console.error('[facturas]', e); setCargando(false) },
+    )
+    return () => corta()
+  }, [orgId])
+
+  if (cargando || facturas.length === 0) return null
+
+  const bajar = (f, formato) =>
+    `/.netlify/functions/factura-descargar?orgId=${orgId}&facturaId=${f.facturapiId}&formato=${formato}`
+
+  return (
+    <Section title="Mis facturas" description="Tus CFDI, para descargar cuando los necesites">
+      <div className="rounded-xl border border-gray-100 bg-white divide-y divide-gray-50">
+        {facturas.map(f => (
+          <div key={f.id} className="flex items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-gray-900">
+                {f.folio || f.uuid?.slice(0, 8)}
+                {/* Una factura de sandbox no vale ante el SAT: si alguna vez
+                    se cuela una, que se note. */}
+                {f.prueba && <span className="ml-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">PRUEBA</span>}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {f.createdAt?.toDate?.()?.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) || '—'}
+                {' · '}${Number(f.total || 0).toLocaleString('es-MX')} MXN
+              </div>
+            </div>
+            <a href={bajar(f, 'pdf')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">PDF</a>
+            <a href={bajar(f, 'xml')} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">XML</a>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
 
 /* Los datos fiscales del cliente, capturados por él mismo.
  *
@@ -800,6 +857,7 @@ export default function Settings() {
           tiene por qué ver el precio ni abrir el portal de pagos. */}
       {memberData?.role === 'admin' && <Suscripcion org={org} orgId={orgId} />}
       {memberData?.role === 'admin' && <DatosFiscales org={org} orgId={orgId} />}
+      {memberData?.role === 'admin' && <MisFacturas orgId={orgId} />}
 
       {/* ── Cuenta ── */}
       <Section title="Cuenta" description="Información básica de tu organización">
