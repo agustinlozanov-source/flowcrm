@@ -181,8 +181,19 @@ exports.handler = async (event) => {
               email: org.ownerEmail,
             })
 
-            await facturacion.enviarPorCorreo(cfdi.id, org.ownerEmail)
-              .catch(e => console.error('[stripe-webhook] timbrada pero no se pudo enviar:', e.message))
+            /* Una factura de sandbox NO se le manda al cliente.
+             *
+             * Con la llave de pruebas el timbrado funciona igual, pero el
+             * CFDI no tiene valor fiscal. Mandárselo sería peor que no
+             * mandar nada: recibe algo que parece una factura, la da por
+             * buena, y se entera en su cierre de mes. Se timbra y se guarda
+             * para poder revisarla, y se envía solo en producción. */
+            if (facturacion.esPrueba()) {
+              console.warn(`[stripe-webhook] CFDI de PRUEBA para ${org.name} — no se envía. Cambia FACTURAPI_KEY por la de producción para facturar de verdad.`)
+            } else {
+              await facturacion.enviarPorCorreo(cfdi.id, org.ownerEmail)
+                .catch(e => console.error('[stripe-webhook] timbrada pero no se pudo enviar:', e.message))
+            }
 
             await db.collection('organizations').doc(orgId).collection('facturas').add({
               facturapiId: cfdi.id,
@@ -195,7 +206,7 @@ exports.handler = async (event) => {
               // no tiene valor fiscal y no debe confundirse con una real.
               prueba: facturacion.esPrueba(),
               stripeInvoiceId: data.id,
-              enviadaA: org.ownerEmail || null,
+              enviadaA: facturacion.esPrueba() ? null : (org.ownerEmail || null),
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
             })
 
