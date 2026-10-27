@@ -1,7 +1,8 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta } = require('./lib/firebase')
+const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta,
+        claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
@@ -88,9 +89,8 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
     }
   }
   if (phone) {
-    const byPhone = await leads.where('phone', '==', phone).limit(1).get()
-    if (!byPhone.empty) {
-      const d = byPhone.docs[0]
+    const d = await buscarLeadPorTelefono(db, orgId, phone)
+    if (d) {
       if (channelUserId) await d.ref.update({ [`channelIds.${channel}`]: channelUserId })
       return { id: d.id, ...d.data() }
     }
@@ -102,6 +102,7 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
   const ref = await leads.add({
     name: name || 'Sin nombre',
     phone: phone || '',
+    phoneKey: claveTelefono(phone),
     email: '',
     company: '',
     source: channel,

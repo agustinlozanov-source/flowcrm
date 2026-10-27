@@ -1131,7 +1131,12 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         if (yaTiene) {
           console.log(`[agent] ${leadId} ya tenía teléfono — se conserva el que estaba`)
         } else {
-          await ref.update({ phone: digitos, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+          const { claveTelefono } = require('./lib/firebase')
+          await ref.update({
+            phone: digitos,
+            phoneKey: claveTelefono(digitos),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
           console.log(`[agent] teléfono guardado para ${leadId} (termina en ${digitos.slice(-4)})`)
         }
       }

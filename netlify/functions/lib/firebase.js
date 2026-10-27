@@ -55,6 +55,45 @@ async function saveAttachments(db, orgId, leadId, sent = [], channel = 'whatsapp
   }
 }
 
+/* Los últimos diez dígitos: lo que identifica a una persona sin importar
+ * cómo escriba su número.
+ *
+ * El mismo paciente llega escrito de formas distintas según por dónde entre.
+ * WhatsApp manda el número completo con lada —5218112345678—; quien lo
+ * teclea en un chat pone sus diez dígitos, con guiones o sin ellos. Comparando
+ * la cadena entera, esos dos son personas diferentes, y terminas con el mismo
+ * contacto duplicado en el tablero. */
+function claveTelefono(tel) {
+  const d = String(tel ?? '').replace(/\D/g, '')
+  return d.length >= 10 ? d.slice(-10) : ''
+}
+
+/* Busca un lead por teléfono tolerando el formato.
+ *
+ * Primero por `phoneKey`, que es la forma nueva y una sola consulta. Los leads
+ * de antes no lo tienen, así que se prueban también las formas en que pudo
+ * haber quedado guardado el número; cuando una acierta, se le escribe la
+ * clave al lead y la próxima vez entra por el camino corto. Así no hace falta
+ * migrar nada: la base se va arreglando sola a medida que la gente escribe. */
+async function buscarLeadPorTelefono(db, orgId, tel) {
+  const clave = claveTelefono(tel)
+  if (!clave) return null
+  const leads = db.collection('organizations').doc(orgId).collection('leads')
+
+  const porClave = await leads.where('phoneKey', '==', clave).limit(1).get()
+  if (!porClave.empty) return porClave.docs[0]
+
+  for (const viejo of [String(tel ?? ''), clave, `52${clave}`, `521${clave}`]) {
+    if (!viejo) continue
+    const snap = await leads.where('phone', '==', viejo).limit(1).get()
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({ phoneKey: clave })
+      return snap.docs[0]
+    }
+  }
+  return null
+}
+
 /* El mensaje entrante se guarda ACÁ, en la puerta de entrada.
  *
  * Antes lo escribía agent-manager, que es el último eslabón de la cadena. Si
@@ -134,4 +173,7 @@ async function pipelineDeLaCuenta(db, orgId, cuentaId) {
   return org.data()?.ruteo?.[cuentaId]?.pipelineId || null
 }
 
-module.exports = { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta }
+module.exports = {
+  initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta,
+  claveTelefono, buscarLeadPorTelefono,
+}

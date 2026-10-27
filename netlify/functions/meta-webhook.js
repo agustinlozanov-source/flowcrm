@@ -1,6 +1,6 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
-const { destinoInicial } = require('./lib/firebase')
+const { destinoInicial, claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
 const Anthropic = require('@anthropic-ai/sdk')
 
 /* Perezoso a propósito. Arrancar Firebase al cargar el módulo hace que una
@@ -64,16 +64,10 @@ async function findOrCreateLead(orgId, contact) {
 
   if (!byChannel.empty) return { id: byChannel.docs[0].id, ...byChannel.docs[0].data() }
 
-  // Search by phone
+  // Search by phone — tolerando el formato, no por cadena exacta.
   if (phone) {
-    const byPhone = await db
-      .collection('organizations').doc(orgId)
-      .collection('leads')
-      .where('phone', '==', phone)
-      .limit(1)
-      .get()
-    if (!byPhone.empty) {
-      const lead = byPhone.docs[0]
+    const lead = await buscarLeadPorTelefono(db, orgId, phone)
+    if (lead) {
       // Update channelId
       await lead.ref.update({ [`channelIds.${channel}`]: channelUserId })
       return { id: lead.id, ...lead.data() }
@@ -89,6 +83,7 @@ async function findOrCreateLead(orgId, contact) {
   const ref = await laBase().collection('organizations').doc(orgId).collection('leads').add({
     name: name || 'Sin nombre',
     phone: phone || '',
+    phoneKey: claveTelefono(phone),
     email: email || '',
     company: '',
     source: channel,

@@ -1,6 +1,6 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
-const { destinoInicial } = require('./lib/firebase')
+const { destinoInicial, claveTelefono } = require('./lib/firebase')
 
 // Initialize Firebase Admin if not already initialized
 /* Perezoso a propósito. Arrancar Firebase al cargar el módulo hace que una
@@ -67,6 +67,7 @@ exports.handler = async (event) => {
         name: formData.name || '',
         email: formData.email || '',
         phone: formData.phone || '',
+        phoneKey: claveTelefono(formData.phone),
         company: formData.company || '',
         notes: formData.message || '',
         source: source || 'web',
