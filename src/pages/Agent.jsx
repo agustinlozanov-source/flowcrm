@@ -1940,6 +1940,7 @@ export default function Agent() {
     scoreOnBooking: 25,
     workingHours: null,
     slotStep: 30,
+    meetingDuration: 30,
     followUp: {
       enabled: false,
       delayMinutes: 60,
@@ -1981,6 +1982,7 @@ export default function Agent() {
           scoreOnBooking: data.scoreOnBooking ?? c.scoreOnBooking,
           workingHours: data.workingHours ?? c.workingHours,
           slotStep: data.slotStep ?? c.slotStep,
+          meetingDuration: data.meetingDuration ?? c.meetingDuration,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
         }))
@@ -2087,6 +2089,18 @@ export default function Agent() {
                 <Section title="Nombre del agente" desc="Cómo se presenta ante los leads">
                   <input value={config.agentName} onChange={e => set('agentName', e.target.value)}
                     placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
+                </Section>
+
+                <Section title="Cuánto dura una cita" desc="Los minutos que el agente aparta al ofrecer un horario">
+                  <Minutos
+                    valor={config.meetingDuration ?? 30}
+                    onChange={v => set('meetingDuration', v)}
+                    presets={[15, 20, 30, 45, 60]}
+                    min={5}
+                  />
+                  <p className="text-[11px] text-tertiary mt-2">
+                    Junto con el respiro, decide cuánto espacio libre necesita un hueco para servir: una consulta de 20 min con respiro de 15 pide 50 minutos limpios; una de 30, pide 60. Ponerlo más largo de lo real hace desaparecer los huecos de en medio del día.
+                  </p>
                 </Section>
 
                 <Section title="Cada cuánto puede empezar una cita" desc="El agente ofrece horarios en múltiplos de este intervalo">

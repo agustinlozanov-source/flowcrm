@@ -230,7 +230,7 @@ const CONSULTAR_AGENDA = {
     type: 'object',
     properties: {
       fecha: { type: 'string', description: 'Día a consultar en formato YYYY-MM-DD' },
-      duracion: { type: 'integer', description: 'Duración en minutos de la cita que se quiere agendar' },
+      duracion: { type: 'integer', description: 'Solo si esta cita dura distinto de lo normal (un estudio largo, un procedimiento). Si la omites se usa la duración configurada por el negocio, que es lo correcto casi siempre.' },
     },
     required: ['fecha'],
     additionalProperties: false,
@@ -246,7 +246,7 @@ const AGENDAR_CITA = {
       fecha: { type: 'string', description: 'YYYY-MM-DD' },
       hora: { type: 'string', description: 'HH:MM en 24 horas, hora local de la organización' },
       tipo: { type: 'string', enum: ['presencial', 'video', 'call'], description: 'presencial si el lead viene a la sede, video si es videollamada, call si es telefónica' },
-      duracion: { type: 'integer', description: 'Minutos. Por defecto 30' },
+      duracion: { type: 'integer', description: 'Minutos. Omítela para usar la duración configurada por el negocio: debe ser la misma con la que consultar_agenda ofreció el horario.' },
       motivo: { type: 'string', description: 'Qué se va a atender, en una línea' },
     },
     required: ['fecha', 'hora', 'tipo'],
@@ -284,10 +284,15 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       return 'Modo prueba: no se consulta la agenda real. Asumí que hay huecos a las 10:00, 11:00 y 16:00.'
     }
     const { disponibilidad } = require('./lib/agenda')
-    const { slots, tz, buffer } = await disponibilidad(db, orgId, {
+    /* Sin `duracion` manda la configuración de la organización. Antes se
+     * forzaba 30 acá, así que la duración real de la consulta no llegaba
+     * nunca a la agenda y los huecos de en medio del día desaparecían. */
+    const { slots, tz, buffer, duracion } = await disponibilidad(db, orgId, {
       fecha: input.fecha,
-      duracion: input.duracion || 30,
+      duracion: input.duracion,
     })
+    // Para que agendar_cita use la misma con la que se ofreció.
+    ctx.duracionOfrecida = duracion
     if (!slots.length) {
       return `No hay horarios libres el ${input.fecha}. Puede ser día no laborable o estar completo. Ofrece otro día.`
     }
@@ -298,10 +303,11 @@ async function ejecutarHerramienta(nombre, input, ctx) {
     if (leadId === 'test') return 'Modo prueba: la cita no se creó realmente.'
     const { instanteDesdeLocal, configDeAgenda, puedeAgendar, disponibilidad } = require('./lib/agenda')
     // db es el handle de arriba del archivo.
-    const { tz } = await configDeAgenda(db, orgId)
+    const cfg = await configDeAgenda(db, orgId)
+    const { tz } = cfg
     // La misma duración con la que se ofreció. Si se usa otra, el paso de la
     // grilla cambia y una hora recién ofrecida parece no existir.
-    const duracion = input.duracion || ctx.duracionOfrecida || 30
+    const duracion = input.duracion || ctx.duracionOfrecida || cfg.duracion
 
     /* Se valida por choque, no por pertenecer a la grilla.
      *

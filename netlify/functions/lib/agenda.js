@@ -279,6 +279,15 @@ async function configDeAgenda(db, orgId) {
     buffer: Number.isFinite(agente.meetingBuffer) ? agente.meetingBuffer : 15,
     // Cada cuánto puede empezar una cita. Sin configurar, cada 30 minutos.
     paso: Number.isFinite(agente.slotStep) ? agente.slotStep : 30,
+    /* Cuánto dura una cita.
+     *
+     * Antes no se configuraba en ningún lado: el modelo la mandaba en cada
+     * llamada o, si no la mandaba, la agenda asumía 30. A un consultorio de
+     * consultas de 20 minutos eso le borraba los huecos de en medio —cada
+     * cita pedía 60 minutos limpios en vez de 50, y un espacio de una hora
+     * entre dos compromisos dejaba de servir— y encima cambiaba de un mensaje
+     * al otro según lo que el modelo decidiera mandar. */
+    duracion: Number.isFinite(agente.meetingDuration) ? agente.meetingDuration : 30,
     horario: normalizarHorario(agente.workingHours),
   }
 }
@@ -301,15 +310,21 @@ async function ocupadosDelDia(db, orgId, fecha) {
 }
 
 /** Valida una hora concreta contra la agenda real. */
-async function puedeAgendar(db, orgId, { fecha, hora, duracion = 30 }) {
-  const { tz, buffer, horario } = await configDeAgenda(db, orgId)
+async function puedeAgendar(db, orgId, { fecha, hora, duracion }) {
+  const cfg = await configDeAgenda(db, orgId)
+  const { tz, buffer, horario } = cfg
+  const dura = Number.isFinite(duracion) ? duracion : cfg.duracion
   const ocupados = await ocupadosDelDia(db, orgId, fecha)
   // El paso no entra acá: valida una hora concreta, no propone.
-  return { ...estaLibre({ fecha, hora, duracion, buffer, horario, tz, ocupados }), tz }
+  return { ...estaLibre({ fecha, hora, duracion: dura, buffer, horario, tz, ocupados }), tz }
 }
 
-async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
-  const { tz, buffer, paso, horario } = await configDeAgenda(db, orgId)
+async function disponibilidad(db, orgId, { fecha, duracion }) {
+  const cfg = await configDeAgenda(db, orgId)
+  const { tz, buffer, paso, horario } = cfg
+  // Quien llama puede pedir otra duración —un estudio largo, una cirugía—,
+  // pero lo normal es que no mande nada y que gobierne la configuración.
+  duracion = Number.isFinite(duracion) ? duracion : cfg.duracion
 
   // Se pide el día entero en UTC para no perder citas por el corrimiento.
   const desde = new Date(`${normalizarFecha(fecha)}T00:00:00Z`)
@@ -341,7 +356,7 @@ async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
     (slots.length ? ` (${slots.slice(0, 4).map(x => x.hora).join(', ')}${slots.length > 4 ? '…' : ''})` : ''),
   )
 
-  return { slots, tz, buffer, paso, horario }
+  return { slots, tz, buffer, paso, horario, duracion }
 }
 
 module.exports.ocupadosDelDia = ocupadosDelDia
