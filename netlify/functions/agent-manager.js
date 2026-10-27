@@ -101,7 +101,11 @@ ${leadContext.name ? `- Se llama ${leadContext.name} — úsalo al dirigirte a �
 - Pipeline: ${leadContext.pipelineName || 'Sin pipeline'}
 - Umbral para avanzar: score ${leadContext.stageScoreMax || 100}
 - Perfil B detectado: ${leadContext.profileB ? 'SÍ' : 'No'}
-${leadContext.productId ? `- Producto de interés: ${leadContext.productName || leadContext.productId}` : ''}`
+${leadContext.productId ? `- Producto de interés: ${leadContext.productName || leadContext.productId}` : ''}
+${leadContext.faltaTelefono ? `
+TELÉFONO: no lo tienes, y por ${leadContext.channel} no llega solo — en WhatsApp el número viene con el mensaje, acá no existe. Sin él, nadie puede devolverle la llamada ni confirmarle nada fuera de este chat.
+Pídeselo antes de agendar o de pasarle la conversación a una persona. Una sola vez, con naturalidad y diciendo para qué es. Si ya te lo dio, no vuelvas a pedirlo.
+Cuando te lo dé, cópialo en el campo telefonoDelLead tal como lo escribió.` : ''}`
     : ''
 
   // Resources available for sharing
@@ -507,11 +511,17 @@ const RESPONSE_TOOL = {
         description: 'Ids de recursos tipo archivo, imagen o video para adjuntar',
         items: { type: 'string' },
       },
+      // Viaja en la salida obligatoria por la misma razón que las
+      // oportunidades: como herramienta aparte el modelo no la usaría.
+      telefonoDelLead: {
+        type: ['string', 'null'],
+        description: 'El teléfono que el lead dio en ESTE mensaje, tal como lo escribió. null si no dio ninguno, o si ya lo tenías de antes.',
+      },
     },
     required: [
       'response', 'scoring', 'profileB', 'profileBReason', 'suggestHandoff',
       'suggestHandoffReason', 'detectedProductId', 'detectedPipelineId', 'shareResources',
-      'oportunidades',
+      'oportunidades', 'telefonoDelLead',
     ],
     additionalProperties: false,
   },
@@ -878,6 +888,12 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         profileB: lead.profileB || false,
         productId: lead.productId,
         productName,
+        /* WhatsApp trae el teléfono con el mensaje; Messenger e Instagram no
+         * mandan ninguno, así que esos leads nacen sin forma de contactarlos
+         * fuera del propio chat. Ahí el agente tiene que pedirlo. */
+        channel: lead.lastMessageChannel || lead.source || null,
+        faltaTelefono: !String(lead.phone || '').trim()
+          && !['whatsapp', null, undefined].includes(lead.lastMessageChannel || lead.source),
       }
     }
   }
@@ -1099,6 +1115,27 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     console.log(`[agent] oportunidades declaradas: ${JSON.stringify(parsed.oportunidades || [])}`)
     const nuevasOps = await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)
     if (nuevasOps) console.log(`[agent] ${nuevasOps} oportunidad(es) registradas para ${leadId}`)
+
+    /* El teléfono que el lead dictó por un canal que no lo trae.
+     *
+     * No pisa uno que ya exista: el del perfil de WhatsApp es dato duro y lo
+     * que alguien teclea puede estar mal. Y no se registra el número en el
+     * log — es dato del paciente, no hace falta para diagnosticar. */
+    if (leadId !== 'test' && parsed.telefonoDelLead) {
+      const digitos = String(parsed.telefonoDelLead).replace(/\D/g, '')
+      if (digitos.length < 10) {
+        console.warn(`[agent] teléfono descartado para ${leadId}: ${digitos.length} dígitos, no parece un número`)
+      } else {
+        const ref = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+        const yaTiene = String((await ref.get()).data()?.phone || '').trim()
+        if (yaTiene) {
+          console.log(`[agent] ${leadId} ya tenía teléfono — se conserva el que estaba`)
+        } else {
+          await ref.update({ phone: digitos, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+          console.log(`[agent] teléfono guardado para ${leadId} (termina en ${digitos.slice(-4)})`)
+        }
+      }
+    }
 
     // Se resuelven acá para que quien envíe no tenga que volver a leerlos.
     const toShare = Array.isArray(parsed.shareResources)
