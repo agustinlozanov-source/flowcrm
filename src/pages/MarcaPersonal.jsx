@@ -13,7 +13,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
-  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare,
+  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
@@ -801,6 +801,116 @@ export default function MarcaPersonal() {
   )
 }
 
+const fecha = (ts) => {
+  const d = ts?.toDate?.() || (ts ? new Date(ts) : null)
+  if (!d || isNaN(d)) return ''
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+}
+
+/* El historial de la cuenta.
+ *
+ * Instagram ya devuelve todas las publicaciones con su miniatura y sus
+ * números; eso vive en `posts` y lo llena el botón Actualizar. Lo que solo
+ * existe acá son las que salieron DESDE FlowHub: esas están además en
+ * `publicaciones`, con el contador de leads que el comentario fue sumando.
+ *
+ * Verlas juntas es el argumento entero en una pantalla: las mismas columnas
+ * para todas, y la de leads llena únicamente en las que se publicaron desde
+ * el CRM. */
+function Historial({ marca, orgId }) {
+  const [posts, setPosts] = useState(null)
+  const [desdeCRM, setDesdeCRM] = useState({})
+
+  useEffect(() => {
+    if (!orgId || !marca?.id) return
+    const base = ['organizations', orgId, 'brands', marca.id]
+    const corta = (e) => console.error('[marca] historial:', e)
+
+    const a = onSnapshot(
+      query(collection(db, ...base, 'posts'), orderBy('publicadoEn', 'desc'), limit(12)),
+      s => setPosts(s.docs.map(d => ({ id: d.id, ...d.data() }))),
+      e => { corta(e); setPosts([]) })
+
+    const b = onSnapshot(
+      query(collection(db, ...base, 'publicaciones'), limit(100)),
+      s => setDesdeCRM(Object.fromEntries(s.docs.map(d => [d.id, d.data()]))),
+      corta)
+
+    return () => { a(); b() }
+  }, [orgId, marca?.id])
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <BarChart3 size={15} className="text-tertiary" />
+        <h2 className="font-display font-bold text-[14px] text-primary">Historial</h2>
+        <span className="ml-auto text-[11px] text-tertiary">
+          Se llena con Actualizar, en la ficha de la marca
+        </span>
+      </div>
+
+      {posts === null ? (
+        <p className="text-[13px] text-tertiary">Cargando…</p>
+      ) : !posts.length ? (
+        <p className="text-[13px] text-tertiary">
+          Todavía no hay publicaciones analizadas. Ve a Marcas, abre esta marca y
+          dale a Actualizar.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {posts.map(p => {
+            const crm = desdeCRM[p.mediaId || p.id]
+            return (
+              <a key={p.id} href={p.permalink || undefined} target="_blank" rel="noreferrer"
+                className="flex items-center gap-3 p-2 rounded-btn bg-surface-2 border border-border hover:border-accent-blue transition-colors">
+                <div className="w-12 h-12 rounded-btn bg-surface overflow-hidden shrink-0">
+                  {p.miniatura
+                    ? <img src={p.miniatura} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    : <div className="w-full h-full flex items-center justify-center"><ImageOff size={14} className="text-tertiary" /></div>}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12.5px] text-secondary truncate">
+                    {p.caption?.trim() || <span className="text-tertiary">Sin texto</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-tertiary mt-0.5">
+                    <span>{fecha(p.publicadoEn)}</span>
+                    {crm && <span className="text-accent-blue font-semibold">Desde FlowHub</span>}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0 text-right">
+                  <div>
+                    <div className="font-display font-bold text-[13px] text-primary leading-none">{num(p.vistas)}</div>
+                    <div className="text-[10px] text-tertiary mt-0.5">vistas</div>
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-[13px] text-primary leading-none">{num(p.comentarios)}</div>
+                    <div className="text-[10px] text-tertiary mt-0.5">coment.</div>
+                  </div>
+                  <div className="w-10">
+                    <div className={clsx('font-display font-bold text-[13px] leading-none',
+                      crm?.leads ? 'text-accent-green' : 'text-tertiary')}>
+                      {crm ? (crm.leads || 0) : '—'}
+                    </div>
+                    <div className="text-[10px] text-tertiary mt-0.5">leads</div>
+                  </div>
+                </div>
+              </a>
+            )
+          })}
+        </div>
+      )}
+
+      <p className="text-[11px] text-tertiary mt-3">
+        La columna de leads solo se puede llenar en las publicaciones que salieron
+        desde aquí: es el comentario el que trae el id del post, y así se sabe cuál
+        trajo a quién.
+      </p>
+    </div>
+  )
+}
+
 /* Publicar es por marca, así que hay que elegir cuál antes de nada. Mismo
  * criterio que el resto del módulo: si solo hay una, no se pregunta. */
 function PanelPublicar({ marcas, orgId }) {
@@ -839,6 +949,7 @@ function PanelPublicar({ marcas, orgId }) {
         </div>
       )}
       <Publicar orgId={orgId} marca={marca} />
+      <Historial orgId={orgId} marca={marca} />
     </div>
   )
 }
