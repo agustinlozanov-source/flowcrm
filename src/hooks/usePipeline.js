@@ -88,7 +88,11 @@ export function usePipeline() {
     if (!orgId) return
     const unsub = onSnapshot(
       query(collection(db, 'organizations', orgId, 'pipelines'), orderBy('createdAt', 'asc')),
-      snap => setPipelines(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      snap => setPipelines(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      // Sin esto, una consulta rechazada dejaba la lista vacía sin decir nada:
+      // el pipeline se creaba y la barra lateral seguía diciendo que no hay
+      // ninguno, sin rastro en ningún lado.
+      (err) => console.error('[usePipeline] pipelines error:', err)
     )
     return unsub
   }, [orgId])

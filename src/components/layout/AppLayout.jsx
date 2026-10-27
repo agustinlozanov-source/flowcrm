@@ -249,7 +249,15 @@ export default function AppLayout() {
           { name: 'Listo para cerrar', color: '#00c853', scoreMin: 67, scoreMax: 100 },
         ],
       })
-      if (id) { setActivePipelineId?.(id); navigate('/pipeline') }
+      /* El exito se avisaba pasara lo que pasara. createPipeline sale con un
+       * `return` mudo si no hay orgId, asi que el usuario leia "creado" cuando
+       * no se habia escrito nada, y despues no encontraba su pipeline. */
+      if (!id) {
+        toast.error('No se pudo crear el pipeline. Recarga la pagina e intentalo de nuevo.')
+        return
+      }
+      setActivePipelineId?.(id)
+      navigate('/pipeline')
       toast.success(`Pipeline "${nombre.trim()}" creado`)
     } catch (e) {
       console.error(e)

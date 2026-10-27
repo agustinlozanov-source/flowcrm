@@ -221,6 +221,42 @@ exports.handler = async (event) => {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
 
+      /* Un pipeline con sus etapas, o la cuenta nace inservible.
+       *
+       * Sin esto la organizacion arrancaba con cero pipelines y cero etapas:
+       * no se podia entrenar al agente, no habia donde caer un lead, y la
+       * unica salida era un lapiz escondido en la pantalla vieja. El alta por
+       * registro si sembraba; esta, que es por donde entran los clientes, no.
+       *
+       * Los rangos de score reparten el 0-100 entre las cinco etapas, para que
+       * el scoring sepa a cual mover cada lead. */
+      const pipelineRef = await db.collection('organizations').doc(orgId)
+        .collection('pipelines').add({
+          name: 'Pipeline principal',
+          purpose: null,
+          handoffBoundDays: 3,
+          handoffBoundActive: false,
+          autoAssign: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+
+      const etapas = [
+        { name: 'Nuevo',      color: '#0066ff', order: 0, scoreMin: 0,  scoreMax: 20  },
+        { name: 'Contactado', color: '#f59e0b', order: 1, scoreMin: 21, scoreMax: 40  },
+        { name: 'Calificado', color: '#7c3aed', order: 2, scoreMin: 41, scoreMax: 60  },
+        { name: 'Propuesta',  color: '#00b8d9', order: 3, scoreMin: 61, scoreMax: 80  },
+        { name: 'Cierre',     color: '#00c853', order: 4, scoreMin: 81, scoreMax: 100 },
+      ]
+      await Promise.all(etapas.map(e =>
+        db.collection('organizations').doc(orgId).collection('pipeline_stages').add({
+          ...e,
+          pipelineId: pipelineRef.id,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      ))
+
       // Enviar correo de bienvenida al admin de la nueva org
       await sendEmail('welcome_org', email, {
         nombre: nombre || email.split('@')[0],
