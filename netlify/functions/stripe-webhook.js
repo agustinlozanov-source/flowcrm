@@ -129,13 +129,23 @@ exports.handler = async (event) => {
         const orgId = orgDoc.id
         const periodEnd = data.lines?.data?.[0]?.period?.end
 
-        // Update org status
+        /* Una factura pagada ES la prueba de que la suscripción está viva, así
+         * que acá también se guarda su id.
+         *
+         * Antes no: el id lo escribía solo `checkout.session.completed`, y ese
+         * evento se salta en silencio si le falta el metadata del orgId o si
+         * no viene suscripción. Cuando eso pasaba quedaba lo peor de los dos
+         * mundos — el cobro registrado y el recibo en el historial, pero la
+         * pantalla mostrando "Sin activar", porque mira ese id. */
+        const suscripcionPagada = data.subscription || data.parent?.subscription_details?.subscription
+
         await orgDoc.ref.update({
           stripeSubscriptionStatus: 'active',
           billingStatus: 'paid',
           lastPaymentDate: new Date(data.created * 1000).toISOString(),
           nextBillingDate: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
           paymentFailedCount: 0,
+          ...(suscripcionPagada ? { stripeSubscriptionId: suscripcionPagada } : {}),
         })
 
         // Save receipt to subcollection

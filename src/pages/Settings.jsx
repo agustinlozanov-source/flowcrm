@@ -271,7 +271,11 @@ function Suscripcion({ org, orgId }) {
   const faltaFiscal = faltaParaFacturar(org?.fiscal || {})
   const moneda = (org?.currency || 'MXN').toUpperCase()
   const precio = moneda === 'USD' ? plan?.monthlyUSD : plan?.monthlyMXN
-  const activa = Boolean(org?.stripeSubscriptionId)
+  // Una suscripción está activa si Stripe dice que lo está, tenga o no su id
+  // guardado. El id lo escribe el webhook del checkout, que a veces no llega;
+  // el estado lo escribe el del pago, que sí. Mirar solo el id dejaba a un
+  // cliente que ya había pagado viendo el botón de "Activar mi suscripción".
+  const activa = Boolean(org?.stripeSubscriptionId) || org?.stripeSubscriptionStatus === 'active'
 
   const fecha = org?.nextBillingDate
     ? new Date(org.nextBillingDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
