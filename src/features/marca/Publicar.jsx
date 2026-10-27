@@ -23,6 +23,7 @@ import clsx from 'clsx'
 const ESPERA = 5000        // entre preguntas de estado
 const MAX_ESPERA = 300000  // Instagram deja de procesar bastante antes
 const MAX_PIEZAS = 10      // el tope del carrusel, puesto por Instagram
+const MAX_CAPTION = 2200   // el tope del texto, también de Instagram
 
 export default function Publicar({ orgId, marca }) {
   const [archivos, setArchivos] = useState([])
@@ -134,6 +135,12 @@ export default function Publicar({ orgId, marca }) {
 
   const publicar = async () => {
     if (!archivos.length) return toast.error('Elige el archivo')
+    /* Antes de subir nada: el caption se valida al final, cuando Instagram
+     * arma la publicación, y para entonces ya esperaste a que procesara cinco
+     * imágenes para enterarte de que te pasaste por veinte caracteres. */
+    if (caption.length > MAX_CAPTION) {
+      return toast.error(`El texto se pasa por ${caption.length - MAX_CAPTION} caracteres. Instagram permite ${MAX_CAPTION}.`)
+    }
     try {
       setFase('subiendo')
       const urls = []
@@ -184,6 +191,7 @@ export default function Publicar({ orgId, marca }) {
   const Icono = tipo === 'carrusel' ? Images : tipo === 'imagen' ? ImageIcon : Film
   const comoSePublica = { carrusel: `carrusel de ${archivos.length}`, imagen: 'foto', reel: 'reel' }[tipo]
   const pesoTotal = archivos.reduce((s, f) => s + f.size, 0)
+  const excedido = caption.length > MAX_CAPTION
 
   return (
     <div className="bg-surface border border-border rounded-card shadow-card p-5">
@@ -262,8 +270,11 @@ export default function Publicar({ orgId, marca }) {
         className="w-full mt-3 px-3 py-2.5 rounded-btn bg-surface-2 border border-border text-[13px] text-primary outline-none focus:border-accent-blue resize-none disabled:opacity-50" />
 
       <div className="flex items-center justify-between mt-3">
-        <span className="text-[11px] text-tertiary">{caption.length} caracteres</span>
-        <button onClick={publicar} disabled={trabajando || !archivos.length}
+        <span className={clsx('text-[11px]', excedido ? 'text-accent-red font-semibold' : 'text-tertiary')}>
+          {caption.length} / {MAX_CAPTION}
+          {excedido && ` · te pasas por ${caption.length - MAX_CAPTION}`}
+        </span>
+        <button onClick={publicar} disabled={trabajando || !archivos.length || excedido}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
           {trabajando ? <>{rotulo}</> : <><Send size={14} /> Publicar</>}
         </button>
