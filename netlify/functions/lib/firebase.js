@@ -55,6 +55,29 @@ async function saveAttachments(db, orgId, leadId, sent = [], channel = 'whatsapp
   }
 }
 
+/* El mensaje entrante se guarda ACÁ, en la puerta de entrada.
+ *
+ * Antes lo escribía agent-manager, que es el último eslabón de la cadena. Si
+ * el agente no llegaba a correr, el mensaje no quedaba en ningún lado: se
+ * actualizaba `lastMessage` del lead y nada más, así que la conversación se
+ * veía vacía en el Inbox mientras el cliente seguía escribiendo.
+ *
+ * Pasaba en los tres casos en que el agente no contesta, y el peor es el más
+ * común: alguien pausa al agente desde el Inbox justo PARA atender a mano, y
+ * a partir de ese momento deja de ver lo que le mandan. */
+async function guardarMensaje(db, orgId, leadId, { role, text, channel = null, attachment = null }) {
+  await db.collection('organizations').doc(orgId)
+    .collection('leads').doc(leadId)
+    .collection('conversations').add({
+      role,
+      text,
+      ...(channel ? { channel } : {}),
+      ...(attachment ? { attachment } : {}),
+      read: role !== 'user',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+}
+
 /* Dónde nace un lead: su pipeline y la primera etapa DE ESE pipeline.
  *
  * Las tres puertas de entrada —Zernio, Meta y los formularios— elegían la
@@ -111,4 +134,4 @@ async function pipelineDeLaCuenta(db, orgId, cuentaId) {
   return org.data()?.ruteo?.[cuentaId]?.pipelineId || null
 }
 
-module.exports = { initDb, saveAttachments, destinoInicial, pipelineDeLaCuenta }
+module.exports = { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta }

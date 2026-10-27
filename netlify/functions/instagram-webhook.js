@@ -5,7 +5,7 @@
 // el pipeline de su marca, y de ahí salen el nombre del agente, sus
 // instrucciones y su scoring.
 const admin = require('firebase-admin')
-const { initDb, destinoInicial, pipelineDeLaCuenta, saveAttachments } = require('./lib/firebase')
+const { initDb, destinoInicial, pipelineDeLaCuenta, saveAttachments, guardarMensaje } = require('./lib/firebase')
 const ig = require('./lib/instagram')
 
 const CANAL = 'instagram'
@@ -82,7 +82,8 @@ async function preguntarAlAgente(orgId, leadId, texto) {
   const res = await fetch(`${ig.appUrl()}/.netlify/functions/agent-manager`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'chat', orgId, leadId, message: texto }),
+    // Ya lo guardamos en el hilo: sin esto quedaría dos veces.
+    body: JSON.stringify({ action: 'chat', orgId, leadId, message: texto, skipSaveUser: true }),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.response) {
@@ -95,9 +96,9 @@ async function preguntarAlAgente(orgId, leadId, texto) {
 // ── Mensaje directo ──────────────────────────────────────────────────────
 async function alLlegarMensaje(db, cuenta, evento) {
   const { orgId, brandId } = cuenta
-  const texto = evento.message?.text
-  if (!texto) return                                  // adjuntos: aún no
   if (evento.message?.is_echo) return                 // lo que mandamos nosotros
+  const texto = evento.message?.text || ''
+  const esAdjunto = !texto.trim()
 
   const usuarioId = String(evento.sender?.id || '')
   const cuentaId = String(evento.recipient?.id || '')
@@ -121,8 +122,18 @@ async function alLlegarMensaje(db, cuenta, evento) {
   }
 
   const lead = await buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId })
-  await tocarLead(db, orgId, lead.id, { texto, delLead: true })
 
+  /* Guardar ANTES de decidir si se contesta: las tres salidas de abajo
+   * —adjunto, agente pausado, handoff— dejaban el mensaje sin escribir en
+   * ningún lado, y en las tres hay alguien esperando que lo lean. */
+  const cuerpo = esAdjunto ? '📎 Archivo adjunto' : texto
+  await guardarMensaje(db, orgId, lead.id, { role: 'user', text: cuerpo, channel: CANAL })
+  await tocarLead(db, orgId, lead.id, { texto: cuerpo, delLead: true })
+
+  if (esAdjunto) {
+    console.log(`[instagram-webhook] lead ${lead.id} mandó un adjunto — guardado, sin respuesta automática`)
+    return
+  }
   if (lead.agentPaused) return
   if (lead.systemStage === 'handoff') return
 

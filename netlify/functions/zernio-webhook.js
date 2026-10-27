@@ -1,7 +1,7 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, saveAttachments, destinoInicial, pipelineDeLaCuenta } = require('./lib/firebase')
+const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta } = require('./lib/firebase')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
@@ -148,12 +148,6 @@ async function handleMessageReceived(db, payload) {
     return
   }
 
-  const text = msg.text || ''
-  if (!text.trim()) {
-    console.log('[zernio-webhook] mensaje sin texto (adjunto) — no se contesta')
-    return
-  }
-
   const channel = platformOf(payload)
   const phone = msg.sender?.phoneNumber || conv.participantPhone || null
   const lead = await findOrCreateLead(db, orgId, {
@@ -165,7 +159,21 @@ async function handleMessageReceived(db, payload) {
     // el pipeline, y del pipeline sale con qué voz contesta el agente.
     cuentaId: accountIdOf(payload),
   })
-  await touchLead(db, orgId, lead.id, { text, channel, fromLead: true })
+
+  /* Guardar ANTES de decidir si se contesta. Lo que sigue tiene tres salidas
+   * —adjunto, agente pausado, handoff— y en las tres hay una persona del
+   * otro lado esperando que alguien lea lo que escribió. */
+  const text = msg.text || ''
+  const esAdjunto = !text.trim()
+  const texto = esAdjunto ? '📎 Archivo adjunto' : text
+  await guardarMensaje(db, orgId, lead.id, { role: 'user', text: texto, channel })
+  await touchLead(db, orgId, lead.id, { text: texto, channel, fromLead: true })
+
+  // Una foto o un audio entran al hilo, pero el agente no tiene qué leer.
+  if (esAdjunto) {
+    console.log(`[zernio-webhook] lead ${lead.id} mandó un adjunto — guardado, sin respuesta automática`)
+    return
+  }
 
   // Pausado a mano desde el Inbox: alguien está llevando la conversación.
   if (lead.agentPaused) {
@@ -184,7 +192,8 @@ async function handleMessageReceived(db, payload) {
   const res = await fetch(`${appUrl()}/.netlify/functions/agent-manager`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'chat', orgId, leadId: lead.id, message: text }),
+    // Ya lo guardamos arriba: sin esto quedaría dos veces en el hilo.
+    body: JSON.stringify({ action: 'chat', orgId, leadId: lead.id, message: text, skipSaveUser: true }),
   })
   const data = await res.json()
   if (!res.ok || !data.response) {
