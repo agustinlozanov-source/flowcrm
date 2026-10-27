@@ -1035,7 +1035,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         try {
           texto = await ejecutarHerramienta(uso.name, uso.input, ctx)
         } catch (e) {
-          console.error(`[agent] ${uso.name} falló:`, e.message)
+          console.error(`[agent] ${uso.name} falló (org ${orgId}, lead ${leadId}):`, e.message, e.stack)
           texto = `La herramienta falló: ${e.message}. Sigue la conversación sin prometer lo que no pudiste hacer.`
         }
         resultados.push({ type: 'tool_result', tool_use_id: uso.id, content: texto })

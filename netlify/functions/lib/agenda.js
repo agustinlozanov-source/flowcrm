@@ -28,13 +28,18 @@ const HORARIO_POR_DEFECTO = {
 }
 
 /** Acepta el formato viejo —un solo rango para varios días— y lo traduce.
- *  Las organizaciones que ya lo tenían configurado así no se enteran. */
+ *  Las organizaciones que ya lo tenían configurado así no se enteran.
+ *
+ *  Un horario que no se puede leer cae al de por omisión, igual que una
+ *  organización sin configurar: son el mismo caso. Antes reventaba, y como el
+ *  error subía hasta la herramienta del agente, el agente se quedaba sin saber
+ *  la agenda y mandaba al cliente a llamar por teléfono. */
 function normalizarHorario(h) {
-  if (!h) return HORARIO_POR_DEFECTO
-  if (h.porDia) return h
-  const dias = h.dias || HORARIO_POR_DEFECTO.porDia
+  if (!h || typeof h !== 'object') return HORARIO_POR_DEFECTO
+  if (h.porDia && typeof h.porDia === 'object') return h
+  if (!Array.isArray(h.dias)) return HORARIO_POR_DEFECTO
   const tramo = [{ desde: h.desde || '09:00', hasta: h.hasta || '19:00' }]
-  return { porDia: Object.fromEntries((dias || []).map(d => [d, tramo])) }
+  return { porDia: Object.fromEntries(h.dias.map(d => [d, tramo])) }
 }
 
 /** Los tramos de atención de una fecha, ya como instantes. */
@@ -67,11 +72,29 @@ function offsetMinutos(instante, tz) {
   return (comoUTC - instante.getTime()) / 60000
 }
 
+/** Una fecha como 'YYYY-MM-DD'.
+ *
+ *  El agente no siempre manda ese formato aunque el esquema lo pida: un ISO
+ *  completo ('2026-10-27T10:00:00') reventaba con "Invalid time value", y la
+ *  fecha al revés ('27-10-2026') devolvía cero huecos EN SILENCIO — que es
+ *  peor, porque el agente le dice al cliente que no hay espacios cuando sí
+ *  hay. Lo que de plano no se entiende se rechaza diciendo por qué. */
+function normalizarFecha(f) {
+  if (f instanceof Date && !isNaN(f)) return f.toISOString().slice(0, 10)
+  const s = String(f ?? '').trim()
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
+  // Día primero: la forma en que se escribe una fecha en México.
+  const diaPrimero = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/)
+  if (diaPrimero) return `${diaPrimero[3]}-${diaPrimero[2].padStart(2, '0')}-${diaPrimero[1].padStart(2, '0')}`
+  throw new Error(`no entiendo la fecha "${f}": se espera YYYY-MM-DD`)
+}
+
 /** Convierte una hora de pared ("2026-10-15 15:00" en Ciudad de México) al
  *  instante real. Se resuelve en dos pasos porque el offset depende de la
  *  fecha, y la fecha depende del offset. */
 function instanteDesdeLocal(fechaISO, hhmm, tz) {
-  const [a, m, d] = fechaISO.split('-').map(Number)
+  const [a, m, d] = normalizarFecha(fechaISO).split('-').map(Number)
   const [h, min] = hhmm.split(':').map(Number)
   const tentativo = new Date(Date.UTC(a, m - 1, d, h, min))
   const off1 = offsetMinutos(tentativo, tz)
@@ -185,6 +208,7 @@ module.exports = {
   instanteDesdeLocal,
   localDe,
   huecosDelDia,
+  normalizarFecha,
 }
 
 /* ── Lectura de las fuentes reales ──────────────────────────────────── */
@@ -266,7 +290,7 @@ async function configDeAgenda(db, orgId) {
 /** Lo ocupado de ese día, de las dos fuentes. Se separa de `disponibilidad`
  *  porque validar una hora puntual necesita lo mismo pero sin la grilla. */
 async function ocupadosDelDia(db, orgId, fecha) {
-  const desde = new Date(`${fecha}T00:00:00Z`)
+  const desde = new Date(`${normalizarFecha(fecha)}T00:00:00Z`)
   const hasta = new Date(desde.getTime() + 48 * 36e5)
   const ventanaDesde = new Date(desde.getTime() - 24 * 36e5)
   const [citas, google] = await Promise.all([
@@ -288,7 +312,7 @@ async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
   const { tz, buffer, paso, horario } = await configDeAgenda(db, orgId)
 
   // Se pide el día entero en UTC para no perder citas por el corrimiento.
-  const desde = new Date(`${fecha}T00:00:00Z`)
+  const desde = new Date(`${normalizarFecha(fecha)}T00:00:00Z`)
   const hasta = new Date(desde.getTime() + 48 * 36e5)
 
   const [citas, google] = await Promise.all([
