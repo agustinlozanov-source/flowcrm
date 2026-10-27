@@ -576,7 +576,7 @@ function PanelDeAtribucion({ marca, orgId }) {
                 {p.caption?.trim() || <span className="text-tertiary">Publicación sin texto</span>}
               </span>
               <span className="text-[11px] text-tertiary shrink-0">
-                {p.tipo === 'imagen' ? 'Foto' : 'Reel'}
+                {{ imagen: 'Foto', carrusel: 'Carrusel' }[p.tipo] || 'Reel'}
               </span>
             </div>
           ))}

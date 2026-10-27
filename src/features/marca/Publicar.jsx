@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
-import { Upload, Send, Image as ImageIcon, Film, Check, X } from 'lucide-react'
+import { Upload, Send, Image as ImageIcon, Film, Images, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -14,13 +14,18 @@ import clsx from 'clsx'
  * Esa espera se hace aquí y no en el servidor: una función de Netlify muere a
  * los 26 segundos, así que aguardar allá era garantizar que los videos largos
  * fallaran. Aquí preguntamos cada cinco segundos y no hay reloj encima.
+ *
+ * El carrusel agrega un tiempo más: se crea un contenedor por imagen, se
+ * espera a que TODOS terminen, y recién entonces se arma el padre. Publicarlo
+ * antes devuelve `invalid_children`, que no dice cuál faltaba.
  */
 
 const ESPERA = 5000        // entre preguntas de estado
 const MAX_ESPERA = 300000  // Instagram deja de procesar bastante antes
+const MAX_PIEZAS = 10      // el tope del carrusel, puesto por Instagram
 
 export default function Publicar({ orgId, marca }) {
-  const [archivo, setArchivo] = useState(null)
+  const [archivos, setArchivos] = useState([])
   const [tipo, setTipo] = useState('reel')
   const [caption, setCaption] = useState('')
   const [subiendo, setSubiendo] = useState(0)
@@ -50,54 +55,96 @@ export default function Publicar({ orgId, marca }) {
     return data
   }
 
+  const limpiar = () => {
+    setArchivos([])
+    if (input.current) input.current.value = ''
+  }
+
   const elegir = (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setArchivo(f)
-    setTipo(f.type.startsWith('image/') ? 'imagen' : 'reel')
+    const elegidos = Array.from(e.target.files || [])
+    if (!elegidos.length) return
+
+    if (elegidos.length > MAX_PIEZAS) {
+      toast.error(`Un carrusel lleva ${MAX_PIEZAS} imágenes como máximo.`)
+      return limpiar()
+    }
+    /* El carrusel mezclado —fotos y videos juntos— existe en Instagram pero
+     * pide otro tipo de contenedor por cada video. Mientras no esté hecho,
+     * vale más decirlo que fallar a mitad de la subida. */
+    if (elegidos.length > 1 && !elegidos.every(f => f.type.startsWith('image/'))) {
+      toast.error('El carrusel solo acepta imágenes. Un video se publica solo, como reel.')
+      return limpiar()
+    }
+
+    setArchivos(elegidos)
+    setTipo(elegidos.length > 1
+      ? 'carrusel'
+      : (elegidos[0].type.startsWith('image/') ? 'imagen' : 'reel'))
+  }
+
+  const quitar = (i) => {
+    const quedan = archivos.filter((_, n) => n !== i)
+    setArchivos(quedan)
+    if (!quedan.length) return limpiar()
+    if (quedan.length === 1) setTipo(quedan[0].type.startsWith('image/') ? 'imagen' : 'reel')
+  }
+
+  /** A Storage, que es de donde Instagram lo va a bajar. */
+  const subir = (f, i, total) => {
+    const ruta = `organizations/${orgId}/brands/${marca.id}/publicaciones/${Date.now()}-${i}-${f.name}`
+    const tarea = uploadBytesResumable(storageRef(storage, ruta), f)
+    return new Promise((ok, falla) => {
+      tarea.on('state_changed',
+        s => {
+          const deEste = s.totalBytes ? s.bytesTransferred / s.totalBytes : 0
+          setSubiendo(Math.round(((i + deEste) / total) * 100))
+        },
+        falla,
+        async () => ok(await getDownloadURL(tarea.snapshot.ref)))
+    })
+  }
+
+  /** Espera a que Instagram termine de procesar un contenedor. */
+  const esperar = async (contenedorId) => {
+    const arranque = Date.now()
+    for (;;) {
+      if (!vivo.current) throw new Error('Se cerró la pantalla')
+      const { estado, detalle } = await llamar('estado', { contenedorId })
+      if (estado === 'FINISHED') return
+      if (estado === 'ERROR' || estado === 'EXPIRED') {
+        throw new Error(detalle || `Instagram rechazó el archivo (${estado}). Suele ser el formato: usa MP4 H.264, vertical, de menos de 90 segundos, o JPG/PNG.`)
+      }
+      if (Date.now() - arranque > MAX_ESPERA) {
+        throw new Error('Instagram lleva demasiado procesándolo. Vuelve a intentarlo con un archivo más ligero.')
+      }
+      await new Promise(r => setTimeout(r, ESPERA))
+    }
   }
 
   const publicar = async () => {
-    if (!archivo) return toast.error('Elige el archivo')
+    if (!archivos.length) return toast.error('Elige el archivo')
     try {
-      // 1 · A Storage, que es de donde Instagram lo va a bajar.
       setFase('subiendo')
-      const ruta = `organizations/${orgId}/brands/${marca.id}/publicaciones/${Date.now()}-${archivo.name}`
-      const tarea = uploadBytesResumable(storageRef(storage, ruta), archivo)
-      const url = await new Promise((ok, falla) => {
-        tarea.on('state_changed',
-          s => setSubiendo(Math.round((s.bytesTransferred / s.totalBytes) * 100)),
-          falla,
-          async () => ok(await getDownloadURL(tarea.snapshot.ref)))
-      })
+      const urls = []
+      for (let i = 0; i < archivos.length; i++) urls.push(await subir(archivos[i], i, archivos.length))
 
-      // 2 · El contenedor. Instagram empieza a procesarlo.
       setFase('procesando')
-      const { contenedorId } = await llamar('crear', { tipo, url, caption })
-
-      // 3 · Esperar a que termine. Una imagen suele estar lista enseguida;
-      //     un reel puede tardar minutos.
-      const arranque = Date.now()
-      for (;;) {
-        if (!vivo.current) return
-        const { estado, detalle } = await llamar('estado', { contenedorId })
-        if (estado === 'FINISHED') break
-        if (estado === 'ERROR' || estado === 'EXPIRED') {
-          throw new Error(detalle || `Instagram rechazó el archivo (${estado}). Suele ser el formato: usa MP4 H.264, vertical, de menos de 90 segundos.`)
-        }
-        if (Date.now() - arranque > MAX_ESPERA) {
-          throw new Error('Instagram lleva demasiado procesándolo. Vuelve a intentarlo con un archivo más ligero.')
-        }
-        await new Promise(r => setTimeout(r, ESPERA))
+      let contenedorId
+      if (tipo === 'carrusel') {
+        const { hijos } = await llamar('crear-hijos', { urls })
+        // Los N, no el primero: el padre con un hijo a medias no se publica.
+        for (const h of hijos) await esperar(h)
+        ;({ contenedorId } = await llamar('crear-padre', { hijos, caption }))
+      } else {
+        ;({ contenedorId } = await llamar('crear', { tipo, url: urls[0], caption }))
       }
+      await esperar(contenedorId)
 
-      // 4 · Publicar.
       setFase('publicando')
-      await llamar('publicar', { contenedorId, tipo, caption, url })
+      await llamar('publicar', { contenedorId, tipo, caption, url: urls[0] })
 
-      toast.success('Publicado en Instagram')
-      setArchivo(null); setCaption(''); setSubiendo(0)
-      if (input.current) input.current.value = ''
+      toast.success(tipo === 'carrusel' ? 'Carrusel publicado en Instagram' : 'Publicado en Instagram')
+      limpiar(); setCaption(''); setSubiendo(0)
       llamar('cupo').then(setCupo).catch(() => {})
     } catch (e) {
       toast.error(e.message)
@@ -119,9 +166,13 @@ export default function Publicar({ orgId, marca }) {
   const trabajando = Boolean(fase)
   const rotulo = {
     subiendo: `Subiendo… ${subiendo}%`,
-    procesando: 'Instagram lo está procesando…',
+    procesando: tipo === 'carrusel' ? 'Instagram procesa las imágenes…' : 'Instagram lo está procesando…',
     publicando: 'Publicando…',
   }[fase]
+
+  const Icono = tipo === 'carrusel' ? Images : tipo === 'imagen' ? ImageIcon : Film
+  const comoSePublica = { carrusel: `carrusel de ${archivos.length}`, imagen: 'foto', reel: 'reel' }[tipo]
+  const pesoTotal = archivos.reduce((s, f) => s + f.size, 0)
 
   return (
     <div className="bg-surface border border-border rounded-card shadow-card p-5">
@@ -137,30 +188,47 @@ export default function Publicar({ orgId, marca }) {
       </div>
 
       {/* El archivo ya viene editado: esto no edita nada, solo publica. */}
-      <input ref={input} type="file" accept="video/mp4,video/quicktime,image/jpeg,image/png"
+      <input ref={input} type="file" multiple accept="video/mp4,video/quicktime,image/jpeg,image/png"
         onChange={elegir} disabled={trabajando} className="hidden" id="archivo-publicar" />
 
       <label htmlFor="archivo-publicar"
         className={clsx('flex items-center gap-3 p-4 rounded-card border border-dashed border-border cursor-pointer hover:border-accent-blue transition-colors',
           trabajando && 'opacity-50 pointer-events-none')}>
-        {archivo
-          ? (tipo === 'imagen' ? <ImageIcon size={18} className="text-accent-blue" /> : <Film size={18} className="text-accent-blue" />)
-          : <Upload size={18} className="text-tertiary" />}
+        {archivos.length ? <Icono size={18} className="text-accent-blue" /> : <Upload size={18} className="text-tertiary" />}
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-primary truncate">
-            {archivo ? archivo.name : 'Elegir video o imagen'}
+            {archivos.length
+              ? (archivos.length > 1 ? `${archivos.length} imágenes` : archivos[0].name)
+              : 'Elegir video o imágenes'}
           </div>
           <div className="text-[11px] text-tertiary">
-            {archivo
-              ? `${(archivo.size / 1024 / 1024).toFixed(1)} MB · se publica como ${tipo === 'imagen' ? 'foto' : 'reel'}`
-              : 'MP4 vertical de menos de 90 segundos, o JPG/PNG'}
+            {archivos.length
+              ? `${(pesoTotal / 1024 / 1024).toFixed(1)} MB · se publica como ${comoSePublica}`
+              : `Un MP4 vertical de menos de 90 segundos, o hasta ${MAX_PIEZAS} JPG/PNG para un carrusel`}
           </div>
         </div>
-        {archivo && !trabajando && (
-          <button onClick={e => { e.preventDefault(); setArchivo(null); if (input.current) input.current.value = '' }}
+        {archivos.length === 1 && !trabajando && (
+          <button onClick={e => { e.preventDefault(); limpiar() }}
             className="text-tertiary hover:text-primary"><X size={15} /></button>
         )}
       </label>
+
+      {/* El orden de la lista es el orden del carrusel. */}
+      {archivos.length > 1 && (
+        <div className="flex flex-col gap-1 mt-2">
+          {archivos.map((f, i) => (
+            <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 px-3 py-1.5 rounded-btn bg-surface-2 border border-border">
+              <span className="font-display font-bold text-[11px] text-tertiary w-4 shrink-0">{i + 1}</span>
+              <span className="text-[12px] text-secondary truncate flex-1 min-w-0">{f.name}</span>
+              {!trabajando && (
+                <button onClick={() => quitar(i)} className="text-tertiary hover:text-primary shrink-0">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <textarea value={caption} onChange={e => setCaption(e.target.value)} disabled={trabajando}
         rows={4} placeholder="El copy del post. Si pides un comentario con tu palabra gatillo, la automatización se encarga del resto."
@@ -168,7 +236,7 @@ export default function Publicar({ orgId, marca }) {
 
       <div className="flex items-center justify-between mt-3">
         <span className="text-[11px] text-tertiary">{caption.length} caracteres</span>
-        <button onClick={publicar} disabled={trabajando || !archivo}
+        <button onClick={publicar} disabled={trabajando || !archivos.length}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
           {trabajando ? <>{rotulo}</> : <><Send size={14} /> Publicar</>}
         </button>
@@ -176,7 +244,7 @@ export default function Publicar({ orgId, marca }) {
 
       {fase === 'procesando' && (
         <p className="text-[11px] text-tertiary mt-3">
-          Instagram descarga y procesa el archivo por su cuenta. Un reel puede tardar varios
+          Instagram descarga y procesa cada archivo por su cuenta. Un reel puede tardar varios
           minutos — no cierres esta pestaña.
         </p>
       )}

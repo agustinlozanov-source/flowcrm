@@ -48,6 +48,40 @@ exports.handler = async (event) => {
     const igUserId = marca.ig?.userId
     if (!igUserId) return responder(400, { error: 'La marca no tiene cuenta de Instagram.' })
 
+    /* ── El carrusel, primer tiempo: los hijos ────────────────────────────
+     *
+     * Va en dos tiempos porque Instagram lo pide así: primero un contenedor
+     * por cada imagen, marcado como pieza de carrusel y SIN caption —el
+     * caption vive en el padre—, y después el padre que los agrupa.
+     *
+     * El padre se pide aparte, desde la pantalla, cuando los N hijos
+     * terminaron de procesarse. Crearlo antes devuelve `invalid_children`,
+     * que no dice cuál de todos no estaba listo. */
+    if (accion === 'crear-hijos') {
+      const urls = Array.isArray(cuerpo.urls) ? cuerpo.urls.filter(Boolean) : []
+      if (urls.length < 2 || urls.length > 10) {
+        return responder(400, { error: 'Un carrusel lleva entre 2 y 10 imágenes.' })
+      }
+      const hijos = []
+      for (const u of urls) {
+        const c = await ig.crearContenedor(token, igUserId, { image_url: u, is_carousel_item: true })
+        hijos.push(c.id)
+      }
+      return responder(200, { hijos })
+    }
+
+    // ── El carrusel, segundo tiempo: el padre que los agrupa ──────────────
+    if (accion === 'crear-padre') {
+      const hijos = Array.isArray(cuerpo.hijos) ? cuerpo.hijos.filter(Boolean) : []
+      if (hijos.length < 2) return responder(400, { error: 'Faltan los contenedores del carrusel' })
+      const padre = await ig.crearContenedor(token, igUserId, {
+        media_type: 'CAROUSEL',
+        children: hijos.join(','),
+        caption: cuerpo.caption,
+      })
+      return responder(200, { contenedorId: padre.id })
+    }
+
     // ── Crear el contenedor ───────────────────────────────────────────────
     if (accion === 'crear') {
       const { tipo, url, caption, portada } = cuerpo
