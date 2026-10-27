@@ -7,6 +7,8 @@
  */
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
@@ -519,6 +521,71 @@ function PanelDeRendimiento({ marca, orgId }) {
   )
 }
 
+/* De dónde vinieron los leads.
+ *
+ * Las cuatro métricas de arriba las da cualquier herramienta de analítica:
+ * son alcance. Esta es la única que necesita que la publicación haya salido
+ * desde el CRM — porque entonces el comentario que llega trae el id del post,
+ * y el lead que nace de ahí queda amarrado a la pieza que lo trajo.
+ *
+ * Es la respuesta a "¿y esto para qué me sirve?": no cuántos vieron el reel,
+ * sino a cuántos pacientes se convirtió. */
+function PanelDeAtribucion({ marca, orgId }) {
+  const [posts, setPosts] = useState(null)
+
+  useEffect(() => {
+    if (!orgId || !marca?.id) return
+    const q = query(
+      collection(db, 'organizations', orgId, 'brands', marca.id, 'publicaciones'),
+      orderBy('leads', 'desc'),
+      limit(8),
+    )
+    return onSnapshot(q,
+      snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => (p.leads || 0) > 0)),
+      err => { console.error('[marca] no se pudieron leer las publicaciones:', err); setPosts([]) },
+    )
+  }, [orgId, marca?.id])
+
+  const total = (posts || []).reduce((s, p) => s + (p.leads || 0), 0)
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Users size={15} className="text-tertiary" />
+        <h2 className="font-display font-bold text-[14px] text-primary">De dónde vinieron los leads</h2>
+        {total > 0 && (
+          <span className="ml-auto font-display font-bold text-[20px] text-accent-green leading-none">{total}</span>
+        )}
+      </div>
+
+      {posts === null ? (
+        <p className="text-[13px] text-tertiary">Cargando…</p>
+      ) : !posts.length ? (
+        <p className="text-[13px] text-tertiary">
+          Todavía ninguna publicación trajo un lead. En cuanto alguien comente una
+          pieza publicada desde aquí, aparece en esta lista con su nombre.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {posts.map(p => (
+            <div key={p.id} className="flex items-center gap-3 bg-surface-2 border border-border rounded-btn px-3 py-2.5">
+              <span className="font-display font-bold text-[17px] text-accent-green leading-none w-7 shrink-0">
+                {p.leads}
+              </span>
+              <span className="text-[12.5px] text-secondary truncate flex-1 min-w-0">
+                {p.caption?.trim() || <span className="text-tertiary">Publicación sin texto</span>}
+              </span>
+              <span className="text-[11px] text-tertiary shrink-0">
+                {p.tipo === 'imagen' ? 'Foto' : 'Reel'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── FICHA ────────────────────────────────────────────────────────
 function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, onEliminar, onActualizar }) {
 
@@ -569,6 +636,7 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
 
       <PanelDeConexion marca={marca} orgId={orgId} />
       <PanelDeRendimiento marca={marca} orgId={orgId} />
+      <PanelDeAtribucion marca={marca} orgId={orgId} />
       {estadoDeConexion(marca) === CONECTADA && (
         <PanelDeComentarios marca={marca} onGuardar={onActualizar} />
       )}

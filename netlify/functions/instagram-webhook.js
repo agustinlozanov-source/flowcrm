@@ -67,6 +67,38 @@ async function buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId }) {
   return { id: ref.id, ...(await ref.get()).data() }
 }
 
+/* De qué publicación salió este lead.
+ *
+ * Es lo único que separa a FlowHub de cualquier editor de video: con esto se
+ * puede decir "este reel trajo cuatro pacientes", y sin esto solo se sabe que
+ * entraron por Instagram. El aviso del comentario trae el id de la
+ * publicación; se ignoraba, y el contador que se crea al publicar se quedaba
+ * en cero para siempre.
+ *
+ * Se atribuye UNA sola vez, a la publicación que lo trajo. Si la misma
+ * persona vuelve a comentar —en ese post o en otro— ya no es un lead nuevo, y
+ * contarlo de nuevo inflaría justo el número que el cliente va a mirar. */
+async function atribuirAPublicacion(db, orgId, brandId, lead, mediaId, texto) {
+  if (!mediaId || lead.origenMediaId) return
+
+  await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id).update({
+    origenMediaId: String(mediaId),
+    origenComentario: String(texto || '').slice(0, 280),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+
+  /* merge, porque la publicación puede no estar registrada: si se subió
+   * desde el teléfono en vez de desde el CRM, no existe el documento. Así
+   * esas también acumulan, y se nota la diferencia al compararlas. */
+  await ig.marcaRef(db, orgId, brandId).collection('publicaciones').doc(String(mediaId)).set({
+    mediaId: String(mediaId),
+    leads: admin.firestore.FieldValue.increment(1),
+    ultimoLeadEn: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true })
+
+  console.log(`[instagram-webhook] lead ${lead.id} atribuido a la publicación ${mediaId}`)
+}
+
 async function tocarLead(db, orgId, leadId, { texto, delLead }) {
   await db.collection('organizations').doc(orgId).collection('leads').doc(leadId).update({
     lastMessage: texto,
@@ -189,6 +221,7 @@ async function alLlegarComentario(db, cuenta, valor) {
         nombre: valor.from?.username || null, usuarioId: autorId, cuentaId,
       })
       await tocarLead(db, orgId, lead.id, { texto: `Comentó: ${texto}`, delLead: true })
+      await atribuirAPublicacion(db, orgId, brandId, lead, valor.media?.id, texto)
     }
   }
 }
