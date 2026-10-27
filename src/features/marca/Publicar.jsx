@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
-import { Upload, Send, Image as ImageIcon, Film, Images, X } from 'lucide-react'
+import { Upload, Send, Image as ImageIcon, Film, Images, X, ChevronUp, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -80,6 +80,17 @@ export default function Publicar({ orgId, marca }) {
     setTipo(elegidos.length > 1
       ? 'carrusel'
       : (elegidos[0].type.startsWith('image/') ? 'imagen' : 'reel'))
+  }
+
+  /* El explorador de archivos entrega los nombres como se le ocurre —casi
+   * siempre alfabéticos—, y "portada.png" termina al final. El orden importa:
+   * es la primera imagen la que la gente ve en el feed. */
+  const mover = (i, hacia) => {
+    const j = i + hacia
+    if (j < 0 || j >= archivos.length) return
+    const copia = [...archivos]
+    ;[copia[i], copia[j]] = [copia[j], copia[i]]
+    setArchivos(copia)
   }
 
   const quitar = (i) => {
@@ -213,21 +224,37 @@ export default function Publicar({ orgId, marca }) {
         )}
       </label>
 
-      {/* El orden de la lista es el orden del carrusel. */}
+      {/* El orden de la lista es el orden del carrusel: el 1 es la portada. */}
       {archivos.length > 1 && (
-        <div className="flex flex-col gap-1 mt-2">
-          {archivos.map((f, i) => (
-            <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 px-3 py-1.5 rounded-btn bg-surface-2 border border-border">
-              <span className="font-display font-bold text-[11px] text-tertiary w-4 shrink-0">{i + 1}</span>
-              <span className="text-[12px] text-secondary truncate flex-1 min-w-0">{f.name}</span>
-              {!trabajando && (
-                <button onClick={() => quitar(i)} className="text-tertiary hover:text-primary shrink-0">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        <>
+          <p className="text-[11px] text-tertiary mt-3 mb-1.5">
+            La <b className="text-secondary">1</b> es la que se ve en el feed. Acomoda con las flechas.
+          </p>
+          <div className="flex flex-col gap-1">
+            {archivos.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 px-3 py-1.5 rounded-btn bg-surface-2 border border-border">
+                <span className="font-display font-bold text-[11px] text-tertiary w-4 shrink-0">{i + 1}</span>
+                <span className="text-[12px] text-secondary truncate flex-1 min-w-0">{f.name}</span>
+                {!trabajando && (
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button onClick={() => mover(i, -1)} disabled={i === 0} title="Subir"
+                      className="p-1 rounded text-tertiary hover:text-primary hover:bg-surface disabled:opacity-25 disabled:hover:bg-transparent">
+                      <ChevronUp size={14} />
+                    </button>
+                    <button onClick={() => mover(i, 1)} disabled={i === archivos.length - 1} title="Bajar"
+                      className="p-1 rounded text-tertiary hover:text-primary hover:bg-surface disabled:opacity-25 disabled:hover:bg-transparent">
+                      <ChevronDown size={14} />
+                    </button>
+                    <button onClick={() => quitar(i)} title="Quitar"
+                      className="p-1 rounded text-tertiary hover:text-primary hover:bg-surface ml-1">
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <textarea value={caption} onChange={e => setCaption(e.target.value)} disabled={trabajando}
