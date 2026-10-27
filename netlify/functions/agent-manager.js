@@ -267,6 +267,19 @@ async function ejecutarHerramienta(nombre, input, ctx) {
   const { orgId, leadId, leadName, products } = ctx
 
   if (nombre === 'consultar_agenda') {
+    /* Tope de consultas por mensaje.
+     *
+     * El agente tiene prohibido inventar disponibilidad, así que cuando la
+     * agenda viene vacía prueba otro día, y otro. Se ha visto gastar cinco de
+     * sus seis vueltas preguntando —26 segundos— y en dos casos agotarlas sin
+     * alcanzar a escribir nada: el cliente se quedó sin respuesta.
+     *
+     * A la tercera se le corta y se le dice qué hacer con lo que tiene. */
+    ctx.consultasAgenda = (ctx.consultasAgenda || 0) + 1
+    if (ctx.consultasAgenda > 3) {
+      console.warn(`[agent] consultar_agenda cortada al 4to intento (org ${ctx.orgId}, lead ${leadId})`)
+      return 'Ya revisaste la agenda tres veces en este mensaje y no hay huecos. No consultes más: dile al lead que en los próximos días no ves espacios libres, ofrécele que te diga qué días le acomodan para revisarlos, y dale el teléfono para que confirme al momento.'
+    }
     if (leadId === 'test') {
       return 'Modo prueba: no se consulta la agenda real. Asumí que hay huecos a las 10:00, 11:00 y 16:00.'
     }
@@ -1046,6 +1059,18 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     if (!parsed) {
       parsed = parseAgentResponse(response?.content?.find(b => b.type === 'text')?.text || '')
     }
+
+    /* Nunca mandar vacío.
+     *
+     * Si se agotan los pasos sin que el modelo escriba texto —porque gastó
+     * todas sus vueltas en herramientas— esto quedaba en "" y el lead no
+     * recibía absolutamente nada. Un silencio es peor que una respuesta
+     * imperfecta: el cliente cree que lo ignoraron. */
+    if (!parsed.response || !String(parsed.response).trim()) {
+      console.error(`[agent] respuesta vacía tras ${MAX_PASOS} pasos (org ${orgId}, lead ${leadId})`)
+      parsed.response = 'Déjame confirmar eso y te escribo en un momento. 🙂'
+    }
+
     const visibleReply = parsed.response
 
     // Save agent response

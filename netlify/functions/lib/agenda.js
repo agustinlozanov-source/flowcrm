@@ -324,6 +324,23 @@ async function disponibilidad(db, orgId, { fecha, duracion = 30 }) {
     fecha, duracion, buffer, paso, horario, tz,
     ocupados: [...citas, ...google],
   })
+
+  /* Por qué quedó así.
+   *
+   * Un día sin huecos es indistinguible de un día cerrado, de un calendario
+   * de Google lleno y de un buffer demasiado grande — y el agente le dice lo
+   * mismo al cliente en los cuatro casos. Sin esta línea hay que deducirlo
+   * cruzando logs a mano, que fue justo lo que costó horas. */
+  const tramos = tramosDeLaFecha(fecha, horario, tz)
+  console.log(
+    `[agenda] ${fecha} · ${tz} · ` +
+    (tramos.length ? `atiende ${tramos.map(t => t.texto).join(' y ')}` : 'DIA CERRADO') +
+    ` · cita ${duracion}min + buffer ${buffer}min (necesita ${duracion + buffer * 2} libres)` +
+    ` · ocupado: Google ${google.length}, FlowHub ${citas.length}` +
+    ` · HUECOS: ${slots.length}` +
+    (slots.length ? ` (${slots.slice(0, 4).map(x => x.hora).join(', ')}${slots.length > 4 ? '…' : ''})` : ''),
+  )
+
   return { slots, tz, buffer, paso, horario }
 }
 
