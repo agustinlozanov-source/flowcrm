@@ -12,6 +12,25 @@ Sirve para tres cosas distintas y por eso todos siguen la misma estructura:
 - **Programar sin romperlo**, porque la última sección dice qué reglas sostienen
   el módulo y qué pasa si se ignoran.
 
+## Antes de construir: la plantilla de propuesta
+
+Un módulo no empieza acá. Empieza en la **[plantilla de propuesta de módulo][p]**,
+que es el filtro que obliga a llevar una idea a profundidad antes de escribir
+una línea: el problema en palabras de quien lo sufre, qué se descartó y por
+qué, qué número debería moverse, qué se puede fingir, y la decisión de
+construirlo o no.
+
+Vive en Claude Docs y no en este repo a propósito: ahí se comenta y se discute
+en equipo. Lo de acá es lo que queda **después**, cuando el módulo existe y hay
+que mantenerlo sin romperlo.
+
+Propuestas escritas:
+
+- [Gamificación][g] — Propuesta, todavía no se construye.
+
+[p]: https://claude.ai/artifact/WhGY3csyCoYLKBauwsE7EH
+[g]: https://claude.ai/artifact/Wp42HGHddJ31tWo3VAfemU
+
 ## La estructura
 
 Todos llevan las mismas secciones, en el mismo orden:
