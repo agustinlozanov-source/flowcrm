@@ -186,10 +186,16 @@ export default function Pipeline() {
                     activePipelineId === p.id ? 'bg-surface shadow-sm text-primary' : 'text-tertiary hover:text-secondary'
                   }`}>
                   <span>{p.name}</span>
+                  {/* El acceso a editar era un lápiz de 11px sin etiqueta ni
+                      contorno: parecía un adorno y nadie lo encontraba. Ahora
+                      se lee como botón. */}
                   {activePipelineId === p.id && (
                     <button onClick={(e) => { e.stopPropagation(); setShowEditPipeline(true) }}
-                      className="text-tertiary hover:text-primary transition-colors rounded p-0.5 hover:bg-black/[0.06]">
-                      <Pencil size={11} />
+                      title="Editar este pipeline: nombre, etapas, puntajes y asignación"
+                      aria-label={`Editar el pipeline ${p.name}`}
+                      className="flex items-center gap-1 ml-0.5 px-1.5 py-1 rounded-[5px] border border-black/[0.1] bg-surface-2 text-[11px] font-semibold text-secondary hover:border-accent-blue hover:text-accent-blue transition-colors">
+                      <Pencil size={12} />
+                      Editar
                     </button>
                   )}
                 </div>
