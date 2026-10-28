@@ -4,8 +4,23 @@
     {
       "name": "flowcrm-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "agustinlozano",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4321",
+        "--directory",
+        "/Users/agustinlozano/dev/agustinlozano"
+      ],
+      "port": 4321
     }
   ]
 }

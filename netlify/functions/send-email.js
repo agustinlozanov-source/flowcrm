@@ -9,7 +9,7 @@
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const FROM_EMAIL = process.env.EMAIL_FROM || 'atencion@flowhubcrm.app'
-const APP_URL = 'https://app.flowhubcrm.app'
+const APP_URL = 'https://flowhubcrm.app'
 
 // ── Templates ──────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ function baseLayout(content, preheader = '') {
         <tr><td style="background:#f9f9f9;border:1px solid rgba(0,0,0,.06);border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center;">
           <p style="margin:0;font-size:12px;color:#8e8e93;line-height:1.6;">
             © ${new Date().getFullYear()} Flow Hub CRM · Qubit Corp.<br/>
-            <a href="${APP_URL}" style="color:#0066ff;text-decoration:none;">app.flowhubcrm.app</a>
+            <a href="${APP_URL}" style="color:#0066ff;text-decoration:none;">flowhubcrm.app</a>
           </p>
         </td></tr>
       </table>

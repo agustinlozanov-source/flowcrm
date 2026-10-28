@@ -4,7 +4,7 @@ const { credencial } = require('./lib/credencial')
 // ── Email helper ──────────────────────────────────────────────────────────
 async function sendEmail(type, to, data) {
   try {
-    const baseUrl = process.env.URL || 'https://app.flowhubcrm.app'
+    const baseUrl = process.env.URL || 'https://flowhubcrm.app'
     const res = await fetch(`${baseUrl}/.netlify/functions/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
