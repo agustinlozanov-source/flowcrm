@@ -459,6 +459,18 @@
 .pv2-sidebar--collapsed .pv2-sidebar__logo { padding: 20px 0 16px; justify-content: center; }
 .pv2-sidebar__logo img { height: 22px; object-fit: contain; }
 
+/* La zona que se desplaza. min-height:0 es lo que le permite encogerse dentro
+   del flex: sin eso un hijo alto la estira y el scroll nunca aparece. */
+.pv2-sidebar__scroll {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.pv2-sidebar__scroll::-webkit-scrollbar { width: 6px; }
+.pv2-sidebar__scroll::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 3px;
+}
+.pv2-sidebar__scroll::-webkit-scrollbar-track { background: transparent; }
+
 .pv2-sidebar__nav { padding: 8px 12px; }
 .pv2-sidebar--collapsed .pv2-sidebar__nav { padding: 8px 6px; }
 .pv2-sidebar__label {
@@ -497,7 +509,7 @@
 .pv2-pipeline-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 .pv2-sidebar__user {
-  margin-top: auto; padding: 12px; border-top: 1px solid var(--border);
+  flex-shrink: 0; padding: 12px; border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 10px;
 }
 .pv2-sidebar--collapsed .pv2-sidebar__user { justify-content: center; padding: 12px 6px; }

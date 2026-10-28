@@ -92,6 +92,12 @@ export default function Sidebar({
           )}
       </div>
 
+      {/* Todo lo de en medio va en un contenedor que puede desplazarse.
+          Antes eran hermanos sueltos dentro de una barra con overflow hidden:
+          con suficientes pipelines, el bloque del usuario —con su acceso a la
+          configuración y a cerrar sesión— se empujaba fuera de la pantalla y
+          no había forma de llegar a él sin reducir el zoom del navegador. */}
+      <div className="pv2-sidebar__scroll">
       {groups.map(group => (
         <nav className="pv2-sidebar__nav" key={group.label}>
           {/* Colapsada no hay lugar para el título del grupo; los separa el
@@ -150,6 +156,7 @@ export default function Sidebar({
       {badge && !collapsed && (
         <div className="pv2-sidebar__badge">{badge}</div>
       )}
+      </div>
 
       <div className="pv2-sidebar__user">
         <button
