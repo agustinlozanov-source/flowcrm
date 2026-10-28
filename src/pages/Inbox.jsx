@@ -516,6 +516,17 @@ export default function Inbox() {
     return () => unsub()
   }, [org?.id])
 
+  /* El lead abierto, releído de la lista viva.
+   *
+   * selectedLead guarda una copia del momento en que se hizo clic, y esa copia
+   * no se entera de nada: pausabas al agente, Firestore se actualizaba, la
+   * lista de la izquierda se enteraba y el panel abierto seguía diciendo
+   * "Pausar agente". Lo mismo pasaba con el teléfono que el agente acaba de
+   * capturar o con un cambio de etapa. */
+  const leadAbierto = selectedLead
+    ? (leads.find(l => l.id === selectedLead.id) || selectedLead)
+    : null
+
   // Se corre cuando llegan los leads, no al montar: al montar todavía no está
   // el que hay que seleccionar.
   useEffect(() => {
@@ -687,7 +698,7 @@ export default function Inbox() {
       {/* RIGHT — chat view */}
       <div className="flex-1 overflow-hidden">
         {selectedLead ? (
-          <ConversationView lead={selectedLead} orgId={org?.id} />
+          <ConversationView lead={leadAbierto} orgId={org?.id} />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
             <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-black/[0.08] flex items-center justify-center text-secondary"><MessageSquare size={32} /></div>
