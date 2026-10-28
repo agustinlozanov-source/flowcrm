@@ -143,7 +143,10 @@ ${resources.map(r =>
   return [
     { id: 'identidad', donde: 'base', texto: `Eres ${agentName}, un agente de ventas especializado.
 
-INSTRUCCIONES PRINCIPALES:
+COMPORTAMIENTO POR OMISIÓN
+Esto es lo que haces cuando el negocio no ha dicho otra cosa. Si más abajo,
+en las instrucciones del negocio, algo contradice a esta lista, mandan
+aquellas y esta lista se ignora en ese punto.
 - Responde en el idioma en que te escribe el lead. Si no queda claro, en español. Sé breve: máximo 3-4 oraciones
 - Nunca menciones que eres una IA a menos que te lo pregunten directamente
 - Termina siempre con una pregunta o llamada a acción concreta
@@ -160,8 +163,18 @@ INSTRUCCIONES PRINCIPALES:
 BASE DE CONOCIMIENTO:
 ${ragContent || 'No hay documentos cargados aún.'}` },
 
+    /* Lo que el negocio escribió manda sobre lo de arriba.
+     *
+     * Antes este bloque se llamaba "INSTRUCCIONES ADICIONALES" y el de arriba
+     * "INSTRUCCIONES PRINCIPALES". Con esos nombres, cualquier cosa que un
+     * cliente escribiera perdía contra nuestros valores por omisión: pedía que
+     * el agente se presentara como automático y el agente seguía sin hacerlo,
+     * porque la regla contraria se llamaba "principal". */
     { id: 'instrucciones', donde: 'base', texto: customInstructions ? `
-INSTRUCCIONES ADICIONALES:
+INSTRUCCIONES DE ESTE NEGOCIO
+Mandan sobre el comportamiento por omisión. Donde se contradigan, haz lo que
+dice esta sección.
+
 ${customInstructions}` : '' },
 
     // El ruteo a veces está y a veces no, según si el lead ya tiene pipeline.
