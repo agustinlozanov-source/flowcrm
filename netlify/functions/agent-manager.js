@@ -104,8 +104,9 @@ ${leadContext.name ? `- Se llama ${leadContext.name} — úsalo al dirigirte a �
 ${leadContext.productId ? `- Producto de interés: ${leadContext.productName || leadContext.productId}` : ''}
 ${leadContext.faltaTelefono ? `
 TELÉFONO: no lo tienes, y por ${leadContext.channel} no llega solo — en WhatsApp el número viene con el mensaje, acá no existe. Sin él, nadie puede devolverle la llamada ni confirmarle nada fuera de este chat.
-Pídeselo antes de agendar o de pasarle la conversación a una persona. Una sola vez, con naturalidad y diciendo para qué es. Si ya te lo dio, no vuelvas a pedirlo.
-Cuando te lo dé, cópialo en el campo telefonoDelLead tal como lo escribió.` : ''}`
+Pídeselo con naturalidad y diciendo para qué es, apenas la conversación lo permita. Una sola vez: si ya te lo dio, no vuelvas a pedirlo.
+Cuando te lo dé, cópialo en el campo telefonoDelLead tal como lo escribió.
+Y si vas a agendar sin tenerlo todavía, agendar_cita no va a crear la cita: pásale el número en su campo telefono en la misma llamada.` : ''}`
     : ''
 
   // Resources available for sharing
@@ -252,6 +253,7 @@ const AGENDAR_CITA = {
       tipo: { type: 'string', enum: ['presencial', 'video', 'call'], description: 'presencial si el lead viene a la sede, video si es videollamada, call si es telefónica' },
       duracion: { type: 'integer', description: 'Minutos. Omítela para usar la duración configurada por el negocio: debe ser la misma con la que consultar_agenda ofreció el horario.' },
       motivo: { type: 'string', description: 'Qué se va a atender, en una línea' },
+      telefono: { type: 'string', description: 'El teléfono del lead, tal como lo escribió. Obligatorio cuando el contexto dice que no lo tienes: sin él la cita no se crea.' },
     },
     required: ['fecha', 'hora', 'tipo'],
     additionalProperties: false,
@@ -305,6 +307,33 @@ async function ejecutarHerramienta(nombre, input, ctx) {
 
   if (nombre === 'agendar_cita') {
     if (leadId === 'test') return 'Modo prueba: la cita no se creó realmente.'
+
+    /* El teléfono va ANTES de la cita, no después.
+     *
+     * Agendar manda el lead a handoff, y en handoff el webhook ya no llama al
+     * agente. Si el teléfono se pedía al confirmar, el agente hacía la
+     * pregunta y en el mismo turno se quedaba sordo: el lead contestaba con su
+     * número y nadie lo leía. Por eso se exige aquí, donde todavía se puede
+     * responder. */
+    if (ctx.faltaTelefono) {
+      const dig = String(input.telefono || '').replace(/\D/g, '')
+      if (dig.length < 10) {
+        return 'No se creó la cita: todavía no tienes su teléfono y por este canal no llega solo. El horario sigue libre. Pídeselo ahora, di para qué es, y vuelve a llamar a agendar_cita con ese mismo horario y el número en el campo telefono.'
+      }
+      const refLead = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+      const yaTiene = String((await refLead.get()).data()?.phone || '').trim()
+      if (!yaTiene) {
+        const { claveTelefono } = require('./lib/firebase')
+        await refLead.update({
+          phone: dig,
+          phoneKey: claveTelefono(dig),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log(`[agent] teléfono guardado al agendar para ${leadId} (termina en ${dig.slice(-4)})`)
+      }
+      ctx.faltaTelefono = false
+    }
+
     const { instanteDesdeLocal, configDeAgenda, puedeAgendar, disponibilidad } = require('./lib/agenda')
     // db es el handle de arriba del archivo.
     const cfg = await configDeAgenda(db, orgId)
@@ -1009,7 +1038,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       ...history,
       { role: 'user', content: message },
     ]
-    const ctx = { orgId, leadId, leadName: leadContext?.name, products }
+    const ctx = { orgId, leadId, leadName: leadContext?.name, products, faltaTelefono: !!leadContext?.faltaTelefono }
 
     let parsed = null
     let response = null
