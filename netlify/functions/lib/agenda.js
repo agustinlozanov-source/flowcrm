@@ -266,19 +266,31 @@ async function ocupadoEnFlowHub(db, orgId, desde, hasta) {
 }
 
 /** Configuración que afecta a la agenda: zona horaria, buffer y horarios. */
-async function configDeAgenda(db, orgId) {
+/* La agenda de un embudo.
+ *
+ * Cada embudo puede ser una unidad distinta —una marca personal, una sede, un
+ * consultorio— con su propio horario y hasta su propia franja. Lo que no
+ * declare lo hereda de la organización, campo por campo: un embudo que solo
+ * cambia el horario no tiene que repetir el buffer ni la duración.
+ */
+async function configDeAgenda(db, orgId, pipelineId = null) {
   const orgRef = db.collection('organizations').doc(orgId)
   const [orgSnap, agentSnap] = await Promise.all([
     orgRef.get(),
     orgRef.collection('settings').doc('agent').get(),
   ])
   const agente = agentSnap.data() || {}
+  const propio = (pipelineId && agente.agendaPorEmbudo?.[pipelineId]) || {}
+  // Un número del embudo gana; uno ausente o inválido deja pasar al de la
+  // organización. Por eso no sirve `??`: hay que validar que sea un número.
+  const num = (a, b, porOmision) =>
+    Number.isFinite(a) ? a : (Number.isFinite(b) ? b : porOmision)
   return {
-    tz: orgSnap.data()?.timezone || 'America/Mexico_City',
+    tz: propio.timezone || orgSnap.data()?.timezone || 'America/Mexico_City',
     // Respiro entre una cita y la siguiente.
-    buffer: Number.isFinite(agente.meetingBuffer) ? agente.meetingBuffer : 15,
+    buffer: num(propio.meetingBuffer, agente.meetingBuffer, 15),
     // Cada cuánto puede empezar una cita. Sin configurar, cada 30 minutos.
-    paso: Number.isFinite(agente.slotStep) ? agente.slotStep : 30,
+    paso: num(propio.slotStep, agente.slotStep, 30),
     /* Cuánto dura una cita.
      *
      * Antes no se configuraba en ningún lado: el modelo la mandaba en cada
@@ -287,8 +299,8 @@ async function configDeAgenda(db, orgId) {
      * cita pedía 60 minutos limpios en vez de 50, y un espacio de una hora
      * entre dos compromisos dejaba de servir— y encima cambiaba de un mensaje
      * al otro según lo que el modelo decidiera mandar. */
-    duracion: Number.isFinite(agente.meetingDuration) ? agente.meetingDuration : 30,
-    horario: normalizarHorario(agente.workingHours),
+    duracion: num(propio.meetingDuration, agente.meetingDuration, 30),
+    horario: normalizarHorario(propio.workingHours || agente.workingHours),
   }
 }
 
@@ -310,8 +322,8 @@ async function ocupadosDelDia(db, orgId, fecha) {
 }
 
 /** Valida una hora concreta contra la agenda real. */
-async function puedeAgendar(db, orgId, { fecha, hora, duracion }) {
-  const cfg = await configDeAgenda(db, orgId)
+async function puedeAgendar(db, orgId, { fecha, hora, duracion, pipelineId = null }) {
+  const cfg = await configDeAgenda(db, orgId, pipelineId)
   const { tz, buffer, horario } = cfg
   const dura = Number.isFinite(duracion) ? duracion : cfg.duracion
   const ocupados = await ocupadosDelDia(db, orgId, fecha)
@@ -319,8 +331,8 @@ async function puedeAgendar(db, orgId, { fecha, hora, duracion }) {
   return { ...estaLibre({ fecha, hora, duracion: dura, buffer, horario, tz, ocupados }), tz }
 }
 
-async function disponibilidad(db, orgId, { fecha, duracion }) {
-  const cfg = await configDeAgenda(db, orgId)
+async function disponibilidad(db, orgId, { fecha, duracion, pipelineId = null }) {
+  const cfg = await configDeAgenda(db, orgId, pipelineId)
   const { tz, buffer, paso, horario } = cfg
   // Quien llama puede pedir otra duración —un estudio largo, una cirugía—,
   // pero lo normal es que no mande nada y que gobierne la configuración.

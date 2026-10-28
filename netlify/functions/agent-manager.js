@@ -287,7 +287,7 @@ const AGENDAR_CITA = {
  * ver la agenda" en vez de dejar al lead sin respuesta.
  */
 async function ejecutarHerramienta(nombre, input, ctx) {
-  const { orgId, leadId, leadName, products } = ctx
+  const { orgId, leadId, leadName, products, pipelineId } = ctx
 
   if (nombre === 'consultar_agenda') {
     /* Tope de consultas por mensaje.
@@ -313,6 +313,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
     const { slots, tz, buffer, duracion } = await disponibilidad(db, orgId, {
       fecha: input.fecha,
       duracion: input.duracion,
+      pipelineId,
     })
     // Para que agendar_cita use la misma con la que se ofreció.
     ctx.duracionOfrecida = duracion
@@ -353,7 +354,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
 
     const { instanteDesdeLocal, configDeAgenda, puedeAgendar, disponibilidad } = require('./lib/agenda')
     // db es el handle de arriba del archivo.
-    const cfg = await configDeAgenda(db, orgId)
+    const cfg = await configDeAgenda(db, orgId, pipelineId)
     const { tz } = cfg
     // La misma duración con la que se ofreció. Si se usa otra, el paso de la
     // grilla cambia y una hora recién ofrecida parece no existir.
@@ -365,9 +366,9 @@ async function ejecutarHerramienta(nombre, input, ctx) {
      * la duración: con 20 minutos da 17:20, con 30 no. Exigir que la hora
      * estuviera en ella hacía que el agente ofreciera las 17:20 y un segundo
      * después dijera que no existe. */
-    const chequeo = await puedeAgendar(db, orgId, { fecha: input.fecha, hora: input.hora, duracion })
+    const chequeo = await puedeAgendar(db, orgId, { fecha: input.fecha, hora: input.hora, duracion, pipelineId })
     if (!chequeo.libre) {
-      const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion })
+      const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion, pipelineId })
       return `No se puede agendar a las ${input.hora}: ${chequeo.motivo}. Horarios libres el ${input.fecha}: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrece uno de esos.`
     }
 
@@ -434,10 +435,10 @@ async function ejecutarHerramienta(nombre, input, ctx) {
  * Se filtra en memoria a propósito: por lead hay un puñado de citas y una
  * consulta con dos igualdades pediría un índice compuesto para nada.
  */
-async function proximaCita(orgId, leadId) {
+async function proximaCita(orgId, leadId, pipelineId = null) {
   try {
     const { configDeAgenda } = require('./lib/agenda')
-    const { tz } = await configDeAgenda(db, orgId)
+    const { tz } = await configDeAgenda(db, orgId, pipelineId)
     const snap = await db.collection('organizations').doc(orgId)
       .collection('appointments').where('leadId', '==', leadId).get()
     const ahora = Date.now()
@@ -976,7 +977,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
          * sobre lo que ya quedó cerrado: dónde es, a qué hora, qué llevar.
          * Callarse del todo le devolvía ese trabajo a la operación. */
         enHandoff: lead.systemStage === 'handoff',
-        cita: lead.systemStage === 'handoff' ? await proximaCita(orgId, leadId) : null,
+        cita: lead.systemStage === 'handoff' ? await proximaCita(orgId, leadId, pipelineId) : null,
       }
     }
   }
@@ -1076,7 +1077,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   let agendaInfo = {}
   try {
     const { configDeAgenda } = require('./lib/agenda')
-    if (leadId !== 'test') agendaInfo = await configDeAgenda(db, orgId)
+    if (leadId !== 'test') agendaInfo = await configDeAgenda(db, orgId, pipelineId)
   } catch (e) {
     console.warn('[agent] sin config de agenda:', e.message)
   }
@@ -1102,7 +1103,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       ...history,
       { role: 'user', content: message },
     ]
-    const ctx = { orgId, leadId, leadName: leadContext?.name, products, faltaTelefono: !!leadContext?.faltaTelefono }
+    const ctx = { orgId, leadId, leadName: leadContext?.name, products, pipelineId, faltaTelefono: !!leadContext?.faltaTelefono }
 
     let parsed = null
     let response = null

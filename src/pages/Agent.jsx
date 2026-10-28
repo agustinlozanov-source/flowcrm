@@ -2014,6 +2014,8 @@ export default function Agent() {
     enabledProducts: {},
     scoring: {},
     meetingBuffer: 15,
+    // Lo que cada embudo quiera distinto. Lo que no declare, lo hereda.
+    agendaPorEmbudo: {},
     scoreOnBooking: 25,
     workingHours: null,
     slotStep: 30,
@@ -2026,6 +2028,27 @@ export default function Agent() {
   })
 
   const set = (k, v) => setConfig(c => ({ ...c, [k]: v }))
+
+  /* La agenda que se está editando: la de toda la organización, o la de un
+   * embudo concreto. Un embudo hereda campo por campo lo que no declare, así
+   * que uno que solo cambia el horario no tiene que repetir el respiro ni la
+   * duración. El backend resuelve la herencia igual, en configDeAgenda. */
+  const [embudoAgenda, setEmbudoAgenda] = useState('')
+  const propioDelEmbudo = embudoAgenda ? (config.agendaPorEmbudo?.[embudoAgenda] || {}) : null
+  const esPropio = (campo) =>
+    propioDelEmbudo != null && propioDelEmbudo[campo] !== undefined && propioDelEmbudo[campo] !== null
+  const marcaAgenda = (campo) => (esPropio(campo) ? ' · propio' : '')
+  const valorAgenda = (campo, porOmision) => {
+    if (esPropio(campo)) return propioDelEmbudo[campo]
+    return config[campo] ?? porOmision
+  }
+  const setAgenda = (campo, valor) => {
+    if (!embudoAgenda) return set(campo, valor)
+    set('agendaPorEmbudo', {
+      ...(config.agendaPorEmbudo || {}),
+      [embudoAgenda]: { ...(config.agendaPorEmbudo?.[embudoAgenda] || {}), [campo]: valor },
+    })
+  }
 
   // Load pipelines from Firestore
   useEffect(() => {
@@ -2057,6 +2080,7 @@ export default function Agent() {
           enabledProducts: data.enabledProducts ?? c.enabledProducts,
           scoring: data.scoring ?? c.scoring,
           meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
+          agendaPorEmbudo: data.agendaPorEmbudo ?? c.agendaPorEmbudo,
           scoreOnBooking: data.scoreOnBooking ?? c.scoreOnBooking,
           workingHours: data.workingHours ?? c.workingHours,
           slotStep: data.slotStep ?? c.slotStep,
@@ -2169,10 +2193,48 @@ export default function Agent() {
                     placeholder="Sofía, Carlos, Alex..." className="input text-sm" />
                 </Section>
 
-                <Section title="Cuánto dura una cita" desc="Los minutos que el agente aparta al ofrecer un horario">
+                {/* ── La agenda, por embudo ────────────────────────────────
+                    Cada embudo puede ser una unidad con su propio horario: una
+                    marca personal, una sede, un consultorio. Lo que no cambie
+                    lo hereda de la organización, campo por campo. */}
+                <Section title="¿De quién es esta agenda?" desc="Elige a quién le estás configurando los horarios">
+                  <select value={embudoAgenda} onChange={e => setEmbudoAgenda(e.target.value)}
+                    className="input text-sm">
+                    <option value="">Toda la organización</option>
+                    {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {embudoAgenda && (
+                    <div className="flex items-center justify-between gap-3 mt-2">
+                      <p className="text-[11px] text-tertiary">
+                        Lo que no cambies acá lo hereda de la organización. Se marca lo que ya es propio de este embudo.
+                      </p>
+                      {Object.values(config.agendaPorEmbudo?.[embudoAgenda] || {}).some(v => v !== null && v !== undefined) && (
+                        <button onClick={() => {
+                          /* Nulos y no borrar la clave: el guardado usa
+                             merge, que fusiona mapas anidados, así que una
+                             clave quitada acá volvería a aparecer desde la
+                             base. Un nulo sí pisa el valor anterior, y tanto
+                             la pantalla como configDeAgenda lo leen como
+                             "no declarado". */
+                          set('agendaPorEmbudo', {
+                            ...(config.agendaPorEmbudo || {}),
+                            [embudoAgenda]: {
+                              meetingDuration: null, slotStep: null,
+                              meetingBuffer: null, workingHours: null, timezone: null,
+                            },
+                          })
+                        }} className="text-[11px] font-semibold text-accent-blue whitespace-nowrap hover:underline">
+                          Volver a heredar todo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </Section>
+
+                <Section title={`Cuánto dura una cita${marcaAgenda('meetingDuration')}`} desc="Los minutos que el agente aparta al ofrecer un horario">
                   <Minutos
-                    valor={config.meetingDuration ?? 30}
-                    onChange={v => set('meetingDuration', v)}
+                    valor={valorAgenda('meetingDuration', 30)}
+                    onChange={v => setAgenda('meetingDuration', v)}
                     presets={[15, 20, 30, 45, 60]}
                     min={5}
                   />
@@ -2181,10 +2243,10 @@ export default function Agent() {
                   </p>
                 </Section>
 
-                <Section title="Cada cuánto puede empezar una cita" desc="El agente ofrece horarios en múltiplos de este intervalo">
+                <Section title={`Cada cuánto puede empezar una cita${marcaAgenda('slotStep')}`} desc="El agente ofrece horarios en múltiplos de este intervalo">
                   <Minutos
-                    valor={config.slotStep ?? 30}
-                    onChange={v => set('slotStep', v)}
+                    valor={valorAgenda('slotStep', 30)}
+                    onChange={v => setAgenda('slotStep', v)}
                     presets={[10, 15, 20, 30, 60]}
                     min={5}
                   />
@@ -2193,10 +2255,10 @@ export default function Agent() {
                   </p>
                 </Section>
 
-                <Section title="Respiro entre citas" desc="Tiempo libre que queda antes y después de cada cita ya tomada">
+                <Section title={`Respiro entre citas${marcaAgenda('meetingBuffer')}`} desc="Tiempo libre que queda antes y después de cada cita ya tomada">
                   <Minutos
-                    valor={config.meetingBuffer ?? 15}
-                    onChange={v => set('meetingBuffer', v)}
+                    valor={valorAgenda('meetingBuffer', 15)}
+                    onChange={v => setAgenda('meetingBuffer', v)}
                     presets={[0, 10, 15, 30, 45]}
                   />
                   <p className="text-[11px] text-tertiary mt-2">
@@ -2223,8 +2285,8 @@ export default function Agent() {
                 </Section>
 
                 <HorariosDeAtencion
-                  valor={config.workingHours}
-                  onChange={h => set('workingHours', h)}
+                  valor={valorAgenda('workingHours', null)}
+                  onChange={h => setAgenda('workingHours', h)}
                 />
 
                 {featureFlags.followup !== false && <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
