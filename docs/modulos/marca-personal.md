@@ -118,9 +118,15 @@ general, los embudos que no son suyos.
 
 ### Modelo de datos
 
-Las marcas viven en `organizations/{orgId}/marcas/{marcaId}`, con
-`nombre`, `handle`, `nicho`, `ownerUserId`, `pipelineId` y el estado de la
-conexión.
+Las marcas viven en `organizations/{orgId}/brands/{marcaId}`, con `nombre`,
+`handle`, `nicho`, `ownerUserId`, `pipelineId` y el estado de la conexión.
+
+**Una marca puede tener varios embudos**, decidido el 28 de octubre de 2026.
+El dueño se escribe al revés de como empezó: el embudo lleva `marcaId`, no la
+marca una lista de embudos. `marca.pipelineId` no se jubiló — pasó a significar
+**cuál es el principal**, el que recibe los mensajes de su Instagram. Los
+embudos de una marca son los que llevan su `marcaId`, más el que su
+`pipelineId` apunte, para que los de antes de esta decisión sigan apareciendo.
 
 Las publicaciones viven bajo la marca, en `publicaciones/{mediaId}`, con el
 contador `leads` que se incrementa en la atribución.
@@ -152,20 +158,11 @@ hereda.**
 
 ## 7. Decisiones abiertas
 
-**¿Una marca puede tener más de un embudo?**
-
-Hoy el vínculo es `marca.pipelineId`: la marca apunta a su embudo, y por lo
-tanto tiene exactamente uno. Si la respuesta es sí, el dueño tiene que ser al
-revés —`marcaId` encima de cada cosa— y `marca.pipelineId` se jubila.
-
-Esta decide si lo que se construya después se sostiene o hay que rehacerlo.
-
-**Todo lo de la marca debería crearse desde dentro de la marca.**
+**Todo lo de la marca se crea desde dentro de la marca.**
 
 Crear un embudo desde la ficha no es lo mismo que crearlo en la organización y
-asignarlo después: en el primero nace sabiendo para qué es. Hoy la creación de
-embudos, productos y configuración vive fuera, y eso rompe la premisa del
-módulo.
+asignarlo después: en el primero nace sabiendo para qué es. La agenda y los
+embudos ya se crean ahí. Faltan los productos y el entrenamiento del agente.
 
 **Falta la vista de negocio.**
 

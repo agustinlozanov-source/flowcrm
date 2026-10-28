@@ -13,7 +13,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
-  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff, Clock,
+  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff, Clock, Filter,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
@@ -359,6 +359,103 @@ const FRANJAS = [
  *
  * Lo que no se cambie acá se hereda de la organización, campo por campo.
  */
+/* Los embudos de la marca.
+ *
+ * Un embudo creado desde acá nace con `marcaId` encima: sabe de quién es y
+ * para qué, que no es lo mismo que crearlo en la organización y asignarlo
+ * después. Una marca puede tener varios —una campaña, un producto, un
+ * lanzamiento— y uno de ellos es el principal: ese es al que llegan los
+ * mensajes de su Instagram.
+ *
+ * Se siguen reconociendo los embudos viejos, los que la marca apuntaba con
+ * `pipelineId` antes de que el dueño se escribiera al revés.
+ */
+function PanelDeEmbudos({ marca, pipelines, onCrear, onPrincipal }) {
+  const [creando, setCreando] = useState(false)
+  const [nombre, setNombre] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+
+  const suyos = pipelines.filter(p => p.marcaId === marca.id || p.id === marca.pipelineId)
+
+  const crear = async () => {
+    const limpio = nombre.trim()
+    if (!limpio) return
+    setTrabajando(true)
+    try {
+      await onCrear(limpio)
+      setNombre(''); setCreando(false)
+      toast.success(`Embudo "${limpio}" creado para ${marca.nombre}`)
+    } catch (e) {
+      toast.error('No se pudo crear: ' + e.message)
+    } finally { setTrabajando(false) }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="flex items-center gap-2 text-[13.5px] font-display font-bold text-primary">
+            <Filter size={15} className="text-tertiary" /> Sus embudos
+          </div>
+          <p className="text-[11.5px] text-tertiary mt-0.5">
+            Los mensajes de su Instagram llegan al principal. Los demás sirven para campañas o lanzamientos.
+          </p>
+        </div>
+        {!creando && (
+          <button onClick={() => setCreando(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn border border-border text-[12px] font-semibold text-secondary hover:border-accent-blue hover:text-accent-blue whitespace-nowrap">
+            <Plus size={13} /> Nuevo embudo
+          </button>
+        )}
+      </div>
+
+      {creando && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') crear(); if (e.key === 'Escape') setCreando(false) }}
+            placeholder="Cómo se va a llamar"
+            className="flex-1 min-w-[12rem] px-3 py-2 rounded-[10px] border border-black/[0.1] bg-surface text-[13px]" />
+          <button onClick={crear} disabled={trabajando || !nombre.trim()}
+            className="px-3 py-2 rounded-[10px] bg-accent-blue text-white text-[12.5px] font-semibold disabled:opacity-40">
+            Crear
+          </button>
+          <button onClick={() => { setCreando(false); setNombre('') }}
+            className="px-3 py-2 rounded-[10px] border border-border text-[12.5px] font-semibold text-secondary">
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {suyos.length === 0 ? (
+        <p className="text-[12.5px] text-tertiary">
+          Todavía ninguno. Sin embudo, los mensajes de esta cuenta no saben a dónde ir.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {suyos.map(p => {
+            const principal = p.id === marca.pipelineId
+            return (
+              <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-surface-2 border border-border">
+                <span className="flex-1 min-w-0 truncate text-[13px] text-primary">{p.name}</span>
+                {principal ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue whitespace-nowrap">
+                    Principal
+                  </span>
+                ) : (
+                  <button onClick={() => onPrincipal(p.id)}
+                    className="text-[11px] font-semibold text-tertiary hover:text-accent-blue whitespace-nowrap">
+                    Hacer principal
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PanelDeAgenda({ marca, orgId }) {
   const [cfg, setCfg] = useState(null)
   const [guardando, setGuardando] = useState(false)
@@ -743,7 +840,7 @@ function PanelDeAtribucion({ marca, orgId }) {
 }
 
 // ─── FICHA ────────────────────────────────────────────────────────
-function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, onEliminar, onActualizar }) {
+function FichaDeMarca({ marca, orgId, dueño, puedeEditar, pipelines, onVolver, onEditar, onEliminar, onActualizar, onCrearEmbudo }) {
 
   return (
     <div className="max-w-[900px] mx-auto">
@@ -791,6 +888,12 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
       </div>
 
       <PanelDeConexion marca={marca} orgId={orgId} />
+      <PanelDeEmbudos
+        marca={marca}
+        pipelines={pipelines}
+        onCrear={onCrearEmbudo}
+        onPrincipal={id => onActualizar({ pipelineId: id })}
+      />
       <PanelDeAgenda marca={marca} orgId={orgId} />
       <PanelDeRendimiento marca={marca} orgId={orgId} />
       <PanelDeAtribucion marca={marca} orgId={orgId} />
@@ -805,7 +908,7 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
 export default function MarcaPersonal() {
   const { marcas, cargando, veTodas, puedeEditar, crear, actualizar, eliminar } = useBrands()
   const { members } = useTeam()
-  const { pipelines } = usePipeline()
+  const { pipelines, createPipeline: crearPipeline } = usePipeline()
   const { user, org } = useAuthStore()
   const [abierta, setAbierta] = useState(null)
   const [pestana, setPestana] = useState('marcas')
@@ -865,7 +968,23 @@ export default function MarcaPersonal() {
           onVolver={() => setAbierta(null)}
           onEditar={() => setEditando(marcaAbierta)}
           onEliminar={() => borrar(marcaAbierta)}
+          pipelines={pipelines}
           onActualizar={cambios => actualizar(marcaAbierta.id, cambios)}
+          onCrearEmbudo={async nombre => {
+            const id = await crearPipeline({
+              name: nombre,
+              marcaId: marcaAbierta.id,
+              stages: [
+                { name: 'Nuevo', color: '#6366f1', scoreMin: 0, scoreMax: 33 },
+                { name: 'En conversación', color: '#f59e0b', scoreMin: 34, scoreMax: 66 },
+                { name: 'Listo para cerrar', color: '#00c853', scoreMin: 67, scoreMax: 100 },
+              ],
+            })
+            if (!id) throw new Error('no se escribió nada')
+            // El primero de una marca es su principal: sin eso, los mensajes
+            // de su Instagram siguen sin saber a dónde ir.
+            if (!marcaAbierta.pipelineId) await actualizar(marcaAbierta.id, { pipelineId: id })
+          }}
         />
       ) : (
         <>
