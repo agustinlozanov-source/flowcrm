@@ -1055,9 +1055,14 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
    * catálogo común, que es lo que se quería filtrar cuando se hizo. */
   const propios = pipelineId ? catalogo.filter(p => p.pipelineId === pipelineId) : []
   const comunes = catalogo.filter(p => !p.pipelineId)
-  const habilitados = agentConfig.enabledProductIds?.length
-    ? comunes.filter(p => agentConfig.enabledProductIds.includes(p.id))
-    : comunes
+  /* La lista de habilitados es por embudo.
+   *
+   * Antes era una sola para toda la cuenta: con varios embudos daba una lista
+   * enorme donde todo parecía habilitado para todos. Las organizaciones que
+   * ya la tenían guardada así siguen funcionando — si este embudo no tiene la
+   * suya, se usa aquella. */
+  const lista = agentConfig.enabledProducts?.[pipelineId] ?? agentConfig.enabledProductIds
+  const habilitados = lista?.length ? comunes.filter(p => lista.includes(p.id)) : comunes
   const products = [...propios, ...habilitados]
   console.log(`[agent] catálogo: ${products.length} producto(s) — ${propios.length} de este embudo, ${habilitados.length} del común${agentConfig.enabledProductIds?.length ? ' (lista habilitada)' : ''}`)
 

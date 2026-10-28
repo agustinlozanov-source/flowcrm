@@ -1401,16 +1401,33 @@ function HorariosDeAtencion({ valor, onChange }) {
   )
 }
 
-function ProductsTab({ enabledProductIds, onChange }) {
+/* Qué productos ve el agente, por embudo.
+ *
+ * Antes era una lista única para toda la cuenta. Con varios embudos daba una
+ * lista larguísima donde parecía que todo estaba habilitado para todos, que
+ * no es lo que pasaba ni lo que se quería.
+ *
+ * Ahora cada embudo elige del catálogo general, y los productos que son suyos
+ * aparecen aparte: esos no se eligen, los usa siempre —si alguien los creó
+ * para ese embudo, es porque los quiere ahí—. Y los productos de OTROS
+ * embudos no se listan: no hay nada que decidir sobre ellos.
+ */
+function ProductsTab({ pipelines = [], enabledPorEmbudo = {}, legadoIds = [], onChange }) {
   const { products, loading } = useProducts()
-  const activeProducts = products.filter(p => (p.status || 'active') === 'active')
+  const [embudo, setEmbudo] = useState(pipelines[0]?.id || null)
+
+  const activos = products.filter(p => (p.status || 'active') === 'active')
+  const propios = activos.filter(p => p.pipelineId && p.pipelineId === embudo)
+  const comunes = activos.filter(p => !p.pipelineId)
+
+  // Sin lista propia todavía, vale la que había para toda la cuenta.
+  const habilitados = enabledPorEmbudo[embudo] ?? legadoIds ?? []
 
   const toggle = (id) => {
-    if (enabledProductIds.includes(id)) {
-      onChange(enabledProductIds.filter(pid => pid !== id))
-    } else {
-      onChange([...enabledProductIds, id])
-    }
+    const siguiente = habilitados.includes(id)
+      ? habilitados.filter(pid => pid !== id)
+      : [...habilitados, id]
+    onChange({ ...enabledPorEmbudo, [embudo]: siguiente })
   }
 
   if (loading) return (
@@ -1419,7 +1436,7 @@ function ProductsTab({ enabledProductIds, onChange }) {
     </div>
   )
 
-  if (activeProducts.length === 0) return (
+  if (activos.length === 0) return (
     <div className="card p-8 text-center">
       <Package size={32} className="text-tertiary mx-auto mb-3" />
       <p className="text-sm font-semibold text-primary mb-1">Sin productos en el catálogo</p>
@@ -1429,74 +1446,131 @@ function ProductsTab({ enabledProductIds, onChange }) {
 
   return (
     <div className="flex flex-col gap-3">
+      {pipelines.length > 1 && (
+        <div className="card p-1 flex gap-1">
+          {pipelines.map(p => (
+            <button key={p.id} onClick={() => setEmbudo(p.id)}
+              className={clsx(
+                'flex-1 px-3 py-2 rounded-[8px] text-[12.5px] font-semibold transition-all text-center',
+                embudo === p.id ? 'bg-primary text-white' : 'text-secondary hover:bg-surface-2 hover:text-primary'
+              )}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-start gap-3 p-4 bg-purple-50 border border-purple-200 rounded-[12px]">
         <Package size={16} className="text-purple-600 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-[12.5px] text-purple-800 font-semibold mb-0.5">Productos habilitados para este agente</p>
+          <p className="text-[12.5px] text-purple-800 font-semibold mb-0.5">
+            Productos que ve el agente{pipelines.length > 1 ? ' de este embudo' : ''}
+          </p>
           <p className="text-[11.5px] text-purple-700 leading-relaxed">
-            El agente asocia leads a estos productos durante la conversación, basándose en los problemas que cada producto resuelve.
+            Asocia leads a estos productos durante la conversación, según los problemas que cada uno resuelve. Lo que elijas acá no afecta a los otros embudos.
           </p>
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        {activeProducts.map(product => {
-          const isEnabled = enabledProductIds.includes(product.id)
-          const badge = {
-            product: { label: 'Producto', color: '#0066ff' },
-            service: { label: 'Servicio', color: '#7c3aed' },
-            subscription_monthly: { label: 'Susc. mensual', color: '#00b8d9' },
-            subscription_annual: { label: 'Susc. anual', color: '#00c853' },
-          }[product.type] || { label: product.type, color: '#8e8e93' }
 
-          return (
-            <div key={product.id} onClick={() => toggle(product.id)}
-              className={clsx('card p-4 cursor-pointer transition-all border-2',
-                isEnabled ? 'border-accent-blue bg-blue-50/50' : 'border-transparent hover:border-black/[0.1]')}>
-              <div className="flex items-start gap-3">
-                <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
-                  isEnabled ? 'border-accent-blue bg-accent-blue' : 'border-black/20')}>
-                  {isEnabled && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-[13px] text-primary">{product.name}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: badge.color + '18', color: badge.color }}>{badge.label}</span>
-                    {product.durationDays > 0 && (
-                      <span className="text-[10px] text-secondary flex items-center gap-0.5">
-                        <Clock size={10} /> {product.durationDays} días
-                      </span>
-                    )}
-                  </div>
-                  {product.description && (
-                    <p className="text-[11.5px] text-secondary mt-0.5 line-clamp-1">{product.description}</p>
-                  )}
-                  {product.problemTags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {product.problemTags.map((tag, i) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-surface-2 border border-black/[0.08] text-secondary">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <span className="font-display font-bold text-sm text-primary">
-                    {product.currency} {Number(product.price).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      {enabledProductIds.length > 0 && (
-        <div className="text-[11px] text-secondary text-center pt-1">
-          {enabledProductIds.length} producto{enabledProductIds.length !== 1 ? 's' : ''} habilitado{enabledProductIds.length !== 1 ? 's' : ''}
+      {propios.length > 0 && (
+        <>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary mt-1">
+            De este embudo — siempre disponibles
+          </p>
+          <div className="flex flex-col gap-2">
+            {propios.map(product => (
+              <ProductoHabilitable key={product.id} product={product} fijo />
+            ))}
+          </div>
+        </>
+      )}
+
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary mt-1">
+        Del catálogo general — elige cuáles
+      </p>
+      {comunes.length === 0 ? (
+        <div className="card p-6 text-center">
+          <p className="text-[12.5px] text-secondary">
+            No hay productos en el catálogo general. Todos pertenecen a algún embudo.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {comunes.map(product => (
+            <ProductoHabilitable key={product.id} product={product}
+              activo={habilitados.includes(product.id)}
+              onToggle={() => toggle(product.id)} />
+          ))}
         </div>
       )}
+
+      <div className="text-[11px] text-secondary text-center pt-1">
+        {habilitados.length === 0 && propios.length === 0
+          ? 'Sin elegir ninguno, el agente usa todo el catálogo general.'
+          : `${propios.length + habilitados.length} producto${propios.length + habilitados.length !== 1 ? 's' : ''} disponible${propios.length + habilitados.length !== 1 ? 's' : ''} para este agente`}
+      </div>
     </div>
+  )
+}
+
+/* Una fila del catálogo. `fijo` es para los productos del propio embudo: se
+ * muestran marcados y sin interacción, porque no hay nada que decidir. */
+function ProductoHabilitable({ product, activo = false, onToggle, fijo = false }) {
+  const encendido = fijo || activo
+  const badge = {
+    product: { label: 'Producto', color: '#0066ff' },
+    service: { label: 'Servicio', color: '#7c3aed' },
+    subscription_monthly: { label: 'Susc. mensual', color: '#00b8d9' },
+    subscription_annual: { label: 'Susc. anual', color: '#00c853' },
+  }[product.type] || { label: product.type, color: '#8e8e93' }
+
+  const contenido = (
+    <div className="flex items-start gap-3">
+      <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
+        encendido ? 'border-accent-blue bg-accent-blue' : 'border-black/20')}>
+        {encendido && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-[13px] text-primary">{product.name}</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: badge.color + '18', color: badge.color }}>{badge.label}</span>
+          {product.durationDays > 0 && (
+            <span className="text-[10px] text-secondary flex items-center gap-0.5">
+              <Clock size={10} /> {product.durationDays} días
+            </span>
+          )}
+        </div>
+        {product.description && (
+          <p className="text-[11.5px] text-secondary mt-0.5 line-clamp-1">{product.description}</p>
+        )}
+        {product.problemTags?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {product.problemTags.map((tag, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-surface-2 border border-black/[0.08] text-secondary">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <span className="font-display font-bold text-sm text-primary">
+          {product.currency} {Number(product.price).toLocaleString()}
+        </span>
+      </div>
+    </div>
+  )
+
+  if (fijo) return (
+    <div className="card p-4 border-2 border-accent-blue/30 bg-blue-50/30">{contenido}</div>
+  )
+  return (
+    <button type="button" onClick={onToggle} aria-pressed={activo}
+      className={clsx('card p-4 text-left w-full transition-all border-2',
+        activo ? 'border-accent-blue bg-blue-50/50' : 'border-transparent hover:border-black/[0.1]')}>
+      {contenido}
+    </button>
   )
 }
 
@@ -1935,6 +2009,9 @@ export default function Agent() {
     customInstructions: {},
     agentNames: {},
     enabledProductIds: [],
+    // Por embudo. La lista vieja de arriba se conserva como respaldo para las
+    // cuentas que la tenían antes de que esto se separara.
+    enabledProducts: {},
     scoring: {},
     meetingBuffer: 15,
     scoreOnBooking: 25,
@@ -1977,6 +2054,7 @@ export default function Agent() {
                 : {})
             : c.customInstructions,
           enabledProductIds: data.enabledProductIds ?? c.enabledProductIds,
+          enabledProducts: data.enabledProducts ?? c.enabledProducts,
           scoring: data.scoring ?? c.scoring,
           meetingBuffer: data.meetingBuffer ?? c.meetingBuffer,
           scoreOnBooking: data.scoreOnBooking ?? c.scoreOnBooking,
@@ -2261,8 +2339,10 @@ export default function Agent() {
             {/* ── PRODUCTOS ── */}
             {activeTab === 'products' && (
               <ProductsTab
-                enabledProductIds={config.enabledProductIds}
-                onChange={v => set('enabledProductIds', v)}
+                pipelines={pipelines}
+                enabledPorEmbudo={config.enabledProducts || {}}
+                legadoIds={config.enabledProductIds || []}
+                onChange={v => set('enabledProducts', v)}
               />
             )}
 
