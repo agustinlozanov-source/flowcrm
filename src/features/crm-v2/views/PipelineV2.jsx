@@ -17,6 +17,7 @@ import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
 import { usePipeline } from '@/hooks/usePipeline'
+import EditPipelineModal from '@/components/pipeline/EditPipelineModal'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useProducts } from '@/hooks/useProducts'
 import { useAuthStore } from '@/store/authStore'
@@ -44,9 +45,28 @@ export default function PipelineV2() {
     leads, systemLeads, members, loading, stages,
     pipelines, activePipelineId, setActivePipelineId,
     moveToHandoff, resolveHandoff, updateLead, createLead,
+    updatePipeline, deletePipeline, updateStage, deleteStage,
   } = usePipeline()
   const { appointments } = useAppointments()
   const { products } = useProducts()
+
+  /* Editar el pipeline se entra por el título de la barra de arriba.
+   *
+   * Ese título siempre fue un <button>, así que invitaba al clic, pero esta
+   * vista nunca le pasó una acción: se veía clicable y no hacía nada. Y es
+   * justo donde cualquiera lo busca —dice "Pipeline" y el nombre—, así que
+   * ahí va. */
+  const [editandoPipeline, setEditandoPipeline] = useState(false)
+
+  const guardarPipeline = async ({ name, purpose, stageEdits, deletedIds = [] }) => {
+    await updatePipeline(activePipelineId, { name, purpose })
+    for (let i = 0; i < stageEdits.length; i++) {
+      const s = stageEdits[i]
+      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
+    }
+    for (const id of deletedIds) await deleteStage(id)
+    toast.success('Pipeline actualizado')
+  }
 
   const [view, setView] = useState('kanban')
   const [insightsOpen, setInsightsOpen] = useState(true)
@@ -278,6 +298,7 @@ export default function PipelineV2() {
       <Topbar
         breadcrumb="Pipeline"
         title={pipelines.find(p => p.id === activePipelineId)?.name || org?.name || 'Pipeline'}
+        onTitleClick={activePipelineId ? () => setEditandoPipeline(true) : undefined}
         stats={topbarStats}
         activeView={view} onViewChange={setView}
         filterCount={
@@ -459,6 +480,22 @@ export default function PipelineV2() {
       />
 
       {creating && <NewCardDialog onClose={() => setCreating(false)} onCreate={handleCreate} />}
+
+      {editandoPipeline && activePipelineId && (
+        <EditPipelineModal
+          mode="edit"
+          pipeline={pipelines.find(p => p.id === activePipelineId)}
+          stages={stages}
+          onSave={guardarPipeline}
+          onDelete={async () => {
+            await deletePipeline(activePipelineId)
+            setActivePipelineId(pipelines.find(p => p.id !== activePipelineId)?.id || null)
+            setEditandoPipeline(false)
+            toast.success('Pipeline eliminado')
+          }}
+          onClose={() => setEditandoPipeline(false)}
+        />
+      )}
 
       <PeekPreview
         deal={peek}

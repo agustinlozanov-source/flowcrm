@@ -51,10 +51,17 @@ export default function Topbar({
     <header className="pv2-topbar">
       <div className="pv2-topbar__title">
         {breadcrumb && <span className="pv2-topbar__breadcrumb">{breadcrumb}</span>}
-        <button className="pv2-topbar__name" onClick={onTitleClick}>
-          {title}
-          {onTitleClick && <ChevronDown size={12} style={{ color: 'var(--text-tertiary)' }} />}
-        </button>
+        {/* Sin acción no es un botón: era uno siempre, así que en las pantallas
+            que no le pasan nada se veía pulsable y no pasaba nada al hacer
+            clic. */}
+        {onTitleClick ? (
+          <button className="pv2-topbar__name" onClick={onTitleClick} title="Editar este pipeline">
+            {title}
+            <ChevronDown size={12} style={{ color: 'var(--text-tertiary)' }} />
+          </button>
+        ) : (
+          <span className="pv2-topbar__name">{title}</span>
+        )}
       </div>
 
       {stats.length > 0 && (
