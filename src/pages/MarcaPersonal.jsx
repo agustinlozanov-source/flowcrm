@@ -7,13 +7,13 @@
  */
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
-  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff,
+  AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff, Clock,
 } from 'lucide-react'
 import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
@@ -22,6 +22,7 @@ import Publicar from '../features/marca/Publicar'
 import { useTeam } from '@/hooks/useTeam'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAuthStore } from '@/store/authStore'
+import { Minutos, HorariosDeAtencion } from '@/components/agenda/ControlesDeAgenda'
 
 const NICHOS_SUGERIDOS = [
   'Negocios', 'Salud', 'Fitness', 'Finanzas', 'Inmobiliaria',
@@ -331,6 +332,161 @@ function PanelDeConexion({ marca, orgId }) {
  * privado NO abre la conversación. Hasta que la persona conteste, no se le
  * puede escribir otra vez — así que ese mensaje tiene que llevar ya lo
  * prometido y una pregunta que invite a responder. */
+const FRANJAS = [
+  ['America/Mexico_City', 'Centro de México (CDMX, Guadalajara, Monterrey)'],
+  ['America/Cancun', 'Cancún y Quintana Roo'],
+  ['America/Matamoros', 'Frontera noreste (Matamoros, Reynosa, Nuevo Laredo)'],
+  ['America/Chihuahua', 'Chihuahua'],
+  ['America/Ojinaga', 'Frontera de Chihuahua (Ojinaga)'],
+  ['America/Mazatlan', 'Pacífico (Mazatlán, La Paz)'],
+  ['America/Hermosillo', 'Sonora'],
+  ['America/Tijuana', 'Baja California (Tijuana, Mexicali)'],
+  ['America/Bogota', 'Colombia'],
+  ['America/Lima', 'Perú'],
+  ['America/Santiago', 'Chile'],
+  ['America/Argentina/Buenos_Aires', 'Argentina'],
+  ['America/New_York', 'Este de Estados Unidos'],
+  ['Europe/Madrid', 'España'],
+]
+
+/* La agenda de la marca.
+ *
+ * Vive acá y no en la pantalla del agente a propósito: el horario de una marca
+ * personal es suyo —qué días abre, a qué hora, en qué franja— y no una
+ * configuración de la organización. Se guarda bajo el embudo de la marca, así
+ * que el agente que atiende ese embudo la respeta sin saber que existe una
+ * marca detrás.
+ *
+ * Lo que no se cambie acá se hereda de la organización, campo por campo.
+ */
+function PanelDeAgenda({ marca, orgId }) {
+  const [cfg, setCfg] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const pid = marca.pipelineId
+
+  useEffect(() => {
+    if (!orgId) return
+    return onSnapshot(
+      doc(db, 'organizations', orgId, 'settings', 'agent'),
+      snap => setCfg(snap.data() || {}),
+      err => console.error('[marca] no se pudo leer la agenda:', err)
+    )
+  }, [orgId])
+
+  if (!pid) return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5">
+      <div className="flex items-center gap-2 text-[13px] font-semibold text-primary mb-1">
+        <Clock size={15} className="text-tertiary" /> Agenda
+      </div>
+      <p className="text-[12.5px] text-tertiary">
+        Esta marca todavía no tiene embudo. Asígnale uno y acá podrás poner sus días, sus horas y su franja horaria.
+      </p>
+    </div>
+  )
+
+  if (!cfg) return (
+    <div className="bg-surface border border-border rounded-card shadow-card p-5">
+      <p className="text-[12.5px] text-tertiary">Cargando la agenda…</p>
+    </div>
+  )
+
+  const propio = cfg.agendaPorEmbudo?.[pid] || {}
+  const esPropio = (c) => propio[c] !== undefined && propio[c] !== null
+  const valor = (c, pom) => (esPropio(c) ? propio[c] : (cfg[c] ?? pom))
+  const marcaPropio = (c) => (esPropio(c) ? ' · propio' : ' · heredado')
+
+  const escribir = async (campos) => {
+    setGuardando(true)
+    try {
+      await setDoc(
+        doc(db, 'organizations', orgId, 'settings', 'agent'),
+        { agendaPorEmbudo: { [pid]: { ...propio, ...campos } }, updatedAt: serverTimestamp() },
+        { merge: true }
+      )
+    } catch (e) {
+      toast.error('No se pudo guardar: ' + e.message)
+    } finally { setGuardando(false) }
+  }
+
+  const heredarTodo = () => escribir({
+    timezone: null, meetingDuration: null, slotStep: null, meetingBuffer: null, workingHours: null,
+  })
+
+  const tienePropio = Object.values(propio).some(v => v !== null && v !== undefined)
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="bg-surface border border-border rounded-card shadow-card p-5">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <div className="flex items-center gap-2 text-[13.5px] font-display font-bold text-primary">
+              <Clock size={15} className="text-tertiary" /> La agenda de esta marca
+            </div>
+            <p className="text-[11.5px] text-tertiary mt-0.5">
+              Qué días atiende, a qué horas y en qué franja. Lo que no cambies acá lo hereda de la organización.
+            </p>
+          </div>
+          {tienePropio && (
+            <button onClick={heredarTodo} disabled={guardando}
+              className="text-[11px] font-semibold text-accent-blue whitespace-nowrap hover:underline disabled:opacity-40">
+              Volver a heredar todo
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-surface border border-border rounded-card shadow-card p-4">
+        <div className="font-display font-bold text-[13px] text-primary mb-0.5">
+          Franja horaria{marcaPropio('timezone')}
+        </div>
+        <p className="text-[11.5px] text-tertiary mb-2">
+          Con la que el agente interpreta "mañana a las 5". Si no coincide con la del calendario, todas las horas que diga se corren sin avisar.
+        </p>
+        <select value={valor('timezone', 'America/Mexico_City')}
+          onChange={e => escribir({ timezone: e.target.value })}
+          disabled={guardando}
+          className="w-full px-3 py-2 rounded-[10px] border border-black/[0.1] bg-surface text-[13px] text-primary">
+          {FRANJAS.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+        </select>
+      </div>
+
+      <div className="bg-surface border border-border rounded-card shadow-card p-4">
+        <div className="font-display font-bold text-[13px] text-primary mb-0.5">
+          Cuánto dura una cita{marcaPropio('meetingDuration')}
+        </div>
+        <p className="text-[11.5px] text-tertiary mb-2">Los minutos que el agente aparta al ofrecer un horario.</p>
+        <Minutos valor={valor('meetingDuration', 30)} onChange={v => escribir({ meetingDuration: v })}
+          presets={[15, 20, 30, 45, 60]} min={5} />
+      </div>
+
+      <div className="bg-surface border border-border rounded-card shadow-card p-4">
+        <div className="font-display font-bold text-[13px] text-primary mb-0.5">
+          Cada cuánto puede empezar una cita{marcaPropio('slotStep')}
+        </div>
+        <p className="text-[11.5px] text-tertiary mb-2">Con 30 ofrece 9:00, 9:30, 10:00… Con 15 aprovecha más la agenda.</p>
+        <Minutos valor={valor('slotStep', 30)} onChange={v => escribir({ slotStep: v })}
+          presets={[10, 15, 20, 30, 60]} min={5} />
+      </div>
+
+      <div className="bg-surface border border-border rounded-card shadow-card p-4">
+        <div className="font-display font-bold text-[13px] text-primary mb-0.5">
+          Respiro entre citas{marcaPropio('meetingBuffer')}
+        </div>
+        <p className="text-[11.5px] text-tertiary mb-2">Tiempo libre antes y después de cada cita ya tomada.</p>
+        <Minutos valor={valor('meetingBuffer', 15)} onChange={v => escribir({ meetingBuffer: v })}
+          presets={[0, 10, 15, 30, 45]} />
+      </div>
+
+      <div className="[&_.bg-surface]:border-border">
+        <HorariosDeAtencion
+          valor={valor('workingHours', null)}
+          onChange={h => escribir({ workingHours: h })}
+        />
+      </div>
+    </div>
+  )
+}
+
 function PanelDeComentarios({ marca, onGuardar }) {
   const inicial = marca.comentarios || {}
   const [activo, setActivo] = useState(Boolean(inicial.activo))
@@ -635,6 +791,7 @@ function FichaDeMarca({ marca, orgId, dueño, puedeEditar, onVolver, onEditar, o
       </div>
 
       <PanelDeConexion marca={marca} orgId={orgId} />
+      <PanelDeAgenda marca={marca} orgId={orgId} />
       <PanelDeRendimiento marca={marca} orgId={orgId} />
       <PanelDeAtribucion marca={marca} orgId={orgId} />
       {estadoDeConexion(marca) === CONECTADA && (
