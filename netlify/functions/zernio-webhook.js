@@ -162,7 +162,7 @@ async function handleMessageReceived(db, payload) {
   })
 
   /* Guardar ANTES de decidir si se contesta. Lo que sigue tiene tres salidas
-   * —adjunto, agente pausado, handoff— y en las tres hay una persona del
+   * —adjunto y agente pausado— y en las dos hay una persona del
    * otro lado esperando que alguien lea lo que escribió. */
   const text = msg.text || ''
   const esAdjunto = !text.trim()
@@ -182,11 +182,14 @@ async function handleMessageReceived(db, payload) {
     return
   }
 
-  // Si ya hay una persona a cargo, el agente no interviene.
-  if (lead.systemStage === 'handoff') {
-    console.log(`[zernio-webhook] lead ${lead.id} en handoff — sin respuesta automática`)
-    return
-  }
+  /* En handoff ya NO se corta.
+   *
+   * Antes el agente se callaba del todo en cuanto había una persona a cargo, y
+   * un "oye, ¿cómo llegaba?" quedaba esperando a que alguien abriera el Inbox.
+   * Que el objetivo se haya cumplido no quiere decir que se acabaron las dudas
+   * sobre ese objetivo. El agente sigue contestando, en papel de apoyo: el
+   * prompt le quita las herramientas de agenda y le prohíbe vender o mover
+   * nada. */
 
   // El agente ya vive en agent-manager: ahí está el prompt, el historial, el
   // scoring y el avance de etapa. Acá solo lo invocamos y entregamos.

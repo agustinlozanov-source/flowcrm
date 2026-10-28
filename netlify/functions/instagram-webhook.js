@@ -156,7 +156,7 @@ async function alLlegarMensaje(db, cuenta, evento) {
   const lead = await buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId })
 
   /* Guardar ANTES de decidir si se contesta: las tres salidas de abajo
-   * —adjunto, agente pausado, handoff— dejaban el mensaje sin escribir en
+   * —adjunto y agente pausado— dejaban el mensaje sin escribir en
    * ningún lado, y en las tres hay alguien esperando que lo lean. */
   const cuerpo = esAdjunto ? '📎 Archivo adjunto' : texto
   await guardarMensaje(db, orgId, lead.id, { role: 'user', text: cuerpo, channel: CANAL })
@@ -167,7 +167,8 @@ async function alLlegarMensaje(db, cuenta, evento) {
     return
   }
   if (lead.agentPaused) return
-  if (lead.systemStage === 'handoff') return
+  // En handoff el agente sigue contestando, en papel de apoyo: ver la nota en
+  // zernio-webhook y el bloque 'postventa' del prompt.
 
   const respuesta = await preguntarAlAgente(orgId, lead.id, texto)
   if (!respuesta) return

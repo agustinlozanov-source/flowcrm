@@ -171,6 +171,23 @@ ${customInstructions}` : '' },
     { id: 'fecha', donde: 'final', texto: fechaSection },
     { id: 'lead', donde: 'final', texto: leadSection },
 
+    /* Después del handoff el agente no se calla: acompaña.
+     *
+     * Que el objetivo se haya cumplido no quiere decir que la persona deje de
+     * tener dudas sobre ese mismo objetivo —cómo llegar, a qué hora era, si
+     * puede llegar tarde—. Dejarla esperando a que alguien abra el Inbox le
+     * devuelve ese trabajo a la operación. */
+    { id: 'postventa', donde: 'final', texto: leadContext?.enHandoff ? `
+YA HAY UNA PERSONA A CARGO DE ESTE LEAD.
+${leadContext.cita ? `Su cita quedó para el ${leadContext.cita.cuando}, ${leadContext.cita.tipo}, ${leadContext.cita.duracion} minutos.${leadContext.cita.motivo ? ` Motivo: ${leadContext.cita.motivo}.` : ''}${leadContext.cita.link ? ` Enlace: ${leadContext.cita.link}` : ''}${leadContext.cita.lugar ? ` Lugar: ${leadContext.cita.lugar}` : ''}` : 'No tienes una cita registrada para él.'}
+
+Tu papel cambia: ya no calificas ni vendes, acompañas.
+- Contesta dudas sobre lo que ya quedó: cuándo era, cómo llegar, qué llevar, si puede llegar unos minutos tarde.
+- Responde con lo que tienes en la base de conocimiento y en la cita de arriba. Si no está ahí, NO lo inventes —menos una dirección, un costo o un requisito—: dile que lo confirmas con la persona que lo está atendiendo.
+- No propongas otra cita, no la muevas y no la canceles. Si quiere cambiarla, dile que lo pasas con quien lo está atendiendo.
+- No insistas, no vendas y no empujes a nada. Si no hay nada que aportar, con agradecer basta.
+- Sigue siendo breve. Una o dos oraciones alcanzan.` : '' },
+
     /* Texto estable, pero va al final a propósito: es el contrato de salida y
      * lo último que se lee pesa más. Son unos cientos de tokens sin cachear a
      * cambio de no arriesgar que el agente deje de llamar a la herramienta. */
@@ -410,6 +427,38 @@ async function ejecutarHerramienta(nombre, input, ctx) {
   }
 
   return `Herramienta desconocida: ${nombre}`
+}
+
+/* La próxima cita del lead, ya escrita para leerse dentro del prompt.
+ *
+ * Se filtra en memoria a propósito: por lead hay un puñado de citas y una
+ * consulta con dos igualdades pediría un índice compuesto para nada.
+ */
+async function proximaCita(orgId, leadId) {
+  try {
+    const { configDeAgenda } = require('./lib/agenda')
+    const { tz } = await configDeAgenda(db, orgId)
+    const snap = await db.collection('organizations').doc(orgId)
+      .collection('appointments').where('leadId', '==', leadId).get()
+    const ahora = Date.now()
+    const futuras = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(c => c.status !== 'cancelled' && typeof c.scheduledAt?.toDate === 'function')
+      .map(c => ({ ...c, cuando: c.scheduledAt.toDate() }))
+      .filter(c => c.cuando.getTime() > ahora - 2 * 60 * 60 * 1000)
+      .sort((a, b) => a.cuando - b.cuando)
+    if (!futuras.length) return null
+    const c = futuras[0]
+    const cuando = new Intl.DateTimeFormat('es-MX', {
+      timeZone: tz, weekday: 'long', day: 'numeric', month: 'long',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    }).format(c.cuando)
+    const tipo = c.type === 'video' ? 'videollamada' : c.type === 'call' ? 'llamada telefónica' : 'presencial'
+    return { cuando, tipo, duracion: c.duration, motivo: c.notes || '', link: c.link || '', lugar: c.location || '' }
+  } catch (e) {
+    console.warn('[agent] no se pudo leer la cita del lead:', e.message)
+    return null
+  }
 }
 
 /**
@@ -923,6 +972,11 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         channel: lead.lastMessageChannel || lead.source || null,
         faltaTelefono: !String(lead.phone || '').trim()
           && !['whatsapp', null, undefined].includes(lead.lastMessageChannel || lead.source),
+        /* Ya hay una persona a cargo. El agente sigue contestando, pero solo
+         * sobre lo que ya quedó cerrado: dónde es, a qué hora, qué llevar.
+         * Callarse del todo le devolvía ese trabajo a la operación. */
+        enHandoff: lead.systemStage === 'handoff',
+        cita: lead.systemStage === 'handoff' ? await proximaCita(orgId, leadId) : null,
       }
     }
   }
@@ -1070,7 +1124,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         // tool_choice 'any' obliga a usar alguna herramienta, así que el texto
         // al lead sigue saliendo solo por responder, pero ahora antes puede
         // mirar la agenda, agendar o registrar una oportunidad.
-        tools: [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
+        tools: leadContext?.enHandoff ? [RESPONSE_TOOL] : [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
         tool_choice: { type: 'any' },
       })
 
@@ -1130,7 +1184,10 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
 
     // Update lead score and stage (only for real leads)
     let newScore = currentScore
-    if (leadId !== 'test') {
+    /* En handoff el agente contesta, pero no mueve nada: ya no califica, no
+     * avanza etapas y no registra oportunidades. El lead es de la persona que
+     * lo está atendiendo y su tablero no se toca por detrás. */
+    if (leadId !== 'test' && !leadContext?.enHandoff) {
       // Se corre aunque no haya scoring configurado: si agendó hay que moverlo
       // a handoff igual, y antes eso dependía de tener scoring.
       newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig, {
@@ -1142,7 +1199,9 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     // Se registra qué declaró el modelo aunque no se cree nada: sin esto, un
     // fallo acá es invisible y hay que adivinar.
     console.log(`[agent] oportunidades declaradas: ${JSON.stringify(parsed.oportunidades || [])}`)
-    const nuevasOps = await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)
+    const nuevasOps = leadContext?.enHandoff
+      ? 0
+      : await registrarOportunidades(orgId, leadId, parsed.oportunidades, products)
     if (nuevasOps) console.log(`[agent] ${nuevasOps} oportunidad(es) registradas para ${leadId}`)
 
     /* El teléfono que el lead dictó por un canal que no lo trae.
