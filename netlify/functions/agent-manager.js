@@ -1043,18 +1043,23 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
    * de la base de conocimiento— y no podía registrar una sola oportunidad,
    * porque para él el catálogo estaba vacío.
    */
-  let products = []
   const productsRef = db.collection('organizations').doc(orgId).collection('products')
-  if (agentConfig.enabledProductIds?.length) {
-    const productSnaps = await Promise.all(
-      agentConfig.enabledProductIds.map(id => productsRef.doc(id).get())
-    )
-    products = productSnaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }))
-  } else {
-    const todos = await productsRef.get()
-    products = todos.docs.map(d => ({ id: d.id, ...d.data() }))
-  }
-  console.log(`[agent] catálogo: ${products.length} producto(s)${agentConfig.enabledProductIds?.length ? ' (lista habilitada)' : ' (todos, sin lista configurada)'}`)
+  const catalogo = (await productsRef.get()).docs.map(d => ({ id: d.id, ...d.data() }))
+
+  /* Un producto sin pipelineId es del catálogo general; con pipelineId es de
+   * ese embudo y de ningún otro. Es el mismo criterio que ya usan los archivos
+   * de conocimiento, para que no haya dos reglas distintas que recordar.
+   *
+   * Lo propio no pasa por la lista de habilitados: si alguien creó un producto
+   * para esta marca, su agente lo usa. La lista sigue mandando sobre el
+   * catálogo común, que es lo que se quería filtrar cuando se hizo. */
+  const propios = pipelineId ? catalogo.filter(p => p.pipelineId === pipelineId) : []
+  const comunes = catalogo.filter(p => !p.pipelineId)
+  const habilitados = agentConfig.enabledProductIds?.length
+    ? comunes.filter(p => agentConfig.enabledProductIds.includes(p.id))
+    : comunes
+  const products = [...propios, ...habilitados]
+  console.log(`[agent] catálogo: ${products.length} producto(s) — ${propios.length} de este embudo, ${habilitados.length} del común${agentConfig.enabledProductIds?.length ? ' (lista habilitada)' : ''}`)
 
   // Load resources available for sharing
   const resourcesSnap = await db.collection('organizations').doc(orgId).collection('agent_resources')

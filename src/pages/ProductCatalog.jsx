@@ -6,6 +6,9 @@ import {
   Download, FileSpreadsheet, AlertTriangle, Check, ImagePlus
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useAuthStore } from '@/store/authStore'
 import { descargarCSV, COLUMNAS_PRODUCTOS } from '@/lib/exportar'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -13,7 +16,7 @@ import clsx from 'clsx'
 const EMPTY_FORM = {
   name: '', description: '', price: '', currency: 'USD',
   type: 'service', category: '', sku: '', status: 'active',
-  durationDays: '', problemTags: [],
+  durationDays: '', problemTags: [], pipelineId: '',
 }
 
 const TYPES = [
@@ -201,7 +204,7 @@ function ImportModal({ onClose, onImport }) {
 }
 
 // ── PRODUCT FORM MODAL ─────────────────────────────────────────────
-function ProductModal({ product, categories, onClose, onSave }) {
+function ProductModal({ product, categories, pipelines = [], onClose, onSave }) {
   const [form, setForm] = useState({
     ...EMPTY_FORM,
     ...(product ? {
@@ -215,6 +218,7 @@ function ProductModal({ product, categories, onClose, onSave }) {
       status: product.status || 'active',
       durationDays: product.durationDays ? String(product.durationDays) : '',
       problemTags: product.problemTags || [],
+      pipelineId: product.pipelineId || '',
     } : {})
   })
   const [tagInput, setTagInput] = useState('')
@@ -277,6 +281,9 @@ function ProductModal({ product, categories, onClose, onSave }) {
         status: form.status,
         durationDays: showDuration && form.durationDays ? Number(form.durationDays) : null,
         problemTags: form.problemTags,
+        // Cadena vacía no: un producto del catálogo general no debe llevar el
+        // campo, porque el agente filtra por su ausencia.
+        pipelineId: form.pipelineId || null,
         // Solo se manda imageUrl cuando se quita la imagen: si se subió una
         // nueva, la URL la resuelve el hook después de subirla.
         ...(removeImage ? { imageUrl: '' } : {}),
@@ -426,6 +433,21 @@ function ProductModal({ product, categories, onClose, onSave }) {
             <p className="text-[10px] text-tertiary mt-1">El agente usa esto para asociar leads al producto correcto durante la conversación</p>
           </div>
 
+          {/* De quién es el producto */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-1.5">Catálogo</label>
+            <select value={form.pipelineId} onChange={set('pipelineId')}
+              className="w-full px-3 py-2 rounded-[10px] border border-black/[0.1] bg-surface text-[13px] text-primary">
+              <option value="">Catálogo general — lo ven todos los embudos</option>
+              {pipelines.map(p => (
+                <option key={p.id} value={p.id}>Solo {p.name}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-tertiary mt-1">
+              Un producto de un embudo solo existe para ese agente, y no pasa por la lista de productos habilitados: si lo creaste ahí, lo usa.
+            </p>
+          </div>
+
           {/* Estado */}
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wide text-secondary block mb-2">Estado</label>
@@ -461,7 +483,7 @@ function ProductModal({ product, categories, onClose, onSave }) {
 }
 
 // ── PRODUCT CARD (grid view) ──────────────────────────────────────
-function ProductCard({ product, onEdit, onDelete }) {
+function ProductCard({ product, onEdit, onDelete, pipelineName }) {
   const badge = TYPE_BADGE[product.type] || { label: product.type, color: '#8e8e93' }
   return (
     <div className="card p-4 flex flex-col gap-3 hover:shadow-card-md transition-all">
@@ -482,6 +504,11 @@ function ProductCard({ product, onEdit, onDelete }) {
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ background: badge.color + '18', color: badge.color }}>{badge.label}</span>
         </div>
+        {pipelineName && (
+          <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue mb-1">
+            Solo {pipelineName}
+          </span>
+        )}
         {product.description && (
           <p className="text-[11.5px] text-secondary line-clamp-2 leading-relaxed">{product.description}</p>
         )}
@@ -529,6 +556,20 @@ function ProductCard({ product, onEdit, onDelete }) {
 export default function ProductCatalog() {
   const { products, loading, categories, createProduct, updateProduct, deleteProduct } = useProducts()
   const { canExportData } = usePermissions()
+  /* Solo los nombres de los embudos, para etiquetar y filtrar el catálogo.
+   *
+   * usePipeline traería también etapas, leads y miembros: tres suscripciones
+   * que esta pantalla no usa para nada. */
+  const { org } = useAuthStore()
+  const [pipelines, setPipelines] = useState([])
+  useEffect(() => {
+    if (!org?.id) return
+    return onSnapshot(
+      query(collection(db, 'organizations', org.id, 'pipelines'), orderBy('createdAt', 'asc')),
+      snap => setPipelines(snap.docs.map(d => ({ id: d.id, name: d.data().name }))),
+      err => console.error('[catálogo] no se pudieron leer los embudos:', err)
+    )
+  }, [org?.id])
 
   const handleExport = () => {
     if (!products.length) { toast.error('No hay productos para exportar'); return }
@@ -544,6 +585,7 @@ export default function ProductCatalog() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [catalogoFilter, setCatalogoFilter] = useState('all')
 
   const openNew = () => { setEditProduct(null); setShowModal(true) }
   const openEdit = (product) => { setEditProduct(product); setShowModal(true) }
@@ -590,6 +632,9 @@ export default function ProductCatalog() {
   }
 
   const filtered = products.filter(p => {
+    // 'general' son los que no pertenecen a ningún embudo.
+    if (catalogoFilter === 'general' && p.pipelineId) return false
+    if (catalogoFilter !== 'all' && catalogoFilter !== 'general' && p.pipelineId !== catalogoFilter) return false
     if (statusFilter !== 'all' && (p.status || 'active') !== statusFilter) return false
     if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
     if (typeFilter !== 'all' && p.type !== typeFilter) return false
@@ -670,6 +715,14 @@ export default function ProductCatalog() {
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           )}
+          {pipelines.length > 0 && (
+            <select value={catalogoFilter} onChange={e => setCatalogoFilter(e.target.value)}
+              className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
+              <option value="all">Todo el catálogo</option>
+              <option value="general">Solo el general</option>
+              {pipelines.map(pl => <option key={pl.id} value={pl.id}>Solo {pl.name}</option>)}
+            </select>
+          )}
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
             className="text-[12.5px] bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-1.5 text-secondary outline-none cursor-pointer">
             <option value="all">Todos los tipos</option>
@@ -706,6 +759,7 @@ export default function ProductCatalog() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filtered.map(product => (
               <ProductCard key={product.id} product={product}
+                pipelineName={pipelines.find(pl => pl.id === product.pipelineId)?.name}
                 onEdit={openEdit} onDelete={setConfirmDelete} />
             ))}
           </div>
@@ -780,6 +834,7 @@ export default function ProductCatalog() {
         <ProductModal
           product={editProduct}
           categories={categories}
+          pipelines={pipelines}
           onClose={() => { setShowModal(false); setEditProduct(null) }}
           onSave={handleSave}
         />
