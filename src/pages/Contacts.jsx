@@ -12,7 +12,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import {
   Search, Users, MousePointerClick, Instagram, MessageCircle,
   Linkedin, Globe, Star, PenTool, Archive, Filter,
-  Upload, X, Check, Download, Trash2
+  Upload, X, Check, Download, Trash2, RotateCcw
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -193,7 +193,7 @@ export default function Contacts() {
   const { org } = useAuthStore()
   const { canExportData } = usePermissions()
   const orgId = org?.id
-  const { stages, leads, systemLeads, discardedLeads, loading, createLead } = usePipeline()
+  const { stages, allStages, leads, systemLeads, discardedLeads, loading, createLead, updateLead } = usePipeline()
   const [selectedLead, setSelectedLead] = useState(null)
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
@@ -201,6 +201,7 @@ export default function Contacts() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [viewMode, setViewMode] = useState('active')
   const [showImport, setShowImport] = useState(false)
+  const [reactivando, setReactivando] = useState(null)
   const [clearing, setClearing] = useState(false)
   const [featureFlags, setFeatureFlags] = useState({})
 
@@ -320,6 +321,40 @@ export default function Contacts() {
     return null
   }
 
+  /* Reactivar un descartado.
+   *
+   * Vuelve a la primera etapa de su embudo, no a donde estaba: si se descartó
+   * fue porque el avance que tenía ya no era cierto.
+   *
+   * Las razones que no se retoman no ofrecen el botón. "Solicitud expresa"
+   * sobre todo: esa persona pidió no ser contactada y eso no se deshace con un
+   * clic. */
+  const puedeRetomar = (categoria) =>
+    DISCARD_CATEGORIES.find(c => c.value === categoria)?.canRetake !== false
+
+  const reactivar = async (lead) => {
+    const primera = allStages.find(s => s.pipelineId === lead.pipelineId)
+    if (!primera) { toast.error('Ese embudo ya no tiene etapas'); return }
+    setReactivando(lead.id)
+    try {
+      await updateLead(lead.id, {
+        discarded: false,
+        discardedAt: null,
+        discardedBy: null,
+        discardCategory: null,
+        discardNotes: null,
+        retakeDate: null,
+        systemStage: null,
+        stageId: primera.id,
+      })
+      toast.success(`${lead.name} volvió a "${primera.name}"`)
+    } catch {
+      toast.error('No se pudo reactivar')
+    } finally {
+      setReactivando(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -434,8 +469,9 @@ export default function Contacts() {
           <table className="w-full">
             <thead className="sticky top-0 bg-surface border-b border-black/[0.08] z-10">
               <tr>
-                {['Contacto', 'Etapa', 'Fuente', 'Score', 'Valor', 'Teléfono', 'Email', 'Fecha'].map(h => (
-                  <th key={h} className="text-left text-[11px] font-semibold uppercase tracking-wide text-tertiary px-4 py-3 whitespace-nowrap">
+                {['Contacto', 'Etapa', 'Fuente', 'Score', 'Valor', 'Teléfono', 'Email', 'Fecha',
+                  ...(viewMode === 'discarded' ? [''] : [])].map((h, hi) => (
+                  <th key={h || hi} className="text-left text-[11px] font-semibold uppercase tracking-wide text-tertiary px-4 py-3 whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -524,6 +560,23 @@ export default function Contacts() {
                     <td className="px-4 py-3 text-[12px] text-tertiary whitespace-nowrap">
                       {date}
                     </td>
+
+                    {/* Reactivar — solo en descartados */}
+                    {viewMode === 'discarded' && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {puedeRetomar(lead.discardCategory) ? (
+                          <button
+                            onClick={e => { e.stopPropagation(); reactivar(lead) }}
+                            disabled={reactivando === lead.id}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/[0.08] text-[11.5px] font-semibold text-secondary hover:text-primary hover:border-black/[0.16] disabled:opacity-40 transition-colors">
+                            <RotateCcw size={12} />
+                            {reactivando === lead.id ? 'Reactivando…' : 'Reactivar'}
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-tertiary">No se retoma</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               })}
