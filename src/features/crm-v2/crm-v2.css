@@ -598,8 +598,8 @@
 /* Handoff */
 .pv2-card--m4 { border-left-color: #00A651; }
 /* Cierre definitivo */
-.pv2-card--c1 { border-left-color: #2E90FA; }
-.pv2-card--c2 { border-left-color: #9E77ED; }
+.pv2-card--c1 { border-left-color: #9E77ED; }
+.pv2-card--c2 { border-left-color: #2E90FA; }
 
 /* El estancamiento es lo único que pisa el color de madurez, porque es la
  * única información que el color de madurez no puede dar. */
