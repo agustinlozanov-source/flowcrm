@@ -11,6 +11,7 @@ import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
+import CompuertaDeOportunidad from '../components/CompuertaDeOportunidad'
 import { OportunidadesSection, ContactoSection, CitasSection, DescartarSection } from '../components/LeadSections'
 import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
@@ -77,6 +78,10 @@ export default function PipelineV2() {
   const [peek, setPeek] = useState(null)
   const [dragging, setDragging] = useState(null)
   const [creating, setCreating] = useState(false)
+  /* Lo que hay que hacer en cuanto la oportunidad exista. Se guarda acá
+   * porque la compuerta no sabe —ni tiene por qué— si el movimiento venía de
+   * un arrastre o del selector del card. */
+  const [compuerta, setCompuerta] = useState(null)
   // Contador y no booleano: hacer clic en el nombre otra vez tiene que volver
   // a abrir el editor aunque ya se haya cerrado.
   const [editandoContacto, setEditandoContacto] = useState(0)
@@ -249,6 +254,17 @@ export default function PipelineV2() {
 
     try {
       if (destino === 'handoff') {
+        if (faltaOportunidad(card._lead)) {
+          setCompuerta({
+            lead: card._lead,
+            nombre: card.name,
+            seguir: async () => {
+              await moveToHandoff(card.id)
+              toast.success(`${card.name} pasó a Handoff`)
+            },
+          })
+          return
+        }
         await moveToHandoff(card.id)
         toast.success(`${card.name} pasó a Handoff`)
       } else if (destino === 'cierre') {
@@ -288,15 +304,29 @@ export default function PipelineV2() {
    * configurable lo regresa a calentamiento, que es lo que significa. Por eso
    * se limpia systemStage: si no, el card diría una etapa y viviría en otra
    * columna. */
+  /* Sin oportunidad no se entra a Seguimiento. No es un trámite: si no hay
+   * oportunidad, no hay a qué darle seguimiento, y preguntarlo al cerrar es
+   * tarde porque ahí ya nadie se acuerda de qué se trataba. */
+  const faltaOportunidad = (lead) => !(lead?.opportunityStats?.total > 0)
+
   const cambiarEtapa = async (deal, stageId) => {
     if (!stageId || stageId === deal.etapa?.id) return
     const destino = stages.find(s => s.id === stageId)
-    try {
-      await updateLead(deal.id, { stageId, systemStage: null })
-      toast.success(`${deal.name} → ${destino?.name || 'otra etapa'}`)
-    } catch {
-      toast.error('No se pudo cambiar la etapa')
+
+    const mover = async () => {
+      try {
+        await updateLead(deal.id, { stageId, systemStage: null })
+        toast.success(`${deal.name} → ${destino?.name || 'otra etapa'}`)
+      } catch {
+        toast.error('No se pudo cambiar la etapa')
+      }
     }
+
+    if (destino?.fase === 'handoff' && faltaOportunidad(deal._lead)) {
+      setCompuerta({ lead: deal._lead, nombre: deal.name, seguir: mover })
+      return
+    }
+    await mover()
   }
 
   const step = dir => setPeek(cur => {
@@ -493,6 +523,15 @@ export default function PipelineV2() {
           if (i >= 0 && i < flat.length - 1) setSelected(flat[i + 1])
         }}
       />
+
+      {compuerta && (
+        <CompuertaDeOportunidad
+          lead={{ ...compuerta.lead, name: compuerta.nombre }}
+          products={products}
+          onCancelar={() => setCompuerta(null)}
+          onListo={async () => { const f = compuerta.seguir; setCompuerta(null); await f() }}
+        />
+      )}
 
       {creating && (
         <NewCardDialog
