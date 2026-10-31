@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { normalizePhone } from '@/lib/utils'
+import { coincide } from '@/features/crm-v2/buscar'
 import { usePipeline, SYSTEM_STAGES, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
 import LeadDrawer from '@/components/pipeline/LeadDrawer'
 import clsx from 'clsx'
@@ -267,13 +268,7 @@ export default function Contacts() {
     let result = [...allLeadsForView]
 
     if (search.trim()) {
-      const q = search.toLowerCase()
-      result = result.filter(l =>
-        l.name?.toLowerCase().includes(q) ||
-        l.company?.toLowerCase().includes(q) ||
-        l.email?.toLowerCase().includes(q) ||
-        normalizePhone(l.phone).includes(q)
-      )
+      result = result.filter(l => coincide(l, search))
     }
 
     if (stageFilter !== 'all') {

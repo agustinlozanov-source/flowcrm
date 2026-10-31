@@ -16,6 +16,7 @@ import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
+import { coincide } from '../buscar'
 import { usePipeline } from '@/hooks/usePipeline'
 import EditPipelineModal from '@/components/pipeline/EditPipelineModal'
 import { useAppointments } from '@/hooks/useAppointments'
@@ -106,13 +107,7 @@ export default function PipelineV2() {
       // Sin el permiso de ver todo el equipo, cada quien ve lo suyo. Los que
       // no tienen dueño los ve cualquiera: todavía los atiende el agente.
       .filter(l => canSeeAllLeads || !l.assignedTo || l.assignedTo === user?.uid)
-    const q = search.trim().toLowerCase()
-    const visibles = q
-      ? todos.filter(l =>
-          l.name?.toLowerCase().includes(q) ||
-          l.company?.toLowerCase().includes(q) ||
-          l.phone?.includes(q))
-      : todos
+    const visibles = search.trim() ? todos.filter(l => coincide(l, search)) : todos
 
     const porFiltros = visibles.filter(l => {
       if (dueno === 'agente' && l.assignedTo) return false
