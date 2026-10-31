@@ -68,7 +68,7 @@ export default function PipelineCard({
               {etapa.name}
               {etapas.length > 0 && (
                 <>
-                  <ChevronDown size={9} style={{ opacity: .6 }} />
+                  <ChevronDown size={12} strokeWidth={2.5} />
                   <select
                     className="pv2-etapa__select"
                     value={etapa.id || ''}
