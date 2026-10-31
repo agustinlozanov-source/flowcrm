@@ -23,6 +23,7 @@ export default function SelectorConCrear({
   detalle,            // (item) => string  — la segunda línea, opcional
   placeholder = 'Busca o crea',
   textoCrear = 'Crear',
+  mensajeVacio = 'Nada coincide',
   autoFocus = false,
 }) {
   const [abierto, setAbierto] = useState(false)
@@ -89,7 +90,7 @@ export default function SelectorConCrear({
           />
           <div className="pv2-selector__lista">
             {opciones.length === 0 && (
-              <p className="pv2-selector__nada">Nada coincide</p>
+              <p className="pv2-selector__nada">{mensajeVacio}</p>
             )}
             {opciones.map((item, i) => item === null ? (
               <button key="__crear" type="button"

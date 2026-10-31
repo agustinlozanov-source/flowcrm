@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import SelectorConCrear from './SelectorConCrear'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import { useProducts } from '@/hooks/useProducts'
+import { usePermissions } from '@/hooks/usePermissions'
 import { normalizar } from '../buscar'
 import toast from 'react-hot-toast'
 
@@ -19,6 +20,14 @@ import toast from 'react-hot-toast'
 export default function CompuertaDeOportunidad({ lead, fase = 'handoff', products = [], onListo, onCancelar }) {
   const { crear } = useOpportunities(lead?.id)
   const { createProduct } = useProducts()
+  /* El catálogo es una decisión de dirección: precio, margen, qué vende la
+   * empresa. Un vendedor que puede dar de alta productos convierte el catálogo
+   * en basura en un mes y los reportes por producto en nada.
+   *
+   * Lo que sí puede hacer está abajo: el monto es editable. Elegir del
+   * catálogo y ajustar el monto es exactamente un descuento o una promoción.
+   * La latitud está en el precio, no en qué se vende. */
+  const { canManageProducts } = usePermissions()
   const [producto, setProducto] = useState(null)
   const [monto, setMonto] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -80,7 +89,10 @@ export default function CompuertaDeOportunidad({ lead, fase = 'handoff', product
             placeholder="Busca un producto o crea uno"
             textoCrear="Crear producto"
             onElegir={elegir}
-            onCrear={crearProducto}
+            onCrear={canManageProducts ? crearProducto : undefined}
+            mensajeVacio={canManageProducts
+              ? 'Nada coincide'
+              : 'No está en el catálogo. Pídele a un administrador que lo dé de alta.'}
           />
         </div>
 
