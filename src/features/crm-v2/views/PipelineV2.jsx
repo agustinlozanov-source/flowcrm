@@ -42,7 +42,7 @@ export default function PipelineV2() {
   const { currentGoal, currentQuarter, computedMetrics } = useGoals()
   const navigate = useNavigate()
   const {
-    leads, systemLeads, members, loading, stages,
+    leads, systemLeads, members, loading, stages, allStages,
     pipelines, activePipelineId, setActivePipelineId,
     moveToHandoff, resolveHandoff, updateLead, createLead,
     updatePipeline, deletePipeline, updateStage, deleteStage,
@@ -125,7 +125,7 @@ export default function PipelineV2() {
     const out = { calentamiento: [], handoff: [], cierre: [] }
     for (const lead of porFiltros) {
       out[columnOf(lead)].push(
-        toCard(lead, { members, products, citasDelLead: citasPorLead[lead.id] || [] }),
+        toCard(lead, { members, products, stages: allStages, citasDelLead: citasPorLead[lead.id] || [] }),
       )
     }
     // Dentro de cada columna, primero lo más maduro.

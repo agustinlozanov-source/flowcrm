@@ -8,6 +8,7 @@
  *   scoreTrend  → no hay histórico de score (ver BACKEND-CHANGES-NEEDED.md)
  *   potential   → no existe el concepto de valor potencial en los leads
  */
+import { SYSTEM_STAGES } from '@/hooks/usePipeline'
 import { maturityFromScore, MATURITY } from './maturity'
 
 const HORAS = 36e5
@@ -103,7 +104,7 @@ function nextActionOf(lead, proximaCita) {
  * @param members       equipo, para resolver a quién está asignado
  * @param citasDelLead  citas futuras de ese lead, ya ordenadas
  */
-export function toCard(lead, { members = [], citasDelLead = [], products = [] } = {}) {
+export function toCard(lead, { members = [], citasDelLead = [], products = [], stages = [] } = {}) {
   const asignado = lead.assignedTo
     ? members.find(m => m.id === lead.assignedTo || m.uid === lead.assignedTo)
     : null
@@ -168,6 +169,23 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
       stats?.open > 0 && { label: 'Abiertas', value: `${stats.open} oportunidad${stats.open === 1 ? '' : 'es'}` },
       lead.paymentDate && { label: 'Fecha de pago', value: lead.paymentDate },
     ].filter(Boolean),
+    /* En qué etapa va, dentro de su fase.
+     *
+     * Las tres columnas son la fase; la etapa vive acá adentro. Sin esto, con
+     * trescientas tarjetas en Calentamiento no hay forma de saber cuál está
+     * donde sin abrirlas una por una.
+     *
+     * Pasado el handoff la etapa que importa es la del sistema —oportunidad
+     * abierta, segura, cerrada— y no la configurable, que ya quedó atrás. */
+    etapa: lead.systemStage
+      ? (SYSTEM_STAGES[lead.systemStage]
+          ? { name: SYSTEM_STAGES[lead.systemStage].name, color: SYSTEM_STAGES[lead.systemStage].color }
+          : null)
+      : (() => {
+          const e = stages.find(x => x.id === lead.stageId)
+          return e ? { name: e.name, color: e.color } : null
+        })(),
+
     /* Volvió de descartados. No se esconde: un lead que regresa a Cierre
      * después de meses infla el pronóstico y nadie se entera. Acá se ve. */
     reactivado: lead.reactivadoAt

@@ -24,7 +24,7 @@ export default function PipelineCard({
 }) {
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
-    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado,
+    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado, etapa,
     maturity, potential,
   } = deal
 
@@ -56,6 +56,12 @@ export default function PipelineCard({
             {name}
           </button>
           {sub && <div className="pv2-card__sub">{sub}</div>}
+          {etapa && (
+            <div className="pv2-etapa" style={{ '--etapa': etapa.color || 'var(--text-dim)' }}>
+              <span className="pv2-etapa__punto" />
+              {etapa.name}
+            </div>
+          )}
         </div>
         <ScoreChip score={score} trend={scoreTrend} />
       </div>
