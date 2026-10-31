@@ -69,7 +69,16 @@ async function recalcular(orgId, leadId) {
     if (!yaEstaEnCierre || (etapaActual !== 'closed' && destino === 'closed')) {
       cambios.systemStage = destino
       cambios.systemStageAt = serverTimestamp()
-      cambios.stageId = null
+      /* La etapa NO se borra.
+       *
+       * Antes se ponía en null, así que ganar una venta destruía la etapa que
+       * el usuario había configurado y el lead quedaba sin lugar propio en su
+       * embudo. Ahora se conserva: la etapa es del negocio, el systemStage es
+       * del sistema, y uno no tiene por qué pisar al otro.
+       *
+       * Esto además deja el camino listo para cuando las etapas de
+       * oportunidad desaparezcan y el cierre sea una etapa configurada como
+       * cualquier otra. */
     }
     // Sin closedAt el lead no entra en ninguna consulta por rango de fechas, y
     // los objetivos del trimestre buscan justamente por ahí. Se escribe una
