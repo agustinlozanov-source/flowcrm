@@ -287,6 +287,23 @@ export default function PipelineV2() {
     return () => window.removeEventListener('keydown', onKey)
   }, [selected])
 
+  /* Cambiar de etapa desde el card.
+   *
+   * Sacarlo de una etapa del sistema -handoff, cierre- y mandarlo a una
+   * configurable lo regresa a calentamiento, que es lo que significa. Por eso
+   * se limpia systemStage: si no, el card diría una etapa y viviría en otra
+   * columna. */
+  const cambiarEtapa = async (deal, stageId) => {
+    if (!stageId || stageId === deal.etapa?.id) return
+    const destino = stages.find(s => s.id === stageId)
+    try {
+      await updateLead(deal.id, { stageId, systemStage: null })
+      toast.success(`${deal.name} → ${destino?.name || 'otra etapa'}`)
+    } catch {
+      toast.error('No se pudo cambiar la etapa')
+    }
+  }
+
   const step = dir => setPeek(cur => {
     const i = flat.findIndex(d => d.id === cur?.id)
     if (i < 0) return cur
@@ -412,6 +429,8 @@ export default function PipelineV2() {
                       onOpen={() => { setPeek(null); setSelected(deal) }}
                       onWhatsApp={deal.hasConversation ? () => navigate(`/inbox?lead=${deal.id}`) : undefined}
                       onCall={deal.phone ? () => { window.location.href = `tel:${deal.phone}` } : undefined}
+                      etapas={stages}
+                      onEtapa={id => cambiarEtapa(deal, id)}
                     />
                   ))}
                 </PipelineColumn>
@@ -512,7 +531,7 @@ export default function PipelineV2() {
 /* La tarjeta arrastrable envuelve a PipelineCard en vez de modificarla: así
  * la tarjeta sigue sirviendo fuera de un DndContext, como en la página de
  * componentes. */
-function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall }) {
+function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall, etapas, onEtapa }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id })
   return (
     <div
@@ -529,6 +548,8 @@ function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall }) 
         onOpen={onOpen}
         onWhatsApp={onWhatsApp}
         onCall={onCall}
+        etapas={etapas}
+        onEtapa={onEtapa}
       />
     </div>
   )

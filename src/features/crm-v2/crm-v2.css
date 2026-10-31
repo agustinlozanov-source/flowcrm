@@ -1087,3 +1087,11 @@
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--etapa); flex-shrink: 0;
 }
+
+.pv2-etapa { position: relative; cursor: pointer; }
+.pv2-etapa__select {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;
+  border: none; background: none; font-size: 11px;
+}

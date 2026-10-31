@@ -179,11 +179,11 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [], s
      * abierta, segura, cerrada— y no la configurable, que ya quedó atrás. */
     etapa: lead.systemStage
       ? (SYSTEM_STAGES[lead.systemStage]
-          ? { name: SYSTEM_STAGES[lead.systemStage].name, color: SYSTEM_STAGES[lead.systemStage].color }
+          ? { id: null, name: SYSTEM_STAGES[lead.systemStage].name, color: SYSTEM_STAGES[lead.systemStage].color, deSistema: true }
           : null)
       : (() => {
           const e = stages.find(x => x.id === lead.stageId)
-          return e ? { name: e.name, color: e.color } : null
+          return e ? { id: e.id, name: e.name, color: e.color, deSistema: false } : null
         })(),
 
     /* Volvió de descartados. No se esconde: un lead que regresa a Cierre

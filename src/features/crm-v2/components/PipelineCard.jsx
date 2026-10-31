@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw } from 'lucide-react'
+import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw, ChevronDown } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -21,6 +21,8 @@ export default function PipelineCard({
   onOpenFull,
   onWhatsApp,
   onCall,
+  etapas = [],
+  onEtapa,
 }) {
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
@@ -57,9 +59,32 @@ export default function PipelineCard({
           </button>
           {sub && <div className="pv2-card__sub">{sub}</div>}
           {etapa && (
+            /* El selector nativo va transparente encima de la insignia: se ve
+             * como el resto del card y se comporta como un select de verdad,
+             * sin menús flotantes dentro de una columna que hace scroll y que
+             * además se arrastra. */
             <div className="pv2-etapa" style={{ '--etapa': etapa.color || 'var(--text-dim)' }}>
               <span className="pv2-etapa__punto" />
               {etapa.name}
+              {etapas.length > 0 && (
+                <>
+                  <ChevronDown size={9} style={{ opacity: .6 }} />
+                  <select
+                    className="pv2-etapa__select"
+                    value={etapa.id || ''}
+                    title="Cambiar de etapa"
+                    onClick={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
+                    onKeyDown={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); onEtapa?.(e.target.value) }}
+                  >
+                    {etapa.deSistema && <option value="">{etapa.name}</option>}
+                    {etapas.map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
           )}
         </div>
