@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle } from 'lucide-react'
+import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle, Package } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -17,6 +17,14 @@ const STAGE_COLORS = [
 ]
 
 const clamp = v => Math.max(0, Math.min(100, Number(v) || 0))
+
+/* Las tres fases del tablero. No se configuran: son las columnas, y son de
+ * FlowHub. Lo que se configura es qué etapa vive en cuál. */
+const FASES = [
+  { id: 'calentamiento', label: 'Calentamiento' },
+  { id: 'handoff', label: 'Handoff' },
+  { id: 'cierre', label: 'Cierre' },
+]
 
 function SortableStageRow({ stage, index, total, onChange, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
@@ -43,6 +51,13 @@ function SortableStageRow({ stage, index, total, onChange, onRemove }) {
         placeholder={`Etapa ${index + 1}`}
         className="flex-1 min-w-0 bg-transparent text-[13px] text-primary placeholder-tertiary outline-none"
       />
+      <select
+        value={stage.fase}
+        onChange={e => onChange('fase', e.target.value)}
+        title="En qué fase vive esta etapa"
+        className="flex-shrink-0 bg-surface-2 border border-black/[0.08] rounded-[5px] py-[3px] px-1.5 text-[11.5px] text-secondary outline-none focus:border-primary/40 cursor-pointer">
+        {FASES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+      </select>
       <div className="flex items-center gap-1 flex-shrink-0">
         <span className="text-[10px] font-semibold text-tertiary uppercase tracking-wide">Score</span>
         <input type="number" min={0} max={100} value={stage.scoreMin}
@@ -88,8 +103,17 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       color: s.color || '#6366f1',
       scoreMin: s.scoreMin ?? 0,
       scoreMax: s.scoreMax ?? 100,
+      /* En qué fase vive esta etapa. Elegirla en una tarjeta la mueve de
+       * columna sola: si una etapa vive en una fase, estar en esa etapa es
+       * estar en esa fase. */
+      fase: s.fase || 'calentamiento',
     }))
   )
+
+  /* Apagada por omisión: encenderla le cambia el día a quien ya estaba
+   * trabajando sin oportunidades. Se enciende embudo por embudo, cuando su
+   * catálogo está cargado. */
+  const [exigeOportunidad, setExigeOportunidad] = useState(pipeline?.exigeOportunidad || false)
 
   // Handoff Bound config
   const [handoffBoundActive, setHandoffBoundActive] = useState(pipeline?.handoffBoundActive || false)
@@ -125,6 +149,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       await onSave({
         name: name.trim(),
         purpose,
+        exigeOportunidad,
         stageEdits,
         deletedIds,
         handoffBoundActive,
@@ -249,6 +274,29 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
           {/* ── RULES TAB ── */}
           {activeTab === 'rules' && (
             <>
+              {/* Exigir oportunidad */}
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-[8px] bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Package size={15} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="font-display font-bold text-[13.5px] text-primary">Exigir oportunidad para avanzar</div>
+                      <div className="text-[11.5px] text-secondary mt-0.5 leading-relaxed">
+                        Un lead no pasa a Seguimiento ni a Cierre sin tener al menos una oportunidad con su producto. Obliga a responder qué se le está vendiendo, en vez de descubrirlo al final.
+                      </div>
+                    </div>
+                  </div>
+                  <Toggle value={exigeOportunidad} onChange={setExigeOportunidad} />
+                </div>
+                {exigeOportunidad && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 rounded-[8px] px-3 py-2 mt-3">
+                    Con esto encendido, el catálogo de este embudo tiene que estar cargado. Un vendedor no puede dar de alta productos.
+                  </p>
+                )}
+              </div>
+
               {/* Handoff Bound */}
               <div className="card p-4 flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">

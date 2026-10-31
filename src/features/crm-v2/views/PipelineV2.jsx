@@ -11,11 +11,13 @@ import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
-import { OportunidadesSection, ContactoSection, CitasSection } from '../components/LeadSections'
+import CompuertaDeOportunidad from '../components/CompuertaDeOportunidad'
+import { OportunidadesSection, ContactoSection, CitasSection, DescartarSection } from '../components/LeadSections'
 import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
 import { toCard, columnOf } from '../adapter'
+import { coincide } from '../buscar'
 import { usePipeline } from '@/hooks/usePipeline'
 import EditPipelineModal from '@/components/pipeline/EditPipelineModal'
 import { useAppointments } from '@/hooks/useAppointments'
@@ -42,7 +44,7 @@ export default function PipelineV2() {
   const { currentGoal, currentQuarter, computedMetrics } = useGoals()
   const navigate = useNavigate()
   const {
-    leads, systemLeads, members, loading, stages,
+    leads, systemLeads, todosLosLeads, members, loading, stages, allStages,
     pipelines, activePipelineId, setActivePipelineId,
     moveToHandoff, resolveHandoff, updateLead, createLead,
     updatePipeline, deletePipeline, updateStage, deleteStage,
@@ -58,11 +60,11 @@ export default function PipelineV2() {
    * ahí va. */
   const [editandoPipeline, setEditandoPipeline] = useState(false)
 
-  const guardarPipeline = async ({ name, purpose, stageEdits, deletedIds = [] }) => {
-    await updatePipeline(activePipelineId, { name, purpose })
+  const guardarPipeline = async ({ name, purpose, exigeOportunidad, stageEdits, deletedIds = [] }) => {
+    await updatePipeline(activePipelineId, { name, purpose, exigeOportunidad: !!exigeOportunidad })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
-      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
+      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i })
     }
     for (const id of deletedIds) await deleteStage(id)
     toast.success('Pipeline actualizado')
@@ -76,6 +78,10 @@ export default function PipelineV2() {
   const [peek, setPeek] = useState(null)
   const [dragging, setDragging] = useState(null)
   const [creating, setCreating] = useState(false)
+  /* Lo que hay que hacer en cuanto la oportunidad exista. Se guarda acá
+   * porque la compuerta no sabe —ni tiene por qué— si el movimiento venía de
+   * un arrastre o del selector del card. */
+  const [compuerta, setCompuerta] = useState(null)
   // Contador y no booleano: hacer clic en el nombre otra vez tiene que volver
   // a abrir el editor aunque ya se haya cerrado.
   const [editandoContacto, setEditandoContacto] = useState(0)
@@ -106,13 +112,7 @@ export default function PipelineV2() {
       // Sin el permiso de ver todo el equipo, cada quien ve lo suyo. Los que
       // no tienen dueño los ve cualquiera: todavía los atiende el agente.
       .filter(l => canSeeAllLeads || !l.assignedTo || l.assignedTo === user?.uid)
-    const q = search.trim().toLowerCase()
-    const visibles = q
-      ? todos.filter(l =>
-          l.name?.toLowerCase().includes(q) ||
-          l.company?.toLowerCase().includes(q) ||
-          l.phone?.includes(q))
-      : todos
+    const visibles = search.trim() ? todos.filter(l => coincide(l, search)) : todos
 
     const porFiltros = visibles.filter(l => {
       if (dueno === 'agente' && l.assignedTo) return false
@@ -124,8 +124,8 @@ export default function PipelineV2() {
 
     const out = { calentamiento: [], handoff: [], cierre: [] }
     for (const lead of porFiltros) {
-      out[columnOf(lead)].push(
-        toCard(lead, { members, products, citasDelLead: citasPorLead[lead.id] || [] }),
+      out[columnOf(lead, allStages)].push(
+        toCard(lead, { members, products, stages: allStages, citasDelLead: citasPorLead[lead.id] || [] }),
       )
     }
     // Dentro de cada columna, primero lo más maduro.
@@ -216,7 +216,7 @@ export default function PipelineV2() {
    * Calentamiento → Cierre tampoco: pasar directo a oportunidad saltea la
    * llamada, que es justamente lo que Handoff representa. */
   const puedeMover = useCallback((card, destino) => {
-    const origen = columnOf(card._lead)
+    const origen = columnOf(card._lead, allStages)
     if (origen === destino) return false
     if (card._lead.systemStage === 'closed') return false
     if (origen === 'calentamiento' && destino === 'cierre') return false
@@ -242,7 +242,7 @@ export default function PipelineV2() {
     if (!card) return
     if (!puedeMover(card, destino)) {
       // Callarse acá deja al usuario pensando que la app falló.
-      const origen = columnOf(card._lead)
+      const origen = columnOf(card._lead, allStages)
       if (origen === destino) return
       if (card._lead.systemStage === 'closed') {
         toast.error('Una venta cerrada se reabre desde la ficha, no arrastrando')
@@ -254,13 +254,32 @@ export default function PipelineV2() {
 
     try {
       if (destino === 'handoff') {
+        if (faltaOportunidad(card._lead)) {
+          setCompuerta({
+            lead: card._lead,
+            nombre: card.name,
+            fase: 'handoff',
+            seguir: async () => {
+              await moveToHandoff(card.id)
+              toast.success(`${card.name} pasó a Handoff`)
+            },
+          })
+          return
+        }
         await moveToHandoff(card.id)
         toast.success(`${card.name} pasó a Handoff`)
       } else if (destino === 'cierre') {
         // Hubo llamada pero todavía no hay fecha de pago: eso es exactamente
         // una oportunidad abierta. La fecha se carga después en la ficha.
-        await resolveHandoff(card.id, 'open_opportunity')
-        toast.success(`${card.name} pasó a Cierre — falta fecha de pago`)
+        const cerrar = async () => {
+          await resolveHandoff(card.id, 'open_opportunity')
+          toast.success(`${card.name} pasó a Cierre — falta fecha de pago`)
+        }
+        if (faltaOportunidad(card._lead)) {
+          setCompuerta({ lead: card._lead, nombre: card.name, fase: 'cierre', seguir: cerrar })
+          return
+        }
+        await cerrar()
       } else {
         // Volver a calentamiento. moveToHandoff había borrado la etapa, así
         // que hay que devolverle una o el lead queda sin columna.
@@ -286,6 +305,43 @@ export default function PipelineV2() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [selected])
+
+  /* Cambiar de etapa desde el card.
+   *
+   * Sacarlo de una etapa del sistema -handoff, cierre- y mandarlo a una
+   * configurable lo regresa a calentamiento, que es lo que significa. Por eso
+   * se limpia systemStage: si no, el card diría una etapa y viviría en otra
+   * columna. */
+  /* Sin oportunidad no se entra a Seguimiento. No es un trámite: si no hay
+   * oportunidad, no hay a qué darle seguimiento, y preguntarlo al cerrar es
+   * tarde porque ahí ya nadie se acuerda de qué se trataba. */
+  const faltaOportunidad = (lead) => {
+    /* Apagada por omisión. Encenderla le cambia el día a un equipo que venía
+     * trabajando sin oportunidades, así que es decisión de cada embudo y se
+     * enciende cuando su catálogo está cargado. */
+    if (!pipelines.find(p => p.id === activePipelineId)?.exigeOportunidad) return false
+    return !(lead?.opportunityStats?.total > 0)
+  }
+
+  const cambiarEtapa = async (deal, stageId) => {
+    if (!stageId || stageId === deal.etapa?.id) return
+    const destino = stages.find(s => s.id === stageId)
+
+    const mover = async () => {
+      try {
+        await updateLead(deal.id, { stageId, systemStage: null })
+        toast.success(`${deal.name} → ${destino?.name || 'otra etapa'}`)
+      } catch {
+        toast.error('No se pudo cambiar la etapa')
+      }
+    }
+
+    if ((destino?.fase === 'handoff' || destino?.fase === 'cierre') && faltaOportunidad(deal._lead)) {
+      setCompuerta({ lead: deal._lead, nombre: deal.name, fase: destino.fase, seguir: mover })
+      return
+    }
+    await mover()
+  }
 
   const step = dir => setPeek(cur => {
     const i = flat.findIndex(d => d.id === cur?.id)
@@ -412,6 +468,8 @@ export default function PipelineV2() {
                       onOpen={() => { setPeek(null); setSelected(deal) }}
                       onWhatsApp={deal.hasConversation ? () => navigate(`/inbox?lead=${deal.id}`) : undefined}
                       onCall={deal.phone ? () => { window.location.href = `tel:${deal.phone}` } : undefined}
+                      etapas={stages}
+                      onEtapa={id => cambiarEtapa(deal, id)}
                     />
                   ))}
                 </PipelineColumn>
@@ -446,6 +504,7 @@ export default function PipelineV2() {
               autoEdit={editandoContacto > 0}
               onSave={datos => updateLead(selected.id, datos)}
             />
+            <DescartarSection leadId={selected.id} onDescartado={() => setSelected(null)} />
           </>
         )}
         tabContent={selected ? {
@@ -479,7 +538,29 @@ export default function PipelineV2() {
         }}
       />
 
-      {creating && <NewCardDialog onClose={() => setCreating(false)} onCreate={handleCreate} />}
+      {compuerta && (
+        <CompuertaDeOportunidad
+          lead={{ ...compuerta.lead, name: compuerta.nombre }}
+          fase={compuerta.fase}
+          products={products}
+          onCancelar={() => setCompuerta(null)}
+          onListo={async () => { const f = compuerta.seguir; setCompuerta(null); await f() }}
+        />
+      )}
+
+      {creating && (
+        <NewCardDialog
+          onClose={() => setCreating(false)}
+          onCreate={handleCreate}
+          contactos={todosLosLeads}
+          onAbrir={lead => {
+            const card = flat.find(d => d.id === lead.id)
+            if (card) { setPeek(null); setSelected(card); return }
+            /* Está en otro embudo, o descartado: no hay tarjeta a la vista. */
+            toast(`${lead.name} ya existe, pero no en este embudo`)
+          }}
+        />
+      )}
 
       {editandoPipeline && activePipelineId && (
         <EditPipelineModal
@@ -511,7 +592,7 @@ export default function PipelineV2() {
 /* La tarjeta arrastrable envuelve a PipelineCard en vez de modificarla: así
  * la tarjeta sigue sirviendo fuera de un DndContext, como en la página de
  * componentes. */
-function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall }) {
+function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall, etapas, onEtapa }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id })
   return (
     <div
@@ -528,6 +609,8 @@ function DraggableCard({ deal, selected, onHover, onOpen, onWhatsApp, onCall }) 
         onOpen={onOpen}
         onWhatsApp={onWhatsApp}
         onCall={onCall}
+        etapas={etapas}
+        onEtapa={onEtapa}
       />
     </div>
   )

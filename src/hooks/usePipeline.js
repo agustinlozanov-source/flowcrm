@@ -47,14 +47,25 @@ export const SYSTEM_STAGES = {
 }
 
 // ─── DISCARD CATEGORIES ───────────────────────────────────────────
+/* Las razones del descarte.
+ *
+ * canRetake dice si ese lead puede volver. Casi todas pueden: nadie es "sin
+ * interés real" para siempre —cambió su situación y en un mes sí le interesa—
+ * ni "no califica" para siempre, porque no calificaba por algo que ya
+ * consiguió.
+ *
+ * La única permanente es la solicitud expresa, y esa no es una razón
+ * comercial: es consentimiento. Esa persona pidió no ser contactada y eso no
+ * se deshace con un clic.
+ */
 export const DISCARD_CATEGORIES = [
   { value: 'timing',        label: 'Timing',              desc: 'No es el momento — puede retomarse', canRetake: true },
   { value: 'price',         label: 'Precio / Capacidad',  desc: 'Muy caro o sin presupuesto ahora',   canRetake: true },
   { value: 'geography',     label: 'Geografía',           desc: 'Fuera de zona de cobertura',         canRetake: true },
-  { value: 'no_interest',   label: 'Sin interés real',    desc: 'El producto no resuelve su problema', canRetake: false },
+  { value: 'no_interest',   label: 'Sin interés real',    desc: 'El producto no resuelve su problema', canRetake: true },
   { value: 'no_answer',     label: 'No contesta',         desc: 'No atendió la llamada repetidamente', canRetake: true },
   { value: 'competition',   label: 'Competencia',         desc: 'Ya compró con otra empresa',          canRetake: true },
-  { value: 'no_qualify',    label: 'No califica',         desc: 'El producto no aplica para su caso',  canRetake: false },
+  { value: 'no_qualify',    label: 'No califica',         desc: 'El producto no aplica para su caso',  canRetake: true },
   { value: 'handoff_bound', label: 'Handoff Bound',       desc: 'Cayó por tiempo límite sin atención', canRetake: true },
   { value: 'blacklist',     label: 'Solicitud expresa',   desc: 'Pidió no ser contactado — permanente', canRetake: false },
 ]
@@ -360,6 +371,10 @@ export function usePipeline() {
       retakeDate: retakeDate || null,
       handoffBound,
       handoffBoundFrom: handoffBound ? (lead?.assignedTo || null) : null,
+      /* Dónde estaba antes de caerse. Sin esto, reactivar no puede devolverlo
+       * a su lugar: el systemStage se borra acá y la información se pierde
+       * para siempre. */
+      systemStageAntes: lead?.systemStage || null,
       systemStage: null,
       updatedAt: serverTimestamp(),
     })
@@ -561,6 +576,10 @@ export function usePipeline() {
     allStages,
     stages,
     leads: filteredLeads,
+    /* Todos los de la organización, sin filtrar por embudo. Para buscar
+     * duplicados antes de crear: la misma persona pudo entrar por la marca de
+     * al lado, y ese es justo el caso que hay que atrapar. */
+    todosLosLeads: leads,
     systemLeads,
     discardedLeads,
     leadsByStage,

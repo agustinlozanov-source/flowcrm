@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target } from 'lucide-react'
+import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw, ChevronDown, PackageX } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -21,10 +21,12 @@ export default function PipelineCard({
   onOpenFull,
   onWhatsApp,
   onCall,
+  etapas = [],
+  onEtapa,
 }) {
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
-    owner, nextAction, tags = [], ageLabel, aiBadge, rotting,
+    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado, etapa, sinCatalogo,
     maturity, potential,
   } = deal
 
@@ -56,6 +58,35 @@ export default function PipelineCard({
             {name}
           </button>
           {sub && <div className="pv2-card__sub">{sub}</div>}
+          {etapa && (
+            /* El selector nativo va transparente encima de la insignia: se ve
+             * como el resto del card y se comporta como un select de verdad,
+             * sin menús flotantes dentro de una columna que hace scroll y que
+             * además se arrastra. */
+            <div className="pv2-etapa" style={{ '--etapa': etapa.color || 'var(--text-dim)' }}>
+              <span className="pv2-etapa__punto" />
+              {etapa.name}
+              {etapas.length > 0 && (
+                <>
+                  <ChevronDown size={12} strokeWidth={2.5} />
+                  <select
+                    className="pv2-etapa__select"
+                    value={etapa.id || ''}
+                    title="Cambiar de etapa"
+                    onClick={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
+                    onKeyDown={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); onEtapa?.(e.target.value) }}
+                  >
+                    {etapa.deSistema && <option value="">{etapa.name}</option>}
+                    {etapas.map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <ScoreChip score={score} trend={scoreTrend} />
       </div>
@@ -101,6 +132,18 @@ export default function PipelineCard({
                   )}
                 </span>
               )}
+            </div>
+          )}
+
+          {sinCatalogo && (
+            <div className="pv2-sincatalogo" title="El agente lo entendió pero no está dado de alta">
+              <PackageX size={10} /> Falta en catálogo: {sinCatalogo}
+            </div>
+          )}
+
+          {reactivado && (
+            <div className="pv2-reactivado" title="Volvió de descartados">
+              <RotateCcw size={9} /> Reactivado · se descartó {reactivado}
             </div>
           )}
 

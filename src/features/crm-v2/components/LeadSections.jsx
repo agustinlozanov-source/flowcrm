@@ -6,6 +6,8 @@
 import { useState } from 'react'
 import { Plus, Pencil, Check, X, Calendar, MapPin, Video, Phone, CheckCircle2, XCircle } from 'lucide-react'
 import { useAppointments, APPOINTMENT_STATUS, ESTADOS_EN_PIE } from '@/hooks/useAppointments'
+import { usePipeline, DISCARD_CATEGORIES } from '@/hooks/usePipeline'
+import clsx from 'clsx'
 import OpportunityRow from './OpportunityRow'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import toast from 'react-hot-toast'
@@ -249,6 +251,116 @@ export function CitasSection({ leadId, onEditar }) {
           </div>
         )
       })}
+    </section>
+  )
+}
+
+/* ── Descartar ───────────────────────────────────────────────────
+ *
+ * Descartar no es dar algo por perdido: es definir. Mientras un lead muerto
+ * siga en el tablero, el denominador nunca cierra y ninguna conversión que
+ * calculemos significa nada.
+ *
+ * El modelo ya tenía las nueve razones y la bandera de retoma desde el diseño
+ * viejo. Lo que faltaba era por dónde hacerlo en el tablero nuevo.
+ */
+export function DescartarSection({ leadId, onDescartado }) {
+  const { discardLead } = usePipeline()
+  const [abierto, setAbierto] = useState(false)
+  const [categoria, setCategoria] = useState('')
+  const [notas, setNotas] = useState('')
+  const [retoma, setRetoma] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  const elegida = DISCARD_CATEGORIES.find(c => c.value === categoria)
+
+  const cerrar = () => {
+    setAbierto(false); setCategoria(''); setNotas(''); setRetoma('')
+  }
+
+  const descartar = async () => {
+    if (!categoria) return
+    setGuardando(true)
+    try {
+      await discardLead(leadId, { category: categoria, notes: notas, retakeDate: retoma || null })
+      toast.success('Descartado')
+      cerrar()
+      onDescartado?.()
+    } catch {
+      toast.error('No se pudo descartar')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  if (!abierto) {
+    return (
+      <section className="pv2-section">
+        <button className="pv2-descartar-abrir" onClick={() => setAbierto(true)}>
+          <XCircle size={13} /> Descartar
+        </button>
+      </section>
+    )
+  }
+
+  return (
+    <section className="pv2-section">
+      <h4 className="pv2-section__title">
+        Descartar
+        <button className="pv2-icon-btn" onClick={cerrar} title="Cancelar"><X size={13} /></button>
+      </h4>
+
+      <div className="pv2-descartar">
+        {DISCARD_CATEGORIES.filter(c => c.value !== 'handoff_bound').map(c => (
+          <button
+            key={c.value}
+            className={clsx('pv2-descartar__razon', categoria === c.value && 'is-sel')}
+            onClick={() => setCategoria(c.value)}
+          >
+            <span className="pv2-descartar__label">{c.label}</span>
+            <span className="pv2-descartar__desc">{c.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      {elegida?.canRetake && (
+        <div className="pv2-field" style={{ marginTop: 10 }}>
+          <span className="pv2-field__label">Retomar el</span>
+          <input
+            type="date"
+            className="pv2-input"
+            value={retoma}
+            min={new Date().toISOString().split('T')[0]}
+            onChange={e => setRetoma(e.target.value)}
+          />
+        </div>
+      )}
+
+      {categoria === 'blacklist' && (
+        <p className="pv2-descartar__aviso">
+          Pidió no ser contactado. No vuelve al tablero ni se reasigna, nunca.
+        </p>
+      )}
+
+      <textarea
+        className="pv2-input"
+        style={{ marginTop: 10, resize: 'none' }}
+        rows={2}
+        value={notas}
+        onChange={e => setNotas(e.target.value)}
+        placeholder="Por qué, para quien lo retome después"
+      />
+
+      <div className="pv2-dialog__actions" style={{ marginTop: 10 }}>
+        <button className="pv2-btn" onClick={cerrar}>Cancelar</button>
+        <button
+          className="pv2-btn pv2-btn--danger"
+          onClick={descartar}
+          disabled={!categoria || guardando}
+        >
+          {guardando ? 'Descartando…' : 'Descartar'}
+        </button>
+      </div>
     </section>
   )
 }

@@ -8,8 +8,12 @@ export const MATURITY = {
   m2: { id: 'm2', label: 'Avanzando',      color: '#FFD60A', column: 'calentamiento', max: 50 },
   m3: { id: 'm3', label: 'Maduro',         color: '#A3E635', column: 'calentamiento', max: 75 },
   m4: { id: 'm4', label: 'Listo',          color: '#00A651', column: 'handoff',       max: 100 },
-  c1: { id: 'c1', label: 'Cierre parcial', color: '#2E90FA', column: 'cierre' },
-  c2: { id: 'c2', label: 'Cierre total',   color: '#9E77ED', column: 'cierre' },
+  /* Morado mientras quede algo abierto, azul cuando ya no queda nada. Es la
+   * misma convención que las etapas del sistema —oportunidad abierta en
+   * morado, segura en azul— y antes la tarjeta decía lo contrario que su
+   * propia insignia. */
+  c1: { id: 'c1', label: 'Cierre parcial', color: '#9E77ED', column: 'cierre' },
+  c2: { id: 'c2', label: 'Cierre total',   color: '#2E90FA', column: 'cierre' },
 }
 
 export const WARMUP_LEVELS = [MATURITY.m1, MATURITY.m2, MATURITY.m3]
