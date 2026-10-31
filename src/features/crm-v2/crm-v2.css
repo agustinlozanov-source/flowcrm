@@ -1144,3 +1144,54 @@
   background: var(--red-bg); color: var(--red);
   font-size: 10px; font-weight: 500;
 }
+
+/* Buscar y filtrar dentro de una columna. */
+.pv2-col__buscar {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 8px; padding: 4px 6px; border-radius: 7px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+}
+.pv2-col__buscar:focus-within { border-color: var(--border-strong); }
+.pv2-col__buscar-icono { color: var(--text-dim); flex-shrink: 0; }
+.pv2-col__buscar-input {
+  flex: 1; min-width: 0; border: none; background: none; outline: none;
+  font-size: 11.5px; color: var(--text);
+}
+.pv2-col__buscar-input::placeholder { color: var(--text-dim); }
+.pv2-col__buscar-limpiar {
+  display: flex; border: none; background: none; cursor: pointer;
+  color: var(--text-dim); padding: 0;
+}
+.pv2-col__buscar-limpiar:hover { color: var(--text); }
+.pv2-col__etapas {
+  flex-shrink: 0; max-width: 92px; border: none; background: none;
+  font-size: 11px; color: var(--text-dim); cursor: pointer; outline: none;
+}
+.pv2-col__etapas.is-activo { color: var(--text); font-weight: 500; }
+.pv2-col__filtrado {
+  margin: 6px 0 0; font-size: 10.5px; color: var(--text-dim);
+}
+
+/* Cuántos hay en cada etapa de la fase, y el filtro. */
+.pv2-etapas-chips {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px;
+}
+.pv2-etapa-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px; border-radius: 5px;
+  background: color-mix(in srgb, var(--chip) 9%, transparent);
+  border: 1px solid transparent;
+  font-size: 10px; color: var(--text-dim); cursor: pointer;
+  transition: all .12s;
+}
+.pv2-etapa-chip:hover { border-color: color-mix(in srgb, var(--chip) 40%, transparent); }
+.pv2-etapa-chip.is-activo {
+  border-color: var(--chip); color: var(--text);
+  background: color-mix(in srgb, var(--chip) 18%, transparent);
+}
+.pv2-etapa-chip.is-apagado { opacity: .4; }
+.pv2-etapa-chip__punto {
+  width: 4px; height: 4px; border-radius: 50%; background: var(--chip); flex-shrink: 0;
+}
+.pv2-etapa-chip__nombre { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv2-etapa-chip__n { font-weight: 500; color: var(--text); }

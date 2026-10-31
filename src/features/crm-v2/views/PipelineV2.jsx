@@ -73,6 +73,9 @@ export default function PipelineV2() {
   const [view, setView] = useState('kanban')
   const [insightsOpen, setInsightsOpen] = useState(true)
   const [filters, setFilters] = useState({})
+  /* Buscador y filtro de etapa, uno por columna. Son independientes entre sí:
+   * buscar en calentamiento no tiene por qué esconder nada en cierre. */
+  const [porColumna, setPorColumna] = useState({})
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [peek, setPeek] = useState(null)
@@ -441,7 +444,20 @@ export default function PipelineV2() {
             {COLUMNS.map(col => {
               const all = board[col.id]
               const active = filters[col.id]
-              const cards = active ? all.filter(c => c.maturity === active) : all
+              const { q = '', etapa: etapaFiltro = null } = porColumna[col.id] || {}
+
+              /* Las etapas que de verdad viven en esta fase, con cuántos hay
+               * en cada una. Solo las que tienen a alguien: una etapa vacía
+               * en la cabecera ocupa lugar y no dice nada. */
+              const etapasDeLaFase = stages
+                .filter(e => (e.fase || 'calentamiento') === col.id)
+                .map(e => ({ ...e, cuantos: all.filter(c => c.etapa?.id === e.id).length }))
+                .filter(e => e.cuantos > 0)
+
+              const cards = all
+                .filter(c => !active || c.maturity === active)
+                .filter(c => !etapaFiltro || c.etapa?.id === etapaFiltro)
+                .filter(c => !q.trim() || coincide(c._lead, q))
 
               return (
                 <PipelineColumn
@@ -449,12 +465,20 @@ export default function PipelineV2() {
                   variant={col.variant}
                   name={col.name}
                   accent={col.accent}
-                  metrics={columnMetrics(all)}
+                  busqueda={q}
+                  onBusqueda={valor => setPorColumna(p => ({ ...p, [col.id]: { ...p[col.id], q: valor } }))}
+                  etapas={etapasDeLaFase}
+                  etapaFiltro={etapaFiltro}
+                  onEtapaFiltro={id => setPorColumna(p => ({ ...p, [col.id]: { ...p[col.id], etapa: id } }))}
+                  totalSinFiltrar={all.length}
+                  metrics={columnMetrics(cards)}
                   distribution={col.id === 'calentamiento' ? distribution(all) : undefined}
                   activeFilter={active}
                   onFilterChange={level => setFilters(f => ({ ...f, [col.id]: level }))}
                   isEmpty={cards.length === 0}
-                  emptyLabel={active ? 'Ninguna tarjeta en este nivel' : 'Sin tarjetas en esta columna'}
+                  emptyLabel={(q.trim() || etapaFiltro)
+                    ? 'Nada coincide con el filtro'
+                    : (active ? 'Ninguna tarjeta en este nivel' : 'Sin tarjetas en esta columna')}
                   droppableId={col.id}
                   canDrop={!dragging || puedeMover(dragging, col.id)}
                   onAdd={col.id === 'calentamiento' ? () => setCreating(true) : undefined}

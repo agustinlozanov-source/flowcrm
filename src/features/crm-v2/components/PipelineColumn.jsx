@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { MoreVertical } from 'lucide-react'
+import { MoreVertical, Search, X } from 'lucide-react'
 import { useDroppable } from '@dnd-kit/core'
 import { MATURITY } from '../maturity'
 
@@ -31,6 +31,17 @@ export default function PipelineColumn({
   // componentes puede montarla fuera de un DndContext.
   droppableId,
   canDrop = true,
+  /* Buscar y filtrar dentro de la columna.
+   *
+   * Con doscientas tarjetas en una fase, el buscador de arriba no alcanza:
+   * busca en todo el tablero y te deja igual de perdido. Lo que hace falta es
+   * encontrar a alguien dentro de la fase donde sabes que está, sin scroll. */
+  busqueda = '',
+  onBusqueda,
+  etapas = [],
+  etapaFiltro = null,
+  onEtapaFiltro,
+  totalSinFiltrar,
 }) {
   const isHandoff = variant === 'handoff'
   const total = distribution ? Object.values(distribution).reduce((a, b) => a + b, 0) : 0
@@ -86,6 +97,52 @@ export default function PipelineColumn({
               ))}
             </div>
           </>
+        )}
+
+        {onBusqueda && (
+          <div className="pv2-col__buscar">
+            <Search size={12} className="pv2-col__buscar-icono" />
+            <input
+              className="pv2-col__buscar-input"
+              value={busqueda}
+              onChange={e => onBusqueda(e.target.value)}
+              placeholder="Buscar en esta fase"
+              autoComplete="off"
+            />
+            {busqueda && (
+              <button className="pv2-col__buscar-limpiar" onClick={() => onBusqueda('')} title="Limpiar">
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Cuántos hay en cada etapa, y el filtro, en la misma ficha. El dato
+          * sin la acción obliga a buscar a mano lo que acabas de contar. */}
+        {etapas.length > 0 && (
+          <div className="pv2-etapas-chips">
+            {etapas.map(e => (
+              <button
+                key={e.id}
+                className={clsx('pv2-etapa-chip',
+                  etapaFiltro === e.id && 'is-activo',
+                  etapaFiltro && etapaFiltro !== e.id && 'is-apagado')}
+                style={{ '--chip': e.color || 'var(--text-dim)' }}
+                onClick={() => onEtapaFiltro?.(etapaFiltro === e.id ? null : e.id)}
+                title={`${e.name}: ${e.cuantos}`}
+              >
+                <span className="pv2-etapa-chip__punto" />
+                <span className="pv2-etapa-chip__nombre">{e.name}</span>
+                <span className="pv2-etapa-chip__n">{e.cuantos}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(busqueda || etapaFiltro) && typeof totalSinFiltrar === 'number' && (
+          <p className="pv2-col__filtrado">
+            {metrics[0]?.value ?? 0} de {totalSinFiltrar}
+          </p>
         )}
 
       </header>
