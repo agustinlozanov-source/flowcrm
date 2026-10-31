@@ -18,6 +18,14 @@ const STAGE_COLORS = [
 
 const clamp = v => Math.max(0, Math.min(100, Number(v) || 0))
 
+/* Las tres fases del tablero. No se configuran: son las columnas, y son de
+ * FlowHub. Lo que se configura es qué etapa vive en cuál. */
+const FASES = [
+  { id: 'calentamiento', label: 'Calentamiento' },
+  { id: 'handoff', label: 'Handoff' },
+  { id: 'cierre', label: 'Cierre' },
+]
+
 function SortableStageRow({ stage, index, total, onChange, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
   return (
@@ -43,6 +51,13 @@ function SortableStageRow({ stage, index, total, onChange, onRemove }) {
         placeholder={`Etapa ${index + 1}`}
         className="flex-1 min-w-0 bg-transparent text-[13px] text-primary placeholder-tertiary outline-none"
       />
+      <select
+        value={stage.fase}
+        onChange={e => onChange('fase', e.target.value)}
+        title="En qué fase vive esta etapa"
+        className="flex-shrink-0 bg-surface-2 border border-black/[0.08] rounded-[5px] py-[3px] px-1.5 text-[11.5px] text-secondary outline-none focus:border-primary/40 cursor-pointer">
+        {FASES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+      </select>
       <div className="flex items-center gap-1 flex-shrink-0">
         <span className="text-[10px] font-semibold text-tertiary uppercase tracking-wide">Score</span>
         <input type="number" min={0} max={100} value={stage.scoreMin}
@@ -88,6 +103,10 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       color: s.color || '#6366f1',
       scoreMin: s.scoreMin ?? 0,
       scoreMax: s.scoreMax ?? 100,
+      /* En qué fase vive esta etapa. Elegirla en una tarjeta la mueve de
+       * columna sola: si una etapa vive en una fase, estar en esa etapa es
+       * estar en esa fase. */
+      fase: s.fase || 'calentamiento',
     }))
   )
 

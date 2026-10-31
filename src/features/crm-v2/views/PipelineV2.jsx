@@ -63,7 +63,7 @@ export default function PipelineV2() {
     await updatePipeline(activePipelineId, { name, purpose })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
-      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
+      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i })
     }
     for (const id of deletedIds) await deleteStage(id)
     toast.success('Pipeline actualizado')
@@ -119,7 +119,7 @@ export default function PipelineV2() {
 
     const out = { calentamiento: [], handoff: [], cierre: [] }
     for (const lead of porFiltros) {
-      out[columnOf(lead)].push(
+      out[columnOf(lead, allStages)].push(
         toCard(lead, { members, products, stages: allStages, citasDelLead: citasPorLead[lead.id] || [] }),
       )
     }
@@ -211,7 +211,7 @@ export default function PipelineV2() {
    * Calentamiento → Cierre tampoco: pasar directo a oportunidad saltea la
    * llamada, que es justamente lo que Handoff representa. */
   const puedeMover = useCallback((card, destino) => {
-    const origen = columnOf(card._lead)
+    const origen = columnOf(card._lead, allStages)
     if (origen === destino) return false
     if (card._lead.systemStage === 'closed') return false
     if (origen === 'calentamiento' && destino === 'cierre') return false
@@ -237,7 +237,7 @@ export default function PipelineV2() {
     if (!card) return
     if (!puedeMover(card, destino)) {
       // Callarse acá deja al usuario pensando que la app falló.
-      const origen = columnOf(card._lead)
+      const origen = columnOf(card._lead, allStages)
       if (origen === destino) return
       if (card._lead.systemStage === 'closed') {
         toast.error('Una venta cerrada se reabre desde la ficha, no arrastrando')

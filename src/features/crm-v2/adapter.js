@@ -26,19 +26,31 @@ const CANAL = {
 
 /** Las tres columnas se deducen de lo que ya está guardado. No hay migración:
  *  es una regla de lectura sobre systemStage. */
-export function columnOf(lead) {
+/* En qué columna vive un lead.
+ *
+ * Las etapas del sistema mandan: handoff y los cierres son estados a los que
+ * lleva el propio sistema y no se discuten.
+ *
+ * Si no hay ninguno, manda la fase que tenga declarada su etapa. Así elegir
+ * "Propuesta" mueve la tarjeta a Seguimiento sin que nadie la arrastre: si una
+ * etapa vive en una fase, estar en esa etapa es estar en esa fase.
+ *
+ * Una etapa sin fase declarada se queda en calentamiento, que es donde estaban
+ * todas antes de que esto existiera. */
+export function columnOf(lead, stages = []) {
   const s = lead.systemStage
-  if (!s || s === 'cold') return 'calentamiento'
   if (s === 'handoff') return 'handoff'
-  return 'cierre'
+  if (s && s !== 'cold') return 'cierre'
+  const etapa = stages.find(e => e.id === lead.stageId)
+  return etapa?.fase || 'calentamiento'
 }
 
 /** Antes del cierre el color lo da el score. En Cierre lo da si quedó algo
  *  abierto: si todavía hay una oportunidad viva es cierre parcial, y solo
  *  cuando no queda ninguna es cierre total. Es la diferencia entre haberle
  *  vendido la consulta y haberle vendido además la cirugía. */
-export function maturityOf(lead, thresholds) {
-  const col = columnOf(lead)
+export function maturityOf(lead, thresholds, stages = []) {
+  const col = columnOf(lead, stages)
   if (col === 'cierre') {
     const stats = lead.opportunityStats
     // Sin oportunidades cargadas se cae al dato viejo: un lead cerrado es
@@ -136,20 +148,20 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [], s
     // cuando ya no queda nada abierto. Si no, con todo cerrado decía 0.
     won: stats?.valueWon || 0,
     score: lead.score || 0,
-    maturity: maturityOf(lead).id,
+    maturity: maturityOf(lead, undefined, stages).id,
     // Mientras no haya una persona a cargo, el que atiende es el agente. Pero
     // pasado el handoff eso ya no es cierto: ahí un lead sin asignar no tiene
     // dueño, y poner al bot haría creer que el agente cerró la venta.
     owner: asignado
       ? { name: asignado.name || asignado.email || 'Sin nombre' }
-      : (columnOf(lead) === 'calentamiento' ? { name: 'Flowi', bot: true } : null),
+      : (columnOf(lead, stages) === 'calentamiento' ? { name: 'Flowi', bot: true } : null),
     nextAction: nextActionOf(lead, proximaCita),
     tags: [
       producto && { label: producto },
       lead.profileB && { label: 'Perfil B' },
     ].filter(Boolean),
     ageLabel: relativo(ts(lead.createdAt)),
-    rotting: !!ultimo && Date.now() - ultimo.getTime() > ROTTING_HORAS * HORAS && columnOf(lead) === 'calentamiento',
+    rotting: !!ultimo && Date.now() - ultimo.getTime() > ROTTING_HORAS * HORAS && columnOf(lead, stages) === 'calentamiento',
     // Para el panel lateral, que muestra el contexto sin volver a Firestore.
     // Solo campos con contenido: el panel los dibuja todos, y una fila vacía
     // ocupa el mismo lugar que una con información.
