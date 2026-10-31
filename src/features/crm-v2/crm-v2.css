@@ -1105,30 +1105,34 @@
   border: none; background: none; font-size: 11px;
 }
 
-/* Posibles duplicados al crear una tarjeta. */
-.pv2-yaexiste {
-  display: flex; flex-direction: column; gap: 4px;
-  padding: 10px; border-radius: 10px;
-  background: var(--amber-bg, rgba(245, 158, 11, 0.1));
-  border: 1px solid rgba(245, 158, 11, 0.3);
+/* Un campo que es una lista. */
+.pv2-selector { position: relative; }
+.pv2-selector__campo {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  color: var(--text); font-size: 13px; text-align: left; cursor: pointer;
 }
-.pv2-yaexiste__titulo {
-  margin: 0 0 2px; font-size: 11.5px; font-weight: 500;
-  color: var(--amber, #B45309);
+.pv2-selector__campo:hover { border-color: var(--border-strong); }
+.pv2-selector__campo--abierto { cursor: text; border-color: var(--brand, #0066ff); }
+.pv2-selector__valor { color: var(--text); }
+.pv2-selector__vacio { color: var(--text-dim); }
+.pv2-selector__lista {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+  max-height: 240px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px; border-radius: 10px;
+  background: var(--bg-elev-2, #fff); border: 1px solid var(--border-strong);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
 }
-.pv2-yaexiste__fila {
+.pv2-selector__opcion, .pv2-selector__crear {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 9px; border-radius: 7px; text-align: left;
-  background: var(--bg-elev-1); border: 1px solid var(--border);
-  cursor: pointer; transition: border-color .12s;
+  background: transparent; border: none; cursor: pointer; width: 100%;
 }
-.pv2-yaexiste__fila:hover { border-color: var(--border-strong); }
-.pv2-yaexiste__nombre { font-size: 12.5px; font-weight: 500; color: var(--text); }
-.pv2-yaexiste__dato { flex: 1; font-size: 11px; color: var(--text-dim); }
-.pv2-yaexiste__crear {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 2px; padding: 6px; border-radius: 7px;
-  background: transparent; border: 1px dashed rgba(245, 158, 11, 0.5);
-  color: var(--amber, #B45309); font-size: 11.5px; cursor: pointer;
-}
-.pv2-yaexiste__crear:hover { background: rgba(245, 158, 11, 0.12); }
+.pv2-selector__opcion.is-marcado, .pv2-selector__crear.is-marcado { background: var(--bg-elev-1); }
+.pv2-selector__opcion-txt { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.pv2-selector__opcion-nombre { font-size: 12.5px; color: var(--text); }
+.pv2-selector__opcion-detalle { font-size: 11px; color: var(--text-dim); }
+.pv2-selector__crear { color: var(--brand, #0066ff); font-size: 12.5px; }
+.pv2-selector__nada { margin: 0; padding: 10px; font-size: 12px; color: var(--text-dim); text-align: center; }
