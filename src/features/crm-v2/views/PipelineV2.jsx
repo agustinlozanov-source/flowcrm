@@ -258,6 +258,7 @@ export default function PipelineV2() {
           setCompuerta({
             lead: card._lead,
             nombre: card.name,
+            fase: 'handoff',
             seguir: async () => {
               await moveToHandoff(card.id)
               toast.success(`${card.name} pasó a Handoff`)
@@ -270,8 +271,15 @@ export default function PipelineV2() {
       } else if (destino === 'cierre') {
         // Hubo llamada pero todavía no hay fecha de pago: eso es exactamente
         // una oportunidad abierta. La fecha se carga después en la ficha.
-        await resolveHandoff(card.id, 'open_opportunity')
-        toast.success(`${card.name} pasó a Cierre — falta fecha de pago`)
+        const cerrar = async () => {
+          await resolveHandoff(card.id, 'open_opportunity')
+          toast.success(`${card.name} pasó a Cierre — falta fecha de pago`)
+        }
+        if (faltaOportunidad(card._lead)) {
+          setCompuerta({ lead: card._lead, nombre: card.name, fase: 'cierre', seguir: cerrar })
+          return
+        }
+        await cerrar()
       } else {
         // Volver a calentamiento. moveToHandoff había borrado la etapa, así
         // que hay que devolverle una o el lead queda sin columna.
@@ -322,8 +330,8 @@ export default function PipelineV2() {
       }
     }
 
-    if (destino?.fase === 'handoff' && faltaOportunidad(deal._lead)) {
-      setCompuerta({ lead: deal._lead, nombre: deal.name, seguir: mover })
+    if ((destino?.fase === 'handoff' || destino?.fase === 'cierre') && faltaOportunidad(deal._lead)) {
+      setCompuerta({ lead: deal._lead, nombre: deal.name, fase: destino.fase, seguir: mover })
       return
     }
     await mover()
@@ -527,6 +535,7 @@ export default function PipelineV2() {
       {compuerta && (
         <CompuertaDeOportunidad
           lead={{ ...compuerta.lead, name: compuerta.nombre }}
+          fase={compuerta.fase}
           products={products}
           onCancelar={() => setCompuerta(null)}
           onListo={async () => { const f = compuerta.seguir; setCompuerta(null); await f() }}

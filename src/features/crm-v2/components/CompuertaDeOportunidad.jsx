@@ -16,7 +16,7 @@ import toast from 'react-hot-toast'
  * algo. Sin esto se puede llegar a Cierre sin haber vendido nada, y el dinero
  * del tablero deja de ser dinero.
  */
-export default function CompuertaDeOportunidad({ lead, products = [], onListo, onCancelar }) {
+export default function CompuertaDeOportunidad({ lead, fase = 'handoff', products = [], onListo, onCancelar }) {
   const { crear } = useOpportunities(lead?.id)
   const { createProduct } = useProducts()
   const [producto, setProducto] = useState(null)
@@ -60,9 +60,12 @@ export default function CompuertaDeOportunidad({ lead, products = [], onListo, o
     <div className="pv2-dialog">
       <div className="pv2-dialog__backdrop" onClick={onCancelar} />
       <div className="pv2-dialog__box">
-        <h2 className="pv2-dialog__title">¿Qué le estás dando seguimiento?</h2>
+        <h2 className="pv2-dialog__title">
+          {fase === 'cierre' ? '¿Qué le estás cerrando?' : '¿Qué le estás dando seguimiento?'}
+        </h2>
         <p className="pv2-dialog__hint">
-          {lead?.name} pasa a Seguimiento y todavía no tiene ninguna oportunidad.
+          {lead?.name} pasa a {fase === 'cierre' ? 'Cierre' : 'Seguimiento'} y todavía no tiene
+          ninguna oportunidad.
         </p>
 
         <div>
