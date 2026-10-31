@@ -576,6 +576,10 @@ export function usePipeline() {
     allStages,
     stages,
     leads: filteredLeads,
+    /* Todos los de la organización, sin filtrar por embudo. Para buscar
+     * duplicados antes de crear: la misma persona pudo entrar por la marca de
+     * al lado, y ese es justo el caso que hay que atrapar. */
+    todosLosLeads: leads,
     systemLeads,
     discardedLeads,
     leadsByStage,

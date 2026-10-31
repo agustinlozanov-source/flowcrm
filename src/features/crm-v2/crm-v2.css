@@ -1104,3 +1104,31 @@
   opacity: 0; cursor: pointer;
   border: none; background: none; font-size: 11px;
 }
+
+/* Posibles duplicados al crear una tarjeta. */
+.pv2-yaexiste {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px; border-radius: 10px;
+  background: var(--amber-bg, rgba(245, 158, 11, 0.1));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.pv2-yaexiste__titulo {
+  margin: 0 0 2px; font-size: 11.5px; font-weight: 500;
+  color: var(--amber, #B45309);
+}
+.pv2-yaexiste__fila {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 9px; border-radius: 7px; text-align: left;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  cursor: pointer; transition: border-color .12s;
+}
+.pv2-yaexiste__fila:hover { border-color: var(--border-strong); }
+.pv2-yaexiste__nombre { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.pv2-yaexiste__dato { flex: 1; font-size: 11px; color: var(--text-dim); }
+.pv2-yaexiste__crear {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 2px; padding: 6px; border-radius: 7px;
+  background: transparent; border: 1px dashed rgba(245, 158, 11, 0.5);
+  color: var(--amber, #B45309); font-size: 11.5px; cursor: pointer;
+}
+.pv2-yaexiste__crear:hover { background: rgba(245, 158, 11, 0.12); }

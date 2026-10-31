@@ -43,7 +43,7 @@ export default function PipelineV2() {
   const { currentGoal, currentQuarter, computedMetrics } = useGoals()
   const navigate = useNavigate()
   const {
-    leads, systemLeads, members, loading, stages, allStages,
+    leads, systemLeads, todosLosLeads, members, loading, stages, allStages,
     pipelines, activePipelineId, setActivePipelineId,
     moveToHandoff, resolveHandoff, updateLead, createLead,
     updatePipeline, deletePipeline, updateStage, deleteStage,
@@ -494,7 +494,19 @@ export default function PipelineV2() {
         }}
       />
 
-      {creating && <NewCardDialog onClose={() => setCreating(false)} onCreate={handleCreate} />}
+      {creating && (
+        <NewCardDialog
+          onClose={() => setCreating(false)}
+          onCreate={handleCreate}
+          contactos={todosLosLeads}
+          onAbrir={lead => {
+            const card = flat.find(d => d.id === lead.id)
+            if (card) { setPeek(null); setSelected(card); return }
+            /* Está en otro embudo, o descartado: no hay tarjeta a la vista. */
+            toast(`${lead.name} ya existe, pero no en este embudo`)
+          }}
+        />
+      )}
 
       {editandoPipeline && activePipelineId && (
         <EditPipelineModal
