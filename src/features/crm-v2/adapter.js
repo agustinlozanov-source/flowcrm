@@ -198,6 +198,11 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [], s
           return e ? { id: e.id, name: e.name, color: e.color, deSistema: false } : null
         })(),
 
+    /* Lo que el agente entendió que quiere y no está en el catálogo. Sin esto
+     * el lead se queda sin oportunidad —y por lo tanto sin poder avanzar— y
+     * nadie sabe por qué. */
+    sinCatalogo: lead.productoSinCatalogo || null,
+
     /* Volvió de descartados. No se esconde: un lead que regresa a Cierre
      * después de meses infla el pronóstico y nadie se entera. Acá se ve. */
     reactivado: lead.reactivadoAt

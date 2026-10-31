@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw, ChevronDown } from 'lucide-react'
+import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw, ChevronDown, PackageX } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -26,7 +26,7 @@ export default function PipelineCard({
 }) {
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
-    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado, etapa,
+    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado, etapa, sinCatalogo,
     maturity, potential,
   } = deal
 
@@ -132,6 +132,12 @@ export default function PipelineCard({
                   )}
                 </span>
               )}
+            </div>
+          )}
+
+          {sinCatalogo && (
+            <div className="pv2-sincatalogo" title="El agente lo entendió pero no está dado de alta">
+              <PackageX size={10} /> Falta en catálogo: {sinCatalogo}
             </div>
           )}
 

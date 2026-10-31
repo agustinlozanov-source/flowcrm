@@ -491,13 +491,24 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
     const yaRegistradas = new Set(previas.docs.map(d => d.data().productId).filter(Boolean))
 
     const normalizar = t => String(t || '').trim().toLowerCase()
+    /* Lo que el agente entendió que el lead quiere y no está dado de alta.
+     *
+     * El agente no inventa productos —el catálogo es decisión de dirección— y
+     * hasta ahora eso terminaba en un console.warn que nadie lee. El lead se
+     * quedaba sin oportunidad y nadie sabía por qué.
+     *
+     * Ahora queda escrito en el lead, se ve en su tarjeta, y le dice a quien
+     * administra el catálogo exactamente qué le falta. */
+    const sinCatalogo = []
     for (const o of lista) {
       // Por id, y si manda el nombre se acepta igual: el precio sale del
       // catálogo de todos modos, así que no se gana nada siendo estricto.
       const producto = products.find(p => p.id === o?.productId)
         || products.find(p => normalizar(p.name) === normalizar(o?.productId))
       if (!producto) {
-        console.warn(`[agent] producto no reconocido: ${o?.productId}`)
+        const pedido = String(o?.productId || '').trim()
+        if (pedido && !sinCatalogo.includes(pedido)) sinCatalogo.push(pedido)
+        console.warn(`[agent] producto no reconocido: ${pedido}`)
         continue
       }
       if (yaRegistradas.has(producto.id)) continue
@@ -516,6 +527,13 @@ async function registrarOportunidades(orgId, leadId, lista, products) {
       })
       yaRegistradas.add(producto.id)
       creadas++
+    }
+
+    if (sinCatalogo.length) {
+      await leadRef.update({
+        productoSinCatalogo: sinCatalogo.slice(0, 3).join(', '),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
     }
 
     if (creadas) await recalcularOportunidades(db, orgId, leadId)
