@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle } from 'lucide-react'
+import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle, Package } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -110,6 +110,11 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
     }))
   )
 
+  /* Apagada por omisión: encenderla le cambia el día a quien ya estaba
+   * trabajando sin oportunidades. Se enciende embudo por embudo, cuando su
+   * catálogo está cargado. */
+  const [exigeOportunidad, setExigeOportunidad] = useState(pipeline?.exigeOportunidad || false)
+
   // Handoff Bound config
   const [handoffBoundActive, setHandoffBoundActive] = useState(pipeline?.handoffBoundActive || false)
   const [handoffBoundDays, setHandoffBoundDays] = useState(pipeline?.handoffBoundDays || 3)
@@ -144,6 +149,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       await onSave({
         name: name.trim(),
         purpose,
+        exigeOportunidad,
         stageEdits,
         deletedIds,
         handoffBoundActive,
@@ -268,6 +274,29 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
           {/* ── RULES TAB ── */}
           {activeTab === 'rules' && (
             <>
+              {/* Exigir oportunidad */}
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-[8px] bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Package size={15} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="font-display font-bold text-[13.5px] text-primary">Exigir oportunidad para avanzar</div>
+                      <div className="text-[11.5px] text-secondary mt-0.5 leading-relaxed">
+                        Un lead no pasa a Seguimiento ni a Cierre sin tener al menos una oportunidad con su producto. Obliga a responder qué se le está vendiendo, en vez de descubrirlo al final.
+                      </div>
+                    </div>
+                  </div>
+                  <Toggle value={exigeOportunidad} onChange={setExigeOportunidad} />
+                </div>
+                {exigeOportunidad && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 rounded-[8px] px-3 py-2 mt-3">
+                    Con esto encendido, el catálogo de este embudo tiene que estar cargado. Un vendedor no puede dar de alta productos.
+                  </p>
+                )}
+              </div>
+
               {/* Handoff Bound */}
               <div className="card p-4 flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">

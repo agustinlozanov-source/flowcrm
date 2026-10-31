@@ -60,8 +60,8 @@ export default function PipelineV2() {
    * ahí va. */
   const [editandoPipeline, setEditandoPipeline] = useState(false)
 
-  const guardarPipeline = async ({ name, purpose, stageEdits, deletedIds = [] }) => {
-    await updatePipeline(activePipelineId, { name, purpose })
+  const guardarPipeline = async ({ name, purpose, exigeOportunidad, stageEdits, deletedIds = [] }) => {
+    await updatePipeline(activePipelineId, { name, purpose, exigeOportunidad: !!exigeOportunidad })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
       await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i })
@@ -315,7 +315,13 @@ export default function PipelineV2() {
   /* Sin oportunidad no se entra a Seguimiento. No es un trámite: si no hay
    * oportunidad, no hay a qué darle seguimiento, y preguntarlo al cerrar es
    * tarde porque ahí ya nadie se acuerda de qué se trataba. */
-  const faltaOportunidad = (lead) => !(lead?.opportunityStats?.total > 0)
+  const faltaOportunidad = (lead) => {
+    /* Apagada por omisión. Encenderla le cambia el día a un equipo que venía
+     * trabajando sin oportunidades, así que es decisión de cada embudo y se
+     * enciende cuando su catálogo está cargado. */
+    if (!pipelines.find(p => p.id === activePipelineId)?.exigeOportunidad) return false
+    return !(lead?.opportunityStats?.total > 0)
+  }
 
   const cambiarEtapa = async (deal, stageId) => {
     if (!stageId || stageId === deal.etapa?.id) return
