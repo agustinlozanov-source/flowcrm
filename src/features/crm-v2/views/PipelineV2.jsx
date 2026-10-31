@@ -11,7 +11,7 @@ import PipelineCard from '../components/PipelineCard'
 import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
-import { OportunidadesSection, ContactoSection, CitasSection } from '../components/LeadSections'
+import { OportunidadesSection, ContactoSection, CitasSection, DescartarSection } from '../components/LeadSections'
 import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
@@ -446,6 +446,7 @@ export default function PipelineV2() {
               autoEdit={editandoContacto > 0}
               onSave={datos => updateLead(selected.id, datos)}
             />
+            <DescartarSection leadId={selected.id} onDescartado={() => setSelected(null)} />
           </>
         )}
         tabContent={selected ? {
