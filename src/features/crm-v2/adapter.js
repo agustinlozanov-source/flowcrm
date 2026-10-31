@@ -168,6 +168,11 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [] } 
       stats?.open > 0 && { label: 'Abiertas', value: `${stats.open} oportunidad${stats.open === 1 ? '' : 'es'}` },
       lead.paymentDate && { label: 'Fecha de pago', value: lead.paymentDate },
     ].filter(Boolean),
+    /* Volvió de descartados. No se esconde: un lead que regresa a Cierre
+     * después de meses infla el pronóstico y nadie se entera. Acá se ve. */
+    reactivado: lead.reactivadoAt
+      ? relativo(lead.descartadoAntesEl?.toDate?.() || lead.descartadoAntesEl)
+      : null,
     _lead: lead,
   }
 }

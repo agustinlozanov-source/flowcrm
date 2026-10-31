@@ -371,6 +371,10 @@ export function usePipeline() {
       retakeDate: retakeDate || null,
       handoffBound,
       handoffBoundFrom: handoffBound ? (lead?.assignedTo || null) : null,
+      /* Dónde estaba antes de caerse. Sin esto, reactivar no puede devolverlo
+       * a su lugar: el systemStage se borra acá y la información se pierde
+       * para siempre. */
+      systemStageAntes: lead?.systemStage || null,
       systemStage: null,
       updatedAt: serverTimestamp(),
     })

@@ -323,18 +323,29 @@ export default function Contacts() {
 
   /* Reactivar un descartado.
    *
-   * Vuelve a la primera etapa de su embudo, no a donde estaba: si se descartó
-   * fue porque el avance que tenía ya no era cierto.
+   * Vuelve a donde estaba, no al principio. El trabajo pasó de verdad: la
+   * cotización se mandó, la junta ocurrió, y descartarlo no deshizo nada de
+   * eso. Mandarlo a la primera etapa obliga a arrastrarlo cinco veces a mano
+   * y hace mentir al tablero en la otra dirección.
    *
-   * Las razones que no se retoman no ofrecen el botón. "Solicitud expresa"
-   * sobre todo: esa persona pidió no ser contactada y eso no se deshace con un
-   * clic. */
+   * El riesgo es el contrario: uno que se descartó en cierre porque
+   * desapareció vuelve a cierre e infla el pronóstico. Por eso queda marcado
+   * como reactivado, con la fecha en que se había descartado. Si fue hace tres
+   * días está igual que estaba; si lleva ocho meses, se ve y se arrastra
+   * hacia atrás a mano.
+   *
+   * Las razones que no se retoman no ofrecen el botón. La solicitud expresa
+   * no es una razón comercial: es consentimiento. */
   const puedeRetomar = (categoria) =>
     DISCARD_CATEGORIES.find(c => c.value === categoria)?.canRetake !== false
 
   const reactivar = async (lead) => {
-    const primera = allStages.find(s => s.pipelineId === lead.pipelineId)
-    if (!primera) { toast.error('Ese embudo ya no tiene etapas'); return }
+    const sabemosDonde = lead.systemStageAntes || lead.stageId
+    const vuelveA = sabemosDonde
+      ? null
+      : allStages.find(s => s.pipelineId === lead.pipelineId)
+    if (!sabemosDonde && !vuelveA) { toast.error('Ese embudo ya no tiene etapas'); return }
+
     setReactivando(lead.id)
     try {
       await updateLead(lead.id, {
@@ -344,10 +355,18 @@ export default function Contacts() {
         discardCategory: null,
         discardNotes: null,
         retakeDate: null,
-        systemStage: null,
-        stageId: primera.id,
+        reactivadoAt: new Date(),
+        descartadoAntesEl: lead.discardedAt || null,
+        systemStage: lead.systemStageAntes || null,
+        systemStageAntes: null,
+        ...(vuelveA ? { stageId: vuelveA.id } : {}),
       })
-      toast.success(`${lead.name} volvió a "${primera.name}"`)
+      const donde = lead.systemStageAntes
+        ? SYSTEM_STAGES[lead.systemStageAntes]?.name
+        : (vuelveA
+            ? vuelveA.name
+            : allStages.find(s => s.id === lead.stageId)?.name || 'su etapa')
+      toast.success(`${lead.name} volvió a "${donde}"`)
     } catch {
       toast.error('No se pudo reactivar')
     } finally {

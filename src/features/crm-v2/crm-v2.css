@@ -1065,3 +1065,11 @@
 }
 .pv2-btn--danger { background: var(--red); color: white; border-color: transparent; font-weight: 600; }
 .pv2-btn--danger:hover { opacity: .92; color: white; background: var(--red); }
+
+.pv2-reactivado {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px; padding: 3px 7px; border-radius: 6px;
+  background: var(--amber-bg, rgba(245, 158, 11, 0.12));
+  color: var(--amber, #B45309);
+  font-size: 10px; font-weight: 500;
+}

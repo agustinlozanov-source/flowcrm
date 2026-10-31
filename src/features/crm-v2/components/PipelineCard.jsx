@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target } from 'lucide-react'
+import { Clock, AlertTriangle, Calendar, Phone, CheckCircle2, Sparkles, MessageCircle, Target, RotateCcw } from 'lucide-react'
 import ScoreChip from './ScoreChip'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -24,7 +24,7 @@ export default function PipelineCard({
 }) {
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
-    owner, nextAction, tags = [], ageLabel, aiBadge, rotting,
+    owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado,
     maturity, potential,
   } = deal
 
@@ -101,6 +101,12 @@ export default function PipelineCard({
                   )}
                 </span>
               )}
+            </div>
+          )}
+
+          {reactivado && (
+            <div className="pv2-reactivado" title="Volvió de descartados">
+              <RotateCcw size={9} /> Reactivado · se descartó {reactivado}
             </div>
           )}
 
