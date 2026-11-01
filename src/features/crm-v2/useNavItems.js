@@ -35,7 +35,6 @@ const GATES = {
   // poder ver la suya.
   marcas:         { addon: 'brands' },
   landing:        { moduleId: 'landing', featureFlag: 'landing' },
-  referidos:      { moduleId: 'referrals', featureFlag: 'referrals' },
   metas:          { moduleId: 'goals' },
   ajustes:        {},
 }
