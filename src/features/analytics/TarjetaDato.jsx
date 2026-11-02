@@ -3,6 +3,7 @@ import { Pencil, Trash2, Download, AlertTriangle, Info } from 'lucide-react'
 import { MEDIDAS, DIMENSIONES } from './catalogo'
 import { calcular } from './motor'
 import { RENDERIZADORES } from './Formas'
+import { resolverRango, etiquetaRango } from './rangos'
 import { descargarCSV } from '@/lib/exportar'
 
 /**
@@ -14,10 +15,14 @@ import { descargarCSV } from '@/lib/exportar'
  * caso más, y quien lo mira decide como si fuera firme.
  */
 export default function TarjetaDato({ tarjeta, datos, periodo, onEditar, onBorrar }) {
+  /* Sin `rango` propio la tarjeta hereda el de la pantalla, que es como se
+     comportaba todo antes: los tableros ya guardados no cambian de número. */
+  const rango = tarjeta.rango || 'tablero'
   const res = useMemo(
-    () => calcular(datos, tarjeta.medida, tarjeta.dimension, periodo),
-    [datos, tarjeta.medida, tarjeta.dimension, periodo],
+    () => calcular(datos, tarjeta.medida, tarjeta.dimension, resolverRango(rango, periodo)),
+    [datos, tarjeta.medida, tarjeta.dimension, rango, periodo],
   )
+  const deCuando = etiquetaRango(rango, periodo)
 
   const medida = MEDIDAS[tarjeta.medida]
   const dimension = DIMENSIONES[tarjeta.dimension]
@@ -47,6 +52,11 @@ export default function TarjetaDato({ tarjeta, datos, periodo, onEditar, onBorra
           <p className="text-[11px] text-tertiary truncate" title={medida.descripcion}>
             {medida.descripcion}
           </p>
+          {/* Un número sin período se confunde con cualquier otro del sistema.
+              Con el rango al lado, deja de poderse. */}
+          <p className="text-[10.5px] text-tertiary/80 truncate mt-0.5">
+            {rango === 'tablero' ? deCuando : deCuando + ' · fijo'}
+          </p>
         </div>
         <div className="flex gap-0.5 flex-shrink-0 opacity-0 group-hover/t:opacity-100 transition-opacity">
           <button onClick={exportar} title="Exportar a CSV"
@@ -64,7 +74,7 @@ export default function TarjetaDato({ tarjeta, datos, periodo, onEditar, onBorra
 
       <div className="flex-1 min-w-0">
         {tarjeta.forma === 'numero'
-          ? <Render valor={res.total} formato={res.formato} sub={`${res.casos} ${res.casos === 1 ? 'caso' : 'casos'} en el período`} />
+          ? <Render valor={res.total} formato={res.formato} sub={`${res.casos} ${res.casos === 1 ? 'caso' : 'casos'} · ${deCuando}`} />
           : <Render filas={res.filas} formato={res.formato} />}
       </div>
 

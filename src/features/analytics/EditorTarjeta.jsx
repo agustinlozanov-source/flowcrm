@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { MEDIDAS, DIMENSIONES, FORMAS, formasValidas, dimensionesPara } from './catalogo'
+import { RANGOS, resolverRango } from './rangos'
 import { calcular } from './motor'
 import { RENDERIZADORES } from './Formas'
 import { AlertTriangle, Check } from 'lucide-react'
@@ -25,6 +26,7 @@ export default function EditorTarjeta({ inicial, datos, periodo, espacioLibre, o
   const [forma, setForma] = useState(inicial?.forma || 'numero')
   const [ancho, setAncho] = useState(inicial?.ancho || 1)
   const [titulo, setTitulo] = useState(inicial?.titulo || '')
+  const [rango, setRango] = useState(inicial?.rango || 'tablero')
 
   const dimsPosibles = useMemo(() => dimensionesPara(medida), [medida])
   const formasPosibles = useMemo(() => formasValidas(medida, dimension), [medida, dimension])
@@ -47,8 +49,8 @@ export default function EditorTarjeta({ inicial, datos, periodo, espacioLibre, o
   }
 
   const vista = useMemo(
-    () => calcular(datos, medida, dimension, periodo),
-    [datos, medida, dimension, periodo],
+    () => calcular(datos, medida, dimension, resolverRango(rango, periodo)),
+    [datos, medida, dimension, rango, periodo],
   )
   const Render = RENDERIZADORES[forma] || RENDERIZADORES.numero
 
@@ -90,7 +92,21 @@ export default function EditorTarjeta({ inicial, datos, periodo, espacioLibre, o
 
             <div>
               <label className="block text-[11px] font-bold text-tertiary uppercase tracking-wide mb-1.5">
-                3 · Cómo lo ves
+                3 · De qué rango
+              </label>
+              <select className="input text-sm" value={rango} onChange={e => setRango(e.target.value)}>
+                {RANGOS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </select>
+              <p className="text-[11px] text-tertiary mt-1">
+                {rango === 'tablero'
+                  ? 'Sigue al selector de arriba. Si lo cambiás, esta tarjeta cambia con él.'
+                  : 'Esta tarjeta ignora el selector de arriba y usa siempre este rango.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-tertiary uppercase tracking-wide mb-1.5">
+                4 · Cómo lo ves
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {formasPosibles.map(f => (
@@ -105,7 +121,7 @@ export default function EditorTarjeta({ inicial, datos, periodo, espacioLibre, o
 
             <div>
               <label className="block text-[11px] font-bold text-tertiary uppercase tracking-wide mb-1.5">
-                4 · Cuánto espacio ocupa
+                5 · Cuánto espacio ocupa
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {ANCHOS.map(a => (
@@ -158,7 +174,7 @@ export default function EditorTarjeta({ inicial, datos, periodo, espacioLibre, o
         <div className="flex gap-2 justify-end pt-1">
           <button className="btn-secondary text-sm" onClick={onCerrar}>Cancelar</button>
           <button className="btn-primary text-sm flex items-center gap-1.5"
-            onClick={() => onGuardar({ medida, dimension, forma, ancho, titulo: titulo.trim() || null })}>
+            onClick={() => onGuardar({ medida, dimension, forma, ancho, rango, titulo: titulo.trim() || null })}>
             <Check size={14} /> {inicial ? 'Guardar cambios' : 'Agregar al tablero'}
           </button>
         </div>
