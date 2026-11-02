@@ -1195,3 +1195,50 @@
 }
 .pv2-etapa-chip__nombre { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv2-etapa-chip__n { font-weight: 500; color: var(--text); }
+
+/* ── Registro de cierre ───────────────────────────────────────────
+ * Las dos filas de dinero -lista arriba, cierre abajo- enmarcan el
+ * formulario a propósito: lo primero que se ve es de cuánto partimos y lo
+ * último, en cuánto quedó. Lo de en medio explica la diferencia.
+ */
+.pv2-cierre-lista,
+.pv2-cierre-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 10px 12px; border-radius: 10px; font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.pv2-cierre-lista { background: var(--bg-elev-2); }
+.pv2-cierre-lista b { font-size: 15px; color: var(--text); font-weight: 600; }
+.pv2-cierre-total {
+  background: var(--bg-elev-3); border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.pv2-cierre-total b {
+  font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
+  background: var(--gradient-brand); -webkit-background-clip: text;
+  background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.pv2-hint { font-size: 11px; color: var(--text-tertiary); margin: 5px 0 0; line-height: 1.4; }
+
+/* Segmentado: porcentaje contra monto, contado contra cuotas. */
+.pv2-seg { display: inline-flex; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+.pv2-seg button {
+  border: none; background: none; cursor: pointer; color: var(--text-tertiary);
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 6px 14px; border-radius: 7px; transition: background .14s, color .14s;
+}
+.pv2-seg button.on { background: var(--bg-elev-1); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+
+.pv2-cortesias { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.pv2-cortesia {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-elev-2); border: 1px solid var(--border);
+  border-radius: 50px; padding: 4px 6px 4px 11px; font-size: 12px; color: var(--text);
+}
+.pv2-cortesia i { font-style: normal; color: var(--text-tertiary); font-size: 11px; }
+.pv2-cortesia button {
+  border: none; background: none; cursor: pointer; color: var(--text-tertiary);
+  display: flex; padding: 2px; border-radius: 50%;
+}
+.pv2-cortesia button:hover { color: var(--red); }

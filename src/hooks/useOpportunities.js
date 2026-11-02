@@ -19,6 +19,12 @@ import { useAuthStore } from '@/store/authStore'
 
 export const ESTADOS_ABIERTOS = ['abierta']
 
+/** El mes en que cae una fecha, visto desde México (UTC−6). */
+export function mesMexico(d = new Date()) {
+  const mx = new Date(d.getTime() - 6 * 60 * 60 * 1000)
+  return mx.getUTCFullYear() + '-' + String(mx.getUTCMonth() + 1).padStart(2, '0')
+}
+
 const ref = (orgId, leadId) =>
   collection(db, 'organizations', orgId, 'leads', leadId, 'opportunities')
 
@@ -94,7 +100,12 @@ async function recalcular(orgId, leadId) {
 function totalesDe(todas) {
   const abiertas = todas.filter(o => o.status === 'abierta')
   const ganadas = todas.filter(o => o.status === 'ganada')
-  const suma = arr => arr.reduce((s, o) => s + (Number(o.value) || 0), 0)
+  /* Una oportunidad abierta vale su precio de lista, porque todavía no se
+     negoció. Una ganada vale lo que de verdad se cobró: si se cerró con
+     descuento, reportar el de lista infla la venta y vuelve la bolsa
+     imposible de medir. Las viejas, sin registro de cierre, caen a `value`. */
+  const monto = o => Number(o.status === 'ganada' && o.closePrice != null ? o.closePrice : o.value) || 0
+  const suma = arr => arr.reduce((s, o) => s + monto(o), 0)
   return {
     total: todas.length,
     open: abiertas.length,
@@ -189,6 +200,38 @@ export function useOpportunities(leadId) {
     await recalcular(orgId, leadId)
   }
 
+  /** Marcar ganada con el registro de cómo se cerró.
+   *
+   *  Va por acá y no por `cambiarEstado` para que el registro y el estado se
+   *  escriban juntos: una ganada sin registro es justo lo que estábamos
+   *  tratando de evitar. */
+  const cerrarGanada = async (oppId, registro) => {
+    if (!orgId || !leadId) return
+    /* De qué embudo salió la venta. Se copia acá y no se deduce después,
+       porque el lead se puede mover de embudo y entonces una venta vieja
+       cambiaría de dueño retroactivamente. Lo que vale es dónde estaba
+       cuando se cerró. */
+    const leadSnap = await getDoc(doc(db, 'organizations', orgId, 'leads', leadId))
+    const pipelineId = leadSnap.exists() ? (leadSnap.data()?.pipelineId || null) : null
+
+    await updateDoc(doc(ref(orgId, leadId), oppId), {
+      status: 'ganada',
+      closedAt: serverTimestamp(),
+      closedBy: user?.uid || null,
+      /* Las oportunidades viven anidadas en cada lead, así que sin estos dos
+         campos no hay forma de juntarlas por organización y por mes — y eso
+         es justo lo que el portal necesita para el número del periodo. El mes
+         se calcula en hora de México, no en UTC: a las 7 de la tarde del día
+         30 el UTC ya es del mes siguiente y la venta caería en el periodo
+         equivocado. */
+      orgId,
+      pipelineId,
+      closedMonth: mesMexico(new Date()),
+      ...registro,
+    })
+    await recalcular(orgId, leadId)
+  }
+
   const editar = async (oppId, data) => {
     if (!orgId || !leadId) return
     await updateDoc(doc(ref(orgId, leadId), oppId), {
@@ -204,7 +247,7 @@ export function useOpportunities(leadId) {
     await recalcular(orgId, leadId)
   }
 
-  return { opportunities, loading, crear, cambiarEstado, editar, borrar }
+  return { opportunities, loading, crear, cambiarEstado, cerrarGanada, editar, borrar }
 }
 
 /** Oportunidades de un lead, leídas una vez. Para mostrarlas donde no hace
