@@ -98,7 +98,7 @@ export default function DistribuidorLoginPage() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Portal Distribuidores
+            Portal del equipo
           </h1>
           <p className="text-sm text-gray-400 mb-8">Flow Hub CRM · Acceso exclusivo</p>
 
