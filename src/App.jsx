@@ -23,7 +23,6 @@ import Import from '@/pages/Import'
 import Analytics from '@/pages/Analytics'
 import ContentStudio from '@/pages/ContentStudio'
 import MarcaPersonal from '@/pages/MarcaPersonal'
-import Referrals from '@/pages/Referrals'
 import Goals from '@/pages/Goals'
 import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
@@ -104,7 +103,6 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="content" element={<ContentStudio />} />
           <Route path="marcas" element={<MarcaPersonal />} />
-          <Route path="referrals" element={<Referrals />} />
           <Route path="goals" element={<Goals />} />
           <Route path="landing" element={<LandingPages />} />
           <Route path="inbox" element={<Inbox />} />

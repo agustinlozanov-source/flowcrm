@@ -163,19 +163,6 @@ const NAV_SECTIONS = [
         ),
       },
       {
-        to: '/referrals',
-        moduleId: 'referrals',
-        labelKey: 'nav.referrals',
-        featureFlag: 'referrals',
-        badge: null,
-        permission: null,
-        icon: (
-          <svg className="w-[17px] h-[17px]" viewBox="0 0 18 18" fill="none">
-            <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-        ),
-      },
-      {
         to: '/goals',
         moduleId: 'goals',
         labelKey: 'nav.goals',

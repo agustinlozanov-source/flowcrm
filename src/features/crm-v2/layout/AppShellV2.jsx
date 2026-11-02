@@ -22,7 +22,6 @@ const ROUTES = {
   reportes: '/analytics',
   contenido: '/content',
   landing: '/landing',
-  referidos: '/referrals',
   metas: '/goals',
   ajustes: '/settings',
 }

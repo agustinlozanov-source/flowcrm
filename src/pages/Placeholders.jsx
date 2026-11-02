@@ -24,4 +24,3 @@ export const Meetings = () => <Placeholder title="Reuniones" icon="📅" descrip
 export const Import = () => <Placeholder title="Importar" icon="📂" description="Sube tu base de datos en cualquier formato. La IA hace el mapeo." />
 export const Analytics = () => <Placeholder title="Analytics" icon="📊" description="Métricas de conversión, performance del agente y ROI por canal." />
 export const Content = () => <Placeholder title="Content Studio" icon="🎬" description="Radar de noticias, guiones, teleprompter y publicación automatizada." />
-export const Referrals = () => <Placeholder title="Referidos" icon="⭐" description="Programa de referidos: tus códigos, comisiones y referidos activos." />

@@ -14,7 +14,6 @@ export const ROUTES = {
   contenido: '/content',
   marcas: '/marcas',
   landing: '/landing',
-  referidos: '/referrals',
   metas: '/goals',
   ajustes: '/settings',
 }

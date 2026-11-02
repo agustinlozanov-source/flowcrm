@@ -21,6 +21,18 @@
         "/Users/agustinlozano/dev/agustinlozano"
       ],
       "port": 4321
+    },
+    {
+      "name": "flowhub-landing",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4322",
+        "--directory",
+        "/Users/agustinlozano/dev/flowhubcrmlanding"
+      ],
+      "port": 4322
     }
   ]
 }
