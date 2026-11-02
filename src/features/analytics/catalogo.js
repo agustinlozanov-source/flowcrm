@@ -114,6 +114,21 @@ export const MEDIDAS = {
     calcula: cs => cs.filter(c => c.status === 'completed').length,
     descripcion: 'Cuántas citas terminaron con el lead presente.',
   },
+  citas_pendientes: {
+    label: 'Pendientes', base: 'citas', unidad: 'cantidad', minimo: 1,
+    calcula: cs => cs.filter(c => c.status === 'pending').length,
+    descripcion: 'Citas agendadas que todavía no se resolvieron.',
+  },
+  citas_canceladas: {
+    label: 'Canceladas', base: 'citas', unidad: 'cantidad', minimo: 1,
+    calcula: cs => cs.filter(c => c.status === 'cancelled').length,
+    descripcion: 'Citas que se cancelaron antes de ocurrir.',
+  },
+  citas_reagendadas: {
+    label: 'Reagendadas', base: 'citas', unidad: 'cantidad', minimo: 1,
+    calcula: cs => cs.filter(c => c.status === 'rescheduled').length,
+    descripcion: 'Citas que se movieron a otra fecha.',
+  },
   citas_ausencia: {
     label: 'Ausencias', base: 'citas', unidad: 'cantidad', minimo: 1,
     calcula: cs => cs.filter(c => c.status === 'no_show').length,
@@ -195,6 +210,43 @@ export const DIMENSIONES = {
       return d ? d.toISOString().slice(0, 7) : 'sin fecha'
     },
     etiqueta: k => k,
+  },
+  /* Semana ISO: la semana empieza el lunes y la numeración es la misma que usa
+     el resto del mundo, para que "semana 45" signifique lo mismo adentro y
+     afuera del sistema. */
+  semana: {
+    label: 'Semana', aplica: ['leads', 'citas'], cardinalidad: 'tiempo',
+    clave: (x, _, campo) => {
+      const d = dia(x[campo])
+      if (!d) return 'sin fecha'
+      const j = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+      // Al jueves de esa semana: el año ISO es el del jueves.
+      j.setUTCDate(j.getUTCDate() + 4 - (j.getUTCDay() || 7))
+      const inicio = new Date(Date.UTC(j.getUTCFullYear(), 0, 1))
+      const n = Math.ceil(((j - inicio) / 86400000 + 1) / 7)
+      return j.getUTCFullYear() + '-S' + String(n).padStart(2, '0')
+    },
+    etiqueta: k => (k === 'sin fecha' ? k : 'Sem ' + k.slice(6) + ' · ' + k.slice(0, 4)),
+  },
+  anio: {
+    label: 'Año', aplica: ['leads', 'citas'], cardinalidad: 'tiempo',
+    clave: (x, _, campo) => {
+      const d = dia(x[campo])
+      return d ? String(d.getFullYear()) : 'sin fecha'
+    },
+    etiqueta: k => k,
+  },
+  /* El estado de la cita, que es lo que explica por que "Citas" y lo que se ve
+     en la Agenda no dan el mismo numero: la Agenda filtra por estado y la
+     medida cuenta todos. Abierto por estado, la diferencia deja de ser un
+     misterio y pasa a ser un dato. */
+  estado_cita: {
+    label: 'Estado de la cita', aplica: ['citas'], cardinalidad: 'pocas',
+    clave: c => c.status || 'pending',
+    etiqueta: k => ({
+      pending: 'Pendiente', completed: 'Asistió', no_show: 'No asistió',
+      cancelled: 'Cancelada', rescheduled: 'Reagendada',
+    }[k] || k),
   },
 }
 
