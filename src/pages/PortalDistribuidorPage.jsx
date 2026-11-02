@@ -60,8 +60,8 @@ const css = `
   }
 
   .p-sidebar-logo {
-    padding: 20px 20px 16px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px;
+    padding: 20px 20px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
   }
 
   .p-logo-text {
@@ -130,7 +130,14 @@ const css = `
 
   .p-topbar-title {
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 15px; font-weight: 800; letter-spacing: -0.3px;
+    font-size: 15px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.2;
+  }
+
+  /* El nombre del portal vivía junto al logo y lo apretaba. Acá arriba del
+     título dice lo mismo sin competir con la marca. */
+  .p-topbar-eyebrow {
+    font-size: 10px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.09em; line-height: 1.2;
   }
 
   .p-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
@@ -457,11 +464,11 @@ export default function PortalDistribuidorPage() {
       {/* SIDEBAR */}
       <aside className="p-sidebar">
         <div className="p-sidebar-logo">
-          <img src="/logo.png" alt="Flow Hub CRM" style={{ height: '22px', objectFit: 'contain', flexShrink: 0 }} />
-          <div>
-            <div className="p-logo-text">Flow Hub CRM</div>
-            <div className="p-logo-sub">Portal del equipo</div>
-          </div>
+          <img
+            src={theme === 'dark' ? '/flowhub-logo2.png' : '/logo.png'}
+            alt="Flow Hub CRM"
+            style={{ height: '24px', objectFit: 'contain', flexShrink: 0 }}
+          />
         </div>
 
         <div className="p-sidebar-profile" onClick={nav('perfil')}>
@@ -507,7 +514,10 @@ export default function PortalDistribuidorPage() {
       {/* MAIN */}
       <div className="p-main">
         <header className="p-topbar">
-          <div className="p-topbar-title">{PAGE_TITLES[activePage]}</div>
+          <div>
+            <div className="p-topbar-eyebrow">Portal del equipo</div>
+            <div className="p-topbar-title">{PAGE_TITLES[activePage]}</div>
+          </div>
           <div className="p-topbar-right">
             <button className="p-icon-btn" title="Notificaciones">
               <Bell size={15} />
