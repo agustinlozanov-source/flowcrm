@@ -256,10 +256,9 @@ export function usePendientes(uid = null) {
         where('orgId', '==', orgId),
       ),
       snap => {
-        const todas = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         setItems(
-          todas
-            .filter(a => a.estado === 'pendiente')
+          snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
             .sort((a, b) => (a.dueAt?.toMillis?.() || 0) - (b.dueAt?.toMillis?.() || 0)),
         )
         setCargando(false)
@@ -282,9 +281,16 @@ export function usePendientes(uid = null) {
 
   const porCubeta = useMemo(() => {
     const out = { vencida: [], hoy: [], semana: [], despues: [], sinFecha: [] }
-    mias.forEach(a => out[cubeta(a)].push(a))
+    mias.filter(a => a.estado === 'pendiente').forEach(a => out[cubeta(a)].push(a))
     return out
   }, [mias])
 
-  return { items: mias, porCubeta, cargando, error }
+  /* Lo archivado sale de la lista pero no de la base: hay que poder verlo y
+     devolverlo, o archivar se vuelve un borrado con otro nombre. */
+  const archivadas = useMemo(
+    () => mias.filter(a => a.estado === 'cancelada'),
+    [mias],
+  )
+
+  return { items: mias, porCubeta, archivadas, cargando, error }
 }

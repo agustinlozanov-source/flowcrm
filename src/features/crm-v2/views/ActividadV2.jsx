@@ -23,7 +23,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   MessageCircle, Phone, Mail, Calendar, CheckSquare,
-  Check, AlertTriangle, ExternalLink, Archive, Download, Upload,
+  Check, AlertTriangle, ExternalLink, Archive, Download, Upload, RotateCcw,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
@@ -100,8 +100,10 @@ export default function ActividadV2() {
      también el leadId, porque las actividades viven colgadas de cada lead. */
   const [elegidas, setElegidas] = useState({})
   const [importando, setImportando] = useState(false)
+  const [porArchivar, setPorArchivar] = useState(null)
+  const [vista, setVista] = useState('pendientes')
 
-  const { porCubeta, cargando, error } = usePendientes(quien)
+  const { porCubeta, archivadas, cargando, error } = usePendientes(quien)
   const { items: esperando, error: errorEsperando } = useEsperandoRespuesta()
 
   /* El lead completo, para que la fila sepa a qué teléfono llamar y a qué
@@ -200,7 +202,13 @@ export default function ActividadV2() {
    *  se vaya a hacer. Borrar de verdad no deja vuelta atrás. */
   const archivar = async (a) => {
     await actualizarActividad(org.id, a.leadId, a.id, { estado: 'cancelada' })
-    toast.success('Archivada')
+    setPorArchivar(null)
+    toast.success('Archivada. Está en la pestaña Archivadas.')
+  }
+
+  const restaurar = async (a) => {
+    await actualizarActividad(org.id, a.leadId, a.id, { estado: 'pendiente' })
+    toast.success('De vuelta en pendientes')
   }
 
   const puedeArchivar = a => canEditAnyLead || !a.ownerUid || a.ownerUid === user?.uid
@@ -265,10 +273,15 @@ export default function ActividadV2() {
           { label: 'Hoy', value: filtradas.hoy?.length || 0 },
           { label: 'Abiertas', value: total },
         ]}
-        views={[]}
         searchValue={busca}
         onSearch={setBusca}
         searchPlaceholder="Buscar por contacto o por lo que quedó"
+        views={[
+          { id: 'pendientes', label: 'Pendientes', Icon: CheckSquare },
+          { id: 'archivadas', label: `Archivadas${archivadas.length ? ` (${archivadas.length})` : ''}`, Icon: Archive },
+        ]}
+        activeView={vista}
+        onViewChange={setVista}
         extra={
           <select
             className="pv2-select-topbar"
@@ -309,7 +322,7 @@ export default function ActividadV2() {
           </div>
         )}
 
-        {esperandoVisibles.length > 0 && (
+        {vista === 'pendientes' && esperandoVisibles.length > 0 && (
           <section className="pv2-act-bloque">
             <h2 className="pv2-act-bloque__titulo pv2-act-bloque__titulo--vencida">
               Esperando respuesta <span>{esperandoVisibles.length}</span>
@@ -362,7 +375,7 @@ export default function ActividadV2() {
 
         {cargando && <p className="pv2-empty-tab">Cargando…</p>}
 
-        {!cargando && total === 0 && esperandoVisibles.length === 0 && !error && (
+        {vista === 'pendientes' && !cargando && total === 0 && esperandoVisibles.length === 0 && !error && (
           <p className="pv2-empty-tab">
             {busca.trim()
               ? 'Nada coincide con esa búsqueda.'
@@ -370,7 +383,52 @@ export default function ActividadV2() {
           </p>
         )}
 
-        {CUBETAS.map(c => {
+        {vista === 'archivadas' && (
+          archivadas.length === 0 ? (
+            <p className="pv2-empty-tab">Nada archivado.</p>
+          ) : (
+            <section className="pv2-act-bloque">
+              <h2 className="pv2-act-bloque__titulo">
+                Archivadas <span>{archivadas.length}</span>
+              </h2>
+              <div className="pv2-act-fila pv2-act-cab">
+                <span /><span>Canal</span><span>Contacto</span><span>Qué quedó</span>
+                <span>Responsable</span><span>Vencía</span><span>Acciones</span>
+              </div>
+              {archivadas.map(a => {
+                const Icono = ICONOS[a.tipo] || CheckSquare
+                const lead = porId[a.leadId]
+                return (
+                  <div key={a.id} className="pv2-act-fila pv2-act-fila--archivada">
+                    <span />
+                    <span className="pv2-act-fila__tipo"><Icono size={13} /> {etiquetaTipo(a.tipo)}</span>
+                    <div className="pv2-act-fila__contacto">
+                      <div className="pv2-act-fila__nombre">{a.leadNombre || nombreDe(lead)}</div>
+                      {lead?.company && <div className="pv2-act-fila__empresa">{lead.company}</div>}
+                    </div>
+                    <div className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</div>
+                    <div className="pv2-act-fila__dueno" title={responsable(a) || 'Sin asignar'}>
+                      {responsable(a)
+                        ? <><OwnerAvatar name={responsable(a)} size={20} /><span>{responsable(a)}</span></>
+                        : <span className="pv2-act-fila__sindueno">Sin asignar</span>}
+                    </div>
+                    <span className="pv2-act-fila__cuando">{dia(a.dueAt?.toDate?.())}</span>
+                    <div className="pv2-act-acciones">
+                      <button title="Abrir el contacto" onClick={() => navigate(`/pipeline?lead=${a.leadId}`)}>
+                        <ExternalLink size={13} />
+                      </button>
+                      <button title="Devolver a pendientes" onClick={() => restaurar(a)}>
+                        <RotateCcw size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </section>
+          )
+        )}
+
+        {vista === 'pendientes' && CUBETAS.map(c => {
           const items = filtradas[c.id] || []
           if (!items.length) return null
           return (
@@ -438,7 +496,7 @@ export default function ActividadV2() {
                         <button
                           className="pv2-act-acciones__archivar"
                           title="Archivar: sale de la lista y se puede recuperar"
-                          onClick={() => archivar(a)}
+                          onClick={() => setPorArchivar(a)}
                         >
                           <Archive size={13} />
                         </button>
@@ -451,6 +509,29 @@ export default function ActividadV2() {
           )
         })}
       </div>
+
+      {porArchivar && (
+        <div className="pv2-dialog">
+          <div className="pv2-dialog__backdrop" onClick={() => setPorArchivar(null)} />
+          <div className="pv2-dialog__box" style={{ maxWidth: 400 }}>
+            <h2 className="pv2-dialog__title">¿Archivar esta actividad?</h2>
+            <p className="pv2-dialog__hint">
+              {etiquetaTipo(porArchivar.tipo)} · {porArchivar.leadNombre || 'Sin nombre'}
+              {porArchivar.resumen ? ` — ${porArchivar.resumen}` : ''}
+            </p>
+            <p className="pv2-hint" style={{ marginTop: 0 }}>
+              Sale de los pendientes y queda en la pestaña Archivadas, de donde se puede
+              devolver cuando quieras. No se borra.
+            </p>
+            <div className="pv2-dialog__actions">
+              <button type="button" className="pv2-btn" onClick={() => setPorArchivar(null)}>Cancelar</button>
+              <button type="button" className="pv2-btn pv2-btn--primary" onClick={() => archivar(porArchivar)}>
+                <Archive size={13} /> Archivar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {importando && (
         <ImportarActividades

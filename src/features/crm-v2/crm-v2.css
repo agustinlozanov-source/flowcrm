@@ -1531,3 +1531,7 @@
 @media (max-width: 1180px) {
   .pv2-act-cab span:nth-child(5) { visibility: hidden; }
 }
+
+/* Archivada: atenuada, para que se note de un vistazo que no está en juego. */
+.pv2-act-fila--archivada { opacity: .62; }
+.pv2-act-fila--archivada:hover { opacity: 1; }
