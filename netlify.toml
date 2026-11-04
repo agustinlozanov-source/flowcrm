@@ -36,6 +36,19 @@
   schedule = "0 9 * * *"
   timeout = 26
 
+# Rescata las conversaciones que se apagaron, antes de que cierre la ventana
+# de 24 horas de Meta, y descarta las que siguen calladas. Cada hora, porque
+# la ventana es de 24 y el aviso se da con seis de margen: revisar una vez al
+# dia dejaria pasar casi todas.
+#
+# No hace nada hasta que una organizacion encienda `seguimiento.activo` en la
+# pantalla del Agente. Nace apagado para todos a proposito: el interruptor
+# viejo de Railway sigue encendido en varias cuentas, y mirarlo habria puesto
+# a escribirle a clientes reales en el primer despliegue.
+[functions."seguimiento"]
+  schedule = "0 * * * *"
+  timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

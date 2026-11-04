@@ -1835,6 +1835,18 @@ export default function Agent() {
       delayMinutes: 60,
       maxFollowUps: 1,
     },
+    /* Bandera propia, separada de `followUp`: ese interruptor quedó encendido
+       en varias cuentas cuando el cron viejo corría en Railway, y reusarlo
+       habría puesto a escribirle a clientes reales en el primer despliegue.
+       Ésta nace apagada para todos. */
+    seguimiento: {
+      activo: false,
+      horasAntesDeCerrar: 6,
+      maxIntentos: 2,
+      horasEntreIntentos: 24,
+      descartar: false,
+      usarAgente: true,
+    },
   })
 
   const set = (k, v) => setConfig(c => ({ ...c, [k]: v }))
@@ -1897,6 +1909,7 @@ export default function Agent() {
           meetingDuration: data.meetingDuration ?? c.meetingDuration,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
+          seguimiento: { ...c.seguimiento, ...(data.seguimiento || {}) },
         }))
       }
     })
@@ -2098,6 +2111,96 @@ export default function Agent() {
                   valor={valorAgenda('workingHours', null)}
                   onChange={h => setAgenda('workingHours', h)}
                 />
+
+                <Section
+                  title="Rescate y descarte por silencio"
+                  desc="Retoma la conversación antes de que cierre la ventana de 24 horas de WhatsApp, y descarta al que sigue sin contestar"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <button
+                      onClick={() => set('seguimiento', { ...config.seguimiento, activo: !config.seguimiento?.activo })}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${
+                        config.seguimiento?.activo ? 'bg-accent-blue' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        config.seguimiento?.activo ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                    <span className="text-sm text-secondary">{config.seguimiento?.activo ? 'Activado' : 'Desactivado'}</span>
+                  </div>
+
+                  {config.seguimiento?.activo && (
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <label className="text-xs font-semibold text-secondary mb-2 block">
+                          Cuántas horas antes de que cierre la ventana
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {[2, 4, 6, 8, 12].map(h => (
+                            <button
+                              key={h}
+                              onClick={() => set('seguimiento', { ...config.seguimiento, horasAntesDeCerrar: h })}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                config.seguimiento?.horasAntesDeCerrar === h
+                                  ? 'bg-accent-blue text-white border-accent-blue'
+                                  : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                              }`}
+                            >{h} h</button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-secondary mt-2">
+                          Las 24 horas las pone Meta y no se cambian. Esto es el margen para intentarlo antes.
+                          Pasada la ventana solo entran plantillas aprobadas.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-secondary mb-2 block">Cuántos intentos</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[1, 2, 3].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => set('seguimiento', { ...config.seguimiento, maxIntentos: n })}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                config.seguimiento?.maxIntentos === n
+                                  ? 'bg-accent-blue text-white border-accent-blue'
+                                  : 'border-black/[0.1] text-secondary hover:border-black/[0.2]'
+                              }`}
+                            >{n}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={!!config.seguimiento?.usarAgente}
+                          onChange={e => set('seguimiento', { ...config.seguimiento, usarAgente: e.target.checked })}
+                        />
+                        <span className="text-sm text-secondary">
+                          <strong className="text-primary">Que lo escriba el agente.</strong> Lee la conversación y
+                          redacta una línea que encaje. Apagado, manda un mensaje fijo. Si el agente falla o devuelve
+                          algo con cifras, sale el fijo de todos modos.
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={!!config.seguimiento?.descartar}
+                          onChange={e => set('seguimiento', { ...config.seguimiento, descartar: e.target.checked })}
+                        />
+                        <span className="text-sm text-secondary">
+                          <strong className="text-primary">Descartar al agotar los intentos.</strong> Sale del embudo
+                          con la razón «No contesta». Si esa persona vuelve a escribir, regresa sola a donde estaba.
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </Section>
 
                 {featureFlags.followup !== false && <Section title="Follow-up automático" desc="El agente manda un mensaje si el lead no responde antes de llegar al handoff">
                   <div className="flex items-center gap-3 mb-3">

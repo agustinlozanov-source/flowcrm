@@ -121,6 +121,10 @@ async function saveMessage(orgId, leadId, { text, channel, role, channelMsgId })
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       lastMessageChannel: channel,
       hasUnread: role === 'user',
+      /* El reloj de la ventana de 24 horas: se cuenta desde el último
+         mensaje DEL CLIENTE y solo otro suyo la reinicia. `lastMessageAt` no
+         sirve, porque también se mueve cuando contestamos nosotros. */
+      ...(role === 'user' ? { lastInboundAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 }

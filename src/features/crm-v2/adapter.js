@@ -8,6 +8,7 @@
  *   scoreTrend  → no hay histórico de score (ver BACKEND-CHANGES-NEEDED.md)
  *   potential   → no existe el concepto de valor potencial en los leads
  */
+import { estadoVentana, textoVentana } from '@/lib/ventana'
 import { SYSTEM_STAGES } from '@/hooks/usePipeline'
 import { maturityFromScore, MATURITY } from './maturity'
 
@@ -104,6 +105,19 @@ function nextActionOf(lead, proximaCita) {
   if (lead.systemStage === 'closed') return { text: 'Venta cerrada', icon: 'check' }
 
   const ultimo = ts(lead.lastMessageAt)
+
+  /* La ventana de 24 horas va antes que todo lo demás: es el único aviso del
+     tablero con hora de caducidad real. Pasada, a una cuenta sin plantillas
+     aprobadas no le queda ningún mensaje que mandar, y el lead se queda ahí
+     para siempre. */
+  const v = estadoVentana(lead)
+  if (v.estado === 'porCerrar' && !lead.hasUnread) {
+    return { text: textoVentana(lead), icon: 'alert', tone: 'overdue' }
+  }
+  if (v.estado === 'cerrada' && !lead.hasUnread) {
+    return { text: 'Ventana cerrada', icon: 'alert', tone: 'overdue' }
+  }
+
   /* Con la IA activa, «sin responder» dura segundos porque el agente contesta
      solo. Con la IA pausada no viene nadie: se queda así hasta que una persona
      actúe, y por eso las dos situaciones no se pueden pintar igual. */
@@ -219,6 +233,10 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [], s
      * que una persona entre. Es la única espera del tablero que no se
      * destraba sola, así que lleva marca propia y no solo el texto. */
     esperaManual: !!(lead.hasUnread && lead.agentPaused),
+
+    /* El estado de la ventana, para que la tarjeta y el panel lo pinten sin
+       volver a calcularlo cada uno por su lado. */
+    ventana: estadoVentana(lead),
     _lead: lead,
   }
 }
