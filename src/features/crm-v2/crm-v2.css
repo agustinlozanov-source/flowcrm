@@ -1476,3 +1476,58 @@
   .pv2-act-fila__dueno > span:not(.pv2-avatar) { display: none; }
   .pv2-act-fila__empresa { display: none; }
 }
+
+/* ── Cabecera de columnas ────────────────────────────────────────── */
+
+/* Sin ella, «WhatsApp» y «Sin detalle» son adivinanzas: nadie sabe si la
+   primera columna es el canal, el origen o el producto. */
+.pv2-act-cab {
+  padding-top: 0; padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+.pv2-act-cab span {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-tertiary);
+}
+.pv2-act-cab:hover { background: none; }
+
+/* Siempre visibles. Esconderlos hasta el hover obliga a descubrirlos por
+   accidente, y en una lista de trabajo son la mitad de la razón de entrar. */
+.pv2-act-acciones { opacity: 1; }
+.pv2-act-acciones__archivar:hover { color: var(--amber, #ff9500); border-color: var(--amber, #ff9500); }
+
+/* ── Importar ────────────────────────────────────────────────────── */
+
+.pv2-import-cols {
+  display: flex; flex-direction: column; gap: 3px;
+  border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.pv2-import-cols strong { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-tertiary); }
+
+.pv2-import-aviso,
+.pv2-import-sueltas {
+  border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px;
+  font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+}
+.pv2-import-aviso { display: flex; gap: 7px; align-items: flex-start; }
+.pv2-import-aviso svg { flex-shrink: 0; margin-top: 2px; color: var(--amber, #ff9500); }
+.pv2-import-sueltas { max-height: 130px; overflow-y: auto; }
+
+.pv2-import-saldo { display: flex; gap: 16px; font-size: 12.5px; font-weight: 600; }
+.pv2-import-saldo__ok,
+.pv2-import-saldo__mal { display: inline-flex; align-items: center; gap: 6px; }
+.pv2-import-saldo__ok { color: var(--success, #00c853); }
+.pv2-import-saldo__mal { color: var(--amber, #ff9500); }
+
+/* Una etiqueta de cabecera que no cabe se encima con la siguiente: se veía
+   «RESPONSABLE» montado sobre «VENCE». Se recortan antes de invadir. */
+.pv2-act-cab span {
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Angosto: la columna del responsable queda en el avatar, y una etiqueta de
+   34 px sería «RES…», que no dice nada. El avatar lleva el nombre en su
+   tooltip, y la fila completa está a un clic. */
+@media (max-width: 1180px) {
+  .pv2-act-cab span:nth-child(5) { visibility: hidden; }
+}

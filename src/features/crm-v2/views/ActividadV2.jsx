@@ -23,18 +23,20 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   MessageCircle, Phone, Mail, Calendar, CheckSquare,
-  Check, AlertTriangle, ExternalLink,
+  Check, AlertTriangle, ExternalLink, Archive, Download, Upload,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import OwnerAvatar from '../components/OwnerAvatar'
 import ActividadDialog from '../components/ActividadDialog'
+import ImportarActividades from '../components/ImportarActividades'
 import {
   usePendientes, useEsperandoRespuesta, crearActividad, completarActividad,
   actualizarActividad, etiquetaTipo,
 } from '@/hooks/useActividades'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useTeam } from '@/hooks/useTeam'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/authStore'
 
 const CUBETAS = [
@@ -69,6 +71,23 @@ export default function ActividadV2() {
   const { org, user } = useAuthStore()
   const { members = [] } = useTeam()
   const { todosLosLeads = [] } = usePipeline()
+  const { canExportData, canEditAnyLead } = usePermissions()
+
+  /* El nombre del responsable se resuelve contra el equipo, no se lee del
+     campo que guardó la actividad. Ese campo es una copia del momento en que
+     se creó: si la persona cambió de nombre, o se guardó con el pedazo del
+     correo en vez del nombre, la lista queda mostrando algo que no existe. */
+  const nombreDeMiembro = useMemo(() => {
+    const m = {}
+    members.forEach(x => {
+      const nombre = x.name || x.displayName || x.email || ''
+      if (x.uid) m[x.uid] = nombre
+      if (x.id) m[x.id] = nombre
+    })
+    return m
+  }, [members])
+
+  const responsable = a => nombreDeMiembro[a.ownerUid] || a.ownerNombre || ''
 
   /* Por omisión se ve el equipo entero. Arrancar filtrado por uno mismo
      esconde el trabajo de los demás justo en la pantalla que existe para
@@ -80,6 +99,7 @@ export default function ActividadV2() {
   /* La selección guarda la actividad entera y no su id: reasignar necesita
      también el leadId, porque las actividades viven colgadas de cada lead. */
   const [elegidas, setElegidas] = useState({})
+  const [importando, setImportando] = useState(false)
 
   const { porCubeta, cargando, error } = usePendientes(quien)
   const { items: esperando, error: errorEsperando } = useEsperandoRespuesta()
@@ -175,13 +195,55 @@ export default function ActividadV2() {
     toast.success(`${lista.length} ${lista.length === 1 ? 'actividad reasignada' : 'actividades reasignadas'}`)
   }
 
+  /** Archivar en vez de borrar: una actividad que alguien quita por error se
+   *  recupera, y el registro de qué se planeó hacer tiene valor aunque ya no
+   *  se vaya a hacer. Borrar de verdad no deja vuelta atrás. */
+  const archivar = async (a) => {
+    await actualizarActividad(org.id, a.leadId, a.id, { estado: 'cancelada' })
+    toast.success('Archivada')
+  }
+
+  const puedeArchivar = a => canEditAnyLead || !a.ownerUid || a.ownerUid === user?.uid
+
+  /** Lo que se exporta es lo que se ve: con el filtro y la búsqueda puestos.
+   *  Bajar siempre todo obliga a volver a filtrar afuera. */
+  const exportar = () => {
+    const filas = CUBETAS.flatMap(c => (filtradas[c.id] || []).map(a => ({ cubeta: c.label, a })))
+    if (!filas.length) return toast.error('No hay nada que exportar con esos filtros')
+    const col = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const csv = [
+      ['Cuándo', 'Vence', 'Canal', 'Contacto', 'Empresa', 'Qué quedó', 'Responsable'].map(col).join(','),
+      ...filas.map(({ cubeta, a }) => [
+        cubeta,
+        a.dueAt?.toDate?.()?.toLocaleString('es-MX') || '',
+        etiquetaTipo(a.tipo),
+        a.leadNombre || nombreDe(porId[a.leadId]),
+        porId[a.leadId]?.company || '',
+        a.resumen || '',
+        responsable(a),
+      ].map(col).join(',')),
+    ].join('\n')
+    /* BOM al principio: sin él, Excel en Windows abre los acentos rotos y la
+       primera reacción de cualquiera es que el sistema exportó mal. */
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `actividades-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${filas.length} ${filas.length === 1 ? 'actividad exportada' : 'actividades exportadas'}`)
+  }
+
   /** Los botones de la fila: el canal de la actividad primero, y siempre la
    *  salida al lead, que es donde está todo lo demás. */
   const acciones = (a) => {
     const lead = porId[a.leadId]
     const out = []
-    if (a.tipo === 'whatsapp' || a.tipo === 'reunion') {
+    if (a.tipo === 'whatsapp') {
       out.push({ id: 'wa', Icon: MessageCircle, titulo: 'Abrir la conversación', hacer: () => navigate(`/inbox?lead=${a.leadId}`) })
+    }
+    if (a.tipo === 'reunion') {
+      out.push({ id: 'cita', Icon: Calendar, titulo: 'Ver la agenda de este contacto', hacer: () => navigate(`/meetings?lead=${a.leadId}`) })
     }
     if (a.tipo === 'llamada' && lead?.phone) {
       out.push({ id: 'tel', Icon: Phone, titulo: `Llamar a ${lead.phone}`, hacer: () => { window.location.href = `tel:${lead.phone}` } })
@@ -220,6 +282,16 @@ export default function ActividadV2() {
             ))}
           </select>
         }
+        acciones={canExportData ? (
+          <>
+            <button className="pv2-btn" onClick={() => setImportando(true)} title="Cargar actividades desde un CSV">
+              <Upload size={14} /> Importar
+            </button>
+            <button className="pv2-btn" onClick={exportar} title="Bajar lo que estás viendo, con los filtros puestos">
+              <Download size={14} /> Exportar
+            </button>
+          </>
+        ) : null}
         primaryLabel="Nueva actividad"
         onPrimary={() => setNueva(true)}
       />
@@ -306,6 +378,15 @@ export default function ActividadV2() {
               <h2 className={clsx('pv2-act-bloque__titulo', c.tono && `pv2-act-bloque__titulo--${c.tono}`)}>
                 {c.label} <span>{items.length}</span>
               </h2>
+              <div className="pv2-act-fila pv2-act-cab">
+                <span />
+                <span>Canal</span>
+                <span>Contacto</span>
+                <span>Qué quedó</span>
+                <span>Responsable</span>
+                <span>Vence</span>
+                <span>Acciones</span>
+              </div>
               {items.map(a => {
                 const d = a.dueAt?.toDate?.() || null
                 const Icono = ICONOS[a.tipo] || CheckSquare
@@ -334,9 +415,9 @@ export default function ActividadV2() {
                       {lead?.company && <div className="pv2-act-fila__empresa">{lead.company}</div>}
                     </div>
                     <div className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</div>
-                    <div className="pv2-act-fila__dueno" title={a.ownerNombre || 'Sin asignar'}>
-                      {a.ownerNombre
-                        ? <><OwnerAvatar name={a.ownerNombre} size={20} /><span>{a.ownerNombre}</span></>
+                    <div className="pv2-act-fila__dueno" title={responsable(a) || 'Sin asignar'}>
+                      {responsable(a)
+                        ? <><OwnerAvatar name={responsable(a)} size={20} /><span>{responsable(a)}</span></>
                         : <span className="pv2-act-fila__sindueno">Sin asignar</span>}
                     </div>
                     <span className={clsx('pv2-act-fila__cuando', c.tono === 'vencida' && 'pv2-act-fila__cuando--vencida')}>
@@ -353,6 +434,15 @@ export default function ActividadV2() {
                       >
                         <Check size={13} />
                       </button>
+                      {puedeArchivar(a) && (
+                        <button
+                          className="pv2-act-acciones__archivar"
+                          title="Archivar: sale de la lista y se puede recuperar"
+                          onClick={() => archivar(a)}
+                        >
+                          <Archive size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -361,6 +451,32 @@ export default function ActividadV2() {
           )
         })}
       </div>
+
+      {importando && (
+        <ImportarActividades
+          leads={paraElegir}
+          members={members}
+          onImportar={async (filas) => {
+            /* De una en una y no en paralelo: cien escrituras simultáneas se
+               topan con el límite de Firestore y la mitad falla en silencio. */
+            for (const f of filas) {
+              await crearActividad(org.id, f.lead.id, {
+                leadNombre: f.lead.nombre,
+                pipelineId: f.lead._lead?.pipelineId || null,
+                tipo: f.tipo,
+                estado: 'pendiente',
+                dueAt: f.dueAt,
+                resumen: f.resumen,
+                ownerUid: f.ownerUid,
+                ownerNombre: f.ownerNombre,
+              }, quienSoy)
+            }
+            setImportando(false)
+            toast.success(`${filas.length} ${filas.length === 1 ? 'actividad creada' : 'actividades creadas'}`)
+          }}
+          onCerrar={() => setImportando(false)}
+        />
+      )}
 
       {nueva && (
         <ActividadDialog

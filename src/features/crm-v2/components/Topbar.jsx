@@ -36,6 +36,9 @@ export default function Topbar({
      orden de la barra sea siempre el mismo en todas las pantallas: título,
      stats, lo de la vista, filtros, buscador, botón. */
   extra,
+  /* Acciones secundarias —importar, exportar— entre los filtros y el botón
+     primario, que es donde las busca quien ya usó cualquier otra pantalla. */
+  acciones,
   primaryLabel,
   onPrimary,
 }) {
@@ -135,6 +138,8 @@ export default function Topbar({
             </span>
           )}
       </div>
+
+      {acciones}
 
       {primaryLabel && (
         <button className="pv2-btn pv2-btn--primary" onClick={onPrimary}>
