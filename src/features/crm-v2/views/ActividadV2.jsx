@@ -259,7 +259,7 @@ export default function ActividadV2() {
     if (a.tipo === 'correo' && lead?.email) {
       out.push({ id: 'mail', Icon: Mail, titulo: `Escribir a ${lead.email}`, hacer: () => { window.location.href = `mailto:${lead.email}` } })
     }
-    out.push({ id: 'lead', Icon: ExternalLink, titulo: 'Abrir el contacto', hacer: () => navigate(`/pipeline?lead=${a.leadId}`) })
+    out.push({ id: 'lead', Icon: ExternalLink, titulo: 'Abrir la tarjeta', hacer: () => navigate(`/pipeline?lead=${a.leadId}`) })
     return out
   }
 
@@ -345,7 +345,7 @@ export default function ActividadV2() {
                   <button title="Abrir la conversación" onClick={() => navigate(`/inbox?lead=${l.id}`)}>
                     <MessageCircle size={13} />
                   </button>
-                  <button title="Abrir el contacto" onClick={() => navigate(`/pipeline?lead=${l.id}`)}>
+                  <button title="Abrir la tarjeta" onClick={() => navigate(`/pipeline?lead=${l.id}`)}>
                     <ExternalLink size={13} />
                   </button>
                 </div>
@@ -414,7 +414,7 @@ export default function ActividadV2() {
                     </div>
                     <span className="pv2-act-fila__cuando">{dia(a.dueAt?.toDate?.())}</span>
                     <div className="pv2-act-acciones">
-                      <button title="Abrir el contacto" onClick={() => navigate(`/pipeline?lead=${a.leadId}`)}>
+                      <button title="Abrir la tarjeta" onClick={() => navigate(`/pipeline?lead=${a.leadId}`)}>
                         <ExternalLink size={13} />
                       </button>
                       <button title="Devolver a pendientes" onClick={() => restaurar(a)}>
