@@ -12,7 +12,7 @@ import SidePanel from '../components/SidePanel'
 import PeekPreview from '../components/PeekPreview'
 import NewCardDialog from '../components/NewCardDialog'
 import CompuertaDeOportunidad from '../components/CompuertaDeOportunidad'
-import { OportunidadesSection, ContactoSection, CitasSection, DescartarSection } from '../components/LeadSections'
+import { OportunidadesSection, ContactoSection, CitasSection, DescartarSection, ActividadesSection } from '../components/LeadSections'
 import LeadTimeline from '../components/LeadTimeline'
 import NotasLead from '../components/NotasLead'
 import { COLUMNS, columnMetrics, distribution } from '../boardData'
@@ -532,7 +532,16 @@ export default function PipelineV2() {
           </>
         )}
         tabContent={selected ? {
-          timeline: <LeadTimeline leadId={selected.id} />,
+          timeline: (
+            <>
+              <ActividadesSection
+                leadId={selected.id}
+                leadNombre={selected.name || ''}
+                pipelineId={selected._lead?.pipelineId || null}
+              />
+              <LeadTimeline leadId={selected.id} />
+            </>
+          ),
           notas: <NotasLead lead={selected._lead} onSave={notes => updateLead(selected.id, { notes })} />,
           archivos: <p className="pv2-empty-tab">Los archivos del lead todavía no se guardan acá. Los que manda el agente quedan en la conversación.</p>,
         } : undefined}

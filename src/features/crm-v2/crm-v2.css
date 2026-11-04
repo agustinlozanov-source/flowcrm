@@ -1242,3 +1242,54 @@
   display: flex; padding: 2px; border-radius: 50%;
 }
 .pv2-cortesia button:hover { color: var(--red); }
+
+/* ── Actividades de venta ────────────────────────────────────────── */
+
+/* Cinco tipos no caben en una línea del panel, que mide 480 px. */
+.pv2-seg--wrap { display: flex; flex-wrap: wrap; width: 100%; }
+.pv2-seg--wrap button { flex: 1 0 auto; padding: 6px 10px; }
+
+.pv2-check {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; color: var(--text); user-select: none;
+}
+.pv2-check input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+/* Sangrado y línea al costado: el compromiso cuelga de la actividad que lo
+   produjo, y se lee como consecuencia y no como un segundo formulario. */
+.pv2-compromiso {
+  display: flex; flex-direction: column; gap: 7px;
+  margin-top: 9px; padding-left: 11px;
+  border-left: 2px solid var(--border);
+}
+
+.pv2-act { display: flex; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.pv2-act:last-child { border-bottom: none; }
+.pv2-act__dot {
+  width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0;
+  background: var(--text-tertiary);
+}
+.pv2-act--vencida .pv2-act__dot { background: var(--danger, #ff3b30); }
+.pv2-act--hoy .pv2-act__dot { background: var(--accent); }
+.pv2-act__main { flex: 1; min-width: 0; }
+.pv2-act__top { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.pv2-act__tipo { font-size: 12px; font-weight: 700; color: var(--text); }
+.pv2-act__cuando { font-size: 11.5px; color: var(--text-tertiary); }
+.pv2-act__cuando--vencida { color: var(--danger, #ff3b30); font-weight: 600; }
+.pv2-act__resumen { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
+.pv2-act__quien { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+
+/* La marca de captura tardía. Discreta pero presente: si toda una semana
+   aparece capturada el viernes, eso se ve de un vistazo sin correr nada. */
+.pv2-act__retraso {
+  font-size: 10.5px; color: var(--text-tertiary);
+  border: 1px solid var(--border); border-radius: 50px;
+  padding: 1px 7px; white-space: nowrap;
+}
+.pv2-act__hecho {
+  border: 1px solid var(--border); background: none; cursor: pointer;
+  color: var(--text-tertiary); border-radius: 7px; padding: 4px 9px;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  align-self: flex-start; margin-top: 4px;
+}
+.pv2-act__hecho:hover { color: var(--text); border-color: var(--border-strong, var(--border)); }

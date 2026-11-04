@@ -11,6 +11,8 @@ import clsx from 'clsx'
 import OpportunityRow from './OpportunityRow'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import toast from 'react-hot-toast'
+import ActividadDialog from './ActividadDialog'
+import { useActividadesDeLead, etiquetaTipo, cubeta } from '@/hooks/useActividades'
 
 /* ── Oportunidades ───────────────────────────────────────────────── */
 export function OportunidadesSection({ leadId, products = [] }) {
@@ -361,6 +363,106 @@ export function DescartarSection({ leadId, onDescartado }) {
           {guardando ? 'Descartando…' : 'Descartar'}
         </button>
       </div>
+    </section>
+  )
+}
+
+/* ── Actividades de venta ────────────────────────────────────────── */
+
+const DIAS_MS = 864e5
+
+/** Cómo se dice una fecha cuando lo que importa es qué tan lejos está. */
+function cuandoToca(d, ahora = new Date()) {
+  if (!d) return 'Sin fecha'
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+  const suyo = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const dias = Math.round((suyo - hoy) / DIAS_MS)
+  if (dias === 0) return `Hoy ${hora}`
+  if (dias === 1) return `Mañana ${hora}`
+  if (dias === -1) return `Ayer ${hora}`
+  if (dias < 0) return `Hace ${Math.abs(dias)} días`
+  return `${d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })} ${hora}`
+}
+
+export function ActividadesSection({ leadId, leadNombre = '', pipelineId = null }) {
+  const { pendientes, registrar, completar } = useActividadesDeLead(leadId)
+  const [dialogo, setDialogo] = useState(null)
+
+  const guardar = async ({ hecho, pendiente }) => {
+    const base = { leadNombre, pipelineId }
+    /* En serie y no en paralelo: el hecho se guarda primero para que, si el
+       compromiso falla, no quede un pendiente colgando de algo que nadie
+       registró. */
+    if (hecho) await registrar({ ...base, ...hecho })
+    if (pendiente) await registrar({ ...base, ...pendiente })
+    setDialogo(null)
+    toast.success(hecho && pendiente ? 'Actividad y compromiso guardados' : 'Guardado')
+  }
+
+  const marcarHecha = async (act) => {
+    const resumen = window.prompt('¿Qué pasó?', act.resumen || '')
+    if (resumen == null) return
+    await completar(act.id, { resumen })
+    toast.success('Hecha')
+  }
+
+  return (
+    <section className="pv2-section">
+      <h4 className="pv2-section__title">
+        Actividades
+        {pendientes.length > 0 && (
+          <span className="pv2-section__hint">
+            {pendientes.length} pendiente{pendientes.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </h4>
+
+      {pendientes.length === 0 && (
+        <p className="pv2-empty-tab" style={{ padding: '6px 0' }}>
+          Nada pendiente con este lead. Un lead sin siguiente paso es un lead que se enfría.
+        </p>
+      )}
+
+      {pendientes.map(a => {
+        const d = a.dueAt?.toDate?.() || null
+        const estado = cubeta(a)
+        return (
+          <div key={a.id} className={clsx('pv2-act', `pv2-act--${estado}`)}>
+            <span className="pv2-act__dot" />
+            <div className="pv2-act__main">
+              <div className="pv2-act__top">
+                <span className="pv2-act__tipo">{etiquetaTipo(a.tipo)}</span>
+                <span className={clsx('pv2-act__cuando', estado === 'vencida' && 'pv2-act__cuando--vencida')}>
+                  {cuandoToca(d)}
+                </span>
+              </div>
+              {a.resumen && <div className="pv2-act__resumen">{a.resumen}</div>}
+              {a.ownerNombre && <div className="pv2-act__quien">{a.ownerNombre}</div>}
+            </div>
+            <button className="pv2-act__hecho" onClick={() => marcarHecha(a)}>
+              <CheckCircle2 size={11} /> Hecha
+            </button>
+          </div>
+        )
+      })}
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+        <button className="pv2-btn" onClick={() => setDialogo('registrar')}>
+          <Plus size={12} /> Registrar
+        </button>
+        <button className="pv2-btn" onClick={() => setDialogo('agendar')}>
+          <Calendar size={12} /> Agendar
+        </button>
+      </div>
+
+      {dialogo && (
+        <ActividadDialog
+          modo={dialogo}
+          onGuardar={guardar}
+          onCerrar={() => setDialogo(null)}
+        />
+      )}
     </section>
   )
 }
