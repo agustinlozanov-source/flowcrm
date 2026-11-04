@@ -27,10 +27,11 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
+import OwnerAvatar from '../components/OwnerAvatar'
 import ActividadDialog from '../components/ActividadDialog'
 import {
   usePendientes, useEsperandoRespuesta, crearActividad, completarActividad,
-  etiquetaTipo,
+  actualizarActividad, etiquetaTipo,
 } from '@/hooks/useActividades'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useTeam } from '@/hooks/useTeam'
@@ -76,6 +77,9 @@ export default function ActividadV2() {
   const [busca, setBusca] = useState('')
   const [nueva, setNueva] = useState(false)
   const [completando, setCompletando] = useState(null)
+  /* La selección guarda la actividad entera y no su id: reasignar necesita
+     también el leadId, porque las actividades viven colgadas de cada lead. */
+  const [elegidas, setElegidas] = useState({})
 
   const { porCubeta, cargando, error } = usePendientes(quien)
   const { items: esperando, error: errorEsperando } = useEsperandoRespuesta()
@@ -147,6 +151,28 @@ export default function ActividadV2() {
     }
     setCompletando(null)
     toast.success(pendiente ? 'Hecha, y queda la siguiente' : 'Hecha')
+  }
+
+  const nSel = Object.keys(elegidas).length
+
+  const alternar = (a) => setElegidas(prev => {
+    const out = { ...prev }
+    if (out[a.id]) delete out[a.id]
+    else out[a.id] = a
+    return out
+  })
+
+  /** Reasignar lo seleccionado. Pasa cada vez que alguien sale de vacaciones
+   *  o entra gente nueva, y sin esto hay que abrir lead por lead. */
+  const reasignar = async (uid) => {
+    const m = members.find(x => (x.uid || x.id) === uid)
+    const lista = Object.values(elegidas)
+    await Promise.all(lista.map(a => actualizarActividad(org.id, a.leadId, a.id, {
+      ownerUid: uid || null,
+      ownerNombre: m?.name || m?.email || '',
+    })))
+    setElegidas({})
+    toast.success(`${lista.length} ${lista.length === 1 ? 'actividad reasignada' : 'actividades reasignadas'}`)
   }
 
   /** Los botones de la fila: el canal de la actividad primero, y siempre la
@@ -243,6 +269,25 @@ export default function ActividadV2() {
           </section>
         )}
 
+        {nSel > 0 && (
+          <div className="pv2-act-sel">
+            <span className="pv2-act-sel__n">
+              {nSel} seleccionada{nSel === 1 ? '' : 's'}
+            </span>
+            <select
+              className="pv2-select-topbar"
+              value=""
+              onChange={e => e.target.value && reasignar(e.target.value)}
+            >
+              <option value="">Asignar a…</option>
+              {members.map(m => (
+                <option key={m.id} value={m.uid || m.id}>{m.name || m.email}</option>
+              ))}
+            </select>
+            <button className="pv2-btn" onClick={() => setElegidas({})}>Cancelar</button>
+          </div>
+        )}
+
         {cargando && <p className="pv2-empty-tab">Cargando…</p>}
 
         {!cargando && total === 0 && esperandoVisibles.length === 0 && !error && (
@@ -266,17 +311,33 @@ export default function ActividadV2() {
                 const Icono = ICONOS[a.tipo] || CheckSquare
                 const lead = porId[a.leadId]
                 return (
-                  <div key={a.id} className={clsx('pv2-act-fila', c.tono && `pv2-act-fila--${c.tono}`)}>
-                    <span className="pv2-act-fila__icono"><Icono size={14} /></span>
-                    <div className="pv2-act-fila__main">
-                      <div className="pv2-act-fila__titulo">
-                        {etiquetaTipo(a.tipo)}
-                        {(a.leadNombre || lead) && <em> · {a.leadNombre || nombreDe(lead)}</em>}
-                      </div>
-                      <div className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</div>
-                      <div className="pv2-act-fila__quien">
-                        {[a.ownerNombre, lead?.company].filter(Boolean).join(' · ')}
-                      </div>
+                  <div
+                    key={a.id}
+                    className={clsx(
+                      'pv2-act-fila',
+                      c.tono && `pv2-act-fila--${c.tono}`,
+                      elegidas[a.id] && 'pv2-act-fila--elegida',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="pv2-act-fila__sel"
+                      checked={!!elegidas[a.id]}
+                      onChange={() => alternar(a)}
+                      title="Seleccionar"
+                    />
+                    <span className="pv2-act-fila__tipo">
+                      <Icono size={13} /> {etiquetaTipo(a.tipo)}
+                    </span>
+                    <div className="pv2-act-fila__contacto">
+                      <div className="pv2-act-fila__nombre">{a.leadNombre || nombreDe(lead)}</div>
+                      {lead?.company && <div className="pv2-act-fila__empresa">{lead.company}</div>}
+                    </div>
+                    <div className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</div>
+                    <div className="pv2-act-fila__dueno" title={a.ownerNombre || 'Sin asignar'}>
+                      {a.ownerNombre
+                        ? <><OwnerAvatar name={a.ownerNombre} size={20} /><span>{a.ownerNombre}</span></>
+                        : <span className="pv2-act-fila__sindueno">Sin asignar</span>}
                     </div>
                     <span className={clsx('pv2-act-fila__cuando', c.tono === 'vencida' && 'pv2-act-fila__cuando--vencida')}>
                       {c.id === 'hoy' ? hora(d) : dia(d)}

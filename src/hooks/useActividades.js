@@ -118,6 +118,13 @@ export async function crearActividad(orgId, leadId, datos = {}, quien = {}) {
   return d.id
 }
 
+/** Cambiar campos sueltos. Hoy sirve para reasignar, que es lo que pasa
+ *  cuando alguien se va de vacaciones o entra gente nueva al equipo. */
+export async function actualizarActividad(orgId, leadId, actId, cambios = {}) {
+  if (!orgId || !leadId || !actId) return
+  await updateDoc(doc(ref(orgId, leadId), actId), { ...cambios, editedAt: serverTimestamp() })
+}
+
 /** Marcar hecha una pendiente. El resumen es el que la vuelve historia. */
 export async function completarActividad(orgId, leadId, actId, { resumen = '', occurredAt = new Date() } = {}) {
   if (!orgId || !leadId || !actId) return
