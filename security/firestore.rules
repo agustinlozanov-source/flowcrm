@@ -90,6 +90,39 @@ service cloud.firestore {
       }
     }
 
+
+    // ── Consultas de grupo de colecciones ─────────────────────────────────
+    //
+    // El bloque de arriba cubre el acceso por ruta: entrar a un lead y leer
+    // sus oportunidades o sus actividades. Una consulta de grupo —«dame las
+    // actividades de TODOS los leads de una vez»— no pasa por ahí. Firestore
+    // la evalúa contra un match que TERMINE en el nombre de la colección, y si
+    // no existe la niega entera, aunque la ruta anidada esté permitida.
+    //
+    // Acá el orgId no viene en la ruta, así que la pertenencia se compara
+    // contra el campo del propio documento. Las dos colecciones lo guardan
+    // justamente para esto.
+    //
+    // Se exige que el claim NO esté vacío antes de compararlo: si no, un token
+    // sin orgId empataría con cualquier documento que tampoco lo tenga.
+    //
+    // Solo lectura. Escribir sigue entrando por la ruta anidada, que ya tiene
+    // su regla.
+
+    match /{path=**}/opportunities/{oppId} {
+      allow read: if request.auth != null
+        && (request.auth.token.get('superadmin', false) == true
+            || (request.auth.token.get('orgId', '') != ''
+                && request.auth.token.get('orgId', '') == resource.data.get('orgId', '')));
+    }
+
+    match /{path=**}/activities/{actId} {
+      allow read: if request.auth != null
+        && (request.auth.token.get('superadmin', false) == true
+            || (request.auth.token.get('orgId', '') != ''
+                && request.auth.token.get('orgId', '') == resource.data.get('orgId', '')));
+    }
+
     // ── company_profiles ──────────────────────────────────────────────────
     // Sin cambios respecto a lo publicado, salvo que el superadmin se resuelve
     // por claim en vez de consultar users/{uid}.
