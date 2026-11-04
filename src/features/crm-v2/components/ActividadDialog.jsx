@@ -13,6 +13,9 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { TIPOS } from '@/hooks/useActividades'
+import SelectorConCrear from './SelectorConCrear'
+
+const normalizar = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 /* `datetime-local` habla en hora local sin zona, así que la conversión se hace
    a mano: `toISOString` daría UTC y correría la hora seis horas. */
@@ -22,12 +25,27 @@ const aInput = (d) => {
 }
 const deInput = (s) => (s ? new Date(s) : null)
 
-export default function ActividadDialog({ modo = 'registrar', onGuardar, onCerrar }) {
+/**
+ * @param leds     leads entre los que elegir. Solo lo pasa el módulo de
+ *                 Actividad; desde el panel del lead ya se sabe de quién es.
+ * @param inicial  prefill, para completar una pendiente sin volver a escribir
+ *                 de qué tipo era.
+ */
+export default function ActividadDialog({
+  modo = 'registrar',
+  leads = null,
+  inicial = null,
+  titulo,
+  subtitulo,
+  onGuardar,
+  onCerrar,
+}) {
   const agendando = modo === 'agendar'
 
-  const [tipo, setTipo] = useState('llamada')
+  const [lead, setLead] = useState(null)
+  const [tipo, setTipo] = useState(inicial?.tipo || 'llamada')
   const [cuando, setCuando] = useState(aInput(new Date()))
-  const [resumen, setResumen] = useState('')
+  const [resumen, setResumen] = useState(inicial?.resumen || '')
 
   const [hayCompromiso, setHayCompromiso] = useState(false)
   const [tipoC, setTipoC] = useState('llamada')
@@ -54,15 +72,15 @@ export default function ActividadDialog({ modo = 'registrar', onGuardar, onCerra
             resumen: agendando ? resumen : resumenC,
           }
         : null
-      await onGuardar({ hecho, pendiente })
+      await onGuardar({ hecho, pendiente, lead })
     } finally {
       setGuardando(false)
     }
   }
 
-  const listo = agendando
+  const listo = (!leads || !!lead) && (agendando
     ? !!cuando
-    : resumen.trim().length > 0 && (!hayCompromiso || !!cuandoC)
+    : resumen.trim().length > 0 && (!hayCompromiso || !!cuandoC))
 
   const Tipos = ({ valor, onElegir }) => (
     <div className="pv2-seg pv2-seg--wrap">
@@ -84,13 +102,29 @@ export default function ActividadDialog({ modo = 'registrar', onGuardar, onCerra
       <div className="pv2-dialog__backdrop" onClick={onCerrar} />
       <div className="pv2-dialog__box" style={{ maxWidth: 440 }}>
         <h2 className="pv2-dialog__title">
-          {agendando ? 'Agendar actividad' : 'Registrar actividad'}
+          {titulo || (agendando ? 'Agendar actividad' : 'Registrar actividad')}
         </h2>
         <p className="pv2-dialog__hint">
-          {agendando
+          {subtitulo || (agendando
             ? 'Lo que queda por hacer, con su fecha.'
-            : 'Lo que ya hiciste con este lead, y lo que quedó pendiente.'}
+            : 'Lo que ya hiciste con este lead, y lo que quedó pendiente.')}
         </p>
+
+        {leads && (
+          <div>
+            <label className="pv2-input-label">Con quién</label>
+            <SelectorConCrear
+              items={leads}
+              valor={lead}
+              etiqueta={l => l.nombre}
+              detalle={l => l.detalle || ''}
+              filtrar={(l, t) => normalizar(l.nombre).includes(normalizar(t)) || normalizar(l.detalle).includes(normalizar(t))}
+              placeholder="Elige el contacto"
+              onElegir={setLead}
+              mensajeVacio="Ninguno coincide"
+            />
+          </div>
+        )}
 
         <div>
           <label className="pv2-input-label">{agendando ? 'Qué toca hacer' : 'Qué fue'}</label>

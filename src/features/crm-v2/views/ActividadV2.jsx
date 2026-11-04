@@ -9,15 +9,30 @@
  *     última palabra del lado del lead. Nadie va a contestar hasta que entre
  *     una persona.
  *
- * Esas conversaciones van primero y no last: una llamada agendada para el
+ * Esas conversaciones van primero y no al final: una llamada agendada para el
  * jueves puede esperar; alguien escribió hace tres horas y nadie le contestó,
  * no.
+ *
+ * Cada fila trae el botón del canal que le toca —WhatsApp abre la
+ * conversación, Llamada marca el teléfono— porque una lista de pendientes
+ * desde la que hay que navegar a otra pantalla para hacer cada cosa se deja de
+ * usar en una semana.
  */
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { MessageCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { usePendientes, useEsperandoRespuesta, etiquetaTipo } from '@/hooks/useActividades'
+import {
+  MessageCircle, Phone, Mail, Calendar, CheckSquare,
+  Check, AlertTriangle, ExternalLink,
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+import Topbar from '../components/Topbar'
+import ActividadDialog from '../components/ActividadDialog'
+import {
+  usePendientes, useEsperandoRespuesta, crearActividad, completarActividad,
+  etiquetaTipo,
+} from '@/hooks/useActividades'
+import { usePipeline } from '@/hooks/usePipeline'
 import { useTeam } from '@/hooks/useTeam'
 import { useAuthStore } from '@/store/authStore'
 
@@ -29,8 +44,14 @@ const CUBETAS = [
   { id: 'sinFecha', label: 'Sin fecha' },
 ]
 
+const ICONOS = {
+  llamada: Phone, whatsapp: MessageCircle, correo: Mail,
+  reunion: Calendar, tarea: CheckSquare,
+}
+
 const hora = d => d?.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) || ''
 const dia = d => d?.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }) || ''
+const normalizar = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 const haceCuanto = (d) => {
   if (!d) return ''
@@ -40,133 +61,263 @@ const haceCuanto = (d) => {
   return `hace ${Math.round(ms / 864e5)} días`
 }
 
+const nombreDe = l => [l?.name, l?.lastName].filter(Boolean).join(' ') || 'Sin nombre'
+
 export default function ActividadV2() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { org, user } = useAuthStore()
   const { members = [] } = useTeam()
-  const [quien, setQuien] = useState(user?.uid || null)
+  const { todosLosLeads = [] } = usePipeline()
+
+  /* Por omisión se ve el equipo entero. Arrancar filtrado por uno mismo
+     esconde el trabajo de los demás justo en la pantalla que existe para
+     verlo. */
+  const [quien, setQuien] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [nueva, setNueva] = useState(false)
+  const [completando, setCompletando] = useState(null)
 
   const { porCubeta, cargando, error } = usePendientes(quien)
   const { items: esperando, error: errorEsperando } = useEsperandoRespuesta()
 
-  /* Las conversaciones se filtran por el mismo selector de persona, contra
-     quien tiene asignado el lead. Sin asignar las ve todo el mundo, porque
-     sin dueño nadie las va a tomar por su cuenta. */
-  const esperandoMias = useMemo(
-    () => (quien ? esperando.filter(l => !l.assignedTo || l.assignedTo === quien) : esperando),
-    [esperando, quien],
+  /* El lead completo, para que la fila sepa a qué teléfono llamar y a qué
+     correo escribir. La actividad solo guarda el nombre. */
+  const porId = useMemo(() => {
+    const m = {}
+    todosLosLeads.forEach(l => { m[l.id] = l })
+    return m
+  }, [todosLosLeads])
+
+  const paraElegir = useMemo(
+    () => todosLosLeads
+      .filter(l => !l.discarded)
+      .map(l => ({
+        id: l.id,
+        nombre: nombreDe(l),
+        detalle: [l.company, l.phone].filter(Boolean).join(' · '),
+        _lead: l,
+      })),
+    [todosLosLeads],
   )
 
-  const total = CUBETAS.reduce((n, c) => n + (porCubeta[c.id]?.length || 0), 0)
+  const coincide = (texto) => !busca.trim() || normalizar(texto).includes(normalizar(busca))
+
+  const esperandoVisibles = useMemo(
+    () => esperando
+      .filter(l => !quien || !l.assignedTo || l.assignedTo === quien)
+      .filter(l => coincide(`${nombreDe(l)} ${l.lastMessage || ''}`)),
+    [esperando, quien, busca],
+  )
+
+  const filtradas = useMemo(() => {
+    const out = {}
+    CUBETAS.forEach(c => {
+      out[c.id] = (porCubeta[c.id] || []).filter(
+        a => coincide(`${a.leadNombre || ''} ${a.resumen || ''} ${etiquetaTipo(a.tipo)}`),
+      )
+    })
+    return out
+  }, [porCubeta, busca])
+
+  const total = CUBETAS.reduce((n, c) => n + (filtradas[c.id]?.length || 0), 0)
+
+  const quienSoy = { uid: user?.uid || null, nombre: user?.displayName || user?.email || '' }
+
+  const guardarNueva = async ({ hecho, pendiente, lead }) => {
+    if (!lead) return
+    const base = { leadNombre: lead.nombre, pipelineId: lead._lead?.pipelineId || null }
+    if (hecho) await crearActividad(org.id, lead.id, { ...base, ...hecho }, quienSoy)
+    if (pendiente) await crearActividad(org.id, lead.id, { ...base, ...pendiente }, quienSoy)
+    setNueva(false)
+    toast.success('Guardado')
+  }
+
+  /* Completar es registrar qué pasó. Por eso usa el mismo diálogo: cerrar una
+     actividad y dejar la siguiente es un solo momento, no dos. */
+  const guardarCompletada = async ({ hecho, pendiente }) => {
+    const a = completando
+    if (!a) return
+    if (hecho) await completarActividad(org.id, a.leadId, a.id, hecho)
+    if (pendiente) {
+      await crearActividad(
+        org.id, a.leadId,
+        { leadNombre: a.leadNombre, pipelineId: a.pipelineId, ...pendiente },
+        quienSoy,
+      )
+    }
+    setCompletando(null)
+    toast.success(pendiente ? 'Hecha, y queda la siguiente' : 'Hecha')
+  }
+
+  /** Los botones de la fila: el canal de la actividad primero, y siempre la
+   *  salida al lead, que es donde está todo lo demás. */
+  const acciones = (a) => {
+    const lead = porId[a.leadId]
+    const out = []
+    if (a.tipo === 'whatsapp' || a.tipo === 'reunion') {
+      out.push({ id: 'wa', Icon: MessageCircle, titulo: 'Abrir la conversación', hacer: () => navigate(`/inbox?lead=${a.leadId}`) })
+    }
+    if (a.tipo === 'llamada' && lead?.phone) {
+      out.push({ id: 'tel', Icon: Phone, titulo: `Llamar a ${lead.phone}`, hacer: () => { window.location.href = `tel:${lead.phone}` } })
+    }
+    if (a.tipo === 'correo' && lead?.email) {
+      out.push({ id: 'mail', Icon: Mail, titulo: `Escribir a ${lead.email}`, hacer: () => { window.location.href = `mailto:${lead.email}` } })
+    }
+    out.push({ id: 'lead', Icon: ExternalLink, titulo: 'Abrir el contacto', hacer: () => navigate(`/pipeline?lead=${a.leadId}`) })
+    return out
+  }
 
   return (
-    <div className="pv2-actividad">
-      <header className="pv2-act-head">
-        <div>
-          <h1 className="pv2-act-head__title">Actividad</h1>
-          <p className="pv2-act-head__sub">
-            {esperandoMias.length > 0 && (
-              <strong>{esperandoMias.length} conversación{esperandoMias.length === 1 ? '' : 'es'} esperando · </strong>
-            )}
-            {total} pendiente{total === 1 ? '' : 's'}
-          </p>
-        </div>
-        <select
-          className="pv2-input"
-          style={{ width: 'auto' }}
-          value={quien || ''}
-          onChange={e => setQuien(e.target.value || null)}
-        >
-          <option value="">Todo el equipo</option>
-          {members.map(m => (
-            <option key={m.id} value={m.uid || m.id}>{m.name || m.email}</option>
-          ))}
-        </select>
-      </header>
+    <div className="pv2-root">
+      <Topbar
+        title="Actividad"
+        stats={[
+          { label: 'Esperando', value: esperandoVisibles.length, tone: esperandoVisibles.length ? 'danger' : undefined },
+          { label: 'Vencidas', value: filtradas.vencida?.length || 0, tone: filtradas.vencida?.length ? 'danger' : undefined },
+          { label: 'Hoy', value: filtradas.hoy?.length || 0 },
+          { label: 'Abiertas', value: total },
+        ]}
+        views={[]}
+        searchValue={busca}
+        onSearch={setBusca}
+        searchPlaceholder="Buscar por contacto o por lo que quedó"
+        extra={
+          <select
+            className="pv2-select-topbar"
+            value={quien || ''}
+            onChange={e => setQuien(e.target.value || null)}
+            title="De quién son las actividades"
+          >
+            <option value="">Todo el equipo</option>
+            {members.map(m => (
+              <option key={m.id} value={m.uid || m.id}>{m.name || m.email}</option>
+            ))}
+          </select>
+        }
+        primaryLabel="Nueva actividad"
+        onPrimary={() => setNueva(true)}
+      />
 
-      {(error || errorEsperando) && (
-        <div className="pv2-act-aviso">
-          <AlertTriangle size={14} />
-          <div>
-            <strong>Falta permiso o índice en Firestore.</strong>{' '}
-            {error?.code === 'permission-denied'
-              ? 'Juntar las actividades de todos los leads lee el grupo de colecciones activities, y una consulta de grupo no hereda el permiso de la ruta anidada: necesita su propia regla.'
-              : (error?.message || errorEsperando?.message)}
+      <div className="pv2-actividad">
+        {(error || errorEsperando) && (
+          <div className="pv2-act-aviso">
+            <AlertTriangle size={14} />
+            <div>
+              <strong>Falta permiso o índice en Firestore.</strong>{' '}
+              {error?.code === 'permission-denied'
+                ? 'Juntar las actividades de todos los leads lee el grupo de colecciones activities, y una consulta de grupo no hereda el permiso de la ruta anidada: necesita su propia regla.'
+                : (error?.message || errorEsperando?.message)}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {esperandoMias.length > 0 && (
-        <section className="pv2-act-bloque">
-          <h2 className="pv2-act-bloque__titulo pv2-act-bloque__titulo--vencida">
-            Esperando tu respuesta
-          </h2>
-          {esperandoMias.map(l => (
-            <button
-              key={l.id}
-              className="pv2-act-fila pv2-act-fila--vencida"
-              onClick={() => navigate(`/inbox?lead=${l.id}`)}
-            >
-              <span className="pv2-act-fila__icono"><MessageCircle size={13} /></span>
-              <span className="pv2-act-fila__main">
-                <span className="pv2-act-fila__titulo">
-                  {[l.name, l.lastName].filter(Boolean).join(' ') || 'Sin nombre'}
-                </span>
-                <span className="pv2-act-fila__texto">{l.lastMessage || 'Escribió y nadie contestó'}</span>
-              </span>
-              <span className="pv2-act-fila__cuando pv2-act-fila__cuando--vencida">
-                {haceCuanto(l.lastMessageAt?.toDate?.())}
-              </span>
-            </button>
-          ))}
-        </section>
-      )}
-
-      {cargando && <p className="pv2-empty-tab">Cargando…</p>}
-
-      {!cargando && total === 0 && esperandoMias.length === 0 && !error && (
-        <p className="pv2-empty-tab">
-          Nada pendiente. Si el embudo tiene leads vivos y acá no hay nada que hacer,
-          lo que falta es registrar el siguiente paso de cada uno.
-        </p>
-      )}
-
-      {CUBETAS.map(c => {
-        const items = porCubeta[c.id] || []
-        if (!items.length) return null
-        return (
-          <section key={c.id} className="pv2-act-bloque">
-            <h2 className={clsx('pv2-act-bloque__titulo', c.tono && `pv2-act-bloque__titulo--${c.tono}`)}>
-              {c.label} <span>{items.length}</span>
+        {esperandoVisibles.length > 0 && (
+          <section className="pv2-act-bloque">
+            <h2 className="pv2-act-bloque__titulo pv2-act-bloque__titulo--vencida">
+              Esperando respuesta <span>{esperandoVisibles.length}</span>
             </h2>
-            {items.map(a => {
-              const d = a.dueAt?.toDate?.() || null
-              return (
-                <button
-                  key={a.id}
-                  className={clsx('pv2-act-fila', c.tono && `pv2-act-fila--${c.tono}`)}
-                  onClick={() => navigate(`/pipeline?lead=${a.leadId}`)}
-                >
-                  <span className="pv2-act-fila__icono"><CheckCircle2 size={13} /></span>
-                  <span className="pv2-act-fila__main">
-                    <span className="pv2-act-fila__titulo">
-                      {etiquetaTipo(a.tipo)}
-                      {a.leadNombre && <em> · {a.leadNombre}</em>}
-                    </span>
-                    <span className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</span>
-                    {!quien && a.ownerNombre && (
-                      <span className="pv2-act-fila__quien">{a.ownerNombre}</span>
-                    )}
-                  </span>
-                  <span className={clsx('pv2-act-fila__cuando', c.tono === 'vencida' && 'pv2-act-fila__cuando--vencida')}>
-                    {c.id === 'hoy' ? hora(d) : dia(d)}
-                  </span>
-                </button>
-              )
-            })}
+            {esperandoVisibles.map(l => (
+              <div key={l.id} className="pv2-act-fila pv2-act-fila--vencida">
+                <span className="pv2-act-fila__icono"><MessageCircle size={14} /></span>
+                <div className="pv2-act-fila__main">
+                  <div className="pv2-act-fila__titulo">
+                    {nombreDe(l)}
+                    {l.company && <em> · {l.company}</em>}
+                  </div>
+                  <div className="pv2-act-fila__texto">{l.lastMessage || 'Escribió y nadie contestó'}</div>
+                  <div className="pv2-act-fila__quien">IA pausada · nadie va a responder por ti</div>
+                </div>
+                <span className="pv2-act-fila__cuando pv2-act-fila__cuando--vencida">
+                  {haceCuanto(l.lastMessageAt?.toDate?.())}
+                </span>
+                <div className="pv2-act-acciones">
+                  <button title="Abrir la conversación" onClick={() => navigate(`/inbox?lead=${l.id}`)}>
+                    <MessageCircle size={13} />
+                  </button>
+                  <button title="Abrir el contacto" onClick={() => navigate(`/pipeline?lead=${l.id}`)}>
+                    <ExternalLink size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </section>
-        )
-      })}
+        )}
+
+        {cargando && <p className="pv2-empty-tab">Cargando…</p>}
+
+        {!cargando && total === 0 && esperandoVisibles.length === 0 && !error && (
+          <p className="pv2-empty-tab">
+            {busca.trim()
+              ? 'Nada coincide con esa búsqueda.'
+              : 'Nada pendiente. Si el embudo tiene leads vivos y acá no hay nada que hacer, lo que falta es registrar el siguiente paso de cada uno.'}
+          </p>
+        )}
+
+        {CUBETAS.map(c => {
+          const items = filtradas[c.id] || []
+          if (!items.length) return null
+          return (
+            <section key={c.id} className="pv2-act-bloque">
+              <h2 className={clsx('pv2-act-bloque__titulo', c.tono && `pv2-act-bloque__titulo--${c.tono}`)}>
+                {c.label} <span>{items.length}</span>
+              </h2>
+              {items.map(a => {
+                const d = a.dueAt?.toDate?.() || null
+                const Icono = ICONOS[a.tipo] || CheckSquare
+                const lead = porId[a.leadId]
+                return (
+                  <div key={a.id} className={clsx('pv2-act-fila', c.tono && `pv2-act-fila--${c.tono}`)}>
+                    <span className="pv2-act-fila__icono"><Icono size={14} /></span>
+                    <div className="pv2-act-fila__main">
+                      <div className="pv2-act-fila__titulo">
+                        {etiquetaTipo(a.tipo)}
+                        {(a.leadNombre || lead) && <em> · {a.leadNombre || nombreDe(lead)}</em>}
+                      </div>
+                      <div className="pv2-act-fila__texto">{a.resumen || 'Sin detalle'}</div>
+                      <div className="pv2-act-fila__quien">
+                        {[a.ownerNombre, lead?.company].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <span className={clsx('pv2-act-fila__cuando', c.tono === 'vencida' && 'pv2-act-fila__cuando--vencida')}>
+                      {c.id === 'hoy' ? hora(d) : dia(d)}
+                    </span>
+                    <div className="pv2-act-acciones">
+                      {acciones(a).map(({ id, Icon, titulo, hacer }) => (
+                        <button key={id} title={titulo} onClick={hacer}><Icon size={13} /></button>
+                      ))}
+                      <button
+                        className="pv2-act-acciones__check"
+                        title="Marcar como hecha"
+                        onClick={() => setCompletando(a)}
+                      >
+                        <Check size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </section>
+          )
+        })}
+      </div>
+
+      {nueva && (
+        <ActividadDialog
+          leads={paraElegir}
+          onGuardar={guardarNueva}
+          onCerrar={() => setNueva(false)}
+        />
+      )}
+
+      {completando && (
+        <ActividadDialog
+          titulo="¿Qué pasó?"
+          subtitulo={`${etiquetaTipo(completando.tipo)} · ${completando.leadNombre || 'Sin nombre'}`}
+          inicial={{ tipo: completando.tipo }}
+          onGuardar={guardarCompletada}
+          onCerrar={() => setCompletando(null)}
+        />
+      )}
     </div>
   )
 }

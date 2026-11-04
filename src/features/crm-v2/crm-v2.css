@@ -1313,7 +1313,7 @@
 
 /* ── Pantalla de Actividad ───────────────────────────────────────── */
 
-.pv2-actividad { padding: 22px 26px 60px; max-width: 860px; }
+.pv2-actividad { padding: 22px 26px 60px; max-width: 920px; }
 
 .pv2-act-head {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -1373,3 +1373,35 @@
 @media (max-width: 640px) {
   .pv2-actividad { padding: 18px 16px 50px; }
 }
+
+/* El selector de persona vive en el topbar, como cualquier otro filtro, para
+   que la barra se lea igual en todas las pantallas. */
+.pv2-select-topbar {
+  height: 30px; border-radius: 8px; padding: 0 26px 0 10px;
+  border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
+.pv2-select-topbar:hover { border-color: var(--border-strong, var(--border)); }
+
+/* Los botones de la fila aparecen al pasar encima, salvo en táctil, donde no
+   hay «encima» y esconderlos los vuelve inalcanzables. */
+.pv2-act-acciones { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .13s; }
+.pv2-act-fila:hover .pv2-act-acciones,
+.pv2-act-fila:focus-within .pv2-act-acciones { opacity: 1; }
+@media (hover: none) { .pv2-act-acciones { opacity: 1; } }
+
+.pv2-act-acciones button {
+  width: 27px; height: 27px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text-tertiary);
+  display: flex; align-items: center; justify-content: center; transition: all .13s;
+}
+.pv2-act-acciones button:hover { color: var(--text); border-color: var(--border-strong, var(--border)); }
+.pv2-act-acciones__check:hover { color: var(--success, #00c853); border-color: var(--success, #00c853); }
+
+/* La fila deja de ser un botón: adentro hay botones propios, y un botón
+   dentro de otro no es HTML válido ni se puede navegar con teclado. */
+.pv2-act-fila { align-items: center; }
+.pv2-act-fila__main { padding-right: 8px; }

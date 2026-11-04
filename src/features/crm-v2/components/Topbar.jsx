@@ -30,6 +30,12 @@ export default function Topbar({
   onFilters,
   onSearch,
   searchValue = '',
+  searchPlaceholder = 'Buscar por nombre, empresa o teléfono',
+  /* Controles propios de una vista —un selector de persona, un rango— que no
+     valen la pena como prop con nombre. Van antes del buscador para que el
+     orden de la barra sea siempre el mismo en todas las pantallas: título,
+     stats, lo de la vista, filtros, buscador, botón. */
+  extra,
   primaryLabel,
   onPrimary,
 }) {
@@ -99,6 +105,8 @@ export default function Topbar({
         </>
       )}
 
+      {extra}
+
       {onFilters && (
         <button className="pv2-btn" onClick={onFilters}>
           <SlidersHorizontal size={14} />
@@ -114,7 +122,7 @@ export default function Topbar({
           className="pv2-search__input"
           value={searchValue}
           onChange={e => onSearch?.(e.target.value)}
-          placeholder="Buscar por nombre, empresa o teléfono"
+          placeholder={searchPlaceholder}
         />
         {searchValue
           ? (

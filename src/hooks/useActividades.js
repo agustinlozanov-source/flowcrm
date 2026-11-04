@@ -80,6 +80,56 @@ export function cubeta(act, ahora = new Date()) {
 const ref = (orgId, leadId) =>
   collection(db, 'organizations', orgId, 'leads', leadId, 'activities')
 
+/* ── Escrituras sueltas ──────────────────────────────────────────────
+ *
+ * Fuera del hook a propósito: el panel del lead escribe sobre el lead que
+ * tiene abierto, pero el módulo de Actividad escribe sobre cualquiera de la
+ * lista. Un hook atado a un `leadId` no le sirve a la segunda. */
+
+/** @param quien  { uid, nombre } de quien está registrando */
+export async function crearActividad(orgId, leadId, datos = {}, quien = {}) {
+  if (!orgId || !leadId) return null
+  const {
+    tipo = 'llamada', estado = 'hecha',
+    occurredAt = new Date(), dueAt = null, resumen = '',
+    opportunityId = null, pipelineId = null, leadNombre = '',
+    ownerUid = null, ownerNombre = '',
+  } = datos
+  const d = await addDoc(ref(orgId, leadId), {
+    orgId,
+    leadId,
+    leadNombre: leadNombre || '',
+    pipelineId: pipelineId || null,
+    opportunityId: opportunityId || null,
+    tipo,
+    estado,
+    /* Cada estado lleva su fecha y solo la suya: una pendiente con
+       `occurredAt` ya puesto se colaría en la línea de tiempo como si
+       hubiera ocurrido. */
+    occurredAt: estado === 'hecha' ? fecha(occurredAt) : null,
+    dueAt: estado === 'pendiente' ? fecha(dueAt) : null,
+    resumen: String(resumen || '').trim(),
+    ownerUid: ownerUid || quien.uid || null,
+    ownerNombre: ownerNombre || quien.nombre || '',
+    createdAt: serverTimestamp(),
+    createdByUid: quien.uid || null,
+    createdByNombre: quien.nombre || '',
+  })
+  return d.id
+}
+
+/** Marcar hecha una pendiente. El resumen es el que la vuelve historia. */
+export async function completarActividad(orgId, leadId, actId, { resumen = '', occurredAt = new Date() } = {}) {
+  if (!orgId || !leadId || !actId) return
+  await updateDoc(doc(ref(orgId, leadId), actId), {
+    estado: 'hecha',
+    occurredAt: fecha(occurredAt),
+    dueAt: null,
+    resumen: String(resumen || '').trim(),
+    completedAt: serverTimestamp(),
+  })
+}
+
 /* ── Las actividades de un lead ──────────────────────────────────── */
 
 export function useActividadesDeLead(leadId) {
@@ -105,53 +155,10 @@ export function useActividadesDeLead(leadId) {
    *
    *  `occurredAt` viene de quien registra para que el lunes se puedan capturar
    *  las llamadas del viernes sin que la línea de tiempo mienta sobre el orden. */
-  const registrar = async ({
-    tipo = 'llamada',
-    estado = 'hecha',
-    occurredAt = new Date(),
-    dueAt = null,
-    resumen = '',
-    opportunityId = null,
-    pipelineId = null,
-    leadNombre = '',
-    ownerUid = null,
-    ownerNombre = '',
-  }) => {
-    if (!orgId || !leadId) return null
-    const d = await addDoc(ref(orgId, leadId), {
-      orgId,
-      leadId,
-      leadNombre: leadNombre || '',
-      pipelineId: pipelineId || null,
-      opportunityId: opportunityId || null,
-      tipo,
-      estado,
-      /* Cada estado lleva su fecha y solo la suya: una pendiente con
-         `occurredAt` ya puesto se colaría en la línea de tiempo como si
-         hubiera ocurrido. */
-      occurredAt: estado === 'hecha' ? fecha(occurredAt) : null,
-      dueAt: estado === 'pendiente' ? fecha(dueAt) : null,
-      resumen: String(resumen || '').trim(),
-      ownerUid: ownerUid || user?.uid || null,
-      ownerNombre: ownerNombre || user?.displayName || user?.email || '',
-      createdAt: serverTimestamp(),
-      createdByUid: user?.uid || null,
-      createdByNombre: user?.displayName || user?.email || '',
-    })
-    return d.id
-  }
+  const quien = { uid: user?.uid || null, nombre: user?.displayName || user?.email || '' }
 
-  /** Marcar hecha una pendiente. El resumen es el que la vuelve historia. */
-  const completar = async (actId, { resumen = '', occurredAt = new Date() } = {}) => {
-    if (!orgId || !leadId) return
-    await updateDoc(doc(ref(orgId, leadId), actId), {
-      estado: 'hecha',
-      occurredAt: fecha(occurredAt),
-      dueAt: null,
-      resumen: String(resumen || '').trim(),
-      completedAt: serverTimestamp(),
-    })
-  }
+  const registrar = datos => crearActividad(orgId, leadId, datos, quien)
+  const completar = (actId, datos) => completarActividad(orgId, leadId, actId, datos)
 
   /* Editar y borrar quedan para quien la escribió. Un historial que cualquiera
      puede reescribir deja de servir como evidencia el día que importa, y el
