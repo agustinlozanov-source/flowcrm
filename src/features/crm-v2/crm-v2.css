@@ -1293,3 +1293,20 @@
   align-self: flex-start; margin-top: 4px;
 }
 .pv2-act__hecho:hover { color: var(--text); border-color: var(--border-strong, var(--border)); }
+
+/* La burbuja de mensaje sin responder con la IA pausada. Late despacio porque
+   es la única espera del tablero que no se destraba sola: si nadie entra, se
+   queda ahí. */
+.pv2-espera {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  background: var(--danger, #ff3b30); color: #fff;
+  animation: pv2-espera-late 2.4s ease-in-out infinite;
+}
+@keyframes pv2-espera-late {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,48,.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(255,59,48,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv2-espera { animation: none; }
+}

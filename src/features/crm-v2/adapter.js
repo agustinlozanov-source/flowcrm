@@ -104,6 +104,12 @@ function nextActionOf(lead, proximaCita) {
   if (lead.systemStage === 'closed') return { text: 'Venta cerrada', icon: 'check' }
 
   const ultimo = ts(lead.lastMessageAt)
+  /* Con la IA activa, «sin responder» dura segundos porque el agente contesta
+     solo. Con la IA pausada no viene nadie: se queda así hasta que una persona
+     actúe, y por eso las dos situaciones no se pueden pintar igual. */
+  if (lead.hasUnread && lead.agentPaused) {
+    return { text: 'Pausada · te toca responder', icon: 'alert', tone: 'overdue' }
+  }
   if (lead.hasUnread) return { text: 'Sin responder', icon: 'alert', tone: 'overdue' }
   if (ultimo && Date.now() - ultimo.getTime() > ROTTING_HORAS * HORAS) {
     return { text: `Sin respuesta ${relativo(ultimo)}`, icon: 'alert', tone: 'overdue' }
@@ -208,6 +214,11 @@ export function toCard(lead, { members = [], citasDelLead = [], products = [], s
     reactivado: lead.reactivadoAt
       ? relativo(lead.descartadoAntesEl?.toDate?.() || lead.descartadoAntesEl)
       : null,
+
+    /* La IA está pausada y el lead escribió último: no viene nadie a menos
+     * que una persona entre. Es la única espera del tablero que no se
+     * destraba sola, así que lleva marca propia y no solo el texto. */
+    esperaManual: !!(lead.hasUnread && lead.agentPaused),
     _lead: lead,
   }
 }

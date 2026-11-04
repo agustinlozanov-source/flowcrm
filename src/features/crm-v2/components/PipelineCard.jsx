@@ -27,7 +27,7 @@ export default function PipelineCard({
   const {
     name, sub, amount, currency = 'MXN', score, scoreTrend,
     owner, nextAction, tags = [], ageLabel, aiBadge, rotting, reactivado, etapa, sinCatalogo,
-    maturity, potential,
+    maturity, potential, esperaManual,
   } = deal
 
   const compact = density === 'compact'
@@ -88,6 +88,11 @@ export default function PipelineCard({
             </div>
           )}
         </div>
+        {esperaManual && (
+          <span className="pv2-espera" title="La IA está pausada y el lead escribió último">
+            <MessageCircle size={10} />
+          </span>
+        )}
         <ScoreChip score={score} trend={scoreTrend} />
       </div>
 

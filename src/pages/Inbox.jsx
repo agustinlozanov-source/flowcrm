@@ -158,8 +158,10 @@ function ConversationView({ lead, orgId }) {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
 
-    // Mark as read
-    updateDoc(doc(db, 'organizations', orgId, 'leads', lead.id), { hasUnread: false })
+    /* Abrir ya no marca como atendido. Leer no es responder, y limpiar acá
+       borraba el aviso de la tarjeta con solo asomarse al chat: el tablero
+       quedaba impecable mientras el lead seguía esperando. Se limpia al
+       enviar, en handleSend. */
 
     return () => unsub()
   }, [lead?.id, orgId])
@@ -572,7 +574,7 @@ export default function Inbox() {
             <h1 className="font-display font-bold text-[15px] tracking-tight">Inbox</h1>
             {unreadCount > 0 && (
               <span className="text-[10px] font-bold bg-accent-blue text-white px-2 py-0.5 rounded-full">
-                {unreadCount} nuevos
+                {unreadCount} sin responder
               </span>
             )}
           </div>
@@ -598,7 +600,7 @@ export default function Inbox() {
         <div className="flex gap-0 px-3 py-2 border-b border-black/[0.06] overflow-x-auto flex-shrink-0">
           {[
             ['all', 'Todos'],
-            ['unread', `No leídos${unreadCount > 0 ? ` (${unreadCount})` : ''}`],
+            ['unread', `Sin responder${unreadCount > 0 ? ` (${unreadCount})` : ''}`],
             ['whatsapp', <MessageCircle size={14} key="wa" />],
             ['messenger', <Facebook size={14} key="ms" />],
             ['instagram', <Instagram size={14} key="ig" />],
