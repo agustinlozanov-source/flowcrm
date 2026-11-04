@@ -21,6 +21,9 @@ import { NAV_GROUPS } from './components/Sidebar'
 const GATES = {
   pipeline:       { moduleId: 'pipeline' },
   conversaciones: { moduleId: 'inbox' },
+  // Sin puerta propia: la actividad es del mismo trabajo que el embudo, y
+  // cobrarla aparte dejaria la mitad del seguimiento sin dueno.
+  actividad:      { moduleId: 'pipeline' },
   reuniones:      { moduleId: 'meetings' },
   contactos:      { moduleId: 'leads' },
   catalogo:       { moduleId: 'products' },

@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import {
   BarChart3, MessageSquare, CalendarDays, Users, Package, Sparkles,
   UserCog, Upload, PieChart, Clapperboard, Globe, Target, Megaphone,
-  Settings, PanelLeftClose, PanelLeft,
+  Settings, PanelLeftClose, PanelLeft, ListChecks,
 } from 'lucide-react'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -17,6 +17,7 @@ export const NAV_GROUPS = [
     items: [
       { id: 'pipeline', label: 'Pipeline', labelKey: 'nav.pipeline', Icon: BarChart3 },
       { id: 'conversaciones', label: 'Conversaciones', labelKey: 'nav.inbox', Icon: MessageSquare, badge: true },
+      { id: 'actividad', label: 'Actividad', labelKey: 'nav.activity', Icon: ListChecks },
       { id: 'reuniones', label: 'Reuniones', labelKey: 'nav.meetings', Icon: CalendarDays },
       { id: 'contactos', label: 'Contactos', labelKey: 'nav.contacts', Icon: Users },
       { id: 'catalogo', label: 'Catálogo', labelKey: 'nav.catalog', Icon: Package },

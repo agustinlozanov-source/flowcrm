@@ -179,6 +179,43 @@ export function useActividadesDeLead(leadId) {
   return { items, pendientes, hechas, cargando, registrar, completar, editar, borrar, puedeEditar }
 }
 
+/* ── Conversaciones esperando respuesta humana ───────────────────── */
+
+/** Leads con la IA pausada y la última palabra del lado del lead.
+ *
+ *  Son trabajo pendiente igual que una llamada agendada, y hasta ahora solo
+ *  se veían si alguien pasaba por el tablero. Dos igualdades sin orden:
+ *  Firestore las resuelve cruzando los índices que ya mantiene solo. */
+export function useEsperandoRespuesta() {
+  const { org } = useAuthStore()
+  const orgId = org?.id
+  const [items, setItems] = useState([])
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!orgId) { setItems([]); return }
+    return onSnapshot(
+      query(
+        collection(db, 'organizations', orgId, 'leads'),
+        where('hasUnread', '==', true),
+        where('agentPaused', '==', true),
+      ),
+      snap => {
+        setItems(
+          snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(l => !l.discarded)
+            .sort((a, b) => (a.lastMessageAt?.toMillis?.() || 0) - (b.lastMessageAt?.toMillis?.() || 0)),
+        )
+        setError(null)
+      },
+      err => { console.error('[esperando]', err); setError(err) },
+    )
+  }, [orgId])
+
+  return { items, error }
+}
+
 /* ── El panel del día: pendientes de toda la organización ────────── */
 
 /**
@@ -194,18 +231,23 @@ export function usePendientes(uid = null) {
   useEffect(() => {
     if (!orgId) { setItems([]); setCargando(false); return }
     setCargando(true)
-    /* El dueño se filtra en memoria a propósito: cada campo más en el `where`
-       es otro índice compuesto que mantener, y un equipo de cinco no llena ni
-       una página. */
+    /* Una sola igualdad y ningún orden: así Firestore la resuelve con el
+       índice de campo que crea solo, y no hay que acordarse de declarar uno
+       compuesto el día que esto corra en otra organización. El estado, el
+       dueño y el orden se resuelven en memoria, que a este volumen no se
+       nota. */
     return onSnapshot(
       query(
         collectionGroup(db, 'activities'),
         where('orgId', '==', orgId),
-        where('estado', '==', 'pendiente'),
-        orderBy('dueAt', 'asc'),
       ),
       snap => {
-        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        const todas = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        setItems(
+          todas
+            .filter(a => a.estado === 'pendiente')
+            .sort((a, b) => (a.dueAt?.toMillis?.() || 0) - (b.dueAt?.toMillis?.() || 0)),
+        )
         setCargando(false)
         setError(null)
       },

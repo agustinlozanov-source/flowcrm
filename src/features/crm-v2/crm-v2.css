@@ -1310,3 +1310,66 @@
 @media (prefers-reduced-motion: reduce) {
   .pv2-espera { animation: none; }
 }
+
+/* ── Pantalla de Actividad ───────────────────────────────────────── */
+
+.pv2-actividad { padding: 22px 26px 60px; max-width: 860px; }
+
+.pv2-act-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+}
+.pv2-act-head__title { font-size: 21px; font-weight: 800; letter-spacing: -.4px; margin: 0; }
+.pv2-act-head__sub { font-size: 13px; color: var(--text-tertiary); margin: 3px 0 0; }
+.pv2-act-head__sub strong { color: var(--danger, #ff3b30); font-weight: 700; }
+
+.pv2-act-aviso {
+  display: flex; gap: 9px; align-items: flex-start;
+  border: 1px solid var(--border); border-radius: 11px;
+  padding: 13px 15px; margin-bottom: 18px;
+  font-size: 12.5px; color: var(--text-secondary); line-height: 1.55;
+}
+.pv2-act-aviso svg { flex-shrink: 0; margin-top: 2px; color: var(--amber, #ff9500); }
+
+.pv2-act-bloque { margin-bottom: 26px; }
+.pv2-act-bloque__titulo {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--text-tertiary); margin: 0 0 7px;
+  display: flex; align-items: center; gap: 7px;
+}
+.pv2-act-bloque__titulo span {
+  font-size: 10.5px; border: 1px solid var(--border); border-radius: 50px; padding: 0 6px;
+}
+.pv2-act-bloque__titulo--vencida { color: var(--danger, #ff3b30); }
+.pv2-act-bloque__titulo--hoy { color: var(--accent); }
+
+/* Fila completa clicable: el destino es siempre el lead, porque una actividad
+   sin el contexto de con quién es no se puede atender. */
+.pv2-act-fila {
+  display: flex; align-items: flex-start; gap: 11px; width: 100%; text-align: left;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  padding: 11px 4px; cursor: pointer; font-family: inherit;
+  transition: background .13s;
+}
+.pv2-act-fila:hover { background: var(--bg-elev-2); }
+.pv2-act-fila:last-child { border-bottom: none; }
+.pv2-act-fila__icono { color: var(--text-tertiary); display: flex; margin-top: 2px; flex-shrink: 0; }
+.pv2-act-fila--vencida .pv2-act-fila__icono { color: var(--danger, #ff3b30); }
+.pv2-act-fila--hoy .pv2-act-fila__icono { color: var(--accent); }
+.pv2-act-fila__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pv2-act-fila__titulo { font-size: 13px; font-weight: 700; color: var(--text); }
+.pv2-act-fila__titulo em { font-style: normal; font-weight: 500; color: var(--text-tertiary); }
+.pv2-act-fila__texto {
+  font-size: 12.5px; color: var(--text-secondary); line-height: 1.45;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.pv2-act-fila__quien { font-size: 11px; color: var(--text-tertiary); }
+.pv2-act-fila__cuando {
+  font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+}
+.pv2-act-fila__cuando--vencida { color: var(--danger, #ff3b30); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .pv2-actividad { padding: 18px 16px 50px; }
+}

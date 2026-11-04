@@ -4,6 +4,7 @@
 export const ROUTES = {
   pipeline: '/pipeline',
   conversaciones: '/inbox',
+  actividad: '/actividad',
   reuniones: '/meetings',
   contactos: '/leads',
   catalogo: '/products',
@@ -21,7 +22,7 @@ export const ROUTES = {
 /* Las pantallas que ya tienen el diseño nuevo y por lo tanto saben vivir en
  * tema oscuro. El resto se dibuja sobre fondo claro aunque el marco esté
  * oscuro. La lista se achica a medida que avanza el rediseño. */
-export const RUTAS_REDISENADAS = ['/pipeline']
+export const RUTAS_REDISENADAS = ['/pipeline', '/actividad']
 
 export function esRediseñada(pathname) {
   return RUTAS_REDISENADAS.some(r => pathname === r || pathname.startsWith(r + '/'))

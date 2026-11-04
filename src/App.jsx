@@ -12,6 +12,7 @@ import Pipeline from '@/pages/Pipeline'
 import Superadmin from '@/pages/Superadmin'
 import ComponentsPreview from '@/features/crm-v2/preview/ComponentsPreview'
 import PipelineV2 from '@/features/crm-v2/views/PipelineV2'
+import ActividadV2 from '@/features/crm-v2/views/ActividadV2'
 import ReunionesV2 from '@/features/crm-v2/views/ReunionesV2'
 import InboxV2 from '@/features/crm-v2/views/InboxV2'
 import Setup from '@/pages/Setup'
@@ -94,6 +95,7 @@ export default function App() {
               dias en /pipeline-clasico por si hay que volver con el equipo
               trabajando; cuando sobre confianza, se borra. */}
           <Route path="pipeline" element={<PipelineV2 />} />
+          <Route path="actividad" element={<ActividadV2 />} />
           <Route path="pipeline-clasico" element={<Pipeline />} />
           <Route path="leads" element={<Contacts />} />
           <Route path="products" element={<ProductCatalog />} />
