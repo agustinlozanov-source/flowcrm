@@ -1535,3 +1535,16 @@
 /* Archivada: atenuada, para que se note de un vistazo que no está en juego. */
 .pv2-act-fila--archivada { opacity: .62; }
 .pv2-act-fila--archivada:hover { opacity: 1; }
+
+/* Segunda capa de la barra, como la fila de pipelines del tablero: en qué
+   lista estás a la izquierda, lo que se hace con ella entera a la derecha. */
+.pv2-barra-2 {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 9px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elev-1);
+}
+.pv2-barra-2__lado { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.pv2-barra-2__nota {
+  font-size: 11.5px; color: var(--text-tertiary); padding-left: 6px;
+}

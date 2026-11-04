@@ -102,6 +102,7 @@ export default function ActividadV2() {
   const [importando, setImportando] = useState(false)
   const [porArchivar, setPorArchivar] = useState(null)
   const [vista, setVista] = useState('pendientes')
+  const [verFiltros, setVerFiltros] = useState(false)
 
   const { porCubeta, archivadas, cargando, error } = usePendientes(quien)
   const { items: esperando, error: errorEsperando } = useEsperandoRespuesta()
@@ -266,6 +267,7 @@ export default function ActividadV2() {
   return (
     <div className="pv2-root">
       <Topbar
+        breadcrumb="CRM"
         title="Actividad"
         stats={[
           { label: 'Esperando', value: esperandoVisibles.length, tone: esperandoVisibles.length ? 'danger' : undefined },
@@ -273,41 +275,67 @@ export default function ActividadV2() {
           { label: 'Hoy', value: filtradas.hoy?.length || 0 },
           { label: 'Abiertas', value: total },
         ]}
+        views={[]}
+        filterCount={quien ? 1 : 0}
+        onFilters={() => setVerFiltros(v => !v)}
         searchValue={busca}
         onSearch={setBusca}
         searchPlaceholder="Buscar por contacto o por lo que quedó"
-        views={[
-          { id: 'pendientes', label: 'Pendientes', Icon: CheckSquare },
-          { id: 'archivadas', label: `Archivadas${archivadas.length ? ` (${archivadas.length})` : ''}`, Icon: Archive },
-        ]}
-        activeView={vista}
-        onViewChange={setVista}
-        extra={
-          <select
-            className="pv2-select-topbar"
-            value={quien || ''}
-            onChange={e => setQuien(e.target.value || null)}
-            title="De quién son las actividades"
+        primaryLabel="Nueva actividad"
+        onPrimary={() => setNueva(true)}
+      />
+
+      {verFiltros && (
+        <div className="pv2-filtros">
+          <label className="pv2-filtro">
+            De quién
+            <select
+              className="pv2-input"
+              value={quien || ''}
+              onChange={e => setQuien(e.target.value || null)}
+            >
+              <option value="">Todo el equipo</option>
+              {members.map(m => (
+                <option key={m.id} value={m.uid || m.id}>{m.name || m.email}</option>
+              ))}
+            </select>
+          </label>
+          {quien && <button className="pv2-btn" onClick={() => setQuien(null)}>Limpiar</button>}
+        </div>
+      )}
+
+      {/* Segunda capa: a la izquierda en qué lista estás, a la derecha lo que
+          se hace con ella entera. En una sola fila con el título, las stats y
+          el buscador no cabían, y amontonadas no se lee ninguna. */}
+      <div className="pv2-barra-2">
+        <div className="pv2-barra-2__lado">
+          <button
+            className={clsx('pv2-chip-btn', vista === 'pendientes' && 'pv2-chip-btn--active')}
+            onClick={() => setVista('pendientes')}
           >
-            <option value="">Todo el equipo</option>
-            {members.map(m => (
-              <option key={m.id} value={m.uid || m.id}>{m.name || m.email}</option>
-            ))}
-          </select>
-        }
-        acciones={canExportData ? (
-          <>
+            <CheckSquare size={12} /> Pendientes
+          </button>
+          <button
+            className={clsx('pv2-chip-btn', vista === 'archivadas' && 'pv2-chip-btn--active')}
+            onClick={() => setVista('archivadas')}
+          >
+            <Archive size={12} /> Archivadas{archivadas.length ? ` (${archivadas.length})` : ''}
+          </button>
+          {quien && (
+            <span className="pv2-barra-2__nota">Solo {nombreDeMiembro[quien] || 'una persona'}</span>
+          )}
+        </div>
+        {canExportData && (
+          <div className="pv2-barra-2__lado">
             <button className="pv2-btn" onClick={() => setImportando(true)} title="Cargar actividades desde un CSV">
               <Upload size={14} /> Importar
             </button>
             <button className="pv2-btn" onClick={exportar} title="Bajar lo que estás viendo, con los filtros puestos">
               <Download size={14} /> Exportar
             </button>
-          </>
-        ) : null}
-        primaryLabel="Nueva actividad"
-        onPrimary={() => setNueva(true)}
-      />
+          </div>
+        )}
+      </div>
 
       <div className="pv2-actividad">
         {(error || errorEsperando) && (
