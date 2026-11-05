@@ -8,12 +8,13 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { descargarCSV, COLUMNAS_LEADS } from '@/lib/exportar'
+import { COLUMNAS_CONTACTO, leerContactosCSV, descargarPlantillaContactos } from '@/lib/contactosCSV'
 import { db, auth } from '@/lib/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
 import {
   Search, Users, MousePointerClick, Instagram, MessageCircle,
   Linkedin, Globe, Star, PenTool, Archive, Filter,
-  Upload, X, Check, Download, Trash2, RotateCcw
+  Upload, X, Check, Download, Trash2, RotateCcw, AlertTriangle
 } from 'lucide-react'
 
 const SOURCE_CONFIG = {
@@ -27,6 +28,10 @@ const SOURCE_CONFIG = {
   referral:  { icon: <Star size={14} className="text-yellow-500" />,             label: 'Referido'  },
   manual:    { icon: <PenTool size={14} className="text-gray-500" />,            label: 'Manual'    },
 }
+
+/** Solo los ids y las etiquetas, para que el CSV pueda validar el origen sin
+ *  arrastrar los iconos. */
+const ORIGENES = Object.fromEntries(Object.entries(SOURCE_CONFIG).map(([k, c]) => [k, c.label]))
 
 const scoreColor = (score) => {
   if (score >= 80) return 'text-green-600 bg-green-50'
@@ -54,39 +59,9 @@ const VIEW_OPTIONS = [
   { value: 'discarded', label: 'Descartados' },
 ]
 
-// ── CSV IMPORT ────────────────────────────────────────────────────
-const LEAD_CSV_HEADERS = ['name', 'company', 'email', 'phone', 'source', 'value', 'notes']
-
-function downloadLeadTemplate() {
-  const rows = [
-    LEAD_CSV_HEADERS.join(','),
-    'Juan Pérez,Empresa SA,juan@empresa.com,5512345678,meta_ads,5000,Lead interesado en plan pro',
-    'María García,Startup MX,maria@startup.com,5598765432,instagram,2500,Contacto por DM',
-  ]
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = 'plantilla_contactos.csv'; a.click()
-  URL.revokeObjectURL(url)
-}
-
-function parseLeadCSV(text) {
-  const lines = text.trim().split('\n')
-  if (lines.length < 2) return []
-  const headers = lines[0].split(',').map(h => h.trim())
-  return lines.slice(1).map(line => {
-    const fields = line.split(',').map(f => f.trim())
-    const obj = {}
-    headers.forEach((h, i) => { obj[h] = fields[i] || '' })
-    return obj
-  }).filter(r => r.name)
-}
-
-function LeadImportModal({ onClose, onImport }) {
+function LeadImportModal({ existentes = [], onClose, onImport }) {
   const [step, setStep] = useState('upload')
-  const [rows, setRows] = useState([])
-  const [errors, setErrors] = useState([])
-  const [importing, setImporting] = useState(false)
+  const [lectura, setLectura] = useState({ listas: [], sueltas: [], sinColumnas: false })
   const fileRef = useRef()
 
   const handleFile = (e) => {
@@ -94,27 +69,19 @@ function LeadImportModal({ onClose, onImport }) {
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const parsed = parseLeadCSV(ev.target.result)
-      const errs = []
-      parsed.forEach((row, i) => {
-        if (!row.name) errs.push(`Fila ${i + 2}: falta el nombre`)
-      })
-      setRows(parsed)
-      setErrors(errs)
+      setLectura(leerContactosCSV(String(ev.target.result || ''), { existentes, origenes: ORIGENES }))
       setStep('preview')
     }
-    reader.readAsText(file)
+    reader.readAsText(file, 'utf-8')
   }
 
   const handleImport = async () => {
-    setImporting(true)
     setStep('importing')
     try {
-      await onImport(rows)
-      toast.success(`${rows.length} contactos importados`)
+      await onImport(lectura.listas)
+      toast.success(`${lectura.listas.length} contactos importados`)
       onClose()
-    } catch { toast.error('Error al importar') }
-    finally { setImporting(false) }
+    } catch { toast.error('Error al importar'); setStep('preview') }
   }
 
   return (
@@ -125,7 +92,7 @@ function LeadImportModal({ onClose, onImport }) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
           <div>
             <h2 className="font-display font-bold text-lg tracking-tight">Importar contactos</h2>
-            <p className="text-xs text-secondary mt-0.5">Sube un CSV con tus leads</p>
+            <p className="text-xs text-secondary mt-0.5">Las mismas columnas que la exportación</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-surface-2">
             <X size={15} strokeWidth={2.5} />
@@ -135,7 +102,7 @@ function LeadImportModal({ onClose, onImport }) {
         <div className="p-6">
           {step === 'upload' && (
             <div className="flex flex-col gap-4">
-              <button onClick={downloadLeadTemplate}
+              <button onClick={descargarPlantillaContactos}
                 className="flex items-center gap-2 text-[12.5px] text-secondary hover:text-primary transition-colors">
                 <Download size={13} /> Descargar plantilla CSV
               </button>
@@ -145,34 +112,73 @@ function LeadImportModal({ onClose, onImport }) {
                 <p className="text-[13px] font-semibold text-primary mb-1">Selecciona un archivo CSV</p>
                 <p className="text-xs text-secondary">O arrastra y suéltalo aquí</p>
               </div>
-              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={handleFile} />
+              <div className="bg-surface-2 rounded-[10px] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary mb-1.5">Columnas que se reconocen</p>
+                <p className="text-[12.5px] text-primary">{COLUMNAS_CONTACTO.join(' · ')}</p>
+                <p className="text-xs text-secondary mt-1.5">
+                  Basta con el nombre o el teléfono. El archivo que descargas desde «Exportar» se vuelve
+                  a subir tal cual.
+                </p>
+              </div>
             </div>
           )}
 
           {step === 'preview' && (
             <div className="flex flex-col gap-4">
-              {errors.length > 0 && (
+              {lectura.sinColumnas && (
                 <div className="bg-red-50 border border-red-200 rounded-[10px] p-3">
-                  {errors.map((e, i) => <p key={i} className="text-xs text-red-600">{e}</p>)}
+                  <p className="text-xs text-red-600">
+                    No encuentro el encabezado. La primera fila tiene que traer los nombres de las columnas.
+                  </p>
                 </div>
               )}
-              <p className="text-[13px] font-semibold text-primary">
-                {rows.length} contactos encontrados{errors.length > 0 ? ` · ${errors.length} advertencias` : ''}
-              </p>
-              <div className="max-h-52 overflow-y-auto border border-black/[0.08] rounded-[10px] divide-y divide-black/[0.05]">
-                {rows.map((row, i) => (
-                  <div key={i} className="px-4 py-2.5 flex items-center gap-3">
-                    <span className="font-semibold text-[13px] text-primary">{row.name}</span>
-                    {row.company && <span className="text-[11px] text-secondary">{row.company}</span>}
-                    {row.email && <span className="text-[11px] text-tertiary ml-auto">{row.email}</span>}
-                  </div>
-                ))}
+
+              <div className="flex items-center gap-4 text-[13px]">
+                <span className="flex items-center gap-1.5 font-semibold text-green-600">
+                  <Check size={13} /> {lectura.listas.length} listos para crear
+                </span>
+                {lectura.sueltas.length > 0 && (
+                  <span className="flex items-center gap-1.5 font-semibold text-amber-600">
+                    <AlertTriangle size={13} /> {lectura.sueltas.length} se quedan fuera
+                  </span>
+                )}
               </div>
+
+              {lectura.listas.length > 0 && (
+                <div className="max-h-52 overflow-y-auto border border-black/[0.08] rounded-[10px] divide-y divide-black/[0.05]">
+                  {lectura.listas.map((row, i) => (
+                    <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+                      <span className="font-semibold text-[13px] text-primary">
+                        {[row.name, row.lastName].filter(Boolean).join(' ')}
+                      </span>
+                      {row.company && <span className="text-[11px] text-secondary">{row.company}</span>}
+                      {(row.email || row.phone) && (
+                        <span className="text-[11px] text-tertiary ml-auto">{row.email || row.phone}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {lectura.sueltas.length > 0 && (
+                <div className="bg-surface-2 rounded-[10px] px-4 py-3 flex flex-col gap-1">
+                  {lectura.sueltas.slice(0, 6).map(s => (
+                    <p key={s.renglon} className="text-xs text-secondary">
+                      <b className="text-primary">Renglón {s.renglon}</b> · {s.nombre} — {s.motivo}
+                    </p>
+                  ))}
+                  {lectura.sueltas.length > 6 && (
+                    <p className="text-xs text-secondary">y {lectura.sueltas.length - 6} más.</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button onClick={() => setStep('upload')} className="btn-secondary flex-1">← Volver</button>
-                <button onClick={handleImport} disabled={rows.length === 0}
+                <button onClick={handleImport} disabled={lectura.listas.length === 0}
                   className="btn-primary flex-1 flex items-center justify-center gap-1.5">
-                  <Check size={13} /> Importar {rows.length} contactos
+                  <Check size={13} /> Importar {lectura.listas.length || ''}
                 </button>
               </div>
             </div>
@@ -189,6 +195,7 @@ function LeadImportModal({ onClose, onImport }) {
     </div>
   )
 }
+
 
 export default function Contacts() {
   const { org } = useAuthStore()
@@ -610,21 +617,12 @@ export default function Contacts() {
       {/* IMPORT MODAL */}
       {showImport && (
         <LeadImportModal
+          existentes={[...leads, ...systemLeads, ...discardedLeads]}
           onClose={() => setShowImport(false)}
           onImport={async (rows) => {
             const firstStage = stages[0]
             for (const row of rows) {
-              await createLead({
-                name: row.name,
-                company: row.company || '',
-                email: row.email || '',
-                phone: row.phone || '',
-                source: row.source || 'manual',
-                value: Number(row.value) || 0,
-                notes: row.notes || '',
-                stageId: firstStage?.id || null,
-                score: 0,
-              })
+              await createLead({ ...row, stageId: firstStage?.id || null })
             }
           }}
         />

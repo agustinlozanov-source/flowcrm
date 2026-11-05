@@ -13,32 +13,9 @@
 import { useMemo, useState } from 'react'
 import { Upload, Check, AlertTriangle } from 'lucide-react'
 import { TIPOS } from '@/hooks/useActividades'
+import { partirCSV, normalizar } from '@/lib/csv'
 
-const normalizar = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
 const soloDigitos = t => String(t || '').replace(/\D/g, '')
-
-/* Un CSV de verdad trae comas dentro de las comillas y comillas escapadas
-   dobles. Partir por comas a secas corre las columnas en cuanto alguien
-   escribe «Le mandé la propuesta, quedó de revisarla». */
-function partirCSV(texto) {
-  const filas = []
-  let fila = [], campo = '', dentro = false
-  const t = texto.replace(/\r\n?/g, '\n')
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i]
-    if (dentro) {
-      if (c === '"') {
-        if (t[i + 1] === '"') { campo += '"'; i++ }
-        else dentro = false
-      } else campo += c
-    } else if (c === '"') dentro = true
-    else if (c === ',' || c === ';') { fila.push(campo); campo = '' }
-    else if (c === '\n') { fila.push(campo); filas.push(fila); fila = []; campo = '' }
-    else campo += c
-  }
-  if (campo !== '' || fila.length) { fila.push(campo); filas.push(fila) }
-  return filas.filter(f => f.some(x => String(x).trim() !== ''))
-}
 
 /** Dónde cae cada columna, por el nombre del encabezado. */
 function mapearColumnas(encabezado) {

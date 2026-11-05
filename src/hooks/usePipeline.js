@@ -251,6 +251,10 @@ export function usePipeline() {
       company: data.company || '',
       email: data.email || '',
       phone: data.phone || '',
+      // La dirección sale en la exportación y entra por el CSV; si no se
+      // guarda aquí, la columna existe en los dos lados y no lleva a ningún
+      // lado.
+      address: data.address || '',
       value: Number(data.value) || 0,
       source: data.source || 'manual',
       stageId: data.stageId,
