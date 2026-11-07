@@ -3,6 +3,7 @@
 const admin = require('firebase-admin')
 const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta,
         claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
+const { reactivarSiVolvio } = require('./lib/reactivar')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
@@ -131,47 +132,6 @@ async function touchLead(db, orgId, leadId, { text, channel, fromLead }) {
     ...(fromLead ? { lastInboundAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   })
-}
-
-/** Un descartado que vuelve a escribir regresa al embudo, donde estaba.
- *
- *  Sin esto el descarte automático sería una trampa: el agente da de baja al
- *  que se calló —que está bien— pero si esa persona reaparece al mes nadie se
- *  entera, porque su tarjeta ya no está en el tablero. El mensaje llega al
- *  inbox y ahí se queda.
- *
- *  `blacklist` nunca se reactiva: pidió no ser contactado, y volver a
- *  escribir no es permiso para volver a venderle. Las demás razones del
- *  catálogo admiten retomarse y por eso regresan solas.
- *
- *  Los contadores de rescate se ponen en cero: la conversación empieza de
- *  nuevo y arrastrar los intentos viejos la descartaría de inmediato. */
-async function reactivarSiVolvio(db, orgId, lead) {
-  if (!lead?.discarded) return
-  if (lead.discardCategory === 'blacklist') return
-  try {
-    await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id).update({
-      discarded: false,
-      reactivadoAt: admin.firestore.FieldValue.serverTimestamp(),
-      descartadoAntesEl: lead.discardedAt || null,
-      systemStage: lead.systemStageAntes || null,
-      rescates: 0,
-      ultimoRescateAt: null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
-    await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id)
-      .collection('interactions').add({
-        type: 'reactivate',
-        content: `Volvió a escribir — reactivado desde «${lead.discardCategory || 'descartado'}»`,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: 'agente',
-      })
-    console.log(`[zernio-webhook] lead ${lead.id} reactivado — escribió estando descartado`)
-  } catch (e) {
-    /* Que falle la reactivación no puede tumbar la recepción del mensaje:
-       perder el mensaje es peor que dejar la tarjeta fuera del tablero. */
-    console.error('[zernio-webhook] reactivar:', e.message)
-  }
 }
 
 async function handleMessageReceived(db, payload) {

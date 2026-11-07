@@ -1,6 +1,7 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
 const { destinoInicial, claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
+const { reactivarSiVolvio } = require('./lib/reactivar')
 const Anthropic = require('@anthropic-ai/sdk')
 
 /* Perezoso a propósito. Arrancar Firebase al cargar el módulo hace que una
@@ -364,6 +365,11 @@ async function processWhatsApp(entry, orgId) {
         channel: 'whatsapp',
       })
 
+      /* Si estaba descartado por silencio, volver a escribir lo regresa al
+         embudo. Va antes de guardar el mensaje para que la tarjeta ya esté en
+         el tablero cuando el aviso de no leído aparezca. */
+      await reactivarSiVolvio(laBase(), orgId, lead)
+
       await saveMessage(orgId, lead.id, { text, channel: 'whatsapp', role: 'user', channelMsgId: msg.id })
 
       // Auto-reply
@@ -402,6 +408,8 @@ async function processMessaging(entry, channel, orgId) {
       channelUserId: senderId,
       channel,
     })
+
+    await reactivarSiVolvio(laBase(), orgId, lead)
 
     await saveMessage(orgId, lead.id, { text, channel, role: 'user', channelMsgId: event.message.mid })
 
