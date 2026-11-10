@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import { usePipeline } from '@/hooks/usePipeline'
 import { useAppointments } from '@/hooks/useAppointments'
 import Tablero from '@/features/analytics/Tablero'
+import ReporteIA from '@/features/analytics/ReporteIA'
+import { useAuthStore } from '@/store/authStore'
+import { tieneExtra } from '@/lib/addons'
 import { startOfMonth, endOfMonth, startOfWeek, subDays, isWithinInterval, format, eachDayOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -32,6 +35,11 @@ export default function Analytics() {
     leads: leadsActivos, systemLeads, discardedLeads, members,
   } = usePipeline()
   const { appointments } = useAppointments()
+  const org = useAuthStore(st => st.org)
+  /* El botón solo aparece si la organización tiene el extra encendido desde
+     el Superadmin. Esconderlo no es la cerradura: la función de fondo vuelve
+     a verificarlo del lado del servidor antes de gastar una llamada. */
+  const conReporte = tieneExtra(org, 'reporte_ia')
 
   // Todos los leads, no solo los de calentamiento.
   const leads = useMemo(
@@ -150,10 +158,15 @@ export default function Analytics() {
               <div className="w-6 h-6 border-2 border-black/10 border-t-primary rounded-full animate-spin" />
             </div>
           ) : (
-            <Tablero
-              datos={{ leads, citas: appointments, miembros: members }}
-              periodo={{ desde: start, hasta: end }}
-            />
+            <div className="flex flex-col gap-6">
+              {conReporte && (
+                <ReporteIA orgId={org?.id} periodo={period} />
+              )}
+              <Tablero
+                datos={{ leads, citas: appointments, miembros: members }}
+                periodo={{ desde: start, hasta: end }}
+              />
+            </div>
           )}
         </div>
       </div>

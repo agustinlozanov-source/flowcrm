@@ -10,6 +10,11 @@
  */
 export const ADDONS = [
   {
+    id: 'reporte_ia',
+    nombre: 'Reporte de dirección',
+    descripcion: 'Un botón en Analítica que lee todos los números de la organización y escribe el reporte: hallazgos por categoría, decisiones para dirección y acciones para quien atiende clientes.',
+  },
+  {
     id: 'brands',
     nombre: 'Marca personal',
     descripcion: 'Varias marcas por cuenta, métricas de Instagram, escáner de referencias y teleprompter.',
