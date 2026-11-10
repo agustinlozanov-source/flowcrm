@@ -320,6 +320,11 @@ function ConversationView({ lead, orgId }) {
                 const isBot = msg.role === 'bot' || msg.role === 'assistant'
                 const isOutbound = isBot || msg.role === 'agent'
                 const showLabel = i === 0 || msgs[i - 1]?.role !== msg.role
+                /* El agente la redactó y se guardó, pero el envío no salió.
+                   Sin marcarla, el Inbox mostraría como enviado algo que el
+                   cliente nunca recibió, y nadie lo sabría hasta que el
+                   cliente reclamara. */
+                const sinEntregar = msg.entregado === false
 
                 return (
                   <div key={msg.id} className={clsx('flex flex-col mb-1', isOutbound ? 'items-end' : 'items-start')}>
@@ -334,7 +339,10 @@ function ConversationView({ lead, orgId }) {
                         ? 'rounded-tr-sm text-white'
                         : 'rounded-tl-sm bg-surface-2 border border-black/[0.08] text-primary'
                     )}
-                      style={isOutbound ? { background: msg.role === 'bot' ? '#7c3aed' : '#0066ff' } : {}}
+                      style={isOutbound ? {
+                        background: msg.role === 'bot' ? '#7c3aed' : '#0066ff',
+                        ...(sinEntregar ? { opacity: 0.45, border: '1px dashed rgba(255,255,255,0.45)' } : {}),
+                      } : {}}
                     >
                       {msg.attachment ? (
                         <a
@@ -347,7 +355,10 @@ function ConversationView({ lead, orgId }) {
                         </a>
                       ) : msg.text}
                     </div>
-                    <span className="text-[9px] text-tertiary mt-0.5 px-1">{formatMsgTime(msg.createdAt)}</span>
+                    <span className="text-[9px] text-tertiary mt-0.5 px-1">
+                      {sinEntregar && <span className="text-red-400 font-semibold">No se entregó · </span>}
+                      {formatMsgTime(msg.createdAt)}
+                    </span>
                   </div>
                 )
               })}

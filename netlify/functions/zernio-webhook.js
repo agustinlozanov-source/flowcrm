@@ -204,15 +204,49 @@ async function handleMessageReceived(db, payload) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // Ya lo guardamos arriba: sin esto quedaría dos veces en el hilo.
-    body: JSON.stringify({ action: 'chat', orgId, leadId: lead.id, message: text, skipSaveUser: true }),
+    body: JSON.stringify({
+      action: 'chat', orgId, leadId: lead.id, message: text,
+      skipSaveUser: true,
+      // Entregamos nosotros, abajo: que nazca sin marcar como entregada.
+      entregaExterna: true,
+    }),
   })
-  const data = await res.json()
+
+  let data
+  try {
+    data = await res.json()
+  } catch {
+    /* Un 504 de Netlify contesta HTML, no JSON. agent-manager tarda de 9 a 19
+       segundos de rutina contra un techo de 26, así que la cola de esa
+       distribución se sale y el gateway la corta. Cuando eso pasa, la
+       respuesta ya quedó guardada sin entregar y el botón de «sin responder»
+       del Inbox la recoge. */
+    console.error(`[zernio-webhook] agent-manager contestó ${res.status} sin JSON — lead ${lead.id} queda pendiente`)
+    return
+  }
+
   if (!res.ok || !data.response) {
     console.error('[zernio-webhook] el agente no respondió:', data.error || res.status)
     return
   }
 
-  const sent = await sendReply(conv.id, accountId, data.response, data.shareResources)
+  /* De aquí en adelante el mensaje YA existe en el hilo, marcado como no
+     entregado. Si el envío falla no se borra: se deja visible y pendiente,
+     que es la verdad, en vez de desaparecerlo o darlo por bueno. */
+  let sent
+  try {
+    sent = await sendReply(conv.id, accountId, data.response, data.shareResources)
+  } catch (e) {
+    console.error(`[zernio-webhook] Zernio rechazó la respuesta del lead ${lead.id}:`, e.message)
+    return
+  }
+
+  if (data.mensajeId) {
+    await db.collection('organizations').doc(orgId).collection('leads').doc(lead.id)
+      .collection('conversations').doc(data.mensajeId)
+      .update({ entregado: true, entregadoEn: admin.firestore.FieldValue.serverTimestamp() })
+  }
+
   await saveAttachments(db, orgId, lead.id, sent, channel)
   await touchLead(db, orgId, lead.id, { text: data.response, channel, fromLead: false })
   console.log(`[zernio-webhook] respondido a ${phone || lead.id} (org ${orgId})`)

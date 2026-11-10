@@ -880,13 +880,14 @@ async function saveTestMessage(orgId, leadId, role, text) {
     })
 }
 
-async function saveLeadMessage(orgId, leadId, role, text) {
-  if (leadId === 'test') return
-  await db.collection('organizations').doc(orgId)
+async function saveLeadMessage(orgId, leadId, role, text, extra = {}) {
+  if (leadId === 'test') return null
+  const ref = await db.collection('organizations').doc(orgId)
     .collection('leads').doc(leadId)
     .collection('conversations').add({
-      role, text, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      role, text, ...extra, createdAt: admin.firestore.FieldValue.serverTimestamp(),
     })
+  return ref.id
 }
 
 // ── LOAD DISTRIBUIDOR GLOBAL CONFIG ──────────────────────────────
@@ -915,7 +916,7 @@ function buildDistribuidorScoringText(scoringSignals) {
 }
 
 // ── CHAT WITH AGENT ───────────────────────────────────────────────
-async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, skipSaveUser = false) {
+async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, skipSaveUser = false, entregaExterna = false) {
   // Load agent config
   const settingsSnap = await db.collection('organizations').doc(orgId).collection('settings').doc('agent').get()
   if (!settingsSnap.exists) throw new Error('Agente no configurado.')
@@ -1220,9 +1221,19 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
 
     const visibleReply = parsed.response
 
-    // Save agent response
+    /* Se guarda la respuesta. Cuando quien entrega es otro —los webhooks, que
+       la mandan por Zernio después de que esta función devuelve— nace marcada
+       como NO entregada, y el que la manda la confirma.
+
+       Antes se guardaba a secas, así que un fallo de envío dejaba en el Inbox
+       un mensaje que el cliente nunca recibió, con su hora y su etiqueta de
+       agente. Peor: tapaba la conversación en la lista de «sin responder»,
+       porque ahí se mira el último mensaje y ya había uno del agente. */
     await saveTestMessage(orgId, leadId, 'assistant', visibleReply)
-    await saveLeadMessage(orgId, leadId, 'assistant', visibleReply)
+    const mensajeId = await saveLeadMessage(
+      orgId, leadId, 'assistant', visibleReply,
+      entregaExterna ? { entregado: false } : {},
+    )
 
     // Update lead score and stage (only for real leads)
     let newScore = currentScore
@@ -1281,6 +1292,7 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
 
     return {
       response: visibleReply,
+      mensajeId,
       score: newScore,
       profileB: parsed.profileB,
       suggestHandoff: parsed.suggestHandoff,
@@ -1320,7 +1332,7 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
     }
     if (action === 'chat') {
-      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null, body.skipSaveUser === true)
+      const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null, body.skipSaveUser === true, body.entregaExterna === true)
       return { statusCode: 200, headers, body: JSON.stringify(result) }
     }
 
