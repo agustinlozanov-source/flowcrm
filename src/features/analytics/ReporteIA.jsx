@@ -5,14 +5,23 @@
  * el minuto o los dos que necesita para escribir un reporte entero sin que el
  * navegador se quede colgado ni nada se corte a medias.
  */
-import { useEffect, useRef, useState } from 'react'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import { doc, onSnapshot, deleteDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
-import { Sparkles, RotateCcw, TriangleAlert, Printer } from 'lucide-react'
+import { Sparkles, RotateCcw, TriangleAlert, Printer, Trash2 } from 'lucide-react'
 
 const DIAS_POR_PERIODO = { '7d': 7, '30d': 30, month: 30, year: 365 }
+
+/* Un solo reporte por organización, siempre en el mismo documento.
+ *
+ * Antes cada clic creaba uno con id nuevo y la página solo recordaba el de
+ * esta sesión: al recargar desaparecía de la vista aunque siguiera existiendo,
+ * y los anteriores se quedaban en la base para siempre sin que nadie pudiera
+ * verlos ni borrarlos. Con un id fijo, el reporte sobrevive a la recarga,
+ * generar de nuevo reemplaza al viejo, y borrar significa borrar. */
+const DOC_ID = 'ultimo'
 
 function Bloque({ titulo, children, className }) {
   return (
@@ -42,51 +51,54 @@ function Lista({ items, color }) {
 }
 
 export default function ReporteIA({ orgId, periodo }) {
-  const [reporteId, setReporteId] = useState(null)
   const [doc_, setDoc_] = useState(null)
   const [lanzando, setLanzando] = useState(false)
-  const desuscribir = useRef(null)
+  const [confirmando, setConfirmando] = useState(false)
 
-  useEffect(() => () => desuscribir.current?.(), [])
+  // Se escucha desde que abre la página: si ya había reporte, aparece solo.
+  useEffect(() => {
+    if (!orgId) return
+    return onSnapshot(
+      doc(db, 'organizations', orgId, 'reportes', DOC_ID),
+      snap => setDoc_(snap.exists() ? snap.data() : null),
+      err => console.error('[reporte] no se pudo escuchar:', err),
+    )
+  }, [orgId])
 
   const generar = async () => {
     if (!orgId || lanzando) return
     setLanzando(true)
-    setDoc_(null)
-
-    const id = (crypto.randomUUID?.() || String(Date.now()))
-    setReporteId(id)
-
+    setConfirmando(false)
     try {
       const res = await fetch('/.netlify/functions/reporte-analitica-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, reporteId: id, dias: DIAS_POR_PERIODO[periodo] || 30 }),
+        body: JSON.stringify({ orgId, reporteId: DOC_ID, dias: DIAS_POR_PERIODO[periodo] || 30 }),
       })
       /* Una Background Function contesta 202 y nada más: el resultado no viene
-         por acá, llega al documento. Un código distinto significa que ni
-         siquiera arrancó. */
+         por acá, llega al documento, y el onSnapshot de arriba lo recoge. Un
+         código distinto significa que ni siquiera arrancó. */
       if (res.status !== 202 && !res.ok) throw new Error(`No arrancó (${res.status})`)
-
-      desuscribir.current?.()
-      desuscribir.current = onSnapshot(
-        doc(db, 'organizations', orgId, 'reportes', id),
-        snap => setDoc_(snap.exists() ? snap.data() : null),
-        err => {
-          console.error('[reporte] no se pudo escuchar:', err)
-          toast.error('No se pudo leer el reporte')
-        },
-      )
     } catch (e) {
       console.error('[reporte]', e)
       toast.error(e.message || 'No se pudo generar el reporte')
-      setReporteId(null)
     } finally {
       setLanzando(false)
     }
   }
 
-  const estado = doc_?.estado ?? (reporteId ? 'generando' : null)
+  const borrar = async () => {
+    try {
+      await deleteDoc(doc(db, 'organizations', orgId, 'reportes', DOC_ID))
+      setConfirmando(false)
+      toast.success('Reporte borrado')
+    } catch (e) {
+      console.error('[reporte] borrar:', e)
+      toast.error('No se pudo borrar')
+    }
+  }
+
+  const estado = doc_?.estado ?? (lanzando ? 'generando' : null)
   const r = doc_?.reporte
 
   return (
@@ -106,6 +118,33 @@ export default function ReporteIA({ orgId, periodo }) {
             >
               <Printer size={14} /> Imprimir
             </button>
+          )}
+
+          {(estado === 'listo' || estado === 'error') && (
+            confirmando ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] text-secondary">¿Borrarlo?</span>
+                <button
+                  onClick={borrar}
+                  className="rounded-[10px] bg-red-600 px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-red-700"
+                >
+                  Sí, borrar
+                </button>
+                <button
+                  onClick={() => setConfirmando(false)}
+                  className="rounded-[10px] border border-black/[0.08] px-3 py-2 text-[12.5px] font-semibold text-secondary transition-colors hover:text-primary"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmando(true)}
+                className="flex items-center gap-1.5 rounded-[10px] border border-black/[0.08] px-3 py-2 text-[12.5px] font-semibold text-secondary transition-colors hover:text-red-600"
+              >
+                <Trash2 size={14} /> Borrar
+              </button>
+            )
           )}
           <button
             onClick={generar}

@@ -294,11 +294,20 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: 'ok' }
     }
 
+    /* El reporte anterior se borra al empezar, no al terminar. Si se dejara,
+       un fallo a mitad del camino dejaría el documento en `error` con el
+       reporte viejo todavía adentro, y la pantalla mostraría números de la
+       semana pasada junto a un aviso de que algo salió mal. */
+    const borrar = admin.firestore.FieldValue.delete()
     await ref.set({
       estado: 'generando',
       dias,
       modelo: MODELO,
       empezadoEn: admin.firestore.FieldValue.serverTimestamp(),
+      reporte: borrar,
+      numeros: borrar,
+      tokens: borrar,
+      motivo: borrar,
     }, { merge: true })
 
     const numeros = await reunirNumeros(db, orgId, Number(dias) || 30)
