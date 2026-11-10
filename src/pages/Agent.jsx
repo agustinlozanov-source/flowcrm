@@ -1839,6 +1839,12 @@ export default function Agent() {
        en varias cuentas cuando el cron viejo corría en Railway, y reusarlo
        habría puesto a escribirle a clientes reales en el primer despliegue.
        Ésta nace apagada para todos. */
+    /* Nace apagado: encenderlo cambia cómo se contesta el PRIMER mensaje de
+       todos los leads nuevos, que es lo más delicado que hace el agente. */
+    conmutador: {
+      activo: false,
+      instrucciones: '',
+    },
     seguimiento: {
       activo: false,
       horasAntesDeCerrar: 6,
@@ -1909,6 +1915,7 @@ export default function Agent() {
           meetingDuration: data.meetingDuration ?? c.meetingDuration,
           assistantId: data.assistantId,
           followUp: data.followUp ?? c.followUp,
+          conmutador: { ...c.conmutador, ...(data.conmutador || {}) },
           seguimiento: { ...c.seguimiento, ...(data.seguimiento || {}) },
         }))
       }
@@ -2111,6 +2118,56 @@ export default function Agent() {
                   valor={valorAgenda('workingHours', null)}
                   onChange={h => setAgenda('workingHours', h)}
                 />
+
+                <Section
+                  title="Conmutador de entrada"
+                  desc="Cuando una misma cuenta atiende varios embudos, el agente pregunta a cuál pertenece el lead antes de venderle"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <button
+                      onClick={() => set('conmutador', { ...config.conmutador, activo: !config.conmutador?.activo })}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${
+                        config.conmutador?.activo ? 'bg-accent-blue' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        config.conmutador?.activo ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                    <span className="text-sm text-secondary">{config.conmutador?.activo ? 'Activado' : 'Desactivado'}</span>
+                  </div>
+
+                  {config.conmutador?.activo ? (
+                    <div className="flex flex-col gap-4">
+                      <p className="text-[11px] text-secondary leading-relaxed">
+                        Los leads que entren por una cuenta que no apunta a un embudo concreto nacen sin embudo, y el agente
+                        los coloca cuando entiende qué buscan. Mientras tanto no da precios ni agenda nada, porque podría
+                        ser del negocio equivocado. Para que acierte, cada embudo necesita su descripción en
+                        Pipeline → Editar → «Para quién es este embudo».
+                      </p>
+
+                      <div>
+                        <label className="text-xs font-semibold text-secondary mb-2 block">Cómo quieres que reciba</label>
+                        <textarea
+                          value={config.conmutador?.instrucciones || ''}
+                          onChange={e => set('conmutador', { ...config.conmutador, instrucciones: e.target.value })}
+                          rows={4}
+                          placeholder="Ej: Saluda por el nombre de la empresa, sé breve y cálido, y averigua qué busca con una sola pregunta."
+                          className="w-full resize-none bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-2 text-[13px] text-primary placeholder-tertiary outline-none focus:border-primary/40 transition-colors"
+                        />
+                        <p className="text-[11px] text-secondary mt-2">
+                          Estas instrucciones mandan solo mientras el lead no tiene embudo. En cuanto el agente lo coloca,
+                          pasan a regir las del embudo que le tocó.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-secondary leading-relaxed">
+                      Apagado, cada lead nuevo cae en el primer embudo que devuelva la base — que no es el primero que
+                      creaste, es orden interno. Con un solo embudo da igual. Con varios, conviene prenderlo.
+                    </p>
+                  )}
+                </Section>
 
                 <Section
                   title="Rescate y descarte por silencio"

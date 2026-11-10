@@ -123,8 +123,26 @@ ${resources.map(r =>
     : ''
 
   // Routing section — when no pipeline identified yet
+  /* El conmutador. Este lead entró por una cuenta que sirve a varios embudos,
+   * así que nadie sabe todavía a cuál pertenece y toca averiguarlo.
+   *
+   * La descripción de cada embudo es el único criterio que tiene para
+   * decidir. Antes aquí iba el campo `purpose`, que es una lista cerrada de
+   * tres valores internos —adquisición, retención, distribución—, así que
+   * dos embudos de venta se le veían idénticos y solo quedaba el nombre. */
   const routingSection = (!resolvedPipelineId && allPipelines.length > 0)
-    ? `\nROUTING — IDENTIFICACIÓN DEL FLUJO:\nEste lead aún no tiene un flujo de ventas asignado. Tu primera tarea es identificarlo con 1-2 preguntas naturales sobre su situación o interés. NO menciones los nombres técnicos de los flujos al lead.\n\nFlujos disponibles (solo para tu referencia interna):\n${allPipelines.map(p => `  • ${p.name}${p.purpose ? ` — ${p.purpose}` : ''} [ID: ${p.id}]`).join('\n')}\n\nCuando identifiques el flujo, incluye en el JSON: "detectedPipelineId": "id_aqui". Si no tienes información suficiente aún, deja "detectedPipelineId": null.`
+    ? `
+CONMUTADOR — TODAVÍA NO SABES DE QUÉ SE TRATA:
+Este lead escribió a una cuenta que atiende varios negocios, así que todavía no sabes cuál le toca. Antes de vender nada, averigualo.
+
+Recibilo bien y preguntáselo de la forma más corta que se te ocurra — una o dos preguntas, naturales, como lo haría quien contesta el teléfono en una empresa. Nunca le digas al lead que existen varios flujos ni le leas esta lista: para él es una sola conversación.
+
+Mientras no sepas, no des precios, no describas paquetes y no agendes nada. Lo que digas ahora puede ser del negocio equivocado.
+
+Negocios de esta cuenta (solo para ti):
+${allPipelines.map(p => `  • ${p.name}${p.descripcion ? ` — ${p.descripcion}` : ' — (sin descripción)'} [ID: ${p.id}]`).join('\n')}
+
+Cuando lo tengas claro, incluye en el JSON: "detectedPipelineId": "el_id". Si todavía no, dejá "detectedPipelineId": null y seguí preguntando. Ante la duda entre dos, null y una pregunta más: colocarlo mal es peor que tardar un mensaje.`
     : ''
 
   /* Bloques, no un documento.
@@ -1029,12 +1047,12 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   let allPipelines = []
   try {
     const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').orderBy('createdAt', 'asc').get()
-    allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+    allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', descripcion: d.data().descripcion || '' }))
   } catch {
     // orderBy may fail without index — fall back to unordered
     try {
       const pipelinesSnap = await db.collection('organizations').doc(orgId).collection('pipelines').get()
-      allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', purpose: d.data().purpose || '' }))
+      allPipelines = pipelinesSnap.docs.map(d => ({ id: d.id, name: d.data().name || '', descripcion: d.data().descripcion || '' }))
     } catch {}
   }
 
@@ -1050,10 +1068,17 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
   const rawInstructions = agentConfig.customInstructions
   if (typeof rawInstructions === 'object' && rawInstructions !== null && !Array.isArray(rawInstructions)) {
-    const resolved = (pipelineId && rawInstructions[pipelineId])
-      || rawInstructions['__default__']
-      || Object.values(rawInstructions).find(Boolean)
-      || ''
+    /* Sin embudo manda el conmutador y no se cae a las instrucciones de
+     * ningún otro. Ese último recurso —«la primera que no esté vacía»— es
+     * razonable cuando hay un solo embudo, y aquí sería justo lo contrario:
+     * le daría al lead el guión de un negocio elegido al azar antes de
+     * siquiera saber a cuál pertenece. */
+    const resolved = pipelineId
+      ? (rawInstructions[pipelineId]
+          || rawInstructions['__default__']
+          || Object.values(rawInstructions).find(Boolean)
+          || '')
+      : (agentConfig.conmutador?.instrucciones || rawInstructions['__default__'] || '')
     agentConfig = { ...agentConfig, customInstructions: resolved }
   }
   // (if already a string — legacy or distribuidor override — leave as-is)
@@ -1250,12 +1275,57 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
       entregaExterna ? { entregado: false } : {},
     )
 
+    /* El conmutador coloca al lead en su embudo.
+     *
+     * El prompt de routing ya existía y ya pedía este campo, pero nadie lo
+     * leía: el agente podía identificar el embudo perfectamente y esa
+     * respuesta se tiraba. Esto es el cable que faltaba.
+     *
+     * Se verifica que el id exista de verdad antes de moverlo: el modelo
+     * escribe el id a mano desde el prompt y una errata dejaría al lead
+     * apuntando a un embudo fantasma, invisible en el tablero.
+     *
+     * Y solo coloca a quien no tenía embudo. Reasignar a uno que ya está
+     * colocado sería dejar que una frase ambigua a mitad de la conversación
+     * le mueva la tarjeta a alguien que ya la estaba trabajando. */
+    let colocadoAhora = false
+    if (leadId !== 'test' && !pipelineId && parsed.detectedPipelineId) {
+      const destino = String(parsed.detectedPipelineId).trim()
+      const existe = allPipelines.some(p => p.id === destino)
+      if (!existe) {
+        console.warn(`[agent] conmutador: el embudo ${destino} no existe en ${orgId} — el lead sigue sin colocar`)
+      } else {
+        const { primeraEtapa } = require('./lib/firebase')
+        const stageId = await primeraEtapa(db, orgId, destino)
+        const ref = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+        await ref.update({
+          pipelineId: destino,
+          stageId,
+          colocadoPorAgente: true,
+          colocadoEn: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        await ref.collection('interactions').add({
+          type: 'routing',
+          content: `El agente lo colocó en «${allPipelines.find(p => p.id === destino)?.name || destino}»`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdBy: 'agente',
+        })
+        colocadoAhora = true
+        console.log(`[agent] conmutador: lead ${leadId} colocado en ${destino}`)
+      }
+    }
+
     // Update lead score and stage (only for real leads)
     let newScore = currentScore
     /* En handoff el agente contesta, pero no mueve nada: ya no califica, no
      * avanza etapas y no registra oportunidades. El lead es de la persona que
      * lo está atendiendo y su tablero no se toca por detrás. */
-    if (leadId !== 'test' && !leadContext?.enHandoff) {
+    /* `colocadoAhora` queda fuera: el scoring que se cargó al principio de
+     * este turno es el del embudo viejo —o ninguno—, así que avanzar etapas
+     * con él usaría la regla equivocada justo en el turno en que el lead
+     * cambia de embudo. El siguiente mensaje ya entra con el suyo. */
+    if (leadId !== 'test' && !leadContext?.enHandoff && !colocadoAhora) {
       // Se corre aunque no haya scoring configurado: si agendó hay que moverlo
       // a handoff igual, y antes eso dependía de tener scoring.
       newScore = await updateLeadScoreAndStage(orgId, leadId, parsed, currentScore, scoringConfig, {

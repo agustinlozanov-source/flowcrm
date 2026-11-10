@@ -62,7 +62,7 @@ export default function Pipeline() {
   const handoffBoundDays = activePipeline?.handoffBoundDays || 3
   const handoffBoundActive = activePipeline?.handoffBoundActive || false
 
-  const handleSaveEditPipeline = async ({ name, purpose, stageEdits, deletedIds = [] }) => {
+  const handleSaveEditPipeline = async ({ name, purpose, descripcion, stageEdits, deletedIds = [] }) => {
     if (!activePipelineId) {
       const newId = await adoptOrphanStages({ name, purpose })
       for (let i = 0; i < stageEdits.length; i++) {
@@ -73,7 +73,7 @@ export default function Pipeline() {
       setActivePipelineId(newId)
       toast.success(`Pipeline "${name}" configurado`)
     } else {
-      await updatePipeline(activePipelineId, { name, purpose })
+      await updatePipeline(activePipelineId, { name, purpose, descripcion: descripcion || '' })
       for (let i = 0; i < stageEdits.length; i++) {
         const s = stageEdits[i]
         await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })

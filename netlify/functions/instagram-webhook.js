@@ -5,7 +5,7 @@
 // el pipeline de su marca, y de ahí salen el nombre del agente, sus
 // instrucciones y su scoring.
 const admin = require('firebase-admin')
-const { initDb, destinoInicial, pipelineDeLaCuenta, saveAttachments, guardarMensaje } = require('./lib/firebase')
+const { initDb, destinoInicial, pipelineDeLaCuenta, conmutadorActivo, saveAttachments, guardarMensaje } = require('./lib/firebase')
 const ig = require('./lib/instagram')
 
 const CANAL = 'instagram'
@@ -47,7 +47,9 @@ async function buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId }) {
   }
 
   const preferido = await pipelineDeLaCuenta(db, orgId, cuentaId)
-  const { pipelineId, stageId } = await destinoInicial(db, orgId, preferido)
+  const { pipelineId, stageId } = await destinoInicial(db, orgId, preferido, {
+    conmutador: preferido ? false : await conmutadorActivo(db, orgId),
+  })
 
   const ref = await leads.add({
     name: nombre || 'Sin nombre',

@@ -1,6 +1,6 @@
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
-const { destinoInicial, claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
+const { destinoInicial, claveTelefono, buscarLeadPorTelefono, conmutadorActivo } = require('./lib/firebase')
 const { reactivarSiVolvio } = require('./lib/reactivar')
 const Anthropic = require('@anthropic-ai/sdk')
 
@@ -78,7 +78,9 @@ async function findOrCreateLead(orgId, contact) {
   // El lead nace en su pipeline y en la primera etapa DE ese pipeline. Antes
   // no se le asignaba pipeline ninguno, así que se quedaba sin scoring y sin
   // las instrucciones propias de su embudo.
-  const { pipelineId: pipelineInicial, stageId } = await destinoInicial(laBase(), orgId)
+  const { pipelineId: pipelineInicial, stageId } = await destinoInicial(laBase(), orgId, null, {
+    conmutador: await conmutadorActivo(laBase(), orgId),
+  })
 
   // Create new lead
   const ref = await laBase().collection('organizations').doc(orgId).collection('leads').add({

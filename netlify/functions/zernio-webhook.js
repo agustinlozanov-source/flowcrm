@@ -1,7 +1,7 @@
 // Receptor de eventos de Zernio. Es la ÚNICA fuente de verdad del estado de
 // conexión, y la puerta de entrada de los mensajes al CRM.
 const admin = require('firebase-admin')
-const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta,
+const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta, conmutadorActivo,
         claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
 const { reactivarSiVolvio } = require('./lib/reactivar')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
@@ -98,7 +98,12 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
   }
 
   const preferido = await pipelineDeLaCuenta(db, orgId, cuentaId)
-  const { pipelineId, stageId } = await destinoInicial(db, orgId, preferido)
+  /* Si la cuenta no alcanza para decidir el embudo —una sola cuenta para
+     varios— y la organización encendió el conmutador, el lead nace sin
+     embudo y el agente lo coloca después de preguntar. */
+  const { pipelineId, stageId } = await destinoInicial(db, orgId, preferido, {
+    conmutador: preferido ? false : await conmutadorActivo(db, orgId),
+  })
 
   const ref = await leads.add({
     name: name || 'Sin nombre',

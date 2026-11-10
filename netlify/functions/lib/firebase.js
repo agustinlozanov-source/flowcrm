@@ -128,10 +128,26 @@ async function guardarMensaje(db, orgId, leadId, { role, text, channel = null, a
  * exigiría un índice compuesto en Firestore, y si falta, esto explota en
  * producción justo cuando entra un lead.
  */
-async function destinoInicial(db, orgId, pipelinePreferido = null) {
+async function destinoInicial(db, orgId, pipelinePreferido = null, { conmutador = false } = {}) {
   const orgRef = db.collection('organizations').doc(orgId)
 
   let pipelineId = pipelinePreferido
+
+  /* Con el conmutador encendido y varios embudos, el lead nace SIN embudo a
+   * propósito, y es el agente quien lo coloca después de preguntar.
+   *
+   * Antes siempre se le asignaba uno: el primero que devolviera Firestore,
+   * que no es "el primero que creaste" sino orden de id de documento. Con una
+   * sola cuenta de Facebook y tres embudos, eso es adivinar. Y adivinar aquí
+   * no es neutral: del embudo salen las instrucciones con las que el agente
+   * contesta, así que un lead de bodas podía recibir el guión de otro
+   * negocio. Mejor no saber y preguntar, que saber mal. */
+  if (!pipelineId && conmutador) {
+    const todos = await orgRef.collection('pipelines').limit(2).get()
+    if (todos.size > 1) return { pipelineId: null, stageId: null }
+    pipelineId = todos.empty ? null : todos.docs[0].id
+  }
+
   if (!pipelineId) {
     const pipelines = await orgRef.collection('pipelines').limit(1).get()
     pipelineId = pipelines.empty ? null : pipelines.docs[0].id
@@ -145,6 +161,30 @@ async function destinoInicial(db, orgId, pipelinePreferido = null) {
     .sort((a, b) => a.orden - b.orden)
 
   return { pipelineId, stageId: ordenadas[0]?.id || null }
+}
+
+/** Primera etapa de un embudo, o null. La usan el alta del lead y el
+ *  conmutador, que coloca al lead cuando el agente ya identificó su embudo. */
+async function primeraEtapa(db, orgId, pipelineId) {
+  if (!pipelineId) return null
+  const etapas = await db.collection('organizations').doc(orgId)
+    .collection('pipeline_stages').where('pipelineId', '==', pipelineId).get()
+  const ordenadas = etapas.docs
+    .map(d => ({ id: d.id, orden: d.data().order ?? 0 }))
+    .sort((a, b) => a.orden - b.orden)
+  return ordenadas[0]?.id || null
+}
+
+/** ¿Esta organización deja que el agente pregunte a qué embudo va el lead?
+ *  Nace apagado: encenderlo cambia cómo se contesta el primer mensaje. */
+async function conmutadorActivo(db, orgId) {
+  try {
+    const snap = await db.collection('organizations').doc(orgId)
+      .collection('settings').doc('agent').get()
+    return snap.exists && snap.data()?.conmutador?.activo === true
+  } catch {
+    return false
+  }
 }
 
 /* A qué pipeline pertenece lo que entra por una cuenta.
@@ -174,6 +214,6 @@ async function pipelineDeLaCuenta(db, orgId, cuentaId) {
 }
 
 module.exports = {
-  initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCuenta,
+  initDb, saveAttachments, guardarMensaje, destinoInicial, primeraEtapa, conmutadorActivo, pipelineDeLaCuenta,
   claveTelefono, buscarLeadPorTelefono,
 }

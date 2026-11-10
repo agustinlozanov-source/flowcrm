@@ -60,8 +60,8 @@ export default function PipelineV2() {
    * ahí va. */
   const [editandoPipeline, setEditandoPipeline] = useState(false)
 
-  const guardarPipeline = async ({ name, purpose, exigeOportunidad, stageEdits, deletedIds = [] }) => {
-    await updatePipeline(activePipelineId, { name, purpose, exigeOportunidad: !!exigeOportunidad })
+  const guardarPipeline = async ({ name, purpose, descripcion, exigeOportunidad, stageEdits, deletedIds = [] }) => {
+    await updatePipeline(activePipelineId, { name, purpose, descripcion: descripcion || '', exigeOportunidad: !!exigeOportunidad })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
       await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i })

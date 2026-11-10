@@ -96,6 +96,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
   const [activeTab, setActiveTab] = useState('general')
   const [name, setName] = useState(pipeline?.name || '')
   const [purpose, setPurpose] = useState(pipeline?.purpose || 'adquisicion')
+  const [descripcion, setDescripcion] = useState(pipeline?.descripcion || '')
   const [stageEdits, setStageEdits] = useState(
     stages.map(s => ({
       id: s.id,
@@ -149,6 +150,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       await onSave({
         name: name.trim(),
         purpose,
+        descripcion: descripcion.trim(),
         exigeOportunidad,
         stageEdits,
         deletedIds,
@@ -227,6 +229,17 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
                   onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                   placeholder="Ej: Nuevos clientes, Reactivación..."
                   className="w-full bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-2 text-[13.5px] text-primary placeholder-tertiary outline-none focus:border-primary/40 transition-colors" />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wide text-tertiary">¿Para quién es este embudo?</label>
+                <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
+                  rows={2}
+                  placeholder="Ej: Parejas que se casan y buscan foto y video para su boda"
+                  className="w-full resize-none bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-2 text-[13.5px] text-primary placeholder-tertiary outline-none focus:border-primary/40 transition-colors" />
+                <p className="text-[11px] text-tertiary">
+                  Lo lee el agente cuando una misma cuenta atiende varios embudos, para saber a cuál mandar al lead. El cliente nunca ve este texto.
+                </p>
               </div>
 
               <div className="flex flex-col gap-1.5">

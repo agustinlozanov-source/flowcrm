@@ -76,6 +76,7 @@ function SortableStageRow({ stage, index, total, onChange, onRemove }) {
 export default function NewPipelineModal({ onCreate, onClose }) {
   const [name, setName] = useState('')
   const [purpose, setPurpose] = useState('adquisicion')
+  const [descripcion, setDescripcion] = useState('')
   const [stages, setStages] = useState(DEFAULT_STAGES)
   const [saving, setSaving] = useState(false)
 
@@ -103,7 +104,7 @@ export default function NewPipelineModal({ onCreate, onClose }) {
     if (!name.trim() || stages.some(s => !s.name.trim())) return
     setSaving(true)
     try {
-      await onCreate({ name: name.trim(), purpose, stages })
+      await onCreate({ name: name.trim(), purpose, descripcion: descripcion.trim(), stages })
       onClose()
     } finally {
       setSaving(false)
@@ -141,6 +142,21 @@ export default function NewPipelineModal({ onCreate, onClose }) {
               placeholder="Ej: Nuevos clientes, Reactivación..."
               className="w-full bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-2 text-[13.5px] text-primary placeholder-tertiary outline-none focus:border-primary/40 transition-colors"
             />
+          </div>
+
+          {/* Para quién es */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wide text-tertiary">¿Para quién es este embudo?</label>
+            <textarea
+              value={descripcion}
+              onChange={e => setDescripcion(e.target.value)}
+              rows={2}
+              placeholder="Ej: Parejas que se casan y buscan foto y video para su boda"
+              className="w-full resize-none bg-surface-2 border border-black/[0.08] rounded-[8px] px-3 py-2 text-[13.5px] text-primary placeholder-tertiary outline-none focus:border-primary/40 transition-colors"
+            />
+            <p className="text-[11px] text-tertiary">
+              Lo lee el agente cuando una misma cuenta atiende varios embudos, para saber a cuál mandar al lead. El cliente nunca ve este texto.
+            </p>
           </div>
 
           {/* Propósito */}

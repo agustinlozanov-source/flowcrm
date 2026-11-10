@@ -494,10 +494,10 @@ export function usePipeline() {
    * Un embudo creado desde la ficha de una marca personal nace sabiendo para
    * qué es, que no es lo mismo que crearlo en la organización y asignarlo
    * después. Sin marcaId es de la organización, como todos los de antes. */
-  const createPipeline = async ({ name, purpose, stages: stageList, marcaId = null }) => {
+  const createPipeline = async ({ name, purpose, descripcion = '', stages: stageList, marcaId = null }) => {
     if (!orgId) return
     const pipelineRef = await addDoc(collection(db, 'organizations', orgId, 'pipelines'), {
-      name, purpose: purpose || null,
+      name, purpose: purpose || null, descripcion: descripcion || '',
       ...(marcaId ? { marcaId } : {}),
       handoffBoundDays: 3,
       handoffBoundActive: false,
