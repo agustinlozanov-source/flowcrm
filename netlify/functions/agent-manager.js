@@ -1143,7 +1143,22 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     for (let paso = 0; paso < MAX_PASOS && !parsed; paso++) {
       response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        /* 700 y no 1000, por tiempo y no por costo.
+         *
+         * El modelo escribe a unos 27 ms por token (medido sobre catorce
+         * respuestas en producción: 295 tokens → 7.2 s, 593 → 13.3 s, 723 →
+         * 18.9 s). Con 1000 el tope son ~27 segundos y esta función se corta a
+         * los 26, así que la respuesta más larga posible era justo la que no
+         * se alcanzaba a entregar.
+         *
+         * Pasó de verdad: un lead preguntó qué incluía un paquete, el agente
+         * se puso a recitarlo entero, se fue a 30435 ms y Netlify lo mató con
+         * 504. El texto quedó guardado y nunca salió.
+         *
+         * 700 son ~19 segundos, con siete de margen para arranques en frío.
+         * El prompt ya pide 3-4 oraciones; esto es la red por si se desborda,
+         * y vale más una respuesta cortada que una que no llega. */
+        max_tokens: 700,
         /* El prompt del sistema se arma UNA vez antes del bucle, así que las
          * seis vueltas lo mandan byte a byte igual. Sin caché se cobraba
          * entero seis veces; con el punto de corte aquí, la primera vuelta lo
