@@ -25,6 +25,7 @@ import Analytics from '@/pages/Analytics'
 import ContentStudio from '@/pages/ContentStudio'
 import MarcaPersonal from '@/pages/MarcaPersonal'
 import Goals from '@/pages/Goals'
+import Pipa from '@/pages/Pipa'
 import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="content" element={<ContentStudio />} />
           <Route path="marcas" element={<MarcaPersonal />} />
           <Route path="goals" element={<Goals />} />
+          <Route path="pipa" element={<Pipa />} />
           <Route path="landing" element={<LandingPages />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="team" element={<Team />} />

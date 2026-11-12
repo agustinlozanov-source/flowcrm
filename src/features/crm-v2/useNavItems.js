@@ -39,6 +39,10 @@ const GATES = {
   marcas:         { addon: 'brands' },
   landing:        { moduleId: 'landing', featureFlag: 'landing' },
   metas:          { moduleId: 'goals' },
+  // Extra, igual que Marca Personal: se enciende organizacion por
+  // organizacion desde el Superadmin. El marco de producto no es parte del
+  // CRM que compro un cliente para vender.
+  pipa:           { addon: 'pipa' },
   ajustes:        {},
 }
 

@@ -10,6 +10,11 @@
  */
 export const ADDONS = [
   {
+    id: 'pipa',
+    nombre: 'PIPA · Marco de producto',
+    descripcion: 'Pasa la idea por aquí: cinco fases de propósito a progreso, con el marcador que decide y las órdenes de trabajo por puesto. Termina creando el embudo en el CRM.',
+  },
+  {
     id: 'reporte_ia',
     nombre: 'Reporte de dirección',
     descripcion: 'Un botón en Analítica que lee todos los números de la organización y escribe el reporte: hallazgos por categoría, decisiones para dirección y acciones para quien atiende clientes.',

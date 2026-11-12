@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import {
   BarChart3, MessageSquare, CalendarDays, Users, Package, Sparkles,
   UserCog, Upload, PieChart, Clapperboard, Globe, Target, Megaphone,
-  Settings, PanelLeftClose, PanelLeft, ListChecks,
+  Settings, PanelLeftClose, PanelLeft, ListChecks, Lightbulb,
 } from 'lucide-react'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -35,6 +35,7 @@ export const NAV_GROUPS = [
       { id: 'marcas', label: 'Marca personal', labelKey: 'nav.brands', Icon: Megaphone },
       { id: 'landing', label: 'Landing pages', labelKey: 'nav.landing', Icon: Globe },
       { id: 'metas', label: 'Metas', labelKey: 'nav.goals', Icon: Target },
+      { id: 'pipa', label: 'PIPA', labelKey: 'nav.pipa', Icon: Lightbulb },
       { id: 'ajustes', label: 'Ajustes', labelKey: 'nav.settings', Icon: Settings },
     ],
   },
