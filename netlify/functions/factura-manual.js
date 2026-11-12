@@ -79,6 +79,7 @@ exports.handler = async (event) => {
     if (accion === 'reenviar') return await reenviar(db, datos)
     if (accion === 'cancelar') return await cancelarFactura(db, datos)
     if (accion === 'descargar') return await descargar(db, datos)
+    if (accion === 'buscar-clave') return await buscarClave(datos)
     return responder(400, { error: `Acción desconocida: ${accion}` })
   } catch (e) {
     /* El mensaje del proveedor tal cual: dice qué campo está mal, y esa
@@ -218,6 +219,33 @@ async function cancelarFactura(db, { id, motivo = '02', sustituye = null }) {
     sustituyeA: sustituye || null,
   })
   return responder(200, { ok: true, estado: r?.status || 'cancelada' })
+}
+
+/* ── Buscar en el catálogo del SAT ──────────────────────────────────── */
+
+/* El catálogo de productos y servicios tiene decenas de miles de claves. Una
+ * lista escrita a mano con las que se nos ocurrieron no es un catálogo: es un
+ * techo, y el día que haya que facturar algo que no está obliga a elegir la
+ * más parecida — o sea, a declarar mal.
+ *
+ * Se consulta el del proveedor en vez de copiarlo aquí, porque el SAT lo
+ * actualiza y una copia nuestra envejecería sin que nadie se diera cuenta.
+ *
+ * Si la consulta falla, no se rompe nada: la pantalla deja escribir la clave
+ * a mano igual. Buscar es una ayuda, no un requisito. */
+async function buscarClave({ texto, tipo = 'productos' }) {
+  const q = String(texto || '').trim()
+  if (q.length < 3) return responder(200, { resultados: [] })
+
+  const ruta = tipo === 'unidades' ? 'units' : 'products'
+  try {
+    const r = await facturacion.buscarCatalogo(ruta, q)
+    return responder(200, { resultados: r })
+  } catch (e) {
+    /* 200 con la lista vacía y el motivo: un error aquí no debe teñir de rojo
+     * una pantalla donde lo único que pasó es que la búsqueda no contestó. */
+    return responder(200, { resultados: [], aviso: e.message })
+  }
 }
 
 /* ── Descargar ──────────────────────────────────────────────────────── */

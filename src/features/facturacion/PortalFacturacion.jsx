@@ -18,7 +18,7 @@ import { db, auth } from '@/lib/firebase'
 import {
   REGIMENES, USOS_CFDI, FORMAS_PAGO, METODOS_PAGO,
   CLAVES_SERVICIO, CLAVES_UNIDAD, MONEDAS,
-  rfcValido, normalizarRfc, totalesCfdi,
+  rfcValido, normalizarRfc, totalesCfdi, claveSatValida,
 } from '@/lib/fiscal'
 
 const dinero = (n, moneda = 'MXN') =>
@@ -93,6 +93,8 @@ export default function PortalFacturacion() {
     conceptos.forEach((c, i) => {
       if (!c.descripcion.trim()) p.push(`El concepto ${i + 1} no tiene descripción`)
       if (!(Number(c.precio) > 0)) p.push(`El concepto ${i + 1} no tiene precio`)
+      if (!claveSatValida(c.claveSat)) p.push(`El concepto ${i + 1} no tiene una clave del SAT de ocho dígitos`)
+      if (!String(c.claveUnidad || '').trim()) p.push(`El concepto ${i + 1} no tiene unidad`)
     })
     if (moneda !== 'MXN' && !(Number(tipoCambio) > 0)) p.push('Con moneda extranjera hace falta el tipo de cambio')
     return p
@@ -228,14 +230,18 @@ export default function PortalFacturacion() {
                       )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8 }}>
-                      <div><label style={etiqueta}>Clave del SAT</label>
-                        <select style={campo} value={c.claveSat} onChange={e => editarConcepto(c.id, { claveSat: e.target.value })}>
-                          {CLAVES_SERVICIO.map(k => <option key={k.clave} value={k.clave}>{k.clave} · {k.nombre}</option>)}
-                        </select></div>
+                      <BuscadorClave
+                        valor={c.claveSat}
+                        onElegir={v => editarConcepto(c.id, { claveSat: v })}
+                        atajos={CLAVES_SERVICIO}
+                        estilos={{ etiqueta, campo }}
+                      />
                       <div><label style={etiqueta}>Unidad</label>
-                        <select style={campo} value={c.claveUnidad} onChange={e => editarConcepto(c.id, { claveUnidad: e.target.value })}>
+                        <input style={campo} list="unidades-sat" value={c.claveUnidad}
+                          onChange={e => editarConcepto(c.id, { claveUnidad: e.target.value.toUpperCase() })} />
+                        <datalist id="unidades-sat">
                           {CLAVES_UNIDAD.map(k => <option key={k.clave} value={k.clave}>{k.nombre}</option>)}
-                        </select></div>
+                        </datalist></div>
                       <div><label style={etiqueta}>Cantidad</label>
                         <input style={campo} type="number" min={1} value={c.cantidad}
                           onChange={e => editarConcepto(c.id, { cantidad: Number(e.target.value) || 1 })} /></div>
@@ -385,6 +391,79 @@ export default function PortalFacturacion() {
                 <b>{c.razonSocial}</b> <span style={{ color: '#64748b' }}>{c.rfc} · {c.regimen} · CP {c.cp}</span>
               </div>
             ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* La clave del SAT se escribe o se busca, nunca se elige de una lista
+ * cerrada: el catálogo tiene decenas de miles de entradas y ninguna lista
+ * nuestra las cubre. Los atajos de arriba son eso, atajos. */
+function BuscadorClave({ valor, onElegir, atajos, estilos }) {
+  const [texto, setTexto] = useState('')
+  const [resultados, setResultados] = useState([])
+  const [buscando, setBuscando] = useState(false)
+  const [aviso, setAviso] = useState(null)
+
+  const elegido = atajos.find(a => a.clave === valor)
+  const valida = claveSatValida(valor)
+
+  const buscar = async () => {
+    if (texto.trim().length < 3 || buscando) return
+    setBuscando(true); setAviso(null)
+    try {
+      const r = await llamar({ accion: 'buscar-clave', texto, tipo: 'productos' })
+      setResultados(r.resultados || [])
+      if (r.aviso) setAviso(r.aviso)
+      else if (!r.resultados?.length) setAviso('Sin resultados. Puedes escribir la clave a mano.')
+    } catch (e) {
+      setAviso(`No se pudo buscar: ${e.message}. Escribe la clave a mano.`)
+    } finally {
+      setBuscando(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <label style={estilos.etiqueta}>Clave del SAT</label>
+      <input
+        style={{ ...estilos.campo, borderColor: valida ? 'rgba(255,255,255,.1)' : '#ef4444' }}
+        list="claves-sat" value={valor} inputMode="numeric" maxLength={8}
+        onChange={e => onElegir(e.target.value.replace(/\D/g, ''))}
+        placeholder="8 dígitos"
+      />
+      <datalist id="claves-sat">
+        {atajos.map(k => <option key={k.clave} value={k.clave}>{k.nombre}</option>)}
+      </datalist>
+      <div style={{ fontSize: 11, color: valida ? '#64748b' : '#fca5a5', marginTop: 4, lineHeight: 1.4 }}>
+        {!valida ? 'Una clave del SAT tiene ocho dígitos' : (elegido?.nombre || 'Clave escrita a mano')}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <input
+          style={{ ...estilos.campo, fontSize: 12 }}
+          value={texto} placeholder="Buscar en el catálogo…"
+          onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscar())}
+        />
+        <button type="button" onClick={buscar} disabled={buscando}
+          style={{ background: 'transparent', color: '#cbd5e1', border: '1px solid rgba(255,255,255,.14)', borderRadius: 8, padding: '0 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {buscando ? '…' : 'Buscar'}
+        </button>
+      </div>
+
+      {aviso && <div style={{ fontSize: 11, color: '#fcd34d', marginTop: 5, lineHeight: 1.4 }}>{aviso}</div>}
+
+      {resultados.length > 0 && (
+        <div style={{ marginTop: 6, maxHeight: 180, overflowY: 'auto', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8 }}>
+          {resultados.map(r => (
+            <button key={r.clave} type="button"
+              onClick={() => { onElegir(r.clave); setResultados([]); setTexto('') }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', padding: '7px 10px', fontSize: 12, cursor: 'pointer', lineHeight: 1.4 }}>
+              <b>{r.clave}</b> · {r.nombre}
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -177,6 +177,25 @@ function previsualizar({ conceptos = [], tasaIva = 0.16 }) {
   return { subtotal: r(subtotal), iva: r(iva), total: r(subtotal + iva) }
 }
 
+/* Busca en los catálogos del SAT que publica el proveedor.
+ *
+ * `ruta` es 'products' o 'units'. Devuelve [{ clave, nombre }].
+ *
+ * El nombre del campo cambia según el catálogo y según la versión de la API,
+ * así que se leen varios en orden en vez de confiar en uno: si mañana
+ * renombran `key` a `code`, esto sigue devolviendo algo en lugar de una lista
+ * de «undefined» que se vería como resultados válidos. */
+async function buscarCatalogo(ruta, texto) {
+  const cuerpo = await pedir(`/catalogs/${ruta}?q=${encodeURIComponent(texto)}&limit=25`)
+  const filas = Array.isArray(cuerpo) ? cuerpo : (cuerpo?.data || [])
+  return filas
+    .map(f => ({
+      clave: String(f.key ?? f.code ?? f.id ?? '').trim(),
+      nombre: String(f.description ?? f.name ?? f.label ?? '').trim(),
+    }))
+    .filter(f => f.clave)
+}
+
 /** Se la manda al cliente por correo, con su PDF y su XML adjuntos. */
 async function enviarPorCorreo(facturaId, email) {
   return pedir(`/invoices/${facturaId}/email`, {
@@ -204,5 +223,5 @@ async function cancelar(facturaId, { motivo = '02', sustituye = null } = {}) {
 
 module.exports = {
   emitir, previsualizar, enviarPorCorreo, descargar, cancelar, esPrueba,
-  CLAVE_SERVICIO, CLAVE_UNIDAD,
+  buscarCatalogo, CLAVE_SERVICIO, CLAVE_UNIDAD,
 }

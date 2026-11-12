@@ -51,14 +51,16 @@ export const METODOS_PAGO = [
   { clave: 'PPD', nombre: 'PPD · Pago en parcialidades o diferido' },
 ]
 
-/* Clave de producto o servicio del SAT, POR CONCEPTO.
+/* Atajos, NO el catálogo.
  *
- * Es el campo que separa una herramienta de facturación de verdad de un
- * formulario bonito. Timbrar una consultoría, una capacitación y una
- * licencia con la misma clave es declarar mal, aunque la factura salga y el
- * cliente la pague sin notarlo.
+ * El de productos y servicios del SAT tiene decenas de miles de claves, y
+ * ninguna lista escrita a mano puede cubrirlo. Estas son las que Flow Hub usa
+ * seguido, para no buscarlas cada vez; la clave se puede escribir a mano o
+ * buscar en el catálogo del proveedor, que es el que manda.
  *
- * Es un recorte del catálogo del SAT con lo que Flow Hub factura. */
+ * Cerrar esta lista sería el mismo error que pretende evitar la clave por
+ * concepto: obligaría a elegir «la más parecida» el día que toque facturar
+ * algo que no está, que es declarar mal con otra cara. */
 export const CLAVES_SERVICIO = [
   { clave: '81161700', nombre: 'Servicios de sistemas de información (CRM, software)' },
   { clave: '81112500', nombre: 'Servicios de datos (implementación, migración)' },
@@ -71,7 +73,14 @@ export const CLAVES_SERVICIO = [
   { clave: '84111500', nombre: 'Servicios contables y de auditoría' },
 ]
 
-/* Unidad de medida. E48 es la de los servicios y cubre casi todo lo nuestro. */
+/** Una clave del SAT tiene ocho dígitos. Vale la pena comprobarlo antes de
+ *  gastar un timbre en algo que el proveedor va a rechazar. */
+export function claveSatValida(clave) {
+  return /^\d{8}$/.test(String(clave || '').trim())
+}
+
+/* Unidad de medida. Atajos también: E48 es la de los servicios y cubre casi
+ * todo lo nuestro, pero el catálogo completo tiene miles. */
 export const CLAVES_UNIDAD = [
   { clave: 'E48', nombre: 'Unidad de servicio' },
   { clave: 'ACT', nombre: 'Actividad' },
