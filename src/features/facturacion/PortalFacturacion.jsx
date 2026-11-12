@@ -24,6 +24,19 @@ import {
 const dinero = (n, moneda = 'MXN') =>
   `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda}`
 
+/* El padrón del SAT guarda los nombres sin acentos, así que «MÉNDEZ» contra
+ * «MENDEZ» devuelve «el nombre no pertenece al RFC» — el rechazo más común de
+ * todos, y el que más cuesta adivinar porque el nombre se ve bien. */
+const sinAcentos = (t) =>
+  String(t || '')
+    /* La eñe se protege antes de normalizar. No es una letra acentuada: es
+       otra letra, y el SAT la conserva. Sin esto, MUÑOZ y PEÑA salían como
+       MUNOZ y PENA — rompiendo justo los apellidos que esto venía a salvar. */
+    .replace(/ñ/g, '\u0001').replace(/Ñ/g, '\u0002')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ')
+const tieneAcentos = (t) => sinAcentos(t) !== String(t || '')
+
 const conceptoVacio = () => ({
   id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
   descripcion: '', cantidad: 1, precio: '', claveSat: '81161700', claveUnidad: 'E48', ivaIncluido: false,
@@ -129,7 +142,14 @@ export default function PortalFacturacion() {
       limpiar()
       setVista('emitidas')
     } catch (e) {
-      setError(e.message)
+      /* El mensaje del proveedor es preciso pero no dice qué hacer. Para el
+         rechazo más frecuente se le agrega el qué. */
+      const pista = /nombre del receptor/i.test(e.message)
+        ? ' — Suele ser por acentos: el padrón del SAT los guarda sin ellos. Prueba sin tildes, y si no, copia el nombre tal cual de su Constancia.'
+        : /r[ée]gimen/i.test(e.message)
+          ? ' — El régimen tiene que ser el que el SAT le tiene registrado, no el que parezca correcto.'
+          : ''
+      setError(e.message + pista)
     } finally {
       setTimbrando(false)
     }
@@ -193,7 +213,17 @@ export default function PortalFacturacion() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
                 <div><label style={etiqueta}>Razón social</label>
-                  <input style={campo} value={fiscal.razonSocial} onChange={e => setFiscal(f => ({ ...f, razonSocial: e.target.value }))} placeholder="Como aparece en su Constancia" /></div>
+                  <input style={campo} value={fiscal.razonSocial} onChange={e => setFiscal(f => ({ ...f, razonSocial: e.target.value }))} placeholder="Como aparece en su Constancia" />
+                  {tieneAcentos(fiscal.razonSocial) && (
+                    <div style={{ fontSize: 11.5, color: '#fcd34d', marginTop: 5, lineHeight: 1.5 }}>
+                      El padrón del SAT suele guardar los nombres sin acentos.{' '}
+                      <button type="button"
+                        onClick={() => setFiscal(f => ({ ...f, razonSocial: sinAcentos(f.razonSocial) }))}
+                        style={{ background: 'none', border: 'none', color: '#fcd34d', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit' }}>
+                        Quitarlos
+                      </button>
+                    </div>
+                  )}</div>
                 <div><label style={etiqueta}>RFC</label>
                   <input style={campo} value={fiscal.rfc} onChange={e => setFiscal(f => ({ ...f, rfc: e.target.value.toUpperCase() }))} /></div>
                 <div><label style={etiqueta}>Régimen fiscal</label>
