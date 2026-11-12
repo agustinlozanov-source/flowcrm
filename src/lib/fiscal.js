@@ -36,8 +36,82 @@ export const FORMAS_PAGO = [
   { clave: '28', nombre: 'Tarjeta de débito' },
   { clave: '03', nombre: 'Transferencia electrónica' },
   { clave: '01', nombre: 'Efectivo' },
+  { clave: '02', nombre: 'Cheque nominativo' },
   { clave: '99', nombre: 'Por definir' },
 ]
+
+/* Cómo se paga: de una vez, o en partes.
+ *
+ * PPD no es «a plazos» a secas: obliga a emitir un complemento de pago por
+ * cada abono. Para un trato partido en dos —el clásico 50 % y 50 %— sale más
+ * sencillo y más difícil de olvidar emitir una factura PUE por cada pago
+ * recibido, que es lo que hace casi todo el mundo. */
+export const METODOS_PAGO = [
+  { clave: 'PUE', nombre: 'PUE · Pago en una sola exhibición' },
+  { clave: 'PPD', nombre: 'PPD · Pago en parcialidades o diferido' },
+]
+
+/* Clave de producto o servicio del SAT, POR CONCEPTO.
+ *
+ * Es el campo que separa una herramienta de facturación de verdad de un
+ * formulario bonito. Timbrar una consultoría, una capacitación y una
+ * licencia con la misma clave es declarar mal, aunque la factura salga y el
+ * cliente la pague sin notarlo.
+ *
+ * Es un recorte del catálogo del SAT con lo que Flow Hub factura. */
+export const CLAVES_SERVICIO = [
+  { clave: '81161700', nombre: 'Servicios de sistemas de información (CRM, software)' },
+  { clave: '81112500', nombre: 'Servicios de datos (implementación, migración)' },
+  { clave: '81111500', nombre: 'Desarrollo de software' },
+  { clave: '80101500', nombre: 'Consultoría de negocios y administración' },
+  { clave: '80101700', nombre: 'Asesoría en dirección y planeación estratégica' },
+  { clave: '86101700', nombre: 'Capacitación y formación de personal' },
+  { clave: '82101500', nombre: 'Publicidad y campañas' },
+  { clave: '83121700', nombre: 'Servicios de internet y hospedaje' },
+  { clave: '84111500', nombre: 'Servicios contables y de auditoría' },
+]
+
+/* Unidad de medida. E48 es la de los servicios y cubre casi todo lo nuestro. */
+export const CLAVES_UNIDAD = [
+  { clave: 'E48', nombre: 'Unidad de servicio' },
+  { clave: 'ACT', nombre: 'Actividad' },
+  { clave: 'HUR', nombre: 'Hora' },
+  { clave: 'MON', nombre: 'Mes' },
+  { clave: 'E54', nombre: 'Licencia' },
+]
+
+export const MONEDAS = [
+  { clave: 'MXN', nombre: 'Peso mexicano' },
+  { clave: 'USD', nombre: 'Dólar' },
+  { clave: 'EUR', nombre: 'Euro' },
+]
+
+/* Los mismos totales que va a calcular el SAT, para poder verlos antes.
+ *
+ * Timbrar no se deshace: cancelar un CFDI real exige que el receptor acepte.
+ * La única oportunidad de descubrir que el total no era el que se acordó es
+ * antes de mandarlo. Esta función es gemela de la que vive en la función de
+ * Netlify, a propósito: la pantalla no puede depender de una ida al servidor
+ * para enseñar una suma. */
+export function totalesCfdi(conceptos = [], tasaIva = 0.16) {
+  let subtotal = 0
+  let iva = 0
+  for (const c of conceptos) {
+    const precio = Number(c.precio) || 0
+    const cantidad = Number(c.cantidad) > 0 ? Number(c.cantidad) : 1
+    const bruto = precio * cantidad
+    if (c.ivaIncluido === true) {
+      const base = bruto / (1 + tasaIva)
+      subtotal += base
+      iva += bruto - base
+    } else {
+      subtotal += bruto
+      iva += bruto * tasaIva
+    }
+  }
+  const r = n => Math.round(n * 100) / 100
+  return { subtotal: r(subtotal), iva: r(iva), total: r(subtotal + iva) }
+}
 
 /* El RFC tiene dos formas: 12 caracteres para empresa y 13 para persona.
  * Validarlo aquí evita gastar un timbre en algo que el SAT va a rechazar —

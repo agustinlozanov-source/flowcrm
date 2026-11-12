@@ -149,6 +149,32 @@ service cloud.firestore {
       }
     }
 
+    // ── Facturación manual ────────────────────────────────────────────────
+    //
+    // Las facturas que Flow Hub emite por fuera de Stripe, y el catálogo de
+    // receptores. Llevan RFC, razón social y domicilio fiscal de clientes
+    // reales: datos de un tercero que nos los confió para facturarle.
+    //
+    // Solo superadmin, y solo lectura desde el navegador. Timbrar, cancelar
+    // y reenviar pasan por netlify/functions/factura-manual.js, que vuelve a
+    // comprobar el token del lado del servidor. Escribir estos documentos a
+    // mano desde el cliente dejaría registros que no corresponden a ningún
+    // CFDI real, y el panel diría una cosa y el SAT otra.
+    //
+    // ⚠️ Para que esto SIRVA, las dos colecciones están excluidas del comodín
+    // de abajo. Firestore concede si CUALQUIER regla lo permite: una regla
+    // restrictiva aquí no le quita nada a una permisiva allá. Si se borran de
+    // esa lista, vuelven a quedar abiertas sin que nada falle ni avise.
+
+    match /facturas_manuales/{facturaId} {
+      allow read: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+      allow write: if false;
+    }
+
+    match /facturacion_clientes/{clienteId} {
+      allow read, write: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+    }
+
     // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
     //
     //   implementations · flowhub_implementations · plans · resellers
@@ -157,7 +183,10 @@ service cloud.firestore {
     //   flowhub_config · pipeline_configs · config · _global_config
     //   _zernio_account_map · _zernio_pending_connections
     match /{coleccion}/{documento=**} {
-      allow read, write: if !(coleccion in ['users', 'organizations', 'company_profiles']);
+      allow read, write: if !(coleccion in [
+        'users', 'organizations', 'company_profiles',
+        'facturas_manuales', 'facturacion_clientes'
+      ]);
     }
   }
 }

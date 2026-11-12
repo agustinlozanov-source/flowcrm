@@ -11,6 +11,7 @@ import clsx from 'clsx'
 import { Target, MessageSquare, Bot, Clapperboard, Globe, BarChart, Gift, Zap, Building2, Handshake, Package, Key, ClipboardList, Save, Download, CreditCard, Hourglass, LogOut, Smartphone, Check, Calendar, Ticket, ChevronDown, ChevronRight, Edit2, Trash2, X, Plus, Settings, Users, ShieldCheck, AlertCircle, RefreshCw, Crown, Lock, TrendingUp, TrendingDown, FileText, Upload, ExternalLink, Search, FolderOpen, BookOpen, Shield, FileCheck, Link, Mail } from 'lucide-react'
 import ImplementationPortal from './ImplementationPortal'
 import SupportTickets from './SupportTickets'
+import PortalFacturacion from '@/features/facturacion/PortalFacturacion'
 import OnboardingResponses from './OnboardingResponses'
 import PipelineBuilder from './PipelineBuilder'
 import CompanyProfilesPanel from './CompanyProfilesPanel'
@@ -5398,13 +5399,14 @@ export default function Superadmin() {
     { id: 'distribuidores', icon: <Users size={16} />, label: 'Distribuidores' },
     { id: 'distribuidor_config', icon: <Settings size={16} />, label: 'Config. Distribuidores' },
     { id: 'billing', icon: <CreditCard size={16} />, label: 'Cobranza' },
+    { id: 'facturacion', icon: <FileText size={16} />, label: 'Facturación' },
     { id: 'sa_analytics', icon: <BarChart size={16} />, label: 'Analíticas' },
     { id: 'channels', icon: <Smartphone size={16} />, label: 'Canales' },
     { id: 'feature_flags', icon: <Zap size={16} />, label: 'Feature Flags' },
     { id: 'documents', icon: <BookOpen size={16} />, label: 'Documentos' },
   ]
 
-  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', company_profiles: 'Perfiles de empresa', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones', sa_analytics: 'Analíticas de Orgs' }
+  const TITLES = { dashboard: 'Dashboard', orgs: 'Organizaciones', resellers: 'Resellers', plans: 'Diseño de planes', apis: 'Configuración de APIs', quoter: 'Cotizador', implementations: 'Implementaciones', support: 'Soporte técnico', onboarding: 'Formularios de bienvenida', diag_config: 'Diagnóstico — Configuración', diag_resp: 'Diagnóstico — Respuestas', company_profiles: 'Perfiles de empresa', pipelines: 'Pipeline Builder', distribuidores: 'Solicitudes de Distribuidores', distribuidor_config: 'Configuración Global de Distribuidores', channels: 'Canales — Conexiones', feature_flags: 'Feature Flags', documents: 'Biblioteca de Documentos', billing: 'Cobranza y Suscripciones', facturacion: 'Facturación manual', sa_analytics: 'Analíticas de Orgs' }
 
   if (!authed) {
     return (
@@ -5474,6 +5476,7 @@ export default function Superadmin() {
           {activeTab === 'distribuidor_config' && <DistribuidorConfig />}
           {activeTab === 'channels' && <ChannelsPanel orgs={orgs} />}
           {activeTab === 'billing' && <BillingPanel orgs={orgs} />}
+          {activeTab === 'facturacion' && <PortalFacturacion />}
           {activeTab === 'sa_analytics' && <AnalyticsPanel orgs={orgs} />}
           {activeTab === 'feature_flags' && <FeatureFlags />}
           {activeTab === 'documents' && <DocumentsLibrary />}
