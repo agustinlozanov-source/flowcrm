@@ -655,7 +655,7 @@ export default function Trafficker() {
   useEffect(() => {
     if (!orgId) return
     llamar({ accion: 'cuentas', orgId })
-      .then(r => setCuentas(r.cuentas || []))
+      .then(r => { setCuentas(r.cuentas || []); if (r.aviso) setCuentasError(r.aviso) })
       .catch(e => setCuentasError(e.message))
   }, [orgId])
 

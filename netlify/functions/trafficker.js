@@ -81,8 +81,16 @@ async function cuentas(db, orgId) {
     console.error('[trafficker] no se pudo completar el webhook:', e.message)
   }
 
-  const lista = await listarCuentas(profileId)
-  return responder(200, { cuentas: lista })
+  const { cuentas: lista, descartadas, camposVistos } = await listarCuentas(profileId)
+
+  /* El aviso solo cuando el filtro dejó la lista vacía habiendo cuentas: ahí
+   * es cuando la pantalla mentiría diciendo que no hay nada conectado. */
+  const aviso = !lista.length && descartadas
+    ? `Zernio devolvió ${descartadas} cuenta(s) que no son de esta organización y se descartaron. ` +
+      `Campos que trajo: ${camposVistos.join(', ') || 'ninguno'}.`
+    : null
+
+  return responder(200, { cuentas: lista, aviso })
 }
 
 /* ── Publicar ───────────────────────────────────────────────────────── */

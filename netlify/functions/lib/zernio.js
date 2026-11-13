@@ -231,16 +231,62 @@ async function cuentaDeCanal(db, orgId, platform) {
  * porque el cliente puede haber desconectado la página desde Facebook, y de
  * ese lado nadie nos avisa hasta que falla un post. */
 async function listarCuentas(profileId, platforms = 'facebook,instagram') {
+  if (!profileId) throw new Error('Sin perfil de Zernio no se pueden listar las cuentas')
+
   const p = new URLSearchParams({ profileId, platforms, status: 'connected' })
   const r = await zernioFetch(`/accounts?${p}`)
   const filas = Array.isArray(r) ? r : (r.accounts || r.data || [])
-  return filas.map(a => ({
-    id: a._id || a.id,
-    platform: a.platform,
-    nombre: a.displayName || a.name || a.username || '',
-    usuario: a.username || '',
-    foto: a.profileImageUrl || a.avatar || null,
-  })).filter(a => a.id)
+
+  /* El perfil al que pertenece la cuenta, con los nombres que puede traer.
+   * Devuelve null cuando la cuenta no lo dice. */
+  const perfilDe = (a) => {
+    const v = a.profileId ?? a.profile?._id ?? a.profile?.id ?? a.profile
+    return typeof v === 'string' && v ? v : null
+  }
+
+  /* Se vuelve a filtrar acá, aunque ya se lo pedimos a Zernio.
+   *
+   * Una sola llave de API atiende a TODAS las organizaciones, así que el
+   * filtro por perfil es la frontera entre un cliente y otro. Confiar en que
+   * el otro lado la respete significa que un cambio allá —o un parámetro mal
+   * escrito acá— le enseña a un cliente las páginas de otro, y le deja
+   * publicar en ellas. Una cuenta que no diga de qué perfil es se descarta:
+   * en una frontera, no saber tiene que costar lo mismo que no pertenecer.
+   *
+   * Si esto descarta todo, es que el campo se llama de otra forma. Se deja
+   * dicho en el registro en vez de devolver una lista vacía en silencio. */
+  const ajenas = filas.filter(a => perfilDe(a) !== profileId)
+  if (ajenas.length) {
+    console.warn(
+      `[zernio] ${ajenas.length} de ${filas.length} cuentas no son del perfil ${profileId} y se descartaron. ` +
+      `Perfiles vistos: ${[...new Set(ajenas.map(perfilDe))].join(', ') || 'ninguno declarado'}. ` +
+      `Campos de la primera: ${Object.keys(filas[0] || {}).join(', ')}`
+    )
+  }
+
+  const cuentas = filas
+    .filter(a => perfilDe(a) === profileId)
+    .map(a => ({
+      id: a._id || a.id,
+      platform: a.platform,
+      nombre: a.displayName || a.name || a.username || '',
+      usuario: a.username || '',
+      foto: a.profileImageUrl || a.avatar || null,
+    }))
+    .filter(a => a.id)
+
+  /* Se devuelve también lo que se descartó.
+   *
+   * Si el filtro deja la lista en cero, la pantalla se ve igual que si el
+   * cliente no hubiera conectado nada, y son dos cosas muy distintas: una se
+   * arregla conectando una red y la otra es un error nuestro. Sin esto, la
+   * diferencia solo existe en los registros de Netlify, donde nadie la va a
+   * ir a buscar. */
+  return {
+    cuentas,
+    descartadas: ajenas.length,
+    camposVistos: Object.keys(filas[0] || {}),
+  }
 }
 
 /* Crea el post. Nunca publica dentro de esta llamada.
