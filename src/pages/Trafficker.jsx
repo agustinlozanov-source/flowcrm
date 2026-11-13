@@ -17,7 +17,7 @@ import {
   Link2, Copy, ExternalLink, BarChart3, Trash2, AlertTriangle, Users,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
-import { usePosts, useSubida, llamar } from '@/features/trafficker/useTrafficker'
+import { usePosts, useSubida, useCanales, llamar } from '@/features/trafficker/useTrafficker'
 import {
   PLATAFORMAS, DESTINOS, ESTADOS, TEXTO_POR_OMISION,
   generarCodigo, ligaDeDestino, textoDeWhatsapp, problemasDelPost,
@@ -66,14 +66,22 @@ function Aviso({ tono = 'ambar', children }) {
 
 /* ── Redactor ───────────────────────────────────────────────────────── */
 
-function Redactor({ orgId, cuentas, onVolver, onListo }) {
+function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
   const [contenido, setContenido] = useState('')
   const [media, setMedia] = useState([])
   const [elegidas, setElegidas] = useState({})       // plataforma → { cuentaId, formato }
   const [primerComentario, setPrimerComentario] = useState('')
   const [destino, setDestino] = useState('whatsapp')
-  const [numero, setNumero] = useState('')
+  // Viene puesto con el número que la organización ya tiene conectado. Se
+  // puede cambiar: a veces el post manda a otro teléfono a propósito.
+  const [numero, setNumero] = useState(numeroWhatsapp || '')
   const [paginaId, setPaginaId] = useState('')
+
+  /* El usuario de la página conectada, para no pedirlo. Va en un efecto
+   * porque las cuentas llegan de una llamada y pueden tardar más que el
+   * primer dibujo de la pantalla. */
+  const usuarioFb = cuentas.find(c => c.platform === 'facebook')?.usuario || ''
+  useEffect(() => { if (usuarioFb && !paginaId) setPaginaId(usuarioFb) }, [usuarioFb])
   const [url, setUrl] = useState('')
   const [saludo, setSaludo] = useState(TEXTO_POR_OMISION)
   const [campana, setCampana] = useState('')
@@ -330,6 +338,12 @@ function Redactor({ orgId, cuentas, onVolver, onListo }) {
 
         {destinoElegido?.pide === 'numero' && (
           <div className="flex flex-col gap-2">
+            {!numeroWhatsapp && (
+              <Aviso>
+                Esta organización no tiene WhatsApp conectado, así que el número hay que
+                escribirlo a mano. Conectándolo en <strong>Ajustes → Canales</strong> viene solo.
+              </Aviso>
+            )}
             <input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Número con lada, por ejemplo +52 868 123 4567" className={claseCampo} />
             <input value={saludo} onChange={e => setSaludo(e.target.value)} placeholder={TEXTO_POR_OMISION} className={claseCampo} />
             <p className="text-[11.5px] text-tertiary">
@@ -614,6 +628,7 @@ export default function Trafficker() {
   const orgId = org?.id
 
   const { posts, cargando, error } = usePosts(orgId)
+  const { numeroWhatsapp } = useCanales(orgId)
   const [vista, setVista] = useState('lista')
   const [abierto, setAbierto] = useState(null)
   const [cuentas, setCuentas] = useState([])
@@ -633,6 +648,7 @@ export default function Trafficker() {
       <Redactor
         orgId={orgId}
         cuentas={cuentas}
+        numeroWhatsapp={numeroWhatsapp}
         onVolver={() => setVista('lista')}
         onListo={(id) => { setAbierto(id); setVista('ficha') }}
       />

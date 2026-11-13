@@ -8,7 +8,7 @@
  * involucra la llave de Zernio, que no puede vivir en el navegador.
  */
 import { useEffect, useState, useCallback } from 'react'
-import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore'
+import { collection, doc, onSnapshot, orderBy, query, limit } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage, auth } from '@/lib/firebase'
 
@@ -39,6 +39,31 @@ export function usePosts(orgId) {
   }, [orgId])
 
   return { posts, cargando, error }
+}
+
+/* Los canales que la organización ya tiene conectados.
+ *
+ * De acá sale el número de WhatsApp al que va a mandar la liga. Se lee en vez
+ * de pedirlo: la organización lo conectó en Ajustes y el webhook lo guardó
+ * ahí mismo, así que teclearlo otra vez es pedir un dato que el sistema ya
+ * tiene — y una cifra de más o de menos manda a la gente a un número que no
+ * existe, sin que nada falle. */
+export function useCanales(orgId) {
+  const [canales, setCanales] = useState({})
+
+  useEffect(() => {
+    if (!orgId) return
+    return onSnapshot(
+      doc(db, 'organizations', orgId, 'settings', 'integrations'),
+      snap => setCanales(snap.exists() ? snap.data() : {}),
+      () => setCanales({}),
+    )
+  }, [orgId])
+
+  return {
+    canales,
+    numeroWhatsapp: canales.whatsapp?.connected ? (canales.whatsapp.assignedNumber || '') : '',
+  }
 }
 
 /* Llama a la función, con el token de sesión en la cabecera.
