@@ -11,6 +11,14 @@ const WEBHOOK_EVENTS = [
   'account.disconnected',
   'whatsapp.number.activated',
   'message.received',
+  /* Los de Trafficker. ensureWebhook() completa los que falten la próxima vez
+   * que una org conecte un canal o publique, así que agregarlos aquí alcanza
+   * para las que ya estaban. */
+  'post.published',
+  'post.failed',
+  'post.partial',
+  'comment.received',
+  'referral.received',
 ]
 
 async function zernioFetch(path, options = {}) {
@@ -192,8 +200,84 @@ async function sendReply(conversationId, accountId, text, resources = []) {
   return sent
 }
 
+/* ── Cuál cuenta de Zernio es la de cada canal ──────────────────────── */
+
+/* La organización guarda `zernioAccountId`, uno solo, y lo pisa el último
+ * canal que se conectó. Mientras hubo solo WhatsApp dio igual; con Facebook e
+ * Instagram conectados, ese campo ya no dice de quién es.
+ *
+ * El documento de integraciones sí los tiene separados desde siempre
+ * (`{ whatsapp: { accountId }, facebook: { accountId } }`), así que se lee de
+ * ahí y el campo viejo queda como respaldo para las orgs que se conectaron
+ * antes de que lo guardáramos por canal. Sin migración: lo que ya está
+ * escrito sigue sirviendo. */
+async function cuentaDeCanal(db, orgId, platform) {
+  const snap = await db
+    .collection('organizations').doc(orgId)
+    .collection('settings').doc('integrations').get()
+
+  const canal = (snap.data() || {})[platform]
+  if (canal?.accountId) return canal.accountId
+
+  const org = (await db.collection('organizations').doc(orgId).get()).data() || {}
+  return org.zernioAccountId || null
+}
+
+/* ── Publicar ───────────────────────────────────────────────────────── */
+
+/* Las cuentas que la organización tiene conectadas y sanas.
+ *
+ * Se piden a Zernio en vez de leerlas de nuestro documento de integraciones
+ * porque el cliente puede haber desconectado la página desde Facebook, y de
+ * ese lado nadie nos avisa hasta que falla un post. */
+async function listarCuentas(profileId, platforms = 'facebook,instagram') {
+  const p = new URLSearchParams({ profileId, platforms, status: 'connected' })
+  const r = await zernioFetch(`/accounts?${p}`)
+  const filas = Array.isArray(r) ? r : (r.accounts || r.data || [])
+  return filas.map(a => ({
+    id: a._id || a.id,
+    platform: a.platform,
+    nombre: a.displayName || a.name || a.username || '',
+    usuario: a.username || '',
+    foto: a.profileImageUrl || a.avatar || null,
+  })).filter(a => a.id)
+}
+
+/* Crea el post. Nunca publica dentro de esta llamada.
+ *
+ * `publishNow` de Zernio publica síncrono, y un video a Facebook tarda más
+ * que los 26 segundos que vive una función de Netlify: ahí se caería justo el
+ * contenido que más importa. El post se programa y el resultado llega por
+ * webhook.
+ *
+ * La clave de idempotencia la pone quien llama y la reusa al reintentar: si
+ * la red se corta con el post ya creado, el reintento devuelve el mismo en
+ * vez de publicar dos veces. Zernio la respeta 24 horas. */
+async function crearPost(cuerpo, claveIdempotencia) {
+  return zernioFetch('/posts', {
+    method: 'POST',
+    body: JSON.stringify(cuerpo),
+    headers: claveIdempotencia ? { 'Idempotency-Key': claveIdempotencia } : {},
+  })
+}
+
+async function cancelarPost(postId) {
+  return zernioFetch(`/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' })
+}
+
+/* Los números del post: alcance, interacciones, clics.
+ *
+ * Vienen vacíos o en ceros las primeras horas, porque Meta los publica con
+ * retraso. Quien muestre esto tiene que decirlo; un cero sin explicación se
+ * lee como que el post no funcionó. */
+async function analiticasDePost(zernioPostId) {
+  const p = new URLSearchParams({ postId: zernioPostId })
+  return zernioFetch(`/analytics?${p}`)
+}
+
 module.exports = {
   initDb, zernioFetch, appUrl, sendMessage, sendReply,
   ensureProfile, ensureWebhook, verifyWebhookSignature,
+  cuentaDeCanal, listarCuentas, crearPost, cancelarPost, analiticasDePost,
   WEBHOOK_EVENTS,
 }

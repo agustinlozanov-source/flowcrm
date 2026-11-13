@@ -175,6 +175,21 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.token.get('superadmin', false) == true;
     }
 
+    // ── Referrals de Trafficker ───────────────────────────────────────────
+    //
+    // Guarda de qué post viene alguien que le dio clic a una liga m.me, hasta
+    // que escribe y se le puede atribuir el lead. Solo lo toca el webhook, que
+    // entra con el SDK de administrador y no pasa por estas reglas.
+    //
+    // Cerrado del lado del cliente porque es escribible por diseño: dejarlo
+    // abierto dejaría que cualquiera inventara referrals y le adjudicara leads
+    // al post que quisiera. Va también en la lista de exclusión de abajo, sin
+    // la cual el comodín lo volvería a abrir.
+
+    match /zernio_referrals/{conversacionId} {
+      allow read, write: if false;
+    }
+
     // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
     //
     //   implementations · flowhub_implementations · plans · resellers
@@ -185,7 +200,7 @@ service cloud.firestore {
     match /{coleccion}/{documento=**} {
       allow read, write: if !(coleccion in [
         'users', 'organizations', 'company_profiles',
-        'facturas_manuales', 'facturacion_clientes'
+        'facturas_manuales', 'facturacion_clientes', 'zernio_referrals'
       ]);
     }
   }

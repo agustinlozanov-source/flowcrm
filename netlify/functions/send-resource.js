@@ -2,7 +2,7 @@
 // a mano desde el Inbox. Para los casos en que el agente ya respondió pero
 // no llegó a adjuntarlo.
 const { initDb, saveAttachments } = require('./lib/firebase')
-const { sendReply } = require('./lib/zernio')
+const { sendReply, cuentaDeCanal } = require('./lib/zernio')
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' }
@@ -38,14 +38,14 @@ exports.handler = async (event) => {
     const lead = leadSnap.data()
 
     const channel = lead.lastMessageChannel || 'whatsapp'
-    const org = (await orgRef.get()).data() || {}
+    const cuentaId = await cuentaDeCanal(db, orgId, channel)
     const conversationId = lead.channelIds?.[channel]
-    if (!org.zernioAccountId || !conversationId) {
+    if (!cuentaId || !conversationId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Esta conversación no tiene canal de Zernio' }) }
     }
 
     // El texto es opcional: sin él va solo el adjunto.
-    const sent = await sendReply(conversationId, org.zernioAccountId, text || null, [resource])
+    const sent = await sendReply(conversationId, cuentaId, text || null, [resource])
     if (!sent.length) {
       return { statusCode: 502, headers, body: JSON.stringify({ error: 'Zernio no aceptó el archivo' }) }
     }

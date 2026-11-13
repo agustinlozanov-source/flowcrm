@@ -5,6 +5,7 @@ const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCue
         claveTelefono, buscarLeadPorTelefono } = require('./lib/firebase')
 const { reactivarSiVolvio } = require('./lib/reactivar')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
+const atribucion = require('./lib/atribucion')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
 const profileIdOf = (p) => p.profileId || p.account?.profileId || p.profile?._id || null
@@ -182,6 +183,27 @@ async function handleMessageReceived(db, payload) {
   await touchLead(db, orgId, lead.id, { text: texto, channel, fromLead: true })
   await reactivarSiVolvio(db, orgId, lead)
 
+  /* De qué post vino, si vino de uno.
+   *
+   * Solo para quien todavía no tiene origen: una vez atribuido, lo que
+   * escriba después no lo cambia. Y va dentro de un try porque esto es
+   * información de marketing — si falla, el lead entra igual y el agente
+   * contesta igual. Perder la atribución duele; perder el mensaje, mucho más.
+   */
+  if (!lead.origenPostId) {
+    const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(lead.id)
+    try {
+      const pendiente = await db.collection('zernio_referrals').doc(conv.id).get()
+      const listo = pendiente.exists
+        ? await atribucion.porRef(db, orgId, leadRef, lead, pendiente.data().ref)
+        : false
+      if (pendiente.exists) await pendiente.ref.delete()
+      if (!listo) await atribucion.porTexto(db, orgId, leadRef, lead, text)
+    } catch (e) {
+      console.error('[zernio-webhook] no se pudo atribuir el lead:', e.message)
+    }
+  }
+
   // Una foto o un audio entran al hilo, pero el agente no tiene qué leer.
   if (esAdjunto) {
     console.log(`[zernio-webhook] lead ${lead.id} mandó un adjunto — guardado, sin respuesta automática`)
@@ -322,6 +344,53 @@ exports.handler = async (event) => {
         console.log(`[zernio-webhook] número ${phone} activado para org ${orgId}`)
         break
       }
+      /* ── Trafficker ──────────────────────────────────────────────── */
+
+      case 'post.published':
+      case 'post.partial':
+      case 'post.failed': {
+        const corto = payload.event.split('.')[1]
+        await atribucion.guardarResultado(db, orgId, payload.post || {}, corto)
+        break
+      }
+
+      /* El referral llega cuando alguien le da al botón de mensaje de una liga
+       * m.me o ig.me, y trae el `ref` tal cual lo pusimos en el post.
+       *
+       * Puede llegar ANTES que el primer mensaje, cuando el lead todavía no
+       * existe. Por eso, si no hay a quién atribuirle, se deja guardado contra
+       * la conversación y el mensaje que venga después lo recoge. */
+      case 'referral.received': {
+        const ref = payload.referral?.ref
+        const convId = payload.conversation?.id
+        if (!ref || !convId) break
+
+        const canal = platformOf(payload)
+        const leads = db.collection('organizations').doc(orgId).collection('leads')
+        const ya = await leads.where(`channelIds.${canal}`, '==', convId).limit(1).get()
+
+        if (!ya.empty) {
+          const d = ya.docs[0]
+          await atribucion.porRef(db, orgId, d.ref, d.data(), ref)
+        } else {
+          await db.collection('zernio_referrals').doc(convId).set({
+            ref, orgId, canal, recibidoEn: admin.firestore.FieldValue.serverTimestamp(),
+          })
+          console.log(`[zernio-webhook] referral ${ref} guardado hasta que escriba`)
+        }
+        break
+      }
+
+      /* Un comentario en el post. No crea lead —quien comenta no deja
+       * teléfono— pero sí cuenta, que es señal de que el post movió algo. */
+      case 'comment.received': {
+        const post = await atribucion.postPorIdDePlataforma(db, orgId, payload.post?.platformPostId)
+        if (post) {
+          await post.ref.update({ comentarios: admin.firestore.FieldValue.increment(1) })
+        }
+        break
+      }
+
       default:
         console.log('[zernio-webhook] evento ignorado:', payload.event)
     }

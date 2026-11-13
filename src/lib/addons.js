@@ -15,6 +15,11 @@ export const ADDONS = [
     descripcion: 'Pasa la idea por aquí: cinco fases de propósito a progreso, con el marcador que decide y las órdenes de trabajo por puesto. Termina creando el embudo en el CRM.',
   },
   {
+    id: 'trafficker',
+    nombre: 'Trafficker · Publicar y medir',
+    descripcion: 'Publica a Facebook e Instagram desde el CRM, con la liga armada y un código adentro. Cada post dice cuántos leads trajo, porque esos leads entran al CRM con el post anotado.',
+  },
+  {
     id: 'reporte_ia',
     nombre: 'Reporte de dirección',
     descripcion: 'Un botón en Analítica que lee todos los números de la organización y escribe el reporte: hallazgos por categoría, decisiones para dirección y acciones para quien atiende clientes.',

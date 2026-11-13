@@ -17,6 +17,7 @@ export const ROUTES = {
   landing: '/landing',
   metas: '/goals',
   pipa: '/pipa',
+  trafficker: '/trafficker',
   ajustes: '/settings',
 }
 

@@ -43,6 +43,9 @@ const GATES = {
   // organizacion desde el Superadmin. El marco de producto no es parte del
   // CRM que compro un cliente para vender.
   pipa:           { addon: 'pipa' },
+  // Extra tambien: publicar a las redes del cliente no es parte del CRM que
+  // compro para vender, y se enciende organizacion por organizacion.
+  trafficker:     { addon: 'trafficker' },
   ajustes:        {},
 }
 

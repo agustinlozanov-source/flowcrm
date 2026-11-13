@@ -1,5 +1,5 @@
 const admin = require('firebase-admin')
-const { initDb, sendMessage: sendViaZernio } = require('./lib/zernio')
+const { initDb, sendMessage: sendViaZernio, cuentaDeCanal } = require('./lib/zernio')
 
 
 exports.handler = async (event) => {
@@ -22,11 +22,14 @@ exports.handler = async (event) => {
 
     // Canales conectados por Zernio: el channelId del lead es el id de la
     // conversación en Zernio, y la cuenta está en la org.
-    const org = (await db.collection('organizations').doc(orgId).get()).data() || {}
-    if (org.zernioAccountId && lead.channelIds?.[channel]) {
+    /* La cuenta del CANAL, no la última que se conectó: con Facebook e
+     * Instagram conectados, el campo suelto de la organización ya no dice de
+     * quién es. */
+    const cuentaId = await cuentaDeCanal(db, orgId, channel)
+    if (cuentaId && lead.channelIds?.[channel]) {
       // A propósito sin try/catch: si no sale, no queremos guardar el mensaje
       // como enviado. Antes se tragaba el error y el Inbox mentía.
-      await sendViaZernio(lead.channelIds[channel], org.zernioAccountId, text)
+      await sendViaZernio(lead.channelIds[channel], cuentaId, text)
     } else if (channelUserId && channel !== 'web') {
       let url, body, token
 

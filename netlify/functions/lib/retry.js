@@ -1,7 +1,7 @@
 // Reintento de la respuesta del agente sobre una conversación colgada.
 // Compartido por el botón individual del Inbox y por el reintento masivo.
 const admin = require('firebase-admin')
-const { appUrl, sendReply } = require('./zernio')
+const { appUrl, sendReply, cuentaDeCanal } = require('./zernio')
 const { saveAttachments } = require('./firebase')
 
 /* Qué quedó colgando en esta conversación.
@@ -51,10 +51,10 @@ async function retryLead(db, orgId, leadId) {
   const message = pendiente.texto
 
   const channel = lead.lastMessageChannel || 'whatsapp'
-  const org = (await db.collection('organizations').doc(orgId).get()).data() || {}
+  const cuentaId = await cuentaDeCanal(db, orgId, channel)
   const conversationId = lead.channelIds?.[channel]
   // Se verifica ANTES de gastar una llamada al modelo.
-  if (!org.zernioAccountId || !conversationId) {
+  if (!cuentaId || !conversationId) {
     throw new Error('Esta conversación no tiene canal de Zernio para responder')
   }
 
@@ -72,7 +72,7 @@ async function retryLead(db, orgId, leadId) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.response) throw new Error(data.error || 'El agente no pudo responder')
 
-  const sent = await sendReply(conversationId, org.zernioAccountId, data.response, data.shareResources)
+  const sent = await sendReply(conversationId, cuentaId, data.response, data.shareResources)
 
   if (data.mensajeId) {
     await leadRef.collection('conversations').doc(data.mensajeId)
