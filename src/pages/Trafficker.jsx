@@ -22,7 +22,7 @@ import {
   PLATAFORMAS, DESTINOS, ESTADOS, TEXTO_POR_OMISION,
   generarCodigo, ligaDeDestino, textoDeWhatsapp, problemasDelPost,
   tagsDePost, cuandoSale, contentTypeDeFormato, nombreEstado, plataforma,
-  textoParaRed, redesSinLiga,
+  textoParaRed, redesSinLiga, mismoNumero,
 } from '@/lib/trafficker'
 
 /* ── Piezas chicas ──────────────────────────────────────────────────── */
@@ -349,6 +349,24 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
             <p className="text-[11.5px] text-tertiary">
               Le va a llegar escrito: «{textoDeWhatsapp(saludo, codigo)}»
             </p>
+
+            {/* El aviso que decide si este post sirve de algo para el CRM. */}
+            {numero.trim() && numeroWhatsapp && !mismoNumero(numero, numeroWhatsapp) && (
+              <Aviso tono="rojo">
+                Ese no es el WhatsApp que tiene conectado la organización. Los mensajes van
+                a llegar a ese teléfono y nada más: <strong>no se va a crear el lead en el CRM,
+                el agente no va a contestar, y este post va a quedar en cero leads para
+                siempre.</strong> Sirve si lo que quieres es que te escriban al celular; para
+                medirlo, tiene que ser el número conectado.
+              </Aviso>
+            )}
+
+            {numero.trim() && !numeroWhatsapp && (
+              <Aviso>
+                Sin WhatsApp conectado, los mensajes de este post van a llegar al teléfono
+                directo, sin pasar por el CRM: no se crea el lead y el agente no contesta.
+              </Aviso>
+            )}
           </div>
         )}
         {destinoElegido?.pide === 'pagina' && (

@@ -122,6 +122,17 @@ export const DESTINOS = [
 
 export const TEXTO_POR_OMISION = 'Hola, quiero información'
 
+/* ¿Es el mismo teléfono, escrito de cualquier forma?
+ *
+ * Los últimos diez dígitos, que es lo que identifica a una persona sin
+ * importar si trae lada, el +52, el 1 de México o guiones en medio. Mismo
+ * criterio que usa el CRM para no duplicar leads. */
+export function mismoNumero(a, b) {
+  const diez = (t) => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
+  const x = diez(a), y = diez(b)
+  return Boolean(x) && x === y
+}
+
 /** El mensaje que le queda precargado a quien abre WhatsApp desde el post. */
 export function textoDeWhatsapp(saludo, codigo) {
   const base = String(saludo || '').trim() || TEXTO_POR_OMISION
