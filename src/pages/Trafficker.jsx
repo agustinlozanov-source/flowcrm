@@ -104,6 +104,28 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
     return m
   }, [cuentas])
 
+  /* Las redes conectadas vienen marcadas.
+   *
+   * Preguntarle a alguien que tiene UNA página y UNA cuenta de Instagram
+   * dónde quiere publicar es preguntarle lo obvio y cobrarle dos clics por
+   * la respuesta. El caso normal es que el post vaya a todo lo que tiene;
+   * destildar es para el post que va a una sola.
+   *
+   * Las cuentas llegan de una llamada, así que esto va en un efecto. Y solo
+   * la primera vez: si alguien destildó Instagram a propósito, volver a
+   * marcárselo porque la lista se refrescó sería desobedecerlo. */
+  const yaElegidas = useRef(false)
+  useEffect(() => {
+    if (yaElegidas.current || !cuentas.length) return
+    yaElegidas.current = true
+    const inicial = {}
+    for (const [platId, lista] of Object.entries(porPlataforma)) {
+      if (!plataforma(platId)) continue
+      inicial[platId] = { cuentaId: lista[0].id, formato: plataforma(platId).formatos[0].id }
+    }
+    setElegidas(inicial)
+  }, [porPlataforma, cuentas.length])
+
   const destinos = useMemo(() => (
     Object.entries(elegidas).map(([p, v]) => ({
       plataforma: p,
@@ -258,7 +280,7 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
 
       {/* ── Dónde sale ── */}
       <section className="flex flex-col gap-3 rounded-[14px] border border-black/[0.07] bg-surface p-5">
-        <Etiqueta>Dónde sale</Etiqueta>
+        <Etiqueta>{Object.keys(porPlataforma).length > 1 ? 'Dónde sale' : 'Sale en'}</Etiqueta>
         <div className="flex flex-col gap-2">
           {PLATAFORMAS.map(p => {
             const disponibles = porPlataforma[p.id] || []
