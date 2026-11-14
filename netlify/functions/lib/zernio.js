@@ -285,6 +285,15 @@ async function listarCuentas(profileId, platforms = 'facebook,instagram') {
   return {
     cuentas,
     descartadas: ajenas.length,
+    /* Los perfiles de verdad, no los nombres de los campos.
+     *
+     * Saber que el campo se llama profileId no sirve de nada si no se ve qué
+     * trae. Con los dos números a la vista se distingue el caso en que Zernio
+     * ignoró el filtro —vienen perfiles variados— del caso en que la
+     * organización tiene anotado un perfil que no es el suyo, que se arregla
+     * en otro lado y de otra manera. */
+    perfilEsperado: profileId,
+    perfilesVistos: [...new Set(filas.map(perfilDe))],
     camposVistos: Object.keys(filas[0] || {}),
   }
 }
