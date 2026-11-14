@@ -137,6 +137,10 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
   // Auto-assign config
   const [autoAssign, setAutoAssign] = useState(pipeline?.autoAssign || false)
 
+  /* Texto pegado en el panel que todavía no se cargó. Guardar en ese estado
+   * escribe las etapas viejas y avisa que todo salió bien, que es la peor
+   * combinación posible. */
+  const [textoPendiente, setTextoPendiente] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -228,6 +232,10 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
         autoAssign,
       })
       onClose()
+    } catch {
+      /* El mensaje lo pone quien guarda, que es el que sabe qué falló. Acá
+       * solo se evita que la promesa quede sin atender y que el modal se
+       * cierre como si todo hubiera salido bien. */
     } finally { setSaving(false) }
   }
 
@@ -354,6 +362,8 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
                   </>
                 )}
                 onAplicar={cargarDesdeTexto}
+                etiquetaAplicar="Cargar estas etapas"
+                onPendiente={setTextoPendiente}
               />
 
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -525,7 +535,12 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
               className="text-[13px] px-4 py-2 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors">
               Cancelar
             </button>
-            <button onClick={handleSubmit} disabled={!name.trim() || saving || sinNombre > 0}
+            {textoPendiente && (
+              <span className="text-[11.5px] font-semibold text-[#8a5a00]">
+                Tienes texto pegado sin cargar.
+              </span>
+            )}
+            <button onClick={handleSubmit} disabled={!name.trim() || saving || sinNombre > 0 || textoPendiente}
               className="btn-primary text-[13px] py-2 px-4 disabled:opacity-40 flex items-center gap-1.5">
               {saving ? 'Guardando...' : isAdopt
                 ? <><GitBranch size={13} /> Configurar pipeline</>

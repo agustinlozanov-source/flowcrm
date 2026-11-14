@@ -60,7 +60,20 @@ export default function PipelineV2() {
    * ahí va. */
   const [editandoPipeline, setEditandoPipeline] = useState(false)
 
-  const guardarPipeline = async ({ name, purpose, descripcion, exigeOportunidad, stageEdits, deletedIds = [] }) => {
+  /* Sin esto, un fallo a mitad del guardado dejaba el embudo a medias y el
+   * error solo en la consola del navegador: la pantalla se quedaba callada y
+   * quien guardó se iba creyendo que estaba hecho. */
+  const guardarPipeline = async (datos) => {
+    try {
+      await guardarEmbudo(datos)
+    } catch (e) {
+      console.error('[embudo] no se pudo guardar:', e)
+      toast.error(`No se pudo guardar: ${e.message}`)
+      throw e
+    }
+  }
+
+  const guardarEmbudo = async ({ name, purpose, descripcion, exigeOportunidad, stageEdits, deletedIds = [] }) => {
     await updatePipeline(activePipelineId, { name, purpose, descripcion: descripcion || '', exigeOportunidad: !!exigeOportunidad })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
@@ -77,7 +90,7 @@ export default function PipelineV2() {
       else await updateStage(s.id, datos)
     }
     for (const id of deletedIds) await deleteStage(id)
-    toast.success('Pipeline actualizado')
+    toast.success(`Embudo actualizado · ${stageEdits.length} etapas`)
   }
 
   const [view, setView] = useState('kanban')

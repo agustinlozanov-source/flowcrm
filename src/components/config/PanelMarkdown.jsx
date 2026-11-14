@@ -14,7 +14,7 @@
  * - Se puede COPIAR lo que ya existe. Sin eso habría que escribir desde cero
  *   cada vez; con eso se copia, se cambian tres líneas y se vuelve a pegar.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import { FileText, Copy, Check, AlertTriangle, ChevronDown } from 'lucide-react'
@@ -27,6 +27,8 @@ export default function PanelMarkdown({
   leer,          // (md) => { problemas, ...resultado }
   resumen,       // (resultado) => JSX, lo que se va a aplicar
   onAplicar,     // (resultado) => void
+  etiquetaAplicar = 'Cargar',
+  onPendiente,   // (bool) => void — avisa si hay texto pegado sin aplicar
   abiertoAlInicio = false,
 }) {
   const [abierto, setAbierto] = useState(abiertoAlInicio)
@@ -48,12 +50,16 @@ export default function PanelMarkdown({
     }
   }
 
+  /* Al de afuera le importa si queda texto sin aplicar, para no dejar
+   * guardar creyendo que se cargó. */
+  useEffect(() => { onPendiente?.(Boolean(md.trim())) }, [md, onPendiente])
+
   const aplicar = () => {
     if (!resultado) return
     onAplicar(resultado)
     setMd('')
     setAbierto(false)
-    toast.success('Cargado. Revísalo y guarda.')
+    toast.success('Cargado. Ahora dale a Guardar cambios.')
   }
 
   return (
@@ -104,13 +110,26 @@ export default function PanelMarkdown({
             </div>
           )}
 
+          {/* Pegar no aplica nada.
+            *
+            * Este botón y el de guardar del formulario son dos cosas
+            * distintas, y eso no se ve: alguien pega el texto, va directo a
+            * guardar, y se guarda lo viejo con un mensaje de éxito que es
+            * cierto y engaña igual. Por eso el aviso aparece en cuanto hay
+            * texto sin cargar, y el botón ocupa el ancho entero. */}
+          {resultado && (
+            <p className="text-[11.5px] font-semibold leading-relaxed text-[#8a5a00]">
+              Esto todavía no se aplicó. Dale a «{etiquetaAplicar}» y después guarda.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={aplicar}
               disabled={!resultado}
-              className="rounded-[8px] bg-[#0066ff] px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-40"
+              className="flex-1 rounded-[8px] bg-[#0066ff] px-3.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
             >
-              Cargar
+              {etiquetaAplicar}
             </button>
 
             {textoActual && (
