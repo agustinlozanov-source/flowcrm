@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle, Package } from 'lucide-react'
+import { X, GitBranch, Pencil, GripVertical, Trash2, Clock, Users, Info, AlertTriangle, Package, Plus } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -133,6 +133,31 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
   const updateStage = (id, field, val) =>
     setStageEdits(s => s.map(st => st.id === id ? { ...st, [field]: val } : st))
   const removeStage = (id) => setStageEdits(s => s.filter(st => st.id !== id))
+
+  /* Nace con un id de mentira, que solo sirve para arrastrarla y editarla
+   * mientras está en pantalla. La marca `nueva` es la que le dice a quien
+   * guarda que hay que crearla en vez de actualizarla.
+   *
+   * El rango de score arranca donde terminó la última en vez de 0–100: una
+   * etapa nueva que abarca todo el rango se queda con los leads de todas las
+   * demás, y eso no se ve hasta que alguien nota que el embudo se vació. */
+  const addStage = () => setStageEdits(prev => {
+    const ultima = prev[prev.length - 1]
+    const desde = Math.min(100, (ultima?.scoreMax ?? 0) + 1)
+    return [...prev, {
+      id: `nueva-${Date.now()}-${prev.length}`,
+      nueva: true,
+      name: '',
+      color: STAGE_COLORS[prev.length % STAGE_COLORS.length],
+      scoreMin: desde,
+      scoreMax: 100,
+      fase: ultima?.fase || 'calentamiento',
+    }]
+  })
+
+  /* Una etapa sin nombre es una columna sin título en el tablero de todos.
+   * Se avisa acá y no después, porque después ya está guardada. */
+  const sinNombre = stageEdits.filter(s => !s.name.trim()).length
   const handleDragEnd = ({ active, over }) => {
     if (!over || active.id === over.id) return
     setStageEdits(prev => {
@@ -144,6 +169,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
 
   const handleSubmit = async () => {
     if (!name.trim()) return
+    if (sinNombre) { setActiveTab('stages'); return }
     setSaving(true)
     const deletedIds = originalIds.filter(id => !stageEdits.find(s => s.id === id))
     try {
@@ -263,7 +289,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
           )}
 
           {/* ── STAGES TAB ── */}
-          {activeTab === 'stages' && stageEdits.length > 0 && (
+          {activeTab === 'stages' && (
             <div className="flex flex-col gap-2">
               <div>
                 <p className="text-[11px] text-tertiary">
@@ -281,6 +307,20 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
                   </div>
                 </SortableContext>
               </DndContext>
+
+              <button
+                onClick={addStage}
+                className="flex items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-black/[0.15] py-2 text-[12.5px] font-semibold text-tertiary transition-colors hover:border-black/30 hover:text-primary"
+              >
+                <Plus size={14} /> Agregar etapa
+              </button>
+
+              {sinNombre > 0 && (
+                <p className="text-[11.5px] leading-relaxed text-red-600">
+                  {sinNombre === 1 ? 'Hay una etapa sin nombre.' : `Hay ${sinNombre} etapas sin nombre.`}
+                  {' '}Ponle nombre antes de guardar: en el tablero sería una columna sin título.
+                </p>
+              )}
             </div>
           )}
 
@@ -425,7 +465,7 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
               className="text-[13px] px-4 py-2 rounded-[8px] border border-black/[0.08] text-secondary hover:bg-surface-2 transition-colors">
               Cancelar
             </button>
-            <button onClick={handleSubmit} disabled={!name.trim() || saving}
+            <button onClick={handleSubmit} disabled={!name.trim() || saving || sinNombre > 0}
               className="btn-primary text-[13px] py-2 px-4 disabled:opacity-40 flex items-center gap-1.5">
               {saving ? 'Guardando...' : isAdopt
                 ? <><GitBranch size={13} /> Configurar pipeline</>

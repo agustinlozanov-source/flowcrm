@@ -67,7 +67,11 @@ export default function Pipeline() {
       const newId = await adoptOrphanStages({ name, purpose })
       for (let i = 0; i < stageEdits.length; i++) {
         const s = stageEdits[i]
-        await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
+        const datos = { name: s.name.trim(), color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i }
+        // Las etapas nacidas en el modal todavía no existen: su id es de
+        // mentira, y updateDoc sobre un documento que no existe falla.
+        if (s.nueva) await createStage(datos)
+        else await updateStage(s.id, datos)
       }
       for (const id of deletedIds) await deleteStage(id)
       setActivePipelineId(newId)
@@ -76,7 +80,11 @@ export default function Pipeline() {
       await updatePipeline(activePipelineId, { name, purpose })
       for (let i = 0; i < stageEdits.length; i++) {
         const s = stageEdits[i]
-        await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, order: i })
+        const datos = { name: s.name.trim(), color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i }
+        // Las etapas nacidas en el modal todavía no existen: su id es de
+        // mentira, y updateDoc sobre un documento que no existe falla.
+        if (s.nueva) await createStage(datos)
+        else await updateStage(s.id, datos)
       }
       for (const id of deletedIds) await deleteStage(id)
       toast.success('Pipeline actualizado')

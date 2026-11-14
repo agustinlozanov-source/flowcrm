@@ -47,7 +47,7 @@ export default function PipelineV2() {
     leads, systemLeads, todosLosLeads, members, loading, stages, allStages,
     pipelines, activePipelineId, setActivePipelineId,
     moveToHandoff, resolveHandoff, updateLead, createLead,
-    updatePipeline, deletePipeline, updateStage, deleteStage,
+    updatePipeline, deletePipeline, createStage, updateStage, deleteStage,
   } = usePipeline()
   const { appointments } = useAppointments()
   const { products } = useProducts()
@@ -64,7 +64,17 @@ export default function PipelineV2() {
     await updatePipeline(activePipelineId, { name, purpose, descripcion: descripcion || '', exigeOportunidad: !!exigeOportunidad })
     for (let i = 0; i < stageEdits.length; i++) {
       const s = stageEdits[i]
-      await updateStage(s.id, { name: s.name, color: s.color, scoreMin: s.scoreMin, scoreMax: s.scoreMax, fase: s.fase || 'calentamiento', order: i })
+      const datos = {
+        name: s.name.trim(), color: s.color,
+        scoreMin: s.scoreMin, scoreMax: s.scoreMax,
+        fase: s.fase || 'calentamiento', order: i,
+      }
+      /* Las nacidas en el modal todavía no existen en la base: su id es uno
+       * de mentira que solo sirvió para arrastrarlas y editarlas en pantalla.
+       * Mandarlas por updateStage creaba un documento con ese id falso, o
+       * fallaba, según el día. */
+      if (s.nueva) await createStage({ ...datos, pipelineId: activePipelineId })
+      else await updateStage(s.id, datos)
     }
     for (const id of deletedIds) await deleteStage(id)
     toast.success('Pipeline actualizado')

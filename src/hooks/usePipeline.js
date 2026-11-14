@@ -474,19 +474,35 @@ export function usePipeline() {
 
   // ── STAGE OPERATIONS ───────────────────────────────────────────
 
-  const createStage = async (name, color) => {
-    if (!orgId) return
+/* Crea una etapa.
+   *
+   * Admite las dos formas: `createStage('Contactado', '#f00')`, que es como
+   * la llamaban las vistas viejas, y la etapa entera, que es lo que necesita
+   * el editor del embudo — ahí la etapa nace con su fase, su rango de score y
+   * su lugar en la fila, y crearla sin eso la dejaba con el rango 0–100 y al
+   * final, robándole leads a todas las demás hasta que alguien lo notara.
+   *
+   * Devuelve el id, que es lo que permite seguir trabajando con ella sin
+   * esperar a que el snapshot la traiga de vuelta. */
+  const createStage = async (nombreOEtapa, color) => {
+    if (!orgId) return null
+    const e = typeof nombreOEtapa === 'string'
+      ? { name: nombreOEtapa, color }
+      : (nombreOEtapa || {})
+
     const maxOrder = stages.reduce((max, s) => Math.max(max, s.order ?? 0), 0)
-    await addDoc(collection(db, 'organizations', orgId, 'pipeline_stages'), {
-      name,
-      color: color || '#6366f1',
-      order: maxOrder + 1,
-      pipelineId: activePipelineId || null,
-      scoreMin: 0,
-      scoreMax: 100,
+    const ref = await addDoc(collection(db, 'organizations', orgId, 'pipeline_stages'), {
+      name: e.name,
+      color: e.color || '#6366f1',
+      order: e.order ?? maxOrder + 1,
+      pipelineId: e.pipelineId || activePipelineId || null,
+      scoreMin: e.scoreMin ?? 0,
+      scoreMax: e.scoreMax ?? 100,
+      fase: e.fase || 'calentamiento',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+    return ref.id
   }
 
   /* `marcaId` marca de quién es el embudo.
