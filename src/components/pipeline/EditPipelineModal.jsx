@@ -4,6 +4,8 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import clsx from 'clsx'
+import PanelMarkdown from '@/components/config/PanelMarkdown'
+import { leerEmbudo, escribirEmbudo } from '@/lib/configEnMarkdown'
 
 const PURPOSES = [
   { value: 'adquisicion',  label: 'Adquisición',  desc: 'Convertir prospectos nuevos en clientes' },
@@ -20,6 +22,17 @@ const clamp = v => Math.max(0, Math.min(100, Number(v) || 0))
 
 /* Las tres fases del tablero. No se configuran: son las columnas, y son de
  * FlowHub. Lo que se configura es qué etapa vive en cuál. */
+const EJEMPLO_EMBUDO = `# Clientes nuevos
+Propósito: adquisición
+Descripción: quien llega por Facebook y pregunta precio
+
+## Etapas
+- Nuevo · calentamiento · 0-20
+- Contactado · calentamiento · 21-40
+- Calificado · calentamiento · 41-60
+- Propuesta · cierre · 61-80
+- Handoff · handoff · 81-100`
+
 const FASES = [
   { id: 'calentamiento', label: 'Calentamiento' },
   { id: 'handoff', label: 'Handoff' },
@@ -153,6 +166,35 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
       scoreMax: 100,
       fase: ultima?.fase || 'calentamiento',
     }]
+  })
+
+  /* Carga el embudo entero desde el texto pegado.
+   *
+   * Reemplaza las etapas en vez de mezclarlas con las que había. Mezclar
+   * obligaría a adivinar si «Contactado» del texto es la misma «Contactado»
+   * de la pantalla, y adivinar mal deja dos columnas iguales o pisa un rango
+   * que alguien ajustó a mano. El texto dice cómo queda el embudo.
+   *
+   * Todas entran marcadas como nuevas y las de antes quedan para borrar, que
+   * es lo que ya hace handleSubmit con las que desaparecen de la lista. */
+  const cargarDesdeTexto = (r) => {
+    if (r.nombre) setName(r.nombre)
+    if (r.purpose) setPurpose(r.purpose)
+    if (r.descripcion) setDescripcion(r.descripcion)
+    setStageEdits(r.etapas.map((e, i) => ({
+      id: `nueva-${Date.now()}-${i}`,
+      nueva: true,
+      name: e.name,
+      color: e.color || STAGE_COLORS[i % STAGE_COLORS.length],
+      scoreMin: e.scoreMin ?? 0,
+      scoreMax: e.scoreMax ?? 100,
+      fase: e.fase || 'calentamiento',
+    })))
+  }
+
+  const comoTexto = () => escribirEmbudo({
+    nombre: name, purpose, descripcion,
+    etapas: stageEdits.map(s => ({ name: s.name, fase: s.fase, scoreMin: s.scoreMin, scoreMax: s.scoreMax, color: s.color })),
   })
 
   /* Una etapa sin nombre es una columna sin título en el tablero de todos.
@@ -296,6 +338,24 @@ export default function EditPipelineModal({ mode = 'edit', pipeline, stages = []
                   El agente asigna leads a la etapa cuyo rango de score coincida. Arrastra para reordenar.
                 </p>
               </div>
+              <PanelMarkdown
+                titulo="Cargar el embudo pegando texto"
+                ayuda="Pega el embudo escrito y se llena solo: nombre, propósito y todas las etapas con su fase y su rango. Reemplaza las etapas que estén cargadas ahora."
+                ejemplo={EJEMPLO_EMBUDO}
+                textoActual={comoTexto()}
+                leer={leerEmbudo}
+                resumen={r => (
+                  <>
+                    <strong>{r.nombre || 'Sin nombre'}</strong>
+                    {r.purpose ? ` · ${r.purpose}` : ''}
+                    {' — '}
+                    {r.etapas.length === 1 ? '1 etapa' : `${r.etapas.length} etapas`}
+                    {r.etapas.length > 0 && `: ${r.etapas.map(e => e.name).join(', ')}`}
+                  </>
+                )}
+                onAplicar={cargarDesdeTexto}
+              />
+
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={stageEdits.map(s => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="flex flex-col gap-1.5">

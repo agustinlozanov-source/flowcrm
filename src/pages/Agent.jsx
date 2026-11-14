@@ -7,6 +7,8 @@ import { useProducts } from '@/hooks/useProducts'
 import toast from 'react-hot-toast'
 import { Minutos, HorariosDeAtencion } from '@/components/agenda/ControlesDeAgenda'
 import clsx from 'clsx'
+import PanelMarkdown from '@/components/config/PanelMarkdown'
+import { leerScoring, escribirScoring } from '@/lib/configEnMarkdown'
 import {
   Bot, Brain, Package, BarChart2, Zap,
   FileText, Trash2, Plus, X, Clock,
@@ -24,6 +26,22 @@ const TABS = [
   { id: 'recursos',  icon: Folder,    label: 'Recursos'     },
   { id: 'test',      icon: Zap,       label: 'Probar'       },
 ]
+
+const EJEMPLO_SCORING = `## Necesidad · 40
+¿Tiene un problema real que resolver?
+
+### Urgencia · 20
++10 Tiene fecha límite explícita
++10 El problema ya le cuesta dinero hoy
+-5 Es un deseo futuro sin presión
+
+### Claridad · 20
++20 Sabe exactamente qué necesita
+
+## Capacidad · 60
+
+### Presupuesto · 60
++60 Dijo cuánto puede invertir`
 
 // ─── SCORING CATALOGS BY PURPOSE ─────────────────────────────────
 
@@ -1193,6 +1211,28 @@ function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
       )}
 
       {/* Regular pipeline → fully editable category/subcategory/signal scoring */}
+      {!isFlowHubPipeline && (
+        <PanelMarkdown
+          titulo="Cargar el scoring pegando texto"
+          ayuda="Pega el scoring escrito y se llena solo: categorías con su tope, subcategorías y cada señal con su peso. El signo delante del número decide si suma o resta. Reemplaza el scoring de este embudo."
+          ejemplo={EJEMPLO_SCORING}
+          textoActual={escribirScoring(pipelineScoring)}
+          leer={leerScoring}
+          resumen={r => {
+            const subs = r.categorias.reduce((s, c) => s + c.subcategories.length, 0)
+            const señales = r.categorias.reduce((s, c) => s + c.subcategories.reduce((t, x) => t + x.signals.length, 0), 0)
+            const total = r.categorias.reduce((s, c) => s + (c.tope || 0), 0)
+            return (
+              <>
+                {r.categorias.length} categorías, {subs} subcategorías, {señales} señales.
+                {' '}Los topes suman <strong>{total}</strong> de 100.
+              </>
+            )
+          }}
+          onAplicar={r => onChange({ ...scoring, [activePipelineTab]: r.categorias })}
+        />
+      )}
+
       {!isFlowHubPipeline && (
         <PipelineScoringEditor
           data={pipelineScoring}
