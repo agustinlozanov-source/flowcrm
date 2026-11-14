@@ -81,14 +81,14 @@ async function cuentas(db, orgId) {
     console.error('[trafficker] no se pudo completar el webhook:', e.message)
   }
 
-  const { cuentas: lista, descartadas, perfilEsperado, perfilesVistos } = await listarCuentas(profileId)
+  const { cuentas: lista, descartadas, perfilEsperado, perfilesVistos, perfilCrudo } = await listarCuentas(profileId)
 
   /* El aviso solo cuando el filtro dejó la lista vacía habiendo cuentas: ahí
    * es cuando la pantalla mentiría diciendo que no hay nada conectado. */
   const aviso = !lista.length && descartadas
     ? `Se descartaron ${descartadas} cuenta(s) de otro perfil. Esta organización tiene anotado el ` +
       `perfil ${perfilEsperado}, y las cuentas que devolvió Zernio son del perfil ` +
-      `${perfilesVistos.map(p => p || 'sin perfil').join(', ')}.`
+      `${perfilesVistos.length ? perfilesVistos.join(', ') : `ilegible — vino así: ${perfilCrudo}`}.`
     : null
 
   return responder(200, { cuentas: lista, aviso })

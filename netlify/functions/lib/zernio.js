@@ -237,12 +237,24 @@ async function listarCuentas(profileId, platforms = 'facebook,instagram') {
   const r = await zernioFetch(`/accounts?${p}`)
   const filas = Array.isArray(r) ? r : (r.accounts || r.data || [])
 
-  /* El perfil al que pertenece la cuenta, con los nombres que puede traer.
-   * Devuelve null cuando la cuenta no lo dice. */
-  const perfilDe = (a) => {
-    const v = a.profileId ?? a.profile?._id ?? a.profile?.id ?? a.profile
-    return typeof v === 'string' && v ? v : null
+  /* A qué perfil(es) pertenece una cuenta.
+   *
+   * El id viene de formas distintas según cómo lo serialice el otro lado: el
+   * texto pelado, el documento del perfil entero con el id adentro, el
+   * envoltorio $oid de Mongo, o una lista cuando la cuenta vive en más de un
+   * perfil. Leer solo el texto pelado descartaba TODO sin decir por qué.
+   *
+   * Devuelve siempre una lista, aunque tenga un elemento: así la pertenencia
+   * se pregunta igual en los cuatro casos. */
+  const idsDe = (v, hondo = 0) => {
+    if (v == null || hondo > 3) return []
+    if (typeof v === 'string') return v ? [v] : []
+    if (Array.isArray(v)) return v.flatMap(x => idsDe(x, hondo + 1))
+    if (typeof v === 'object') return idsDe(v._id ?? v.id ?? v.$oid ?? null, hondo + 1)
+    return []
   }
+  const perfilesDe = (a) => [...new Set([...idsDe(a.profileId), ...idsDe(a.profile), ...idsDe(a.profiles)])]
+  const perfilDe = (a) => perfilesDe(a)[0] || null
 
   /* Se vuelve a filtrar acá, aunque ya se lo pedimos a Zernio.
    *
@@ -255,7 +267,8 @@ async function listarCuentas(profileId, platforms = 'facebook,instagram') {
    *
    * Si esto descarta todo, es que el campo se llama de otra forma. Se deja
    * dicho en el registro en vez de devolver una lista vacía en silencio. */
-  const ajenas = filas.filter(a => perfilDe(a) !== profileId)
+  const esNuestra = (a) => perfilesDe(a).includes(profileId)
+  const ajenas = filas.filter(a => !esNuestra(a))
   if (ajenas.length) {
     console.warn(
       `[zernio] ${ajenas.length} de ${filas.length} cuentas no son del perfil ${profileId} y se descartaron. ` +
@@ -265,7 +278,7 @@ async function listarCuentas(profileId, platforms = 'facebook,instagram') {
   }
 
   const cuentas = filas
-    .filter(a => perfilDe(a) === profileId)
+    .filter(esNuestra)
     .map(a => ({
       id: a._id || a.id,
       platform: a.platform,
@@ -293,7 +306,11 @@ async function listarCuentas(profileId, platforms = 'facebook,instagram') {
      * organización tiene anotado un perfil que no es el suyo, que se arregla
      * en otro lado y de otra manera. */
     perfilEsperado: profileId,
-    perfilesVistos: [...new Set(filas.map(perfilDe))],
+    perfilesVistos: [...new Set(filas.flatMap(perfilesDe))],
+    /* El valor crudo, recortado, para cuando no se pudo sacar ningún id. Sin
+     * esto, un formato que no previmos se ve igual que «no pertenece», y las
+     * dos cosas se arreglan de maneras opuestas. */
+    perfilCrudo: filas.length ? JSON.stringify(filas[0].profileId ?? filas[0].profile ?? null).slice(0, 160) : null,
     camposVistos: Object.keys(filas[0] || {}),
   }
 }
