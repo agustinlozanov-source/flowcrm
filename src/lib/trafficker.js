@@ -322,3 +322,67 @@ export function redesSinLiga(destinos = [], liga) {
     .filter(d => !plataforma(d.plataforma)?.ligaClicable)
     .map(d => plataforma(d.plataforma).nombre)
 }
+
+/* ── Si comentan, contesta ──────────────────────────────────────────── */
+
+/* La regla vive EN EL POST y no en la cuenta.
+ *
+ * Una palabra global para toda la página obliga a que todos los posts digan
+ * lo mismo, y el día que dos campañas conviven, quien comentó en una recibe
+ * el mensaje de la otra. Por post, cada uno contesta lo suyo.
+ */
+export const REGLA_VACIA = {
+  activa: false,
+  palabra: '',
+  privado: '',
+  publica: '',
+  conLiga: true,
+}
+
+/* Compara sin acentos y sin mayúsculas: quien comenta escribe «informacion»
+ * tan seguido como «INFORMACIÓN», y que la regla dependa de eso la vuelve
+ * inservible el día que importa. */
+const normalizado = (t) =>
+  String(t || '').toLowerCase()
+    .replace(/ñ/g, '\u0001')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\u0001/g, 'ñ')
+    .trim()
+
+/* ¿Este comentario dispara la regla?
+ *
+ * Sin palabra, dispara cualquier comentario. Es lo que se quiere en un post
+ * cuyo único fin es repartir una liga, y obligar a poner una palabra ahí
+ * haría que la gente invente una que nadie va a escribir. */
+export function comentarioDispara(regla, texto) {
+  if (!regla?.activa) return false
+  if (!String(regla.privado || '').trim() && !String(regla.publica || '').trim()) return false
+  const palabra = normalizado(regla.palabra)
+  if (!palabra) return true
+  return normalizado(texto).includes(palabra)
+}
+
+/* El mensaje privado tal como va a salir, con la liga pegada si corresponde.
+ *
+ * La liga es la razón de todo esto: sin ella el comentario recibe una
+ * respuesta y se pierde ahí. Con ella, quien le da clic llega al CRM con el
+ * post anotado, igual que quien entra por el post mismo. */
+export function mensajePrivado(regla, liga) {
+  const base = String(regla?.privado || '').trim()
+  if (!base) return ''
+  if (!liga || regla?.conLiga === false) return base
+  return `${base}\n\n${liga}`
+}
+
+/** Qué le falta a la regla para poder encenderse. */
+export function problemasDeRegla(regla, liga) {
+  if (!regla?.activa) return []
+  const p = []
+  if (!String(regla.privado || '').trim() && !String(regla.publica || '').trim()) {
+    p.push('La regla está encendida pero no dice qué contestar.')
+  }
+  if (String(regla.privado || '').trim() && regla.conLiga !== false && !liga) {
+    p.push('El mensaje privado iba a llevar la liga, pero este post no tiene ninguna. Elige un destino o apaga la liga en el mensaje.')
+  }
+  return p
+}

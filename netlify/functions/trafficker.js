@@ -100,7 +100,7 @@ async function publicar(db, orgId, datos, claims) {
   const {
     contenido = '', media = [], destinos = [], primerComentario = '',
     saleEn, zonaHoraria, tags = [], codigo = null, liga = null,
-    campana = '', tactica = '', destino = 'ninguno',
+    campana = '', tactica = '', destino = 'ninguno', regla = null,
   } = datos
 
   if (!Array.isArray(destinos) || !destinos.length) {
@@ -127,6 +127,9 @@ async function publicar(db, orgId, datos, claims) {
     destinoLiga: destino,
     campana,
     tactica,
+    /* La regla del comentario viaja con el post y no con la cuenta: dos
+     * campañas vivas a la vez tienen que poder contestar cosas distintas. */
+    regla: regla || null,
     tags,
     saleEn: admin.firestore.Timestamp.fromDate(new Date(saleEn)),
     estado: 'publicando',

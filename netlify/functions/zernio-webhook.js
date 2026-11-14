@@ -6,6 +6,8 @@ const { initDb, saveAttachments, guardarMensaje, destinoInicial, pipelineDeLaCue
 const { reactivarSiVolvio } = require('./lib/reactivar')
 const { appUrl, sendReply, verifyWebhookSignature } = require('./lib/zernio')
 const atribucion = require('./lib/atribucion')
+const { responderEnPrivado, responderComentario, cuentaDeCanal } = require('./lib/zernio')
+const { comentarioDispara, mensajePrivado } = require('./lib/reglaComentario')
 
 // Zernio manda el mismo dato con nombres distintos según el evento.
 const profileIdOf = (p) => p.profileId || p.account?.profileId || p.profile?._id || null
@@ -194,10 +196,17 @@ async function handleMessageReceived(db, payload) {
     const leadRef = db.collection('organizations').doc(orgId).collection('leads').doc(lead.id)
     try {
       const pendiente = await db.collection('zernio_referrals').doc(conv.id).get()
-      const listo = pendiente.exists
+      let listo = pendiente.exists
         ? await atribucion.porRef(db, orgId, leadRef, lead, pendiente.data().ref)
         : false
       if (pendiente.exists) await pendiente.ref.delete()
+
+      // Quien comentó y recibió el privado: la deuda quedó a su nombre.
+      if (!listo) {
+        const autorId = msg.sender?.id || conv.participantId || null
+        listo = await atribucion.porComentarista(db, orgId, leadRef, lead, autorId)
+      }
+
       if (!listo) await atribucion.porTexto(db, orgId, leadRef, lead, text)
     } catch (e) {
       console.error('[zernio-webhook] no se pudo atribuir el lead:', e.message)
@@ -381,13 +390,56 @@ exports.handler = async (event) => {
         break
       }
 
-      /* Un comentario en el post. No crea lead —quien comenta no deja
-       * teléfono— pero sí cuenta, que es señal de que el post movió algo. */
+      /* Un comentario en uno de nuestros posts.
+       *
+       * No crea lead: quien comenta no deja teléfono, y darle de alta
+       * llenaría el CRM de gente que escribió «qué bonito». Lo que sí hace es
+       * contestarle en privado con la liga del post, que es la única forma de
+       * llevárselo a un lugar donde se pueda hablar. */
       case 'comment.received': {
-        const post = await atribucion.postPorIdDePlataforma(db, orgId, payload.post?.platformPostId)
-        if (post) {
-          await post.ref.update({ comentarios: admin.firestore.FieldValue.increment(1) })
+        const c = payload.comment || {}
+        const idEnPlataforma = c.platformPostId || payload.post?.platformPostId
+        const post = await atribucion.postPorIdDePlataforma(db, orgId, idEnPlataforma)
+        if (!post) break
+
+        await post.ref.update({ comentarios: admin.firestore.FieldValue.increment(1) })
+
+        // Un comentario nuestro bajo nuestro propio post no dispara nada.
+        if (c.author?.isOwnAccount) break
+
+        const p = post.data()
+        const regla = p.regla
+        if (!comentarioDispara(regla, c.text)) break
+
+        /* Meta deja UN privado por comentario. Se reclama el id antes de
+         * mandarlo: si Zernio reintenta el evento, el segundo intento no
+         * gasta ese único disparo ni deja dos respuestas públicas. */
+        if (!await claim(db, `com_${c.id}`, { event: 'comment.received', orgId })) break
+
+        const cuentaId = await cuentaDeCanal(db, orgId, platformOf(payload))
+        const privado = mensajePrivado(regla, p.liga)
+
+        if (privado) {
+          try {
+            await responderEnPrivado(idEnPlataforma, c.id, cuentaId, privado)
+            await post.ref.update({ privadosEnviados: admin.firestore.FieldValue.increment(1) })
+            /* Queda apuntado de qué post viene, para cobrarlo cuando
+             * escriba. Va después del envío: si el privado no salió, esa
+             * persona nunca recibió la liga y atribuirle el post sería
+             * contarle un lead al post que no se lo ganó. */
+            await atribucion.apuntarComentarista(db, orgId, c.author?.id, post)
+          } catch (e) {
+            console.error(`[zernio-webhook] no salió el privado del comentario ${c.id}:`, e.message)
+            await post.ref.update({ ultimoErrorPrivado: e.message })
+          }
         }
+
+        if (String(regla.publica || '').trim()) {
+          await responderComentario(idEnPlataforma, c.id, cuentaId, regla.publica, `pub_${c.id}`)
+            .catch(e => console.error(`[zernio-webhook] no salió la respuesta pública:`, e.message))
+        }
+
+        console.log(`[zernio-webhook] el comentario ${c.id} disparó la regla del post ${post.id}`)
         break
       }
 

@@ -173,7 +173,47 @@ async function guardarResultado(db, orgId, post, evento) {
   console.log(`[atribucion] post ${snap.id} quedó ${ESTADO[evento] || evento}`)
 }
 
+/* ── Quien comentó, cuando escriba ──────────────────────────────────── */
+
+/* Deja apuntado que esta persona viene de este post, hasta que escriba.
+ *
+ * Quien comenta no deja teléfono ni conversación: solo un id de la
+ * plataforma. Crearle un lead ahí mismo llenaría el CRM de gente que comentó
+ * «qué bonito», y además duplicaría al de verdad cuando escriba por su
+ * cuenta. Así que se guarda la deuda y se cobra al primer mensaje.
+ *
+ * Mismo mecanismo que los referrals de m.me, que también llegan antes que la
+ * persona. */
+async function apuntarComentarista(db, orgId, autorId, postSnap) {
+  if (!autorId || !postSnap) return
+  await db.collection('zernio_referrals').doc(`autor_${autorId}`).set({
+    ref: postSnap.data().codigo || null,
+    postId: postSnap.id,
+    orgId,
+    origen: 'comentario',
+    recibidoEn: admin.firestore.FieldValue.serverTimestamp(),
+  })
+}
+
+/* Cobra esa deuda cuando la persona escribe.
+ *
+ * Se busca por el id del autor y no por la conversación, porque son dos
+ * mundos distintos: el comentario trae el id de la persona en la plataforma,
+ * y la conversación nace recién cuando escribe. */
+async function porComentarista(db, orgId, leadRef, lead, autorId) {
+  if (!autorId || lead?.origenPostId) return false
+  const d = await db.collection('zernio_referrals').doc(`autor_${autorId}`).get()
+  if (!d.exists) return false
+
+  const post = await db.collection('organizations').doc(orgId)
+    .collection(COLECCION).doc(d.data().postId).get()
+  const listo = post.exists ? await atribuir(db, orgId, leadRef, lead, post) : false
+  await d.ref.delete()
+  return listo
+}
+
 module.exports = {
-  codigosEnTexto, codigoEntreCorchetes, porTexto, porRef, porComentario, guardarResultado,
+  codigosEnTexto, codigoEntreCorchetes, porTexto,
+  apuntarComentarista, porComentarista, porRef, porComentario, guardarResultado,
   postPorCodigo, postPorIdDePlataforma,
 }

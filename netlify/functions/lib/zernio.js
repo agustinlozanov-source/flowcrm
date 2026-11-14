@@ -347,9 +347,38 @@ async function analiticasDePost(zernioPostId) {
   return zernioFetch(`/analytics?${p}`)
 }
 
+/* ── Contestar un comentario ────────────────────────────────────────── */
+
+/* El mensaje directo al autor de un comentario.
+ *
+ * Meta deja UNO por comentario y solo dentro de los siete días. No sirve
+ * como canal de conversación: es la única oportunidad de llevarse a esa
+ * persona a un lugar donde sí se pueda hablar, y por eso el mensaje lleva la
+ * liga del post con su código adentro. */
+async function responderEnPrivado(postId, commentId, accountId, mensaje) {
+  return zernioFetch(
+    `/inbox/comments/${encodeURIComponent(postId)}/${encodeURIComponent(commentId)}/private-reply`,
+    { method: 'POST', body: JSON.stringify({ accountId, message: mensaje }) },
+  )
+}
+
+/* La respuesta pública, debajo del comentario.
+ *
+ * Con clave de idempotencia: si la petición se corta sin saber si llegó, el
+ * reintento no deja dos respuestas iguales colgando del mismo comentario, a
+ * la vista de todos. */
+async function responderComentario(postId, commentId, accountId, mensaje, clave) {
+  return zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ accountId, commentId, message: mensaje }),
+    headers: clave ? { 'Idempotency-Key': clave } : {},
+  })
+}
+
 module.exports = {
   initDb, zernioFetch, appUrl, sendMessage, sendReply,
   ensureProfile, ensureWebhook, verifyWebhookSignature,
   cuentaDeCanal, listarCuentas, crearPost, cancelarPost, analiticasDePost,
+  responderEnPrivado, responderComentario,
   WEBHOOK_EVENTS,
 }

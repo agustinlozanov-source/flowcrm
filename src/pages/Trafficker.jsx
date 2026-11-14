@@ -14,7 +14,7 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import {
   Plus, ChevronLeft, Megaphone, Image as ImagenIcon, Film, X, Loader2,
-  Link2, Copy, ExternalLink, BarChart3, Trash2, AlertTriangle, Users,
+  Link2, Copy, ExternalLink, BarChart3, Trash2, AlertTriangle, Users, MessageCircle,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { usePosts, useSubida, useCanales, llamar } from '@/features/trafficker/useTrafficker'
@@ -23,6 +23,7 @@ import {
   generarCodigo, ligaDeDestino, textoDeWhatsapp, problemasDelPost,
   tagsDePost, cuandoSale, contentTypeDeFormato, nombreEstado, plataforma,
   textoParaRed, redesSinLiga, mismoNumero,
+  REGLA_VACIA, comentarioDispara, mensajePrivado, problemasDeRegla,
 } from '@/lib/trafficker'
 
 /* ── Piezas chicas ──────────────────────────────────────────────────── */
@@ -84,6 +85,8 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
   useEffect(() => { if (usuarioFb && !paginaId) setPaginaId(usuarioFb) }, [usuarioFb])
   const [url, setUrl] = useState('')
   const [saludo, setSaludo] = useState(TEXTO_POR_OMISION)
+  const [regla, setRegla] = useState(REGLA_VACIA)
+  const [prueba, setPrueba] = useState('')
   const [campana, setCampana] = useState('')
   const [tactica, setTactica] = useState('')
   const [cuando, setCuando] = useState('ahora')
@@ -146,7 +149,7 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
     contenido, media, destinos, destino, numero, paginaId, url, saludo,
     cuando, programadoPara, codigo,
   }
-  const problemas = problemasDelPost(borrador)
+  const problemas = [...problemasDelPost(borrador), ...problemasDeRegla(regla, liga)]
 
   const alternar = (platId) => {
     setElegidas(prev => {
@@ -210,6 +213,7 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
         destino,
         campana,
         tactica,
+        regla,
       })
 
       toast.success(
@@ -437,6 +441,103 @@ function Redactor({ orgId, cuentas, numeroWhatsapp, onVolver, onListo }) {
               la liga se va al primer comentario, que sale al mismo tiempo.
             </p>
           </div>
+        )}
+      </section>
+
+      {/* ── Si comentan ── */}
+      <section className="flex flex-col gap-3 rounded-[14px] border border-black/[0.07] bg-surface p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageCircle size={15} className="text-tertiary" />
+            <Etiqueta>Si comentan, contestar en privado</Etiqueta>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-primary">
+            <input
+              type="checkbox"
+              checked={regla.activa}
+              onChange={e => setRegla(r => ({ ...r, activa: e.target.checked }))}
+              className="h-4 w-4 accent-[#0066ff]"
+            />
+            Encendido
+          </label>
+        </div>
+
+        {regla.activa && (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Etiqueta>Palabra que lo dispara</Etiqueta>
+              <input
+                value={regla.palabra}
+                onChange={e => setRegla(r => ({ ...r, palabra: e.target.value }))}
+                placeholder="Déjala vacía para contestarle a cualquier comentario"
+                className={claseCampo}
+              />
+              <p className="text-[11.5px] leading-relaxed text-tertiary">
+                No distingue mayúsculas ni acentos: «información» encuentra «INFORMACION».
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Etiqueta>Mensaje privado</Etiqueta>
+              <textarea
+                value={regla.privado}
+                onChange={e => setRegla(r => ({ ...r, privado: e.target.value }))}
+                rows={3}
+                placeholder="Lo que le llega al privado a quien comente."
+                className={claseCampo + ' resize-y leading-relaxed'}
+              />
+              {liga && (
+                <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={regla.conLiga !== false}
+                    onChange={e => setRegla(r => ({ ...r, conLiga: e.target.checked }))}
+                    className="h-4 w-4 accent-[#0066ff]"
+                  />
+                  Pegarle la liga del post
+                </label>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Etiqueta>Respuesta pública (opcional)</Etiqueta>
+              <input
+                value={regla.publica}
+                onChange={e => setRegla(r => ({ ...r, publica: e.target.value }))}
+                placeholder="Te lo mandé por privado 📩"
+                className={claseCampo}
+              />
+            </div>
+
+            {/* Probarla antes, que es cuando todavía se puede corregir. */}
+            <div className="flex flex-col gap-1.5 rounded-[10px] border border-black/[0.08] bg-surface-2 px-3 py-2.5">
+              <Etiqueta>Pruébala</Etiqueta>
+              <input
+                value={prueba}
+                onChange={e => setPrueba(e.target.value)}
+                placeholder="Escribe aquí un comentario de ejemplo"
+                className={claseCampo}
+              />
+              {prueba.trim() && (
+                <p className="text-[12px] leading-relaxed" style={{ color: comentarioDispara(regla, prueba) ? '#00a846' : 'var(--text-tertiary)' }}>
+                  {comentarioDispara(regla, prueba)
+                    ? 'Con ese comentario sí contesta.'
+                    : 'Con ese comentario no contesta.'}
+                </p>
+              )}
+              {comentarioDispara(regla, prueba) && mensajePrivado(regla, liga) && (
+                <pre className="whitespace-pre-wrap rounded-[8px] border border-black/[0.06] bg-surface px-2.5 py-2 text-[11.5px] leading-relaxed text-secondary">
+{mensajePrivado(regla, liga)}
+                </pre>
+              )}
+            </div>
+
+            <Aviso>
+              Meta deja <strong>un privado por comentario</strong>, y solo dentro de los 7 días.
+              Quien comente tres veces recibe uno. Y esto no crea el lead: se crea cuando la
+              persona escriba, y va a llegar con este post anotado.
+            </Aviso>
+          </>
         )}
       </section>
 
