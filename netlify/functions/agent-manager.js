@@ -41,6 +41,7 @@ AGENDA:
 - Si pide un horario puntual, revisa si está libre. Si no lo está, díselo y ofrece los que sí, sin rodeos.
 - Si muestra intención pero no da día ni hora, propón tú dos o tres opciones concretas de los huecos libres. No preguntes "¿cuándo te queda cómodo?" y lo dejes ahí.
 - Cuando quede acordado, agéndala. No digas que la agendaste si no usaste la herramienta.
+- Nunca digas que agendaste, que confirmaste ni que "vas a confirmar" una cita si agendar_cita no te respondió "Cita agendada". Si no la pudiste agendar, dile que la persona que lo atiende le confirma el horario, y marca pideCitaSinAgendar.
 - El tipo de cita es presencial si el lead viene a la sede, video si es videollamada y call si es telefónica. Ante la duda, pregunta.
 
 OPORTUNIDADES:
@@ -215,7 +216,7 @@ ${leadContext.cita ? `Su cita quedó para el ${leadContext.cita.cuando}, ${leadC
 Tu papel cambia: ya no calificas ni vendes, acompañas.
 - Contesta dudas sobre lo que ya quedó: cuándo era, cómo llegar, qué llevar, si puede llegar unos minutos tarde.
 - Responde con lo que tienes en la base de conocimiento y en la cita de arriba. Si no está ahí, NO lo inventes —menos una dirección, un costo o un requisito—: dile que lo confirmas con la persona que lo está atendiendo.
-- No propongas otra cita, no la muevas y no la canceles. Si quiere cambiarla, dile que lo pasas con quien lo está atendiendo.
+${leadContext.cita ? '- No propongas otra cita, no la muevas y no la canceles. Si quiere cambiarla, dile que la persona que lo atiende le confirma el cambio y marca pideCitaSinAgendar.' : '- Todavía no tiene cita. Si pide una reunión, cita o videollamada, agéndala como siempre: consulta la agenda, ofrece horarios libres y usa agendar_cita.'}
 - No insistas, no vendas y no empujes a nada. Si no hay nada que aportar, con agradecer basta.
 - Sigue siendo breve. Una o dos oraciones alcanzan.` : '' },
 
@@ -231,7 +232,8 @@ Responde SIEMPRE llamando a la herramienta "responder". No escribas texto suelto
 - "suggestHandoff": true si el lead está listo para una llamada con el vendedor
 - "detectedProductId": id del producto si mostró interés en uno específico, null si no
 - "detectedPipelineId": id del flujo si lograste identificarlo (solo en modo routing), null si no
-- "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.` },
+- "shareResources": ids de los recursos de tipo archivo, imagen o video que deben adjuntarse en este mensaje. Vacío si no corresponde ninguno.
+- "pideCitaSinAgendar": true si el lead pidió una cita, reunión o videollamada (o moverla o cancelarla) y no quedó agendada en este turno.` },
   ]
 }
 
@@ -641,6 +643,12 @@ const RESPONSE_TOOL = {
       },
       // Viaja en la salida obligatoria por la misma razón que las
       // oportunidades: como herramienta aparte el modelo no la usaría.
+      // Red de seguridad: si pidió una cita y no quedó agendada, alguien del
+      // equipo tiene que enterarse en vez de que el lead espere una llamada.
+      pideCitaSinAgendar: {
+        type: 'boolean',
+        description: 'true si el lead pidió agendar, mover o cancelar una cita o reunión y en este turno NO quedó agendada con agendar_cita. false en cualquier otro caso.',
+      },
       telefonoDelLead: {
         type: ['string', 'null'],
         description: 'El teléfono que el lead dio en ESTE mensaje, tal como lo escribió. null si no dio ninguno, o si ya lo tenías de antes.',
@@ -649,7 +657,7 @@ const RESPONSE_TOOL = {
     required: [
       'response', 'scoring', 'profileB', 'profileBReason', 'suggestHandoff',
       'suggestHandoffReason', 'detectedProductId', 'detectedPipelineId', 'shareResources',
-      'oportunidades', 'telefonoDelLead',
+      'oportunidades', 'telefonoDelLead', 'pideCitaSinAgendar',
     ],
     additionalProperties: false,
   },
@@ -1207,7 +1215,9 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
         // tool_choice 'any' obliga a usar alguna herramienta, así que el texto
         // al lead sigue saliendo solo por responder, pero ahora antes puede
         // mirar la agenda, agendar o registrar una oportunidad.
-        tools: leadContext?.enHandoff ? [RESPONSE_TOOL] : [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
+        // En handoff solo se quita la agenda si ya hay cita: un lead que llegó por
+        // puntaje y todavía no agenda tiene que poder hacerlo.
+        tools: leadContext?.enHandoff && leadContext?.cita ? [RESPONSE_TOOL] : [RESPONSE_TOOL, CONSULTAR_AGENDA, AGENDAR_CITA],
         tool_choice: { type: 'any' },
       })
 
@@ -1365,6 +1375,34 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
           })
           console.log(`[agent] teléfono guardado para ${leadId} (termina en ${digitos.slice(-4)})`)
         }
+      }
+    }
+
+    /* Pidió una cita y no quedó agendada: se deja constancia en su historial
+     * y un aviso al equipo, para que una persona le confirme el horario. */
+    if (leadId !== 'test' && parsed.pideCitaSinAgendar && !ctx.citaAgendada) {
+      try {
+        const refLead = db.collection('organizations').doc(orgId).collection('leads').doc(leadId)
+        const lead = (await refLead.get()).data() || {}
+        const nombre = lead.name || leadContext?.name || 'Un lead'
+        await refLead.collection('interactions').add({
+          type: 'note',
+          content: `El lead pidió una cita o reunión y el agente no pudo agendarla. Confírmale el horario. Último mensaje: "${String(message || '').slice(0, 300)}"`,
+          porAgente: true,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        await db.collection('organizations').doc(orgId).collection('alerts').add({
+          type: 'cita_solicitada',
+          leadId,
+          leadName: nombre,
+          assignedTo: lead.assignedTo || null,
+          message: `${nombre} pidió una cita y no quedó agendada: confírmale el horario.`,
+          seen: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log(`[agent] cita solicitada sin agendar: aviso creado para ${leadId}`)
+      } catch (e) {
+        console.warn('[agent] no se pudo crear el aviso de cita solicitada:', e.message)
       }
     }
 
