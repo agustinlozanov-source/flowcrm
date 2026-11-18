@@ -2,9 +2,12 @@ import { Rocket, Target, MessageSquare, Bot, Clapperboard, CheckCircle2, Clipboa
 import { useState, useEffect, useRef } from 'react'
 import {
   collection, onSnapshot, query, orderBy, doc,
-  addDoc, serverTimestamp, getDocs, where
+  addDoc, serverTimestamp
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth'
+import { auth, db } from '@/lib/firebase'
+import { etapasDe } from '@/lib/plantillasImplementacion'
+import { Acuerdos, Entregables, useAcuerdosEntregables } from '@/components/portal/AcuerdosEntregables'
 import clsx from 'clsx'
 
 // ─── TEMPLATE STAGES (same as admin) ───
@@ -521,6 +524,7 @@ function TaskComments({ task, implId, clientName, onClose }) {
 export default function ClientPortal() {
   const [authed, setAuthed] = useState(false)
   const [impl, setImpl] = useState(null)
+  const [implId, setImplId] = useState(null)
   const [emailInput, setEmailInput] = useState('')
   const [passwordInput, setPasswordInput] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -543,27 +547,49 @@ export default function ClientPortal() {
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
 
+  // La contraseña se revisa en el servidor (portal-session), que devuelve una
+  // sesión de Firebase atada a esta implementación. Antes se revisaba aquí, lo
+  // que obligaba a dejar las contraseñas de todos los clientes legibles.
   const login = async () => {
     if (!emailInput || !passwordInput) { setLoginError('Ingresa tu email y contraseña'); return }
     setLogging(true)
     setLoginError('')
     try {
-      const q = query(collection(db, 'implementations'), where('email', '==', emailInput.trim().toLowerCase()))
-      const snap = await getDocs(q)
-      if (snap.empty) { setLoginError('Email no encontrado'); return }
-      const implDoc = snap.docs[0]
-      const data = { id: implDoc.id, ...implDoc.data() }
-      if (data.portalPassword !== passwordInput.trim()) { setLoginError('Contraseña incorrecta'); return }
-      setImpl(data)
-      setAuthed(true)
+      const res = await fetch('/.netlify/functions/portal-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim().toLowerCase(), password: passwordInput.trim() }),
+      })
+      const r = await res.json().catch(() => ({}))
+      if (!res.ok) { setLoginError(r.error || 'Error al iniciar sesión'); return }
+      await signInWithCustomToken(auth, r.token)
+      setImplId(r.implId)
     } catch (e) { setLoginError('Error al iniciar sesión') } finally { setLogging(false) }
   }
 
+  const salir = async () => {
+    await signOut(auth).catch(() => {})
+    setImplId(null); setImpl(null); setAuthed(false)
+  }
+
+  // Si ya había entrado en este navegador, vuelve directo a su portal.
+  useEffect(() => onAuthStateChanged(auth, async (u) => {
+    if (!u) return
+    const { claims } = await u.getIdTokenResult()
+    if (claims.implId) setImplId(claims.implId)
+  }), [])
+
+  useEffect(() => {
+    if (!implId) return
+    const unsub = onSnapshot(doc(db, 'implementations', implId), snap => {
+      if (snap.exists()) { setImpl({ id: snap.id, ...snap.data() }); setAuthed(true) }
+    }, () => setLoginError('No se pudo abrir el portal. Vuelve a entrar.'))
+    return unsub
+  }, [implId])
+
   useEffect(() => {
     if (!impl?.id) return
-    const unsub = onSnapshot(doc(db, 'implementations', impl.id), snap => {
-      if (snap.exists()) setImpl({ id: snap.id, ...snap.data() })
-    })
+    const unsub = () => {}
     const unsub2 = onSnapshot(
       query(collection(db, 'implementations', impl.id, 'chat'), orderBy('createdAt', 'asc')),
       snap => setChatMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -577,15 +603,17 @@ export default function ClientPortal() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
 
-  const allTasks = TEMPLATE_STAGES.flatMap(s => s.tasks)
+  const ETAPAS = etapasDe(impl, TEMPLATE_STAGES)
+  const { acuerdos, entregables } = useAcuerdosEntregables(impl?.id)
+  const allTasks = ETAPAS.flatMap(s => s.tasks)
   const doneTasks = allTasks.filter(t => impl?.tasks?.[t.id]?.done).length
   const totalTasks = allTasks.length
   const progress = impl ? Math.round((doneTasks / totalTasks) * 100) : 0
 
-  const currentStageIndex = TEMPLATE_STAGES.findIndex(stage =>
+  const currentStageIndex = ETAPAS.findIndex(stage =>
     stage.tasks.some(t => !impl?.tasks?.[t.id]?.done)
   )
-  const currentStage = TEMPLATE_STAGES[currentStageIndex] || TEMPLATE_STAGES[TEMPLATE_STAGES.length - 1]
+  const currentStage = ETAPAS[currentStageIndex] || ETAPAS[ETAPAS.length - 1]
 
   const toggleStage = (id) => {
     setExpandedStages(prev => {
@@ -612,13 +640,13 @@ export default function ClientPortal() {
           `${m.authorType === 'client' ? impl.name : m.isAI ? 'Claude IA' : 'Flow Hub'}: ${m.text}`
         ).join('\n')
 
-        const pendingTasks = TEMPLATE_STAGES.flatMap(s => s.tasks)
+        const pendingTasks = ETAPAS.flatMap(s => s.tasks)
           .filter(t => !impl?.tasks?.[t.id]?.done)
           .slice(0, 5)
           .map(t => `- ${t.name} (responsable: ${t.responsible === 'qubit' ? 'Flow Hub' : 'el cliente'})`)
           .join('\n')
 
-        const prompt = `Eres el asistente de implementación de FlowCRM, desarrollado por Flow Hub. Estás dentro del portal privado del cliente.
+        const prompt = `Eres el asistente de implementación de Flow Hub para el proyecto ${impl.proyecto || 'FlowCRM'}. Estás dentro del portal privado del cliente.
 
 DATOS DEL CLIENTE:
 - Nombre: ${impl.name}
@@ -638,7 +666,7 @@ ${userMsgText}
 INSTRUCCIONES:
 - Responde directamente, de forma clara y concisa
 - Si la pregunta es sobre una tarea pendiente específica, explica qué se necesita y cómo avanzar
-- Si es una duda técnica del CRM, respóndela con contexto de FlowCRM
+- Si es una duda técnica del proyecto, respóndela con contexto de ${impl.proyecto || 'FlowCRM'}
 - Si necesita intervención humana de Flow Hub (algo urgente, un error técnico, una decisión de negocio), díselo y pídele que use el botón "Enviar" para que el equipo lo vea
 - Máximo 3-4 oraciones. Sin listas largas. Tono profesional pero cercano.`
 
@@ -717,7 +745,7 @@ INSTRUCCIONES:
           <div className="cp-header-actions">
             <img src={LOGO[theme]} alt="Flow Hub" className="cp-header-logo" />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <button className="cp-logout" onClick={() => { setAuthed(false); setImpl(null) }}><LogOut size={14} style={{ marginRight: 6, display: "inline-block" }} /> Salir</button>
+            <button className="cp-logout" onClick={salir}><LogOut size={14} style={{ marginRight: 6, display: "inline-block" }} /> Salir</button>
           </div>
         </div>
 
@@ -750,12 +778,14 @@ INSTRUCCIONES:
             <MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat {chatMessages.filter(m => m.authorType === 'qubit').length > 0 ? `(${chatMessages.filter(m => m.authorType === 'qubit').length})` : ''}
           </button>
           <button className={clsx('cp-tab', activeTab === 'documentos' && 'active')} onClick={() => setActiveTab('documentos')}><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos {docs.length > 0 ? `(${docs.length})` : ''}</button>
+          <button className={clsx('cp-tab', activeTab === 'acuerdos' && 'active')} onClick={() => setActiveTab('acuerdos')}><MessageSquare size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Acuerdos {acuerdos.filter(a => !(a.enterados || []).some(f => f.correo === String(impl.email || '').toLowerCase())).length > 0 ? `(${acuerdos.filter(a => !(a.enterados || []).some(f => f.correo === String(impl.email || '').toLowerCase())).length} por confirmar)` : ''}</button>
+          <button className={clsx('cp-tab', activeTab === 'entregables' && 'active')} onClick={() => setActiveTab('entregables')}><CheckCircle2 size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Entregables {entregables.filter(e => e.estado === 'entregado').length > 0 ? `(${entregables.filter(e => e.estado === 'entregado').length} por aprobar)` : ''}</button>
         </div>
 
         {/* CRONOGRAMA */}
         {activeTab === 'cronograma' && (
           <div>
-            {TEMPLATE_STAGES.map((stage, si) => {
+            {ETAPAS.map((stage, si) => {
               const status = getStageStatus(stage, si)
               const isExpanded = expandedStages.has(stage.id)
               const doneCnt = stage.tasks.filter(t => impl?.tasks?.[t.id]?.done).length
@@ -893,6 +923,9 @@ INSTRUCCIONES:
             ))}
           </div>
         )}
+
+        {activeTab === 'acuerdos' && <Acuerdos impl={impl} acuerdos={acuerdos} modo="cliente" />}
+        {activeTab === 'entregables' && <Entregables impl={impl} entregables={entregables} modo="cliente" />}
 
       </div>
 

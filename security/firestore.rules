@@ -190,9 +190,36 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Portal de implementación (/portal) ─────────────────────────────────
+    //
+    // El cliente entra con el custom token de portal-session.js, que lleva el
+    // claim implId: solo alcanza su propia implementación. Puede escribir en
+    // el chat, en los comentarios de tareas y en documentos; su «Enterado» a un
+    // acuerdo y su aprobación de una entrega pasan por portal-accion.js, que
+    // pone el nombre y la hora del servidor. Todo lo demás es del superadmin.
+
+    match /implementations/{implId} {
+      function esSuperadmin() {
+        return request.auth != null && request.auth.token.get('superadmin', false) == true;
+      }
+      function esSuCliente() {
+        return request.auth != null && request.auth.token.get('implId', '') == implId;
+      }
+
+      allow read: if esSuperadmin() || esSuCliente();
+      allow write: if esSuperadmin();
+
+      match /{sub}/{docId} {
+        allow read: if esSuperadmin() || esSuCliente();
+        allow create: if esSuperadmin()
+          || (esSuCliente() && sub in ['chat', 'taskComments', 'documents']);
+        allow update, delete: if esSuperadmin();
+      }
+    }
+
     // ── ⚠️ TEMPORAL: colecciones todavía abiertas ─────────────────────────
     //
-    //   implementations · flowhub_implementations · plans · resellers
+    //   flowhub_implementations · plans · resellers
     //   diagnosticos · diagnostico_config · onboardingForms
     //   distributorApplications · supportTickets · flowhub_documents
     //   flowhub_config · pipeline_configs · config · _global_config
@@ -200,7 +227,8 @@ service cloud.firestore {
     match /{coleccion}/{documento=**} {
       allow read, write: if !(coleccion in [
         'users', 'organizations', 'company_profiles',
-        'facturas_manuales', 'facturacion_clientes', 'zernio_referrals'
+        'facturas_manuales', 'facturacion_clientes', 'zernio_referrals',
+        'implementations'
       ]);
     }
   }

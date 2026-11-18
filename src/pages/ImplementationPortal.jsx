@@ -9,6 +9,13 @@ import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { DEFAULT_TEMPLATE } from './TemplateEditor'
 import TemplateEditorComponent from './TemplateEditor'
+import { PLANTILLAS, etapasDe, calcularFechasEtapas } from '@/lib/plantillasImplementacion'
+import { Acuerdos, Entregables, useAcuerdosEntregables } from '@/components/portal/AcuerdosEntregables'
+
+// «2026-11-23» como fecha local: new Date('2026-11-23') la toma en UTC y en
+// México cae un día antes.
+const fechaLocal = (s) => { const [a, m, d] = s.split('-').map(Number); return new Date(a, m - 1, d) }
+const aTextoFecha = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 // Wrapper so TemplateEditor renders inside the same page
 const TemplateEditorInline = () => <TemplateEditorComponent />
@@ -40,12 +47,6 @@ function useTemplateStages() {
     return unsub
   }, [])
   return stages
-}
-
-const addBusinessDays = (date, days) => {
-  let d = new Date(date), added = 0
-  while (added < days) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) added++ }
-  return d
 }
 
 const fmtDate = (d) => {
@@ -338,34 +339,23 @@ const css = `
   .ip-empty { text-align: center; padding: 32px; color: var(--gray-5); font-size: 18px; }
 `
 
-// ─── HELPER: compute stage dates from startDate ───
-function computeStageDates(startDate) {
-  const dates = {}
-  let current = new Date(startDate)
-  TEMPLATE_STAGES.forEach(stage => {
-    const start = new Date(current)
-    const end = addBusinessDays(current, stage.durationDays)
-    dates[stage.id] = { start, end }
-    current = new Date(end)
-    current.setDate(current.getDate() + 1)
-  })
-  return dates
-}
-
 // ─── NEW CLIENT MODAL ───
 function NewClientModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', startDate: new Date().toISOString().split('T')[0] })
+  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', startDate: new Date().toISOString().split('T')[0], plantilla: 'crm' })
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     if (!form.name || !form.email || !form.startDate) { toast.error('Nombre, email y fecha de inicio requeridos'); return }
     setSaving(true)
     try {
-      // Load latest template
+      // La plantilla general se lee al momento; una plantilla de proyecto
+      // (Medical Hub OS) se copia al documento y desde ahí es su plan.
       await loadTemplate()
-      const stageDates = computeStageDates(form.startDate)
+      const plantilla = PLANTILLAS[form.plantilla] || PLANTILLAS.crm
+      const etapas = plantilla.stages || TEMPLATE_STAGES
+      const stageDates = calcularFechasEtapas(etapas, fechaLocal(form.startDate))
       const tasks = {}
-      TEMPLATE_STAGES.forEach(stage => {
+      etapas.forEach(stage => {
         stage.tasks.forEach(task => {
           tasks[task.id] = { done: false, doneAt: null, note: '' }
         })
@@ -374,10 +364,11 @@ function NewClientModal({ onClose, onSave }) {
       const ref = await addDoc(collection(db, 'implementations'), {
         name: form.name,
         company: form.company,
-        email: form.email,
+        email: form.email.trim().toLowerCase(),
         phone: form.phone,
-        startDate: new Date(form.startDate),
+        startDate: fechaLocal(form.startDate),
         stageDates,
+        ...(plantilla.stages ? { stages: plantilla.stages, proyecto: plantilla.proyecto, plantilla: plantilla.id } : {}),
         tasks,
         status: 'active',
         createdAt: serverTimestamp(),
@@ -387,6 +378,15 @@ function NewClientModal({ onClose, onSave }) {
       // Create portal access password (simple)
       const portalPassword = Math.random().toString(36).slice(2, 10).toUpperCase()
       await updateDoc(doc(db, 'implementations', ref.id), { portalPassword })
+
+      // Los entregables de la plantilla vencen al cierre de su etapa.
+      for (const [i, e] of (plantilla.entregables || []).entries()) {
+        const fin = stageDates[e.etapa]?.end
+        await setDoc(doc(db, 'implementations', ref.id, 'entregables', e.id), {
+          titulo: e.titulo, detalle: e.detalle, fecha: fin ? aTextoFecha(fin) : '', estado: 'pendiente',
+          enlace: '', entregadoEn: null, respuesta: null, orden: i, createdAt: serverTimestamp(),
+        })
+      }
 
       toast.success(`Implementación creada — Password portal: ${portalPassword}`)
       onSave(ref.id)
@@ -416,6 +416,12 @@ function NewClientModal({ onClose, onSave }) {
             <label className="ip-form-label">Teléfono</label>
             <input className="ip-form-input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+52..." />
           </div>
+        </div>
+        <div className="ip-form-group">
+          <label className="ip-form-label">Plan de trabajo</label>
+          <select className="ip-form-input" value={form.plantilla} onChange={e => setForm(f => ({ ...f, plantilla: e.target.value }))}>
+            {Object.values(PLANTILLAS).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
         </div>
         <div className="ip-form-group">
           <label className="ip-form-label">Fecha de inicio</label>
@@ -508,8 +514,10 @@ function TaskCommentModal({ task, stageTask, implId, onClose }) {
 
 // ─── IMPLEMENTATION DETAIL ───
 function ImplementationDetail({ impl, onUpdate }) {
-  const TEMPLATE_STAGES = useTemplateStages()
-  const [expandedStages, setExpandedStages] = useState(new Set(['kickoff']))
+  const GENERAL = useTemplateStages()
+  const TEMPLATE_STAGES = etapasDe(impl, GENERAL)
+  const { acuerdos, entregables } = useAcuerdosEntregables(impl.id)
+  const [expandedStages, setExpandedStages] = useState(new Set(['kickoff', TEMPLATE_STAGES[0]?.id]))
   const [activeTab, setActiveTab] = useState('cronograma')
   const [chatMsg, setChatMsg] = useState('')
   const [chatMessages, setChatMessages] = useState([])
@@ -579,9 +587,9 @@ function ImplementationDetail({ impl, onUpdate }) {
 
   const updateStartDate = async () => {
     if (!newStartDate) return
-    const stageDates = computeStageDates(newStartDate)
+    const stageDates = calcularFechasEtapas(TEMPLATE_STAGES, fechaLocal(newStartDate))
     await updateDoc(doc(db, 'implementations', implId), {
-      startDate: new Date(newStartDate), stageDates, updatedAt: serverTimestamp()
+      startDate: fechaLocal(newStartDate), stageDates, updatedAt: serverTimestamp()
     })
     toast.success('Fechas actualizadas')
     setEditDate(false)
@@ -611,6 +619,7 @@ function ImplementationDetail({ impl, onUpdate }) {
           <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 24, fontWeight: 900, letterSpacing: '-0.3px', marginBottom: 2 }}>
             {impl.name} <span style={{ color: 'var(--gray-4)', fontWeight: 500, fontSize: 19 }}>/ {impl.company}</span>
           </div>
+          {impl.proyecto && <div style={{ fontSize: 15, fontWeight: 700, color: '#4d9fff', marginBottom: 2 }}>{impl.proyecto}</div>}
           <div style={{ fontSize: 17, color: 'var(--gray-4)' }}>{impl.email} · {impl.phone}</div>
         </div>
         <div
@@ -660,7 +669,7 @@ function ImplementationDetail({ impl, onUpdate }) {
 
       {/* Tabs */}
       <div className="ip-tabs">
-        {[['cronograma', <><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Cronograma</>], ['chat', <><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat</>], ['documentos', <><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos</>]].map(([id, label]) => (
+        {[['cronograma', <><Calendar size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -1 }} /> Cronograma</>], ['chat', <><MessageCircle size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Chat</>], ['documentos', <><Folder size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Documentos</>], ['acuerdos', <><MessageSquare size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Acuerdos ({acuerdos.length})</>], ['entregables', <><CheckCircle2 size={14} style={{ marginRight: 6, display: "inline-block", marginBottom: -2 }} /> Entregables ({entregables.filter(e => e.estado === 'aprobado').length}/{entregables.length})</>]].map(([id, label]) => (
           <button key={id} className={clsx('ip-tab', activeTab === id && 'active')} onClick={() => setActiveTab(id)}>{label}</button>
         ))}
       </div>
@@ -815,6 +824,9 @@ function ImplementationDetail({ impl, onUpdate }) {
         </div>
       )}
 
+      {activeTab === 'acuerdos' && <Acuerdos impl={impl} acuerdos={acuerdos} modo="admin" />}
+      {activeTab === 'entregables' && <Entregables impl={impl} entregables={entregables} modo="admin" />}
+
       {/* Comment modal */}
       {commentModal && (
         <TaskCommentModal
@@ -850,7 +862,7 @@ export default function ImplementationPortal() {
   const selected = impls.find(i => i.id === selectedId)
 
   const getProgress = (impl) => {
-    const allTasks = TEMPLATE_STAGES.flatMap(s => s.tasks)
+    const allTasks = etapasDe(impl, TEMPLATE_STAGES).flatMap(s => s.tasks)
     const done = allTasks.filter(t => impl.tasks?.[t.id]?.done).length
     return Math.round((done / allTasks.length) * 100)
   }
@@ -904,7 +916,7 @@ export default function ImplementationPortal() {
                       <div className="ip-client-avatar">{getInitials(impl.name)}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="ip-client-name">{impl.name}</div>
-                        <div className="ip-client-sub">{impl.company}</div>
+                        <div className="ip-client-sub">{impl.company}{impl.proyecto ? ` · ${impl.proyecto}` : ''}</div>
                         <div className="ip-progress-bar">
                           <div className="ip-progress-fill" style={{ width: `${pct}%` }} />
                         </div>
