@@ -570,7 +570,12 @@ export default function PipelineV2() {
         } : undefined}
         onAction={id => {
           if (!selected) return
-          if (id === 'whatsapp') return navigate(`/inbox?lead=${selected.id}`)
+          /* Igual que el botón de la tarjeta: sin conversación no hay a dónde
+           * llevarlo, y mandar a la bandeja para no abrir nada parecía roto. */
+          if (id === 'whatsapp') {
+            if (!selected.hasConversation) return toast('Todavía no hay conversación con este contacto')
+            return navigate(`/inbox?lead=${selected.id}`)
+          }
           if (id === 'call' && selected.phone) return (window.location.href = `tel:${selected.phone}`)
           if (id === 'email' && selected.email) return (window.location.href = `mailto:${selected.email}`)
           if (id === 'calendar') return navigate(`/meetings?lead=${selected.id}&nueva=1`)

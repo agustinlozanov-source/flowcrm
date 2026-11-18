@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   collection, onSnapshot, query, orderBy,
-  doc, updateDoc, serverTimestamp, limit, getDocs
+  doc, updateDoc, serverTimestamp, limit, getDocs, getDoc
 } from 'firebase/firestore'
 import { db, storage } from '@/lib/firebase'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -465,6 +465,11 @@ export default function Inbox() {
   const [leads, setLeads] = useState([])
   const [selectedLead, setSelectedLead] = useState(null)
   const [loading, setLoading] = useState(true)
+  /* El lead abierto cuando no está entre las 100 conversaciones recientes.
+   * La lista de la izquierda no lo trae, así que se escucha aparte para que
+   * el panel no se quede con una copia vieja (pausar al agente, un cambio de
+   * etapa). */
+  const [leadSuelto, setLeadSuelto] = useState(null)
   const [filter, setFilter] = useState('all') // all | unread | whatsapp | messenger | instagram
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -536,22 +541,66 @@ export default function Inbox() {
    * lista de la izquierda se enteraba y el panel abierto seguía diciendo
    * "Pausar agente". Lo mismo pasaba con el teléfono que el agente acaba de
    * capturar o con un cambio de etapa. */
+  const abiertoEnLista = selectedLead ? leads.some(l => l.id === selectedLead.id) : false
+
+  useEffect(() => {
+    if (!org?.id || !selectedLead?.id || abiertoEnLista) { setLeadSuelto(null); return }
+    return onSnapshot(
+      doc(db, 'organizations', org.id, 'leads', selectedLead.id),
+      s => setLeadSuelto(s.exists() ? { id: s.id, ...s.data() } : null),
+    )
+  }, [org?.id, selectedLead?.id, abiertoEnLista])
+
   const leadAbierto = selectedLead
-    ? (leads.find(l => l.id === selectedLead.id) || selectedLead)
+    ? (leads.find(l => l.id === selectedLead.id)
+      || (leadSuelto?.id === selectedLead.id ? leadSuelto : null)
+      || selectedLead)
     : null
 
   // Se corre cuando llegan los leads, no al montar: al montar todavía no está
   // el que hay que seleccionar.
+  /* Abre la conversación pedida por ?lead=<id>, que es a donde mandan el botón
+   * de WhatsApp de la tarjeta y el del panel lateral del embudo.
+   *
+   * Antes solo la buscaba entre las 100 conversaciones más recientes que carga
+   * la lista. Un contacto que no escribió en un tiempo no está ahí, la
+   * búsqueda fallaba en silencio y quedabas parado en la lista sin saber por
+   * qué. Ahora, si no está, se lee directo de la base. */
   useEffect(() => {
     const wanted = params.get('lead')
-    if (!wanted || selectedLead?.id === wanted) return
-    const lead = leads.find(l => l.id === wanted)
-    if (!lead) return
-    setSelectedLead(lead)
+    if (!wanted || !org?.id || loading) return
+    if (selectedLead?.id === wanted) return
+
     // Se limpia para que recargar no vuelva a forzar la misma conversación.
-    params.delete('lead')
-    setParams(params, { replace: true })
-  }, [leads, params, selectedLead?.id, setParams])
+    const limpiar = () => {
+      params.delete('lead')
+      setParams(params, { replace: true })
+    }
+
+    const enLista = leads.find(l => l.id === wanted)
+    if (enLista) {
+      setSelectedLead(enLista)
+      limpiar()
+      return
+    }
+
+    let vigente = true
+    getDoc(doc(db, 'organizations', org.id, 'leads', wanted))
+      .then(snap => {
+        if (!vigente) return
+        limpiar()
+        if (!snap.exists()) { toast.error('Ese contacto ya no existe'); return }
+        const lead = { id: snap.id, ...snap.data() }
+        if (!lead.lastMessageAt) { toast('Todavía no hay conversación con este contacto'); return }
+        setSelectedLead(lead)
+      })
+      .catch(e => {
+        if (!vigente) return
+        limpiar()
+        toast.error('No se pudo abrir la conversación: ' + e.message)
+      })
+    return () => { vigente = false }
+  }, [leads, loading, params, org?.id, selectedLead?.id, setParams])
 
   const filteredLeads = leads.filter(lead => {
     if (search && !lead.name?.toLowerCase().includes(search.toLowerCase()) &&
