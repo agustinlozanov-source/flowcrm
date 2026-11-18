@@ -186,12 +186,13 @@ export function useTeam() {
   const updateMemberStats = async (memberId) => {
     if (!orgId || !memberId) return
     try {
-      // Count active leads
-      const activeLeadsSnap = await getDocs(
+      /* Los activos se cuentan en memoria. Filtrar por `discarded == false` en
+         la consulta dejaba fuera a los leads de WhatsApp, que nacen sin ese
+         campo, y los vendedores veían menos leads activos de los que tenían. */
+      const asignadosSnap = await getDocs(
         query(
           collection(db, 'organizations', orgId, 'leads'),
-          where('assignedTo', '==', memberId),
-          where('discarded', '==', false)
+          where('assignedTo', '==', memberId)
         )
       )
 
@@ -210,7 +211,7 @@ export function useTeam() {
         return closedAt && closedAt >= startOfMonth
       }).length
 
-      const activeLeads = activeLeadsSnap.size
+      const activeLeads = asignadosSnap.docs.filter(d => !d.data().discarded).length
       const closedTotal = closedSnap.size
       const conversionRate = closedTotal > 0 && activeLeads > 0
         ? Math.round((closedTotal / (closedTotal + activeLeads)) * 100) / 100

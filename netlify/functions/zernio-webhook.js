@@ -119,6 +119,9 @@ async function findOrCreateLead(db, orgId, { phone, name, channel, channelUserId
     stageId,
     pipelineId,
     score: 0,
+    /* Explícito. Sin él, cualquier consulta por `discarded == false` deja
+       fuera a este lead, porque en Firestore un campo ausente no es false. */
+    discarded: false,
     assignedTo: null,
     channelIds: channelUserId ? { [channel]: channelUserId } : {},
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

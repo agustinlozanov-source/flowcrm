@@ -61,6 +61,7 @@ async function buscarOCrearLead(db, orgId, { nombre, usuarioId, cuentaId }) {
     stageId,
     pipelineId,
     score: 0,
+    discarded: false,
     assignedTo: null,
     channelIds: { [CANAL]: usuarioId },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

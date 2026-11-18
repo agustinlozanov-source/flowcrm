@@ -139,7 +139,11 @@ async function redactar(db, orgId, lead, cfg) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-5-5',
-        max_tokens: 120,
+        /* Haiku 5.5 piensa antes de contestar, y lo pensado cuenta contra este
+           tope. Con 120 se podía ir todo en pensar y no quedar mensaje. El
+           largo del mensaje lo controla la revisión de abajo, no este número. */
+        max_tokens: 1024,
+        output_config: { effort: 'low' },
         system:
           'Escribes UN mensaje corto para retomar una conversación de venta que se apagó. ' +
           'El cliente dejó de contestar, así que no insistas ni vuelvas a vender: ' +
@@ -158,7 +162,10 @@ async function redactar(db, orgId, lead, cfg) {
     })
     if (!r.ok) return { texto: fijo, porAgente: false }
     const data = await r.json()
-    const texto = (data?.content?.[0]?.text || '').trim()
+    /* El primer bloque de la respuesta es el del pensamiento, no el mensaje.
+       Leer content[0] devolvía vacío, y el rescate caía siempre en la
+       plantilla fija aunque el agente estuviera encendido. */
+    const texto = (data?.content?.find(b => b.type === 'text')?.text || '').trim()
 
     /* La red: si el modelo devolvió algo largo, con cifras o sin pregunta, se
        usa la plantilla. Vale más un mensaje tibio que uno que invente un
@@ -275,12 +282,25 @@ exports.handler = async () => {
     if (!cfg.activo) continue
     resumen.orgs++
 
-    /* Una sola igualdad en la consulta y el resto en memoria: con dos filtros
-       y un orden haría falta un índice compuesto por organización, y al
-       volumen de un embudo esto no se nota. */
+    /* Se busca por la fecha del último mensaje del cliente, no por
+       `discarded == false`.
+
+       Ese filtro dejaba fuera a todos los leads que llegaron por WhatsApp: el
+       webhook los crea sin el campo `discarded`, y en Firestore un campo que
+       no existe no es igual a false. El disparador corría cada hora y nunca
+       encontraba a nadie de WhatsApp, que es justo para quien existe.
+
+       El horizonte cubre la ventana más todos los intentos y su descarte, con
+       dos días de margen por si el cron dejó de correr un rato. Un solo filtro
+       de rango no necesita índice compuesto; el descartado se excluye en
+       memoria, en queTocaHacer. */
+    const horizonteHoras = VENTANA_HORAS
+      + Number(cfg.horasEntreIntentos || 24) * (Number(cfg.maxIntentos || 2) + 1)
+      + 48
+    const desde = admin.firestore.Timestamp.fromMillis(ahora - horizonteHoras * HORA)
     let leads
     try {
-      leads = await org.ref.collection('leads').where('discarded', '==', false).get()
+      leads = await org.ref.collection('leads').where('lastInboundAt', '>=', desde).get()
     } catch (e) {
       resumen.fallos++
       console.error(`[seguimiento] ${org.id}:`, e.message)
