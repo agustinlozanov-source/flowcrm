@@ -110,7 +110,12 @@ export async function crearActividad(orgId, leadId, datos = {}, quien = {}) {
     dueAt: estado === 'pendiente' ? fecha(dueAt) : null,
     resumen: String(resumen || '').trim(),
     ownerUid: ownerUid || quien.uid || null,
-    ownerNombre: ownerNombre || quien.nombre || '',
+    /* El nombre de quien la crea solo sirve de respaldo cuando la actividad
+       es suya. Asignada a otra persona sin nombre, quedaba a nombre de quien
+       la creó: el dueño decía una persona y el uid otra. */
+    ownerNombre: ownerNombre
+      || (!ownerUid || ownerUid === quien.uid ? quien.nombre : '')
+      || '',
     createdAt: serverTimestamp(),
     createdByUid: quien.uid || null,
     createdByNombre: quien.nombre || '',

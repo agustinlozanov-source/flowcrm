@@ -773,7 +773,10 @@ async function updateLeadScoreAndStage(orgId, leadId, parsedResponse, currentSco
     // Con cita agendada se pasa a handoff aunque el pipeline no tenga umbrales
     // configurados o el score no llegue: la conversión ya ocurrió.
     if (citaAgendada || (targetStage && targetStage.id !== lead.stageId)) {
-      if (targetStage.id === '__handoff__' || parsedResponse.suggestHandoff || citaAgendada) {
+      /* targetStage es null cuando el lead todavía no tiene embudo (pasa con el
+       * conmutador). Leerlo sin la interrogación tronaba aquí mismo, y la cita
+       * y el score se perdían antes de guardarse. */
+      if (targetStage?.id === '__handoff__' || parsedResponse.suggestHandoff || citaAgendada) {
         // Move to handoff
         updateData.systemStage = 'handoff'
         updateData.systemStageAt = admin.firestore.FieldValue.serverTimestamp()
