@@ -175,6 +175,34 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.token.get('superadmin', false) == true;
     }
 
+    // ── Scorecard ─────────────────────────────────────────────────────────
+    //
+    // Cada corrida del análisis. La lee cualquiera de su organización; no la
+    // escribe nadie desde el navegador, ni el dueño de la cuenta. Ese es el
+    // punto: un número del Scorecard no se puede editar, solo recalcular, y
+    // el documento lo escribe únicamente el servidor (scorecard.js y
+    // scorecard-background.js, con el SDK de administrador, que no pasa por
+    // estas reglas).
+    //
+    // Las fichas guardan frases de las conversaciones de los clientes. Solo
+    // las ve el superadmin; la pantalla trabaja con los conteos.
+    //
+    // ⚠️ Va también en la lista de exclusión de abajo. Sin eso, el comodín la
+    // abre para escritura sin que nada avise.
+
+    match /scorecards/{corridaId} {
+      allow read: if request.auth != null
+        && (request.auth.token.get('superadmin', false) == true
+            || (request.auth.token.get('orgId', '') != ''
+                && request.auth.token.get('orgId', '') == resource.data.get('orgId', '')));
+      allow write: if false;
+
+      match /fichas/{fichaId} {
+        allow read: if request.auth != null && request.auth.token.get('superadmin', false) == true;
+        allow write: if false;
+      }
+    }
+
     // ── Referrals de Trafficker ───────────────────────────────────────────
     //
     // Guarda de qué post viene alguien que le dio clic a una liga m.me, hasta
@@ -227,7 +255,7 @@ service cloud.firestore {
     match /{coleccion}/{documento=**} {
       allow read, write: if !(coleccion in [
         'users', 'organizations', 'company_profiles',
-        'facturas_manuales', 'facturacion_clientes', 'zernio_referrals',
+        'facturas_manuales', 'facturacion_clientes', 'zernio_referrals', 'scorecards',
         'implementations'
       ]);
     }

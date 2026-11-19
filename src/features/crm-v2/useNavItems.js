@@ -46,6 +46,9 @@ const GATES = {
   // Extra tambien: publicar a las redes del cliente no es parte del CRM que
   // compro para vender, y se enciende organizacion por organizacion.
   trafficker:     { addon: 'trafficker' },
+  // Extra que se cobra aparte: el análisis profundo del periodo y la lectura
+  // de todas las conversaciones.
+  scorecard:      { addon: 'scorecard' },
   ajustes:        {},
 }
 

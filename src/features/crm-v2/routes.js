@@ -18,6 +18,7 @@ export const ROUTES = {
   metas: '/goals',
   pipa: '/pipa',
   trafficker: '/trafficker',
+  scorecard: '/scorecard',
   ajustes: '/settings',
 }
 

@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import {
   BarChart3, MessageSquare, CalendarDays, Users, Package, Sparkles,
   UserCog, Upload, PieChart, Clapperboard, Globe, Target, Megaphone,
-  Settings, PanelLeftClose, PanelLeft, ListChecks, Lightbulb, Send,
+  Settings, PanelLeftClose, PanelLeft, ListChecks, Lightbulb, Send, Gauge,
 } from 'lucide-react'
 import OwnerAvatar from './OwnerAvatar'
 
@@ -31,6 +31,7 @@ export const NAV_GROUPS = [
     items: [
       { id: 'importar', label: 'Importar', labelKey: 'nav.import', Icon: Upload },
       { id: 'reportes', label: 'Reportes', labelKey: 'nav.analytics', Icon: PieChart },
+      { id: 'scorecard', label: 'Scorecard', labelKey: 'nav.scorecard', Icon: Gauge },
       { id: 'contenido', label: 'Contenido', labelKey: 'nav.content', Icon: Clapperboard },
       { id: 'marcas', label: 'Marca personal', labelKey: 'nav.brands', Icon: Megaphone },
       { id: 'landing', label: 'Landing pages', labelKey: 'nav.landing', Icon: Globe },

@@ -27,6 +27,7 @@ import MarcaPersonal from '@/pages/MarcaPersonal'
 import Goals from '@/pages/Goals'
 import Pipa from '@/pages/Pipa'
 import Trafficker from '@/pages/Trafficker'
+import Scorecard from '@/pages/Scorecard'
 import LandingPages from '@/pages/LandingPages'
 import Inbox from '@/pages/Inbox'
 import ClientPortal from '@/pages/ClientPortal'
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="goals" element={<Goals />} />
           <Route path="pipa" element={<Pipa />} />
           <Route path="trafficker" element={<Trafficker />} />
+          <Route path="scorecard" element={<Scorecard />} />
           <Route path="landing" element={<LandingPages />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="team" element={<Team />} />

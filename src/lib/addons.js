@@ -15,6 +15,11 @@ export const ADDONS = [
     descripcion: 'Pasa la idea por aquí: cinco fases de propósito a progreso, con el marcador que decide y las órdenes de trabajo por puesto. Termina creando el embudo en el CRM.',
   },
   {
+    id: 'scorecard',
+    nombre: 'Scorecard · Gerente de resultados',
+    descripcion: 'Análisis profundo de un periodo: la cadena de conversión por embudo, quién está atorado y en qué etapa, a quién rescatar primero, y lo que dijeron los clientes en todas sus conversaciones. Termina en un plan semanal y en lecciones para el agente.',
+  },
+  {
     id: 'trafficker',
     nombre: 'Trafficker · Publicar y medir',
     descripcion: 'Publica a Facebook e Instagram desde el CRM, con la liga armada y un código adentro. Cada post dice cuántos leads trajo, porque esos leads entran al CRM con el post anotado.',
