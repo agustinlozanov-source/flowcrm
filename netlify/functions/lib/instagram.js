@@ -344,6 +344,55 @@ async function anotarCuenta(db, { igUserId, orgId, brandId, username, admin }) {
   }, { merge: true })
 }
 
+/* Suelta una cuenta de Instagram de una marca.
+ *
+ * Una conexión deja tres rastros: el índice que usa el webhook, el token
+ * guardado y los datos en la marca. Hasta noviembre de 2026 nada borraba los
+ * dos primeros —ni desconectar, que no existía, ni borrar la marca, que solo
+ * borraba la ficha—, así que una cuenta conectada una vez seguía entrando al
+ * inbox y el agente le contestaba con el token que quedó guardado.
+ *
+ * El token y la suscripción solo se tocan si siguen siendo de ESTA cuenta: si
+ * la marca ya se conectó a otra, el token guardado es el de la nueva. */
+async function soltarCuenta(db, { igUserId, orgId, brandId, admin }) {
+  igUserId = String(igUserId || '')
+  const ref = marcaRef(db, orgId, brandId)
+  const marca = await ref.get()
+  const actual = String(marca.exists ? marca.data()?.ig?.userId || '' : '')
+  const esSuya = !actual || actual === igUserId
+
+  if (esSuya) {
+    // Que Meta deje de mandar los eventos de esta cuenta. Si falla (token
+    // vencido, permiso retirado) da igual: sin índice se ignoran.
+    const token = await leerToken(db, orgId, brandId).catch(() => null)
+    if (token) {
+      const p = new URLSearchParams({ access_token: token })
+      await pedir(`${BASE}/me/subscribed_apps?${p}`, { method: 'DELETE' })
+        .catch(e => console.warn('[instagram] no se pudo quitar la suscripción:', e.message))
+    }
+    await ref.collection('privado').doc('instagram').delete()
+    if (marca.exists && actual) {
+      await ref.update({
+        ig: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
+  }
+
+  if (igUserId) {
+    const indice = db.collection('_ig_cuentas').doc(igUserId)
+    const snap = await indice.get()
+    if (snap.exists && snap.data().orgId === orgId && snap.data().brandId === brandId) await indice.delete()
+  }
+}
+
+/* ¿La cuenta del índice sigue conectada a la marca a la que apunta? Si la
+ * marca se borró o se conectó a otra cuenta, la respuesta es no. */
+async function sigueConectada(db, cuenta, igUserId) {
+  const marca = await marcaRef(db, cuenta.orgId, cuenta.brandId).get()
+  return marca.exists && String(marca.data()?.ig?.userId || '') === String(igUserId)
+}
+
 /** De quién es la cuenta que recibió el evento. */
 async function cuentaDeInstagram(db, igUserId) {
   if (!igUserId) return null
@@ -427,6 +476,7 @@ async function anotarError(db, orgId, brandId, mensaje) {
 module.exports = {
   BASE, SCOPE, DIAS_DE_VIDA,
   marcaRef, guardarConexion, leerToken, anotarError, cuentaDeInstagram,
+  soltarCuenta, sigueConectada,
   verificarFirma, enviarMensaje, respuestaPrivada, responderComentario,
   suscribirEventos, suscritoA, anotarCuenta,
   appUrl, redirectUri, authUrl,

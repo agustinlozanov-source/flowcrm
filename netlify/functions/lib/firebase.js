@@ -143,15 +143,14 @@ async function destinoInicial(db, orgId, pipelinePreferido = null, { conmutador 
    * contesta, así que un lead de bodas podía recibir el guión de otro
    * negocio. Mejor no saber y preguntar, que saber mal. */
   if (!pipelineId && conmutador) {
-    const todos = await orgRef.collection('pipelines').limit(2).get()
-    if (todos.size > 1) return { pipelineId: null, stageId: null }
-    pipelineId = todos.empty ? null : todos.docs[0].id
+    // Solo cuentan los embudos entre los que el agente puede elegir: los de
+    // las marcas personales no están en esa lista.
+    const elegibles = await embudosDeLaOrganizacion(db, orgId)
+    if (elegibles.length > 1) return { pipelineId: null, stageId: null }
+    pipelineId = elegibles[0] || null
   }
 
-  if (!pipelineId) {
-    const pipelines = await orgRef.collection('pipelines').limit(1).get()
-    pipelineId = pipelines.empty ? null : pipelines.docs[0].id
-  }
+  if (!pipelineId) pipelineId = await embudoPrincipal(db, orgId)
   if (!pipelineId) return { pipelineId: null, stageId: null }
 
   const etapas = await orgRef.collection('pipeline_stages')
@@ -161,6 +160,42 @@ async function destinoInicial(db, orgId, pipelinePreferido = null, { conmutador 
     .sort((a, b) => a.orden - b.orden)
 
   return { pipelineId, stageId: ordenadas[0]?.id || null }
+}
+
+/* Los embudos que pertenecen a una marca personal.
+ *
+ * A esos embudos solo entra lo que llega por la cuenta de esa marca. Lo que
+ * no tiene destino nunca cae ahí: un lead de la clínica metido en el embudo
+ * de Gumaro recibe el guion de Gumaro y además no lo ve nadie de la clínica. */
+async function embudosDeMarcas(db, orgId) {
+  const snap = await db.collection('organizations').doc(orgId).collection('brands').get()
+  return new Set(snap.docs.map(d => d.data().pipelineId).filter(Boolean))
+}
+
+/** Los embudos de la organización sin los de las marcas, del más antiguo al
+ *  más nuevo. Es la lista entre la que elige el conmutador. */
+async function embudosDeLaOrganizacion(db, orgId) {
+  const [snap, deMarcas] = await Promise.all([
+    db.collection('organizations').doc(orgId).collection('pipelines').get(),
+    embudosDeMarcas(db, orgId),
+  ])
+  const ms = (t) => (t?.toMillis ? t.toMillis() : Number(t) || 0)
+  return snap.docs
+    .filter(d => !deMarcas.has(d.id))
+    .sort((a, b) => ms(a.data().createdAt) - ms(b.data().createdAt))
+    .map(d => d.id)
+}
+
+/* A dónde va lo que entra sin destino.
+ *
+ * Antes era «el primero que devuelva Firestore», que es orden de id y no de
+ * creación: cualquier embudo, incluido el de una marca personal. Ahora es el
+ * más antiguo de la organización que no sea de una marca. Si todos son de
+ * marcas, se queda sin embudo y aparece en el inbox sin colocar, que es mejor
+ * que colocarlo mal. */
+async function embudoPrincipal(db, orgId) {
+  const lista = await embudosDeLaOrganizacion(db, orgId)
+  return lista[0] || null
 }
 
 /** Primera etapa de un embudo, o null. La usan el alta del lead y el
@@ -195,8 +230,8 @@ async function conmutadorActivo(db, orgId) {
  * las dos se desincronicen.
  *
  * Si no hay marca —las cuentas que entran por Zernio no lo son— se mira el
- * mapa `ruteo` de la organización. Y si tampoco, se cae al primer pipeline,
- * que es lo que se hacía siempre.
+ * mapa `ruteo` de la organización. Y si tampoco, quien decide es
+ * destinoInicial: el embudo principal, nunca el de una marca.
  */
 async function pipelineDeLaCuenta(db, orgId, cuentaId) {
   if (!cuentaId) return null
@@ -215,5 +250,6 @@ async function pipelineDeLaCuenta(db, orgId, cuentaId) {
 
 module.exports = {
   initDb, saveAttachments, guardarMensaje, destinoInicial, primeraEtapa, conmutadorActivo, pipelineDeLaCuenta,
+  embudosDeMarcas, embudosDeLaOrganizacion, embudoPrincipal,
   claveTelefono, buscarLeadPorTelefono,
 }

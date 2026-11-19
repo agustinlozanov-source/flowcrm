@@ -70,6 +70,11 @@ async function retryLead(db, orgId, leadId) {
     body: JSON.stringify({ action: 'chat', orgId, leadId, message, skipSaveUser: true, entregaExterna: true }),
   })
   const data = await res.json().catch(() => ({}))
+  if (data.silenciado) {
+    throw new Error(data.silenciado === 'apagado'
+      ? 'El agente está apagado en este embudo: contesta tú'
+      : 'Este embudo no tiene instrucciones, así que el agente no contesta ahí')
+  }
   if (!res.ok || !data.response) throw new Error(data.error || 'El agente no pudo responder')
 
   const sent = await sendReply(conversationId, cuentaId, data.response, data.shareResources)

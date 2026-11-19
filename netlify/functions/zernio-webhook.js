@@ -264,6 +264,7 @@ async function handleMessageReceived(db, payload) {
     return
   }
 
+  if (data.silenciado) return   // el embudo no lleva agente: lo contesta una persona
   if (!res.ok || !data.response) {
     console.error('[zernio-webhook] el agente no respondió:', data.error || res.status)
     return

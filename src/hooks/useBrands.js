@@ -14,7 +14,7 @@ import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, query, orderBy,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, auth } from '@/lib/firebase'
 import { useAuthStore } from '@/store/authStore'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -110,8 +110,12 @@ export function useBrands() {
     })
   }
 
+  /* Primero se suelta el Instagram y después se borra la ficha. Al revés, la
+   * cuenta quedaba conectada por debajo: sus mensajes seguían entrando y el
+   * agente les contestaba. Si soltarla falla, la marca no se borra. */
   const eliminar = async (marcaId) => {
     if (!orgId) return
+    await desconectarInstagram(orgId, marcaId)
     await deleteDoc(doc(db, 'organizations', orgId, 'brands', marcaId))
   }
 
@@ -124,6 +128,20 @@ export function useBrands() {
     actualizar,
     eliminar,
   }
+}
+
+/** Suelta el Instagram de una marca: lo que le escriban deja de entrar. */
+export async function desconectarInstagram(orgId, brandId) {
+  const u = auth.currentUser
+  if (!u) throw new Error('No hay sesión iniciada')
+  const res = await fetch('/.netlify/functions/instagram-desconectar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await u.getIdToken()}` },
+    body: JSON.stringify({ orgId, brandId }),
+  })
+  const datos = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(datos.error || `No se pudo desconectar (HTTP ${res.status})`)
+  return datos
 }
 
 /** Acepta "@pepe", "pepe" o la URL del perfil y se queda con el usuario. */

@@ -1,6 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
+const { porQueNoContesta, instruccionesDelEmbudo } = require('./lib/agenteEnEmbudo')
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -1067,6 +1068,19 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
     } catch {}
   }
 
+  /* Cuántos embudos hay de verdad decide si se puede tomar prestado un guion
+   * (solo con uno). La lista del conmutador, en cambio, deja fuera los de las
+   * marcas personales: a esos solo entra lo que llega por la cuenta de la
+   * marca, nunca un lead que el agente coloca. */
+  const totalEmbudos = allPipelines.length
+  try {
+    const { embudosDeMarcas } = require('./lib/firebase')
+    const deMarcas = await embudosDeMarcas(db, orgId)
+    allPipelines = allPipelines.filter(p => !deMarcas.has(p.id))
+  } catch (e) {
+    console.warn('[agent] no se pudieron leer las marcas:', e.message)
+  }
+
   /* El nombre del agente también se resuelve por pipeline. Con una sola
    * organización llevando varias marcas personales, el asistente de cada una
    * tiene que presentarse con su propio nombre — si no, el mismo "Sofía"
@@ -1077,26 +1091,28 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   }
 
   // Resolve per-pipeline customInstructions (new {pipelineId: string} object or legacy string)
+  // Las reglas de qué guion usa cada embudo viven en lib/agenteEnEmbudo.
   const rawInstructions = agentConfig.customInstructions
-  if (typeof rawInstructions === 'object' && rawInstructions !== null && !Array.isArray(rawInstructions)) {
-    /* Sin embudo manda el conmutador y no se cae a las instrucciones de
-     * ningún otro. Ese último recurso —«la primera que no esté vacía»— es
-     * razonable cuando hay un solo embudo, y aquí sería justo lo contrario:
-     * le daría al lead el guión de un negocio elegido al azar antes de
-     * siquiera saber a cuál pertenece. */
-    const resolved = pipelineId
-      ? (rawInstructions[pipelineId]
-          || rawInstructions['__default__']
-          || Object.values(rawInstructions).find(Boolean)
-          || '')
-      : (agentConfig.conmutador?.instrucciones || rawInstructions['__default__'] || '')
-    agentConfig = { ...agentConfig, customInstructions: resolved }
+  agentConfig = {
+    ...agentConfig,
+    customInstructions: instruccionesDelEmbudo({
+      instrucciones: rawInstructions, pipelineId, totalEmbudos, conmutador: agentConfig.conmutador,
+    }),
   }
-  // (if already a string — legacy or distribuidor override — leave as-is)
 
   // Load RAG files — filter by pipelineId (now resolved)
   const filesSnap = await db.collection('organizations').doc(orgId).collection('agent_files')
     .where('status', '==', 'ready').get()
+
+  /* ¿Contesta el agente en este embudo? La prueba desde la pantalla del
+   * agente siempre contesta: sirve justamente para escribir el guion. */
+  const silencio = leadId === 'test' ? null : porQueNoContesta({
+    instrucciones: rawInstructions,
+    pipelineId,
+    totalEmbudos,
+    apagadoEn: agentConfig.agenteApagadoEn,
+    tieneDocumentos: filesSnap.docs.some(d => d.data().pipelineId === pipelineId),
+  })
   const ragContent = filesSnap.docs
     .filter(d => !d.data().pipelineId || d.data().pipelineId === pipelineId)
     .map(d => d.data().content || '').filter(Boolean).join('\n\n---\n\n')
@@ -1161,6 +1177,13 @@ async function chatWithAssistant(orgId, leadId, message, testPipelineId = null, 
   if (!skipSaveUser) {
     await saveTestMessage(orgId, leadId, 'user', message)
     await saveLeadMessage(orgId, leadId, 'user', message)
+  }
+
+  /* El mensaje ya quedó guardado y el lead sigue en el inbox para que lo
+   * conteste una persona. Lo único que no pasa es la respuesta automática. */
+  if (silencio) {
+    console.log(`[agent] no contesta en el embudo ${pipelineId} (${silencio}) — lead ${leadId}`)
+    return { response: null, silenciado: silencio }
   }
 
   try {

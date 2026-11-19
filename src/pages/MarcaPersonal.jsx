@@ -15,7 +15,7 @@ import {
   Plus, X, Pencil, Trash2, ChevronLeft, Instagram,
   AlertTriangle, Check, BarChart3, Users, Link2, RefreshCw, MessageSquare, ImageOff, Clock, Filter,
 } from 'lucide-react'
-import { useBrands, estadoDeConexion, diasParaCaducar, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
+import { useBrands, estadoDeConexion, diasParaCaducar, desconectarInstagram, SIN_CONECTAR, CONECTADA, CON_PROBLEMA } from '@/hooks/useBrands'
 import Referencias from '@/features/marca/Referencias'
 import Produccion from '@/features/marca/Produccion'
 import Publicar from '../features/marca/Publicar'
@@ -224,6 +224,20 @@ function PanelDeConexion({ marca, orgId }) {
     }
   }
 
+  const desconectar = async () => {
+    const quien = marca.ig?.username ? `@${marca.ig.username}` : 'esta cuenta'
+    if (!window.confirm(`¿Desconectar ${quien}? Sus mensajes dejan de entrar y el agente deja de contestarle.`)) return
+    setTrabajando(true)
+    try {
+      await desconectarInstagram(orgId, marca.id)
+      toast.success('Instagram desconectado')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
   return (
     <div className="bg-surface border border-border rounded-card shadow-card p-5 mt-4">
       <div className="flex items-center gap-2 mb-3">
@@ -266,6 +280,23 @@ function PanelDeConexion({ marca, orgId }) {
               No borra nada. Sirve para renovar los permisos cuando Instagram pide unos nuevos.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Con problema también se puede soltar: una conexión caducada sigue
+          recibiendo mensajes aunque ya no actualice métricas. */}
+      {estado !== SIN_CONECTAR && (
+        <div className="pt-3 mt-3 border-t border-border">
+          <button
+            onClick={desconectar}
+            disabled={trabajando}
+            className="text-[12px] text-accent-red hover:underline underline-offset-2 disabled:opacity-50"
+          >
+            {trabajando ? 'Desconectando…' : 'Desconectar Instagram'}
+          </button>
+          <p className="text-[11px] text-tertiary mt-1">
+            Lo que le escriban a esta cuenta deja de entrar a FlowHub y el agente deja de contestarle.
+          </p>
         </div>
       )}
 
@@ -947,8 +978,13 @@ export default function MarcaPersonal() {
   }
 
   const borrar = async (marca) => {
-    if (!window.confirm(`¿Eliminar la marca "${marca.nombre}"? No se puede deshacer.`)) return
-    await eliminar(marca.id)
+    if (!window.confirm(`¿Eliminar la marca "${marca.nombre}"? Su Instagram se desconecta y no se puede deshacer.`)) return
+    try {
+      await eliminar(marca.id)
+    } catch (e) {
+      toast.error(e.message)
+      return
+    }
     setAbierta(null)
     toast.success('Marca eliminada')
   }

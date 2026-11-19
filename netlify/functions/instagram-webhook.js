@@ -121,6 +121,7 @@ async function preguntarAlAgente(orgId, leadId, texto) {
     body: JSON.stringify({ action: 'chat', orgId, leadId, message: texto, skipSaveUser: true }),
   })
   const data = await res.json().catch(() => ({}))
+  if (data.silenciado) return null   // el embudo no lleva agente: lo contesta una persona
   if (!res.ok || !data.response) {
     console.error('[instagram-webhook] el agente no respondió:', data.error || res.status)
     return null
@@ -318,6 +319,21 @@ exports.handler = async (event) => {
         continue
       }
       cuenta.igUserId = igUserId
+
+      /* El índice dice de quién es la cuenta, pero puede estar viejo: una
+       * marca borrada o conectada después a otra cuenta dejaba la entrada
+       * viva, y la cuenta seguía entrando al inbox con el agente
+       * contestando. Una cuenta que su marca ya no tiene no entra; se suelta
+       * aquí mismo para que Meta deje de mandar sus eventos. */
+      if (!(await ig.sigueConectada(db, cuenta, igUserId))) {
+        await db.collection('_ig_crudos').add({
+          problema: `cuenta ${igUserId} (@${cuenta.username || '?'}) apunta a una marca que ya no la tiene: se soltó`,
+          recibidoEn: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {})
+        await ig.soltarCuenta(db, { igUserId, orgId: cuenta.orgId, brandId: cuenta.brandId, admin })
+          .catch(e => console.error('[instagram-webhook] no se pudo soltar la cuenta:', e.message))
+        continue
+      }
 
       for (const m of entrada.messaging || []) {
         if (!(await reclamar(db, m.message?.mid))) continue

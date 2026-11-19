@@ -956,7 +956,7 @@ function PipelineScoringEditor({ data, onChange }) {
 // Self-contained: pipeline tabs + document upload/list + textarea per pipeline
 const ACCEPTED_TYPES_KB = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
 
-function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, nombres, onNombres, nombrePorDefecto, distribuidorConfig }) {
+function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, nombres, onNombres, nombrePorDefecto, distribuidorConfig, apagadoEn, onApagadoEn }) {
   const [activeId, setActiveId] = useState(null)
   const [files, setFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(false)
@@ -1080,6 +1080,47 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, nomb
       {/* Regular pipeline — fully editable */}
       {!isFlowHubPipeline && (
         <>
+          {/* Las mismas reglas que aplica el servidor (lib/agenteEnEmbudo):
+              apagado a mano, o sin nada propio cuando hay varios embudos. */}
+          {(() => {
+            const apagado = apagadoEn?.[activeId] === true
+            const sinNada = pipelines.length > 1
+              && !currentInstructions.trim()
+              && !String((instructions || {}).__default__ || '').trim()
+              && !files.some(f => f.pipelineId === activeId)
+            const contesta = !apagado && !sinNada
+            return (
+              <div className={clsx('flex items-start gap-3 p-4 rounded-[12px] border',
+                contesta ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200')}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!apagado}
+                  onClick={() => onApagadoEn?.({ ...(apagadoEn || {}), [activeId]: !apagado })}
+                  className={clsx('relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors',
+                    apagado ? 'bg-gray-300' : 'bg-green-500')}
+                >
+                  <span className={clsx('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all',
+                    apagado ? 'left-0.5' : 'left-[18px]')} />
+                </button>
+                <div>
+                  <p className={clsx('text-[12.5px] font-semibold mb-0.5', contesta ? 'text-green-800' : 'text-amber-800')}>
+                    {contesta
+                      ? `El agente contesta en "${activePipeline?.name || ''}"`
+                      : `El agente no contesta en "${activePipeline?.name || ''}"`}
+                  </p>
+                  <p className={clsx('text-[11.5px] leading-relaxed', contesta ? 'text-green-700' : 'text-amber-700')}>
+                    {apagado
+                      ? 'Lo apagaste. Los mensajes entran al inbox y los contesta una persona.'
+                      : sinNada
+                        ? 'Este embudo no tiene instrucciones ni documentos propios, y el agente nunca contesta con el guion de otro embudo. Los mensajes entran al inbox y los contesta una persona hasta que escribas sus instrucciones.'
+                        : 'Usa solo las instrucciones y documentos de este embudo. Apágalo si quieres que aquí conteste siempre una persona.'}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Documents for this pipeline */}
           <Section title="Documentos" desc={`PDFs, Word o TXT — conocimiento específico para "${activePipeline?.name || ''}"`}>
             <div onClick={() => fileInputRef.current?.click()}
@@ -1858,6 +1899,9 @@ export default function Agent() {
     responseDelay: 3,
     customInstructions: {},
     agentNames: {},
+    // { [pipelineId]: true } — embudos donde el agente no contesta aunque
+    // tenga instrucciones. Ver netlify/functions/lib/agenteEnEmbudo.js.
+    agenteApagadoEn: {},
     enabledProductIds: [],
     // Por embudo. La lista vieja de arriba se conserva como respaldo para las
     // cuentas que la tenían antes de que esto se separara.
@@ -1938,6 +1982,7 @@ export default function Agent() {
           ...c,
           agentName: data.agentName ?? c.agentName,
           agentNames: data.agentNames ?? c.agentNames,
+          agenteApagadoEn: data.agenteApagadoEn ?? c.agenteApagadoEn,
           responseDelay: data.responseDelay ?? c.responseDelay,
           customInstructions: (data.customInstructions !== undefined)
             ? (typeof data.customInstructions === 'object' && !Array.isArray(data.customInstructions)
@@ -2181,7 +2226,7 @@ export default function Agent() {
                     <div className="flex flex-col gap-4">
                       <p className="text-[11px] text-secondary leading-relaxed">
                         Los leads que entren por una cuenta que no apunta a un embudo concreto nacen sin embudo, y el agente
-                        los coloca cuando entiende qué buscan. Mientras tanto no da precios ni agenda nada, porque podría
+                        los coloca cuando entiende qué buscan. Nunca los coloca en el embudo de una marca personal. Mientras tanto no da precios ni agenda nada, porque podría
                         ser del negocio equivocado. Para que acierte, cada embudo necesita su descripción en
                         Pipeline → Editar → «Para quién es este embudo».
                       </p>
@@ -2203,8 +2248,9 @@ export default function Agent() {
                     </div>
                   ) : (
                     <p className="text-[11px] text-secondary leading-relaxed">
-                      Apagado, cada lead nuevo cae en el primer embudo que devuelva la base — que no es el primero que
-                      creaste, es orden interno. Con un solo embudo da igual. Con varios, conviene prenderlo.
+                      Apagado, cada lead que no llega por la cuenta de una marca cae en el embudo principal: el más
+                      antiguo de la organización que no sea de una marca personal. Los embudos de las marcas solo
+                      reciben lo que llega por su propia cuenta.
                     </p>
                   )}
                 </Section>
@@ -2404,6 +2450,8 @@ export default function Agent() {
                   onNombres={v => set('agentNames', v)}
                   nombrePorDefecto={config.agentName}
                   distribuidorConfig={distribuidorConfig}
+                  apagadoEn={config.agenteApagadoEn}
+                  onApagadoEn={v => set('agenteApagadoEn', v)}
                 />
               </>
             )}
