@@ -197,12 +197,25 @@ async function faseEscribir(db, ref) {
   const run = (await ref.get()).data()
   const anterior = run.anteriorId ? (await db.collection('scorecards').doc(run.anteriorId).get()).data() : null
 
-  const { reporte, modelo, tokens } = await escribirReporte({
-    organizacion: { nombre: run.organizacion?.nombre || '', embudos: (run.embudos || []).map(e => e.nombre) },
-    metricas: run.metricas,
-    insights: run.insights,
-    anterior: anterior ? { periodo: anterior.metricas?.periodo, plan: anterior.reporte?.plan } : null,
-  })
+  let escrito
+  try {
+    escrito = await escribirReporte({
+      organizacion: { nombre: run.organizacion?.nombre || '', embudos: (run.embudos || []).map(e => e.nombre) },
+      metricas: run.metricas,
+      insights: run.insights,
+      anterior: anterior ? { periodo: anterior.metricas?.periodo, plan: anterior.reporte?.plan } : null,
+    }, { esfuerzo: run.esfuerzoReporte || 'medium' })
+  } catch (e) {
+    /* Si se quedó sin espacio, un segundo intento con menos esfuerzo, en una
+       pasada nueva para que tenga todo el tiempo. Solo uno: si tampoco
+       alcanza, la corrida falla con el motivo a la vista. */
+    if (e.codigo === 'INCOMPLETO' && !run.reintentoReporte) {
+      await ref.update({ reintentoReporte: true, esfuerzoReporte: 'low', actualizadoEn: ahoraSrv() })
+      return 'reintentar'
+    }
+    throw e
+  }
+  const { reporte, modelo, tokens } = escrito
 
   /* La huella del reporte. Si alguien cambiara un número guardado, la huella
      ya no coincidiría con la que se calculó aquí. */
@@ -265,7 +278,10 @@ exports.handler = async (event) => {
       await continuar(ref, pasada, 'antes de escribir')
       return { statusCode: 200, body: 'sigue' }
     }
-    await faseEscribir(db, ref)
+    if (await faseEscribir(db, ref) === 'reintentar') {
+      await continuar(ref, pasada, 'reintento del reporte con menos esfuerzo')
+      return { statusCode: 200, body: 'sigue' }
+    }
     console.log(`[scorecard] ${runId} listo en la pasada ${pasada}`)
   } catch (e) {
     console.error(`[scorecard] ${runId}:`, e)

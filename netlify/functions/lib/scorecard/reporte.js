@@ -89,7 +89,8 @@ Cómo trabajas:
 - Los responsables son cinco: atraccion (marketing o la agencia), atencion (el agente de IA y quien lo entrena), agenda_y_asistencia (recepción o quien agenda), cierre (ventas) y oferta (dirección: precio, producto, competencia).
 - Las lecciones para el agente nunca mencionan precios, descuentos, promociones ni promesas: eso lo deciden el catálogo y la dirección. Si los datos piden un cambio de precio, va en el capítulo de oferta, no en una lección.
 - Escribes en español de México, de tú, claro y directo, como le hablarías al dueño del negocio. Frases cortas. Sin jerga de consultoría.
-- No uses la construcción «no es X, es Y» ni sus variantes.`
+- No uses la construcción «no es X, es Y» ni sus variantes.
+- Cada texto, corto: dos o tres oraciones como máximo. El reporte completo se tiene que poder leer en cinco minutos.`
 
 /** Los datos que lee el modelo: todo lo calculado, menos los nombres. */
 function paraElModelo({ organizacion, metricas, insights, anterior }) {
@@ -107,14 +108,18 @@ function paraElModelo({ organizacion, metricas, insights, anterior }) {
 
 /* Escribe el reporte. Lanza si algo sale mal, con un mensaje que se puede
  * mostrar tal cual en la pantalla. */
-async function escribirReporte(entrada) {
+/* `esfuerzo` empieza en medio. Este modelo piensa antes de escribir, y lo
+ * pensado cuenta contra el mismo tope de tokens: en alto, con todos los datos
+ * de un periodo, una corrida real se quedó sin espacio antes de terminar. Si
+ * aun así no alcanza, la corrida reintenta sola con esfuerzo bajo. */
+async function escribirReporte(entrada, { esfuerzo = 'medium' } = {}) {
   const datos = paraElModelo(entrada)
   /* Respaldo en el servidor: si el modelo principal se niega por una regla de
      seguridad, la API reintenta sola con otro modelo dentro de la misma
      llamada. Es la forma recomendada para este modelo. */
   const stream = anthropic().beta.messages.stream({
     model: MODELO,
-    max_tokens: 32000,
+    max_tokens: 48000,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system: SISTEMA,
@@ -122,7 +127,7 @@ async function escribirReporte(entrada) {
       role: 'user',
       content: `Estos son los datos del periodo, en JSON:\n\n${JSON.stringify(datos)}\n\nEscribe el reporte.`,
     }],
-    output_config: { effort: 'high', format: { type: 'json_schema', schema: ESQUEMA } },
+    output_config: { effort: esfuerzo, format: { type: 'json_schema', schema: ESQUEMA } },
   })
   const r = await stream.finalMessage()
 
@@ -130,7 +135,9 @@ async function escribirReporte(entrada) {
     throw new Error('El modelo no quiso escribir el reporte. Revisa que los datos no traigan contenido sensible.')
   }
   if (r.stop_reason === 'max_tokens') {
-    throw new Error('El reporte quedó incompleto: se acabó el espacio de escritura.')
+    const e = new Error('El reporte quedó incompleto: se acabó el espacio de escritura.')
+    e.codigo = 'INCOMPLETO'
+    throw e
   }
   const t = r.content.find(b => b.type === 'text')?.text
   if (!t) throw new Error('El modelo respondió sin reporte.')
