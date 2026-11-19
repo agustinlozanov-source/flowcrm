@@ -16,6 +16,26 @@ const DIA = 864e5
 const MAX_DIAS = 370
 const EN_CURSO = ['en_cola', 'datos', 'conversaciones', 'agregando', 'escribiendo']
 
+/* Cuánto puede pasar sin que una corrida se mueva antes de darla por trabada.
+ * En cola es poco: la función de fondo a veces tarda en arrancar cuando lleva
+ * un rato sin usarse, pero no más de un par de minutos.
+ * En las demás fases hay pasos largos —escribir el reporte puede tomar varios
+ * minutos sin escribir nada en el documento—, así que se espera más. */
+const TRABADA_MS = { en_cola: 3 * 60000, otra: 20 * 60000 }
+const trabada = (r) => {
+  const quieta = Date.now() - (r.actualizadoEn?.toMillis?.() || r.creadoEnMs || 0)
+  return quieta > (r.estado === 'en_cola' ? TRABADA_MS.en_cola : TRABADA_MS.otra)
+}
+
+async function lanzar(ref, pasada) {
+  const r = await fetch(`${appUrl()}/.netlify/functions/scorecard-background`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ runId: ref.id, pasada }),
+  })
+  if (!r.ok && r.status !== 202) throw new Error(`HTTP ${r.status}`)
+}
+
 const responder = (statusCode, datos) => ({
   statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos),
 })
@@ -29,7 +49,7 @@ exports.handler = async (event) => {
 
   let datos
   try { datos = JSON.parse(event.body || '{}') } catch { return responder(400, { error: 'Cuerpo mal formado' }) }
-  const { orgId, desde, hasta } = datos
+  const { orgId, desde, hasta, accion, runId } = datos
   if (!orgId) return responder(400, { error: 'Falta orgId' })
 
   const db = initDb()
@@ -49,6 +69,24 @@ exports.handler = async (event) => {
     return responder(403, { error: 'Esta organización no tiene el Scorecard activado' })
   }
 
+  /* Reanudar: la corrida sigue desde donde iba, en una pasada nueva. Lo ya
+     leído no se repite. Solo se permite si de verdad está trabada, para que
+     dos pasadas no trabajen a la vez la misma corrida. */
+  if (accion === 'reanudar') {
+    const ref = db.collection('scorecards').doc(String(runId || ''))
+    const snap = await ref.get()
+    if (!snap.exists || snap.data().orgId !== orgId) return responder(404, { error: 'Ese análisis no existe' })
+    const r = snap.data()
+    if (!EN_CURSO.includes(r.estado)) return responder(400, { error: 'Ese análisis no está en curso' })
+    if (!trabada(r)) return responder(409, { error: 'Todavía se está moviendo. Dale unos minutos más.' })
+    const pasada = (r.pasada || 1) + 1
+    await ref.update({ pasada, actualizadoEn: admin.firestore.FieldValue.serverTimestamp() })
+    try { await lanzar(ref, pasada) } catch (e) {
+      return responder(502, { error: `No se pudo reanudar: ${e.message}` })
+    }
+    return responder(200, { runId: ref.id, pasada })
+  }
+
   /* El periodo llega en milisegundos. «Hasta» se lleva al final de su día. */
   const d = Number(desde)
   const h = Number(hasta)
@@ -62,8 +100,7 @@ exports.handler = async (event) => {
      conversaciones dos veces y pagarían doble. Una que lleva más de una hora
      sin moverse se da por caída y no bloquea. */
   const previas = await db.collection('scorecards').where('orgId', '==', orgId).get()
-  const viva = previas.docs.map(x => x.data()).find(r =>
-    EN_CURSO.includes(r.estado) && Date.now() - (r.actualizadoEn?.toMillis?.() || r.creadoEnMs || 0) < 60 * 60000)
+  const viva = previas.docs.map(x => x.data()).find(r => EN_CURSO.includes(r.estado) && !trabada(r))
   if (viva) return responder(409, { error: 'Ya hay un análisis corriendo para esta organización. Espera a que termine.' })
 
   const ref = db.collection('scorecards').doc()
@@ -82,12 +119,7 @@ exports.handler = async (event) => {
 
   /* La función de fondo contesta 202 al instante: esto no espera el análisis. */
   try {
-    const r = await fetch(`${appUrl()}/.netlify/functions/scorecard-background`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ runId: ref.id, pasada: 1 }),
-    })
-    if (!r.ok && r.status !== 202) throw new Error(`HTTP ${r.status}`)
+    await lanzar(ref, 1)
   } catch (e) {
     await ref.update({ estado: 'error', motivo: `No se pudo arrancar el análisis: ${e.message}` })
     return responder(502, { error: 'No se pudo arrancar el análisis' })

@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import { Gauge, Loader2, Play, Presentation, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import {
-  useCorridas, correrAnalisis, FASES, enCurso, periodoTexto, numero,
+  useCorridas, correrAnalisis, reanudarAnalisis, pareceTrabada, quietaDesde, FASES, enCurso, periodoTexto, numero,
 } from '@/features/scorecard/useScorecards'
 import { Numeros, Rescate, Conversaciones, ParaElAgente, Metodo, Tarjeta, Pildora } from '@/features/scorecard/Vistas'
 import PresentacionView from '@/features/scorecard/Presentacion'
@@ -52,7 +52,26 @@ const claseCampo =
 
 /* ── Avance de una corrida en curso ─────────────────────────────────── */
 
-function Avance({ corrida }) {
+function haceCuanto(ms) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `hace ${s} s`
+  const m = Math.round(s / 60)
+  return m < 60 ? `hace ${m} min` : `hace ${Math.round(m / 60)} h`
+}
+
+function Avance({ corrida, orgId }) {
+  /* Se redibuja cada 15 segundos para que «hace cuánto» avance solo: sin
+     eso, un análisis que trabaja en silencio se ve igual que uno detenido. */
+  const [, setTic] = useState(0)
+  useEffect(() => { const t = setInterval(() => setTic(x => x + 1), 15000); return () => clearInterval(t) }, [])
+  const [reanudando, setReanudando] = useState(false)
+  const trabada = pareceTrabada(corrida)
+  const reanudar = async () => {
+    setReanudando(true)
+    try { await reanudarAnalisis(orgId, corrida.id); toast.success('Reanudado: sigue desde donde iba') }
+    catch (e) { toast.error(e.message) }
+    finally { setReanudando(false) }
+  }
   const fase = FASES[corrida.estado] || FASES.en_cola
   const p = corrida.progreso || {}
   const total = p.conversaciones || 0
@@ -81,6 +100,19 @@ function Avance({ corrida }) {
       {corrida.estado === 'conversaciones' && total > 0 && (
         <div className="h-2 w-full overflow-hidden rounded-full bg-black/[0.05]">
           <div className="h-full rounded-full bg-[#0066ff] transition-all" style={{ width: `${pctLeidas}%` }} />
+        </div>
+      )}
+      <p className="text-[12px] text-tertiary">Último movimiento: {haceCuanto(quietaDesde(corrida))}</p>
+      {corrida.estado === 'escribiendo' && !trabada && (
+        <p className="text-[12px] leading-relaxed text-tertiary">Escribir el reporte toma varios minutos y no avisa mientras tanto. Es normal que esto se vea quieto.</p>
+      )}
+      {trabada && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[10px] border px-3 py-2.5 text-[12.5px]"
+          style={{ background: 'rgba(245,158,11,0.09)', borderColor: 'rgba(245,158,11,0.35)', color: '#8a5a00' }}>
+          <span className="flex-1">{corrida.estado === 'en_cola' ? 'El análisis no arrancó.' : 'Parece detenido.'} Se puede reanudar desde donde iba, sin repetir lo que ya hizo.</span>
+          <button onClick={reanudar} disabled={reanudando} className="rounded-[8px] bg-[#0066ff] px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-40">
+            {reanudando ? 'Reanudando…' : 'Reanudar'}
+          </button>
         </div>
       )}
     </Tarjeta>
@@ -156,7 +188,8 @@ export default function Scorecard() {
   }, [corridas, elegida])
 
   const corrida = corridas.find(c => c.id === elegida) || null
-  const hayUnaCorriendo = corridas.some(c => enCurso(c.estado))
+  /* Una trabada no bloquea: el servidor tampoco la cuenta como viva. */
+  const hayUnaCorriendo = corridas.some(c => enCurso(c.estado) && !pareceTrabada(c))
 
   const lanzar = async () => {
     const d = new Date(`${desde}T00:00:00`).getTime()
@@ -250,7 +283,7 @@ export default function Scorecard() {
 
       {corrida && (
         <div className="flex flex-col gap-4">
-          {enCurso(corrida.estado) && <Avance corrida={corrida} />}
+          {enCurso(corrida.estado) && <Avance corrida={corrida} orgId={orgId} />}
 
           {corrida.estado === 'error' && (
             <div className="flex gap-2 rounded-[12px] border px-4 py-3 text-[13px] leading-relaxed"

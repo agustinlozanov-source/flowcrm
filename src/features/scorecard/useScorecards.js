@@ -57,6 +57,26 @@ export async function correrAnalisis(orgId, desde, hasta) {
   return datos.runId
 }
 
+/** Destraba una corrida que dejó de moverse. */
+export async function reanudarAnalisis(orgId, runId) {
+  const u = auth.currentUser
+  if (!u) throw new Error('No hay sesión iniciada')
+  const token = await u.getIdToken()
+  const res = await fetch('/.netlify/functions/scorecard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ accion: 'reanudar', orgId, runId }),
+  })
+  const datos = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(datos.error || `Falló con HTTP ${res.status}`)
+  return datos
+}
+
+/** Milisegundos desde el último movimiento de una corrida. */
+export const quietaDesde = (c) => Date.now() - (c.actualizadoEn?.toMillis?.() || c.creadoEnMs || Date.now())
+/** Igual que el servidor: en cola, 3 minutos; en las demás fases, 20. */
+export const pareceTrabada = (c) => enCurso(c.estado) && quietaDesde(c) > (c.estado === 'en_cola' ? 3 : 20) * 60000
+
 /* ── Formato ────────────────────────────────────────────────────────── */
 
 export const fechaCorta = (ms) => (ms ? new Date(ms).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
