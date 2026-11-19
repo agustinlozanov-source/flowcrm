@@ -104,7 +104,7 @@ function Cadena({ conversiones }) {
   return (
     <Tarjeta
       titulo="La cadena de conversión"
-      nota="Los leads que entraron en el periodo, seguidos hasta donde llegaron hoy. Cada tasa es contra el paso anterior; la asistencia, contra quienes ya tuvieron su cita."
+      nota="Los leads que entraron en el periodo, seguidos hasta donde llegaron hoy. El número es cuántos llegaron a cada paso; el porcentaje, cuántos de los que llegaron al paso anterior pasaron a este. La asistencia se mide contra quienes ya tuvieron su cita."
     >
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -131,6 +131,16 @@ function Cadena({ conversiones }) {
             </span>
           </div>
         ))}
+      </div>
+      <div className="flex flex-col gap-1 border-t border-black/[0.06] pt-2.5">
+        <Vacio>
+          <strong className="text-primary">{numero(datos?.actual?.interesDetectado)}</strong> leads con interés detectado: el agente identificó qué producto les interesa y les abrió una oportunidad. No cuenta como avance: es lo que el agente entendió de la conversación.
+        </Vacio>
+        {datos?.actual?.ventasSinAsistencia > 0 && (
+          <Vacio>
+            <strong className="text-primary">{numero(datos.actual.ventasSinAsistencia)}</strong> compraron sin una cita marcada como asistida. Si en este negocio toda venta pasa por una cita, son asistencias que nadie marcó.
+          </Vacio>
+        )}
       </div>
       {datos?.actual?.citasPorOcurrir > 0 && (
         <Vacio>{numero(datos.actual.citasPorOcurrir)} leads tienen una cita que todavía no ocurre; no cuentan para la asistencia.</Vacio>
@@ -598,7 +608,9 @@ export function Metodo({ corrida }) {
         <div className="flex flex-col gap-3 text-[13px] leading-relaxed text-secondary">
           <p><strong className="text-primary">Nada se teclea.</strong> Cada número sale de lo que pasó en el sistema —mensajes, citas, actividades, oportunidades— con reglas fijas. Nadie puede escribir un porcentaje: ni el dueño de la cuenta ni FlowHub. Este documento lo escribe solo el servidor, y desde el navegador no se puede modificar.</p>
           <p><strong className="text-primary">Por generación.</strong> La cadena sigue a los leads que entraron en el periodo hasta donde llegaron el día del análisis. No mezcla a la gente de un mes con las ventas de otro.</p>
-          <p><strong className="text-primary">Los pasos.</strong> Llegar a Handoff es haber sido entregado a una persona, tener cita o tener una oportunidad. Agendar es tener al menos una cita. Asistir es tener una cita marcada como asistida. Recibir propuesta es tener una oportunidad. Comprar es estar cerrado o tener una oportunidad ganada. Los pasos no se exigen en orden, porque hay negocios que venden sin cita.</p>
+          <p><strong className="text-primary">Los pasos.</strong> Tener contacto es haber escrito por cualquier canal o haber llegado a un paso posterior; los leads dados de alta a mano o importados cuentan solo si avanzaron. Llegar a Handoff es haber sido entregado a una persona, tener cita o estar en Cierre. Agendar es tener al menos una cita. Asistir es tener una cita marcada como asistida. Pasar a Cierre es estar en una etapa de cierre o tener una oportunidad ganada. Comprar es estar cerrado o tener una oportunidad ganada.</p>
+          <p><strong className="text-primary">Cada porcentaje se mide solo entre quienes llegaron al paso anterior,</strong> así que nunca pasa de 100%. El número de cada paso, en cambio, cuenta a todos los que llegaron, aunque se hayan saltado un paso, como quien compró sin una cita registrada.</p>
+          <p><strong className="text-primary">Una oportunidad abierta por el agente no es un avance.</strong> El agente abre oportunidades solo cuando detecta qué producto le interesa al lead. Eso se muestra aparte, como interés detectado.</p>
           <p><strong className="text-primary">La asistencia</strong> se mide contra las citas que ya ocurrieron y alguien marcó. Las que nadie marcó se cuentan en la confianza de los datos.</p>
           <p><strong className="text-primary">Las bolsas de rescate</strong> cuentan como contacto solo lo que hizo una persona y ya ocurrió: una llamada pendiente o un mensaje automático no sacan a nadie de la bolsa.</p>
           <p><strong className="text-primary">Las conversaciones</strong> las lee un modelo de lenguaje, una por una, y deja una ficha con categorías fijas. El conteo lo hace el código. El modelo que escribe la lectura del periodo recibe los conteos, nunca los nombres de las personas.</p>

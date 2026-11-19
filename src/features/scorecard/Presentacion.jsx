@@ -53,7 +53,7 @@ export function laminasDe(c) {
     <Lamina key="numero" etiqueta="El número del periodo" titulo="De cada 100 que entran, cuántos compran">
       <Grande
         valor={porcentaje(total?.actual?.puntaAPunta)}
-        nota={`${numero(total?.actual?.pasos?.[0]?.valor)} entraron · ${numero(total?.actual?.pasos?.[6]?.valor)} compraron · periodo anterior ${porcentaje(total?.previo?.puntaAPunta)}`}
+        nota={`${numero(total?.actual?.pasos?.find(p => p.id === 'entraron')?.valor)} entraron · ${numero(total?.actual?.pasos?.find(p => p.id === 'venta')?.valor)} compraron · periodo anterior ${porcentaje(total?.previo?.puntaAPunta)}`}
       />
     </Lamina>,
   )

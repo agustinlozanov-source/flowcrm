@@ -31,6 +31,9 @@ export const translations = {
     'nav.content': 'Contenido',
     'nav.brands': 'Marca personal',
     'nav.goals': 'Objetivos',
+    'nav.pipa': 'PIPA',
+    'nav.trafficker': 'Trafficker',
+    'nav.scorecard': 'Scorecard',
     'nav.landing': 'Páginas',
     'nav.settings': 'Configuración',
 
@@ -71,6 +74,9 @@ export const translations = {
     'nav.content': 'Content',
     'nav.brands': 'Personal brand',
     'nav.goals': 'Goals',
+    'nav.pipa': 'PIPA',
+    'nav.trafficker': 'Trafficker',
+    'nav.scorecard': 'Scorecard',
     'nav.landing': 'Pages',
     'nav.settings': 'Settings',
 

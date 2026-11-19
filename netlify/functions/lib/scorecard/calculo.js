@@ -14,7 +14,7 @@ const HORA = 36e5
 
 /* Versión del método. Si cambia una regla de cálculo, sube este número: dos
  * reportes con versiones distintas no se comparan como si fueran iguales. */
-const VERSION_METODO = 1
+const VERSION_METODO = 2
 
 const ETAPAS_DE_CIERRE = ['open_opportunity', 'secure_opportunity', 'closed']
 const ROL_CLIENTE = ['user']
@@ -65,57 +65,85 @@ const momentoActividad = (a) => a.occurredAt || a.createdAt || 0
 
 /* ── Los pasos del embudo ───────────────────────────────────────────── */
 
-/* Qué tan lejos llegó un lead. Los pasos no se exigen en cadena: hay negocios
- * que venden sin cita, y obligar el orden escondería esas ventas. */
+/* Los orígenes que no vienen de una conversación: alguien dio de alta el lead
+ * a mano o lo importó. Todo lo demás —WhatsApp, Instagram, Messenger, un
+ * formulario— es contacto. */
+const SIN_CONTACTO_PROPIO = ['manual', 'import', 'importado', 'importacion', 'csv']
+
+/* Qué tan lejos llegó un lead.
+ *
+ * Una oportunidad abierta NO cuenta como propuesta ni como handoff: el agente
+ * abre oportunidades solo, en cuanto detecta qué producto le interesa al lead.
+ * Eso es interés detectado, y se cuenta aparte. Contarlo como avance infló el
+ * embudo de la primera corrida real a más de 100%.
+ *
+ * El contacto no se mide solo con lastInboundAt, que se guarda desde hace poco
+ * y dejaba fuera a los leads viejos: también cuenta el origen del lead y
+ * cualquier paso posterior, porque nadie agenda sin haber tenido contacto. */
 function pasosDe(lead, ix, ahora) {
   const citas = ix.citasDe.get(lead.id) || []
   const opps = ix.oppsDe.get(lead.id) || []
   const ss = lead.systemStage || null
 
   const venta = ss === 'closed' || opps.some(o => o.status === 'ganada')
-  const propuesta = venta || opps.length > 0 || ETAPAS_DE_CIERRE.includes(ss)
+  const cierre = venta || ETAPAS_DE_CIERRE.includes(ss)
   const agendo = citas.length > 0
   const asistio = citas.some(c => c.status === 'completed')
   const citaPasada = citas.some(c => c.scheduledAt && c.scheduledAt <= ahora)
-  const handoff = Boolean(lead.handoffAt) || ss === 'handoff' || propuesta || agendo
-  const escribio = Boolean(lead.lastInboundAt)
+  const handoff = Boolean(lead.handoffAt) || ss === 'handoff' || cierre || agendo
+  const origenConContacto = lead.source
+    ? !SIN_CONTACTO_PROPIO.includes(String(lead.source).toLowerCase())
+    : Boolean(lead.lastMessageAt)
+  const contacto = Boolean(lead.lastInboundAt) || origenConContacto || handoff
+  const interes = opps.length > 0
 
-  return { escribio, handoff, agendo, citaPasada, asistio, propuesta, venta }
+  return { contacto, interes, handoff, agendo, citaPasada, asistio, cierre, venta }
 }
 
 const PASOS = [
   { id: 'entraron', nombre: 'Entraron' },
-  { id: 'escribio', nombre: 'Escribieron' },
+  { id: 'contacto', nombre: 'Tuvieron contacto' },
   { id: 'handoff', nombre: 'Llegaron a Handoff' },
   { id: 'agendo', nombre: 'Agendaron' },
   { id: 'asistio', nombre: 'Asistieron' },
-  { id: 'propuesta', nombre: 'Recibieron propuesta' },
+  { id: 'cierre', nombre: 'Pasaron a Cierre' },
   { id: 'venta', nombre: 'Compraron' },
 ]
 
-/* La cadena de un grupo de leads: cuántos llegaron a cada paso y qué tasa hay
- * entre cada paso y el anterior.
+/* La cadena de un grupo de leads.
+ *
+ * Cada paso trae su conteo completo —cuántos llegaron, por cualquier
+ * camino— y una tasa que se mide SOLO entre quienes llegaron al paso
+ * anterior. Así la tasa nunca pasa de 100%, y el conteo no esconde a quien
+ * llegó saltándose un paso, como el que compró sin cita registrada.
  *
  * La asistencia se mide contra quienes ya tuvieron su cita, no contra todos
  * los que agendaron: una cita de la semana que viene no es una falta. */
 function cadenaDe(leads, ix, ahora) {
-  const c = { entraron: leads.length, escribio: 0, handoff: 0, agendo: 0, citaPasada: 0, asistio: 0, propuesta: 0, venta: 0 }
-  for (const l of leads) {
-    const p = pasosDe(l, ix, ahora)
-    for (const k of ['escribio', 'handoff', 'agendo', 'citaPasada', 'asistio', 'propuesta', 'venta']) {
-      if (p[k]) c[k]++
-    }
-  }
+  const marcas = leads.map(l => pasosDe(l, ix, ahora))
+  const entraron = leads.length
+  const cuenta = (f) => marcas.filter(f).length
+
   const pasos = PASOS.map((p, i) => {
-    const valor = c[p.id]
-    if (i === 0) return { ...p, valor, tasa: null, base: null }
-    const base = p.id === 'asistio' ? c.citaPasada : c[PASOS[i - 1].id]
-    return { ...p, valor, base, tasa: pct(valor, base) }
+    if (i === 0) return { ...p, valor: entraron, deLaGeneracion: entraron ? 100 : null, tasa: null, base: null }
+    const anterior = PASOS[i - 1].id
+    const enAnterior = anterior === 'entraron' ? () => true : (m) => m[anterior]
+    const valor = cuenta(m => m[p.id])
+    const base = p.id === 'asistio'
+      ? cuenta(m => m.agendo && m.citaPasada)
+      : cuenta(enAnterior)
+    const avanzaron = p.id === 'asistio'
+      ? cuenta(m => m.agendo && m.citaPasada && m.asistio)
+      : cuenta(m => enAnterior(m) && m[p.id])
+    return { ...p, valor, deLaGeneracion: pct(valor, entraron), base, tasa: pct(avanzaron, base) }
   })
+
   return {
     pasos,
-    puntaAPunta: pct(c.venta, c.entraron),
-    citasPorOcurrir: c.agendo - c.citaPasada,
+    puntaAPunta: pct(cuenta(m => m.venta), entraron),
+    interesDetectado: cuenta(m => m.interes),
+    ventasSinAsistencia: cuenta(m => m.venta && !m.asistio),
+    citasPorOcurrir: cuenta(m => m.agendo && !m.citaPasada),
     descartados: leads.filter(l => l.discarded).length,
   }
 }
