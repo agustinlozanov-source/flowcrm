@@ -1,5 +1,6 @@
 // Billing actions: cancel subscription, sync status from Stripe, record manual payment
 const Stripe = require('stripe')
+const { periodoDeFactura, periodoDeSuscripcion, cicloDeSuscripcion } = require('./lib/periodoStripe')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
 
@@ -74,34 +75,42 @@ exports.handler = async (event) => {
       }
 
       const invoice = sub.latest_invoice
-      const periodEnd = sub.current_period_end
+      // Los periodos viven en el ítem y en la línea de la suscripción: ver
+      // lib/periodoStripe.
+      const { hasta: periodEnd } = periodoDeSuscripcion(sub)
+      const ciclo = cicloDeSuscripcion(sub)
       const lastPayment = invoice?.status === 'paid' ? new Date(invoice.created * 1000).toISOString() : null
 
       await orgRef.update({
         stripeSubscriptionId: sub.id,
         stripeSubscriptionStatus: sub.status,
         billingStatus: sub.status === 'active' ? 'paid' : sub.status,
-        ...(periodEnd ? { nextBillingDate: new Date(periodEnd * 1000).toISOString() } : {}),
+        ...(periodEnd ? { nextBillingDate: periodEnd } : {}),
+        ...(ciclo ? { billingCycle: ciclo } : {}),
         ...(lastPayment ? { lastPaymentDate: lastPayment } : {}),
       })
 
-      // Guardar recibo si existe una invoice pagada y no está ya registrada
+      /* El recibo de la última factura pagada. Si ya estaba, se le corrige el
+       * periodo: los guardados antes de noviembre de 2026 lo tomaban de la
+       * primera línea, que con excedente de leads es la equivocada. */
       if (invoice?.status === 'paid' && invoice?.id) {
         const existingReceipt = await db.collection('organizations').doc(orgId)
           .collection('billing_receipts').where('invoiceId', '==', invoice.id).limit(1).get()
+        const periodo = periodoDeFactura(invoice)
         if (existingReceipt.empty) {
-          const periodEndInv = invoice.lines?.data?.[0]?.period?.end
           await db.collection('organizations').doc(orgId).collection('billing_receipts').add({
             invoiceId: invoice.id,
             amountPaid: (invoice.amount_paid || 0) / 100,
             currency: (invoice.currency || 'usd').toUpperCase(),
-            periodStart: invoice.lines?.data?.[0]?.period?.start ? new Date(invoice.lines.data[0].period.start * 1000).toISOString() : null,
-            periodEnd: periodEndInv ? new Date(periodEndInv * 1000).toISOString() : null,
+            periodStart: periodo.desde,
+            periodEnd: periodo.hasta,
             pdfUrl: invoice.invoice_pdf || null,
             hostedUrl: invoice.hosted_invoice_url || null,
             status: 'paid',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           })
+        } else if (periodo.desde && periodo.hasta) {
+          await existingReceipt.docs[0].ref.update({ periodStart: periodo.desde, periodEnd: periodo.hasta })
         }
       }
 

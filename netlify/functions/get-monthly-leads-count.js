@@ -9,7 +9,8 @@
 
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
-const { medirOrg } = require('./lib/consumo')
+const Stripe = require('stripe')
+const { medirOrg, periodoDe } = require('./lib/consumo')
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -42,7 +43,22 @@ exports.handler = async (event) => {
   }
 
   try {
-    const r = await medirOrg(db, orgId.trim(), { year: body.year, month: body.month })
+    /* El mismo periodo con el que se cobra: el ciclo de la suscripción. Antes
+     * contaba el mes calendario, así que la tarjeta decía 342 leads y «mes
+     * anterior: 28» (octubre entero) mientras la factura cobraba sobre el
+     * ciclo del 23 al 23, que tenía 367. Dos números para la misma pregunta.
+     *
+     * Sin avisos: los correos de 80% y 100% los manda la tarea diaria. Abrir
+     * la ficha en el panel no debe mandarle nada al cliente. */
+    let ciclo = null
+    const org = (await db.collection('organizations').doc(orgId.trim()).get()).data() || {}
+    if (org.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+      ciclo = await periodoDe(new Stripe(process.env.STRIPE_SECRET_KEY), org.stripeSubscriptionId)
+        .catch(e => { console.warn('[get-monthly-leads-count] sin ciclo de Stripe:', e.message); return null })
+    }
+    const r = await medirOrg(db, orgId.trim(), ciclo
+      ? { ...ciclo, avisos: false }
+      : { year: body.year, month: body.month, avisos: false })
     return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify(r) }
   } catch (err) {
     console.error('[get-monthly-leads-count] Error:', err.message)

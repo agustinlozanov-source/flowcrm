@@ -4709,7 +4709,12 @@ function BillingPanel({ orgs }) {
                 {
                   label: 'Plan activo',
                   value: selectedPlan?.name || '—',
-                  sub: selectedPlan ? `$${selectedPlan.monthlyUSD} USD / mes` : null,
+                  // En la moneda en que paga este cliente, no siempre en dólares.
+                  sub: selectedPlan
+                    ? ((selected.currency || '').toUpperCase() === 'MXN' && selectedPlan.monthlyMXN > 0
+                        ? `$${selectedPlan.monthlyMXN.toLocaleString('es-MX')} MXN / mes`
+                        : `$${selectedPlan.monthlyUSD} USD / mes`)
+                    : null,
                   valueColor: '#60a5fa',
                   icon: <Package size={16} style={{ color: '#60a5fa' }} />,
                 },
@@ -4796,7 +4801,9 @@ function BillingPanel({ orgs }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <Users size={16} style={{ color: overLimit ? '#ef4444' : nearLimit ? '#f97316' : '#a78bfa' }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>Leads del mes</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                        {leadsObj?.periodo?.porCiclo ? 'Leads del ciclo' : 'Leads del mes'}
+                      </span>
                     </div>
                     <button onClick={() => fetchLeadsCount(selected.id, true)} disabled={leadsLoading} title="Refrescar"
                       style={{ background: 'none', border: 'none', cursor: leadsLoading ? 'not-allowed' : 'pointer', color: '#475569', padding: 2, display: 'flex', opacity: leadsLoading ? 0.4 : 1 }}>
@@ -4818,12 +4825,33 @@ function BillingPanel({ orgs }) {
                           {overLimit ? '⚠️ Límite alcanzado' : nearLimit ? `⚠️ ${pct}% del límite` : `${pct}% del límite`}
                         </div>
                       )}
+                      {/* El periodo contado, para comparar con la factura sin
+                          adivinar de cuándo es el número. */}
+                      {leadsObj.periodo?.desde && (
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                          {fmt(leadsObj.periodo.desde)} → {fmt(leadsObj.periodo.hasta)}
+                        </div>
+                      )}
                       {typeof leadsObj.prevLeadsCount === 'number' && (
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ color: '#475569' }}>Mes anterior:</span>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ color: '#475569' }}>{leadsObj.periodo?.porCiclo ? 'Ciclo anterior:' : 'Mes anterior:'}</span>
                           <span style={{ fontWeight: 600, color: '#94a3b8' }}>{leadsObj.prevLeadsCount.toLocaleString()}</span>
                         </div>
                       )}
+                      {(() => {
+                        // El último excedente cobrado, tal como quedó en la factura.
+                        const cobros = Object.entries(selected.excedenteCobrado || {}).sort(([a], [b]) => b.localeCompare(a))
+                        const ultimo = cobros[0]?.[1]
+                        if (!ultimo) return null
+                        return (
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                            Último excedente cobrado:{' '}
+                            <span style={{ fontWeight: 600, color: '#94a3b8' }}>
+                              {ultimo.leads} leads · ${(ultimo.leads * ultimo.porLead).toLocaleString('es-MX')} {ultimo.moneda}
+                            </span>
+                          </div>
+                        )
+                      })()}
                     </>
                   )}
                 </div>

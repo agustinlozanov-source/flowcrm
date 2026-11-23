@@ -6,6 +6,7 @@
 
 const Stripe = require('stripe')
 const { medirOrg } = require('./lib/consumo')
+const { periodoDeFactura, periodoDeSuscripcion, cicloDeFactura, cicloDeSuscripcion } = require('./lib/periodoStripe')
 const facturacion = require('./lib/facturacion')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
@@ -127,7 +128,10 @@ exports.handler = async (event) => {
 
         const orgDoc = orgSnap.docs[0]
         const orgId = orgDoc.id
-        const periodEnd = data.lines?.data?.[0]?.period?.end
+        // El periodo de la línea de la suscripción, no el de la primera línea:
+        // ver lib/periodoStripe.
+        const periodo = periodoDeFactura(data)
+        const ciclo = cicloDeFactura(data)
 
         /* Una factura pagada ES la prueba de que la suscripción está viva, así
          * que acá también se guarda su id.
@@ -143,7 +147,8 @@ exports.handler = async (event) => {
           stripeSubscriptionStatus: 'active',
           billingStatus: 'paid',
           lastPaymentDate: new Date(data.created * 1000).toISOString(),
-          nextBillingDate: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+          ...(periodo.hasta ? { nextBillingDate: periodo.hasta } : {}),
+          ...(ciclo ? { billingCycle: ciclo } : {}),
           paymentFailedCount: 0,
           ...(suscripcionPagada ? { stripeSubscriptionId: suscripcionPagada } : {}),
         })
@@ -154,8 +159,8 @@ exports.handler = async (event) => {
             invoiceId: data.id,
             amountPaid: data.amount_paid / 100,
             currency: data.currency.toUpperCase(),
-            periodStart: data.period_start ? new Date(data.period_start * 1000).toISOString() : null,
-            periodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+            periodStart: periodo.desde,
+            periodEnd: periodo.hasta,
             pdfUrl: data.invoice_pdf,
             hostedUrl: data.hosted_invoice_url,
             status: 'paid',
@@ -336,7 +341,7 @@ exports.handler = async (event) => {
 
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId)
-          nextBillingDate = new Date(sub.current_period_end * 1000).toISOString()
+          nextBillingDate = periodoDeSuscripcion(sub).hasta
 
           await db.collection('organizations').doc(orgId).update({
             stripeSubscriptionId: subscriptionId,
@@ -356,10 +361,16 @@ exports.handler = async (event) => {
           .where('stripeCustomerId', '==', customerId).limit(1).get()
         if (orgSnap.empty) break
 
+        /* Antes leía `data.current_period_end`, que Stripe ya no manda arriba:
+         * la fecha salía inválida, la función reventaba y el cambio de plan
+         * nunca se anotaba. */
+        const { hasta } = periodoDeSuscripcion(data)
+        const ciclo = cicloDeSuscripcion(data)
         await orgSnap.docs[0].ref.update({
           stripeSubscriptionStatus: data.status,
           billingStatus: data.status === 'active' ? 'paid' : data.status,
-          nextBillingDate: new Date(data.current_period_end * 1000).toISOString(),
+          ...(hasta ? { nextBillingDate: hasta } : {}),
+          ...(ciclo ? { billingCycle: ciclo } : {}),
         })
         break
       }
