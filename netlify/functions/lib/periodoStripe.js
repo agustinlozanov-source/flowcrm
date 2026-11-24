@@ -57,3 +57,16 @@ function cicloDeFactura(invoice) {
 }
 
 module.exports = { lineaDeSuscripcion, periodoDeFactura, periodoDeSuscripcion, cicloDeSuscripcion, cicloDeFactura }
+
+/* El excedente de leads que viaja en una factura, si lo hay. Se reconoce por
+ * la descripción que le pone stripe-webhook al crearlo («67 leads adicionales
+ * · $15 MXN c/u»). Sirve para que el historial diga que ese cobro incluye
+ * leads del ciclo anterior, y no parezca que se cobró de más. */
+function excedenteDeFactura(invoice) {
+  const linea = (invoice?.lines?.data || []).find(l => /leads adicionales/i.test(l?.description || ''))
+  if (!linea) return null
+  const leads = Number(String(linea.description).match(/^([\d.,]+)/)?.[1]?.replace(/[.,]/g, '')) || null
+  return { leads, monto: (linea.amount || 0) / 100 }
+}
+
+module.exports.excedenteDeFactura = excedenteDeFactura

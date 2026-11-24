@@ -64,6 +64,14 @@ function HistorialDeCobros({ orgId }) {
                   {fecha(r.createdAt)}
                   {r.periodStart && r.periodEnd && ` · cubre ${fecha(r.periodStart)} – ${fecha(r.periodEnd)}`}
                 </div>
+                {/* El excedente se cobra junto con el mes siguiente: sin esta
+                    línea el monto parece más alto que el plan sin razón. */}
+                {r.excedente?.monto > 0 && (
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    Incluye {r.excedente.leads ? `${r.excedente.leads.toLocaleString('es-MX')} leads adicionales` : 'leads adicionales'} del periodo anterior
+                    {' '}(${Number(r.excedente.monto).toLocaleString('es-MX')} {r.currency || 'MXN'})
+                  </div>
+                )}
               </div>
 
               {r.hostedUrl && (

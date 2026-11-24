@@ -1,6 +1,6 @@
 // Billing actions: cancel subscription, sync status from Stripe, record manual payment
 const Stripe = require('stripe')
-const { periodoDeFactura, periodoDeSuscripcion, cicloDeSuscripcion } = require('./lib/periodoStripe')
+const { periodoDeFactura, periodoDeSuscripcion, cicloDeSuscripcion, excedenteDeFactura } = require('./lib/periodoStripe')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
 
@@ -109,10 +109,33 @@ exports.handler = async (event) => {
             status: 'paid',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           })
-        } else if (periodo.desde && periodo.hasta) {
-          await existingReceipt.docs[0].ref.update({ periodStart: periodo.desde, periodEnd: periodo.hasta })
         }
       }
+
+      /* Repara todos los recibos guardados, no solo el último: antes de
+       * noviembre de 2026 el periodo se tomaba de la primera línea de la
+       * factura, que con excedente de leads es la del ciclo que ya cerró. Y
+       * anota el excedente, para que el historial explique el monto. */
+      const recibos = await db.collection('organizations').doc(orgId)
+        .collection('billing_receipts').orderBy('createdAt', 'desc').limit(24).get()
+      let reparados = 0
+      for (const r of recibos.docs) {
+        const invoiceId = r.data().invoiceId
+        if (!invoiceId || r.data().manual) continue
+        try {
+          const inv = invoiceId === invoice?.id ? invoice : await stripe.invoices.retrieve(invoiceId)
+          const periodo = periodoDeFactura(inv)
+          const excedente = excedenteDeFactura(inv)
+          await r.ref.update({
+            ...(periodo.desde && periodo.hasta ? { periodStart: periodo.desde, periodEnd: periodo.hasta } : {}),
+            excedente: excedente || null,
+          })
+          reparados++
+        } catch (e) {
+          console.warn(`[sync] recibo ${r.id} (${invoiceId}):`, e.message)
+        }
+      }
+      console.log(`[sync] ${orgId}: ${reparados} recibo(s) revisados`)
 
       return { statusCode: 200, body: JSON.stringify({ status: sub.status, subscriptionId: sub.id }) }
     }

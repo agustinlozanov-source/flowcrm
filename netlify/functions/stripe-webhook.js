@@ -6,7 +6,7 @@
 
 const Stripe = require('stripe')
 const { medirOrg } = require('./lib/consumo')
-const { periodoDeFactura, periodoDeSuscripcion, cicloDeFactura, cicloDeSuscripcion } = require('./lib/periodoStripe')
+const { periodoDeFactura, periodoDeSuscripcion, cicloDeFactura, cicloDeSuscripcion, excedenteDeFactura } = require('./lib/periodoStripe')
 const facturacion = require('./lib/facturacion')
 const admin = require('firebase-admin')
 const { credencial } = require('./lib/credencial')
@@ -161,6 +161,8 @@ exports.handler = async (event) => {
             currency: data.currency.toUpperCase(),
             periodStart: periodo.desde,
             periodEnd: periodo.hasta,
+            // Los leads extra del ciclo anterior que viajan en este cobro.
+            excedente: excedenteDeFactura(data),
             pdfUrl: data.invoice_pdf,
             hostedUrl: data.hosted_invoice_url,
             status: 'paid',
