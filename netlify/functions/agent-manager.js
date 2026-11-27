@@ -40,6 +40,7 @@ AGENDA:
 - Antes de decir "mañana" o "hoy" por una cita ya agendada, compara su fecha con la de hoy.
 - Si el lead quiere una cita, consulta la agenda ANTES de ofrecer cualquier horario. Nunca inventes disponibilidad ni prometas un horario sin haberlo verificado.
 - Si pide un horario puntual, revisa si está libre. Si no lo está, díselo y ofrece los que sí, sin rodeos.
+- Si el día que pide no tiene lugar, la agenda ya te da los siguientes días que sí. Ofrécelos directo y empuja a cerrar la cita: no te disculpes, no digas que "no encuentras la agenda" y no lo mandes a llamar.
 - Si muestra intención pero no da día ni hora, propón tú dos o tres opciones concretas de los huecos libres. No preguntes "¿cuándo te queda cómodo?" y lo dejes ahí.
 - Cuando quede acordado, agéndala. No digas que la agendaste si no usaste la herramienta.
 - Nunca digas que agendaste, que confirmaste ni que "vas a confirmar" una cita si agendar_cita no te respondió "Cita agendada". Si no la pudiste agendar, dile que la persona que lo atiende le confirma el horario, y marca pideCitaSinAgendar.
@@ -320,6 +321,48 @@ const AGENDAR_CITA = {
  * y no se lanzan: si Google falla, el agente tiene que poder decir "no pude
  * ver la agenda" en vez de dejar al lead sin respuesta.
  */
+/* Lo que la agenda le dice al agente: el día pedido o, si no tiene lugar,
+ * los siguientes días que sí. Nunca un «no hay» seco.
+ *
+ * Antes el agente recibía «No hay horarios libres, ofrece otro día», probaba
+ * otro y otro, y a la tercera se le cortaba: terminaba disculpándose y
+ * mandando al paciente a llamar, cuando el lunes siguiente había lugar. */
+const DIAS_HACIA_ADELANTE = 21
+async function agendaDesde(orgId, { fecha, duracion, pipelineId, leadId }, ctx) {
+  const { disponibilidadRango } = require('./lib/agenda')
+  const { dias, tz, buffer, duracion: dura } = await disponibilidadRango(db, orgId, {
+    desde: fecha, dias: DIAS_HACIA_ADELANTE, duracion, pipelineId,
+  })
+  // Para que agendar_cita use la misma con la que se ofreció.
+  ctx.duracionOfrecida = dura
+  const pedido = dias[0]
+  if (pedido.slots.length) {
+    return `Horarios libres el ${pedido.nombre} (${pedido.fecha}, zona ${tz}, buffer de ${buffer} min entre citas): ${pedido.slots.map(x => x.hora).join(', ')}.`
+  }
+
+  console.log(`[agenda] ${pedido.fecha} sin lugar (${pedido.motivo?.id}) · org ${orgId} · lead ${leadId}`)
+  const siguientes = dias.slice(1).filter(d => d.slots.length).slice(0, 3)
+  if (!siguientes.length) {
+    /* Tres semanas sin un solo hueco no es una agenda llena: es la
+     * configuración (horario vacío, un evento eterno en Google). Se avisa al
+     * equipo y el agente no inventa nada. */
+    console.error(`[agenda] ALERTA org ${orgId}: ${DIAS_HACIA_ADELANTE} días sin un solo hueco desde ${pedido.fecha} (${pedido.motivo?.id})`)
+    await db.collection('organizations').doc(orgId).collection('alerts').add({
+      type: 'agenda_sin_lugar',
+      leadId: leadId || null,
+      message: `La agenda no tiene un solo horario libre en ${DIAS_HACIA_ADELANTE} días desde el ${pedido.nombre}. Motivo del primer día: ${pedido.motivo?.texto || 'sin datos'}. Revisa el horario de atención y el Google Calendar.`,
+      seen: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => {})
+    return `No hay ningún horario libre en las próximas tres semanas. Eso es un problema de la agenda, no del lead: ya se avisó al equipo. Dile que una persona le confirma el horario hoy mismo, sin disculparte de más, y marca pideCitaSinAgendar.`
+  }
+
+  const lista = siguientes
+    .map(d => `${d.nombre} (${d.fecha}): ${d.slots.slice(0, 6).map(x => x.hora).join(', ')}`)
+    .join('; ')
+  return `El ${pedido.nombre} no hay lugar: ${pedido.motivo?.texto || 'está completo'}. Siguientes días con lugar (zona ${tz}): ${lista}. Ofrécele dos o tres de estos horarios de una vez, en positivo, sin disculparte y sin mandarlo a llamar.`
+}
+
 async function ejecutarHerramienta(nombre, input, ctx) {
   const { orgId, leadId, leadName, products, pipelineId } = ctx
 
@@ -335,26 +378,15 @@ async function ejecutarHerramienta(nombre, input, ctx) {
     ctx.consultasAgenda = (ctx.consultasAgenda || 0) + 1
     if (ctx.consultasAgenda > 3) {
       console.warn(`[agent] consultar_agenda cortada al 4to intento (org ${ctx.orgId}, lead ${leadId})`)
-      return 'Ya revisaste la agenda tres veces en este mensaje y no hay huecos. No consultes más: dile al lead que en los próximos días no ves espacios libres, ofrécele que te diga qué días le acomodan para revisarlos, y dale el teléfono para que confirme al momento.'
+      return 'Ya revisaste la agenda tres veces en este mensaje. No consultes más: ofrécele los horarios que ya te devolvieron las consultas anteriores.'
     }
     if (leadId === 'test') {
       return 'Modo prueba: no se consulta la agenda real. Asumí que hay huecos a las 10:00, 11:00 y 16:00.'
     }
-    const { disponibilidad } = require('./lib/agenda')
     /* Sin `duracion` manda la configuración de la organización. Antes se
      * forzaba 30 acá, así que la duración real de la consulta no llegaba
      * nunca a la agenda y los huecos de en medio del día desaparecían. */
-    const { slots, tz, buffer, duracion } = await disponibilidad(db, orgId, {
-      fecha: input.fecha,
-      duracion: input.duracion,
-      pipelineId,
-    })
-    // Para que agendar_cita use la misma con la que se ofreció.
-    ctx.duracionOfrecida = duracion
-    if (!slots.length) {
-      return `No hay horarios libres el ${input.fecha}. Puede ser día no laborable o estar completo. Ofrece otro día.`
-    }
-    return `Horarios libres el ${input.fecha} (zona ${tz}, buffer de ${buffer} min entre citas): ${slots.map(s => s.hora).join(', ')}.`
+    return await agendaDesde(orgId, { fecha: input.fecha, duracion: input.duracion, pipelineId, leadId }, ctx)
   }
 
   if (nombre === 'agendar_cita') {
@@ -386,7 +418,7 @@ async function ejecutarHerramienta(nombre, input, ctx) {
       ctx.faltaTelefono = false
     }
 
-    const { instanteDesdeLocal, configDeAgenda, puedeAgendar, disponibilidad } = require('./lib/agenda')
+    const { instanteDesdeLocal, configDeAgenda, puedeAgendar } = require('./lib/agenda')
     // db es el handle de arriba del archivo.
     const cfg = await configDeAgenda(db, orgId, pipelineId)
     const { tz } = cfg
@@ -402,8 +434,8 @@ async function ejecutarHerramienta(nombre, input, ctx) {
      * después dijera que no existe. */
     const chequeo = await puedeAgendar(db, orgId, { fecha: input.fecha, hora: input.hora, duracion, pipelineId })
     if (!chequeo.libre) {
-      const { slots } = await disponibilidad(db, orgId, { fecha: input.fecha, duracion, pipelineId })
-      return `No se puede agendar a las ${input.hora}: ${chequeo.motivo}. Horarios libres el ${input.fecha}: ${slots.map(s => s.hora).join(', ') || 'ninguno'}. Ofrece uno de esos.`
+      const alternativas = await agendaDesde(orgId, { fecha: input.fecha, duracion, pipelineId, leadId }, ctx)
+      return `No se puede agendar a las ${input.hora}: ${chequeo.motivo}. ${alternativas}`
     }
 
     const cuando = instanteDesdeLocal(input.fecha, input.hora, tz)
@@ -1479,6 +1511,24 @@ exports.handler = async (event) => {
     if (action === 'clear_thread') {
       await clearTestThread(orgId)
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) }
+    }
+    /* Probar la agenda: lo que el agente vería los próximos días, con el
+     * motivo de cada día vacío. Es la forma de saber, sin leer registros, si
+     * «no hay lugar» es verdad o es la configuración. Solo horas y conteos:
+     * nunca el contenido de los eventos de Google. */
+    if (action === 'probar_agenda') {
+      const { disponibilidadRango } = require('./lib/agenda')
+      // Hoy en México: de noche, la fecha UTC ya es mañana.
+      const hoyLocal = new Date(Date.now() - 6 * 36e5).toISOString().slice(0, 10)
+      const r = await disponibilidadRango(db, orgId, {
+        desde: body.desde || hoyLocal, dias: Math.min(Number(body.dias) || 14, 31), pipelineId: body.pipelineId || null,
+      })
+      const dias = r.dias.map(d => ({
+        fecha: d.fecha, nombre: d.nombre, atiende: d.atiende,
+        huecos: d.slots.map(x => x.hora), motivo: d.motivo,
+        ocupadoGoogle: d.ocupadoGoogle, ocupadoFlowHub: d.ocupadoFlowHub,
+      }))
+      return { statusCode: 200, headers, body: JSON.stringify({ tz: r.tz, buffer: r.buffer, duracion: r.duracion, dias }) }
     }
     if (action === 'chat') {
       const result = await chatWithAssistant(orgId, body.leadId || 'test', body.message, body.pipelineId || null, body.skipSaveUser === true, body.entregaExterna === true)

@@ -1198,6 +1198,62 @@ function KnowledgeByPipelineTab({ orgId, pipelines, instructions, onChange, nomb
   )
 }
 
+// ─── PROBAR LA AGENDA ────────────────────────────────────────────
+/* Lo que el agente ve en los próximos 14 días, con el motivo de cada día
+ * vacío. Sirve para saber si «no hay lugar» es verdad o es la configuración
+ * (el horario guardado, o un evento de todo el día en Google Calendar).
+ * Lee la versión guardada: los cambios sin guardar no cuentan. */
+function ProbarAgenda({ orgId, pipelineId }) {
+  const [res, setRes] = useState(null)
+  const [cargando, setCargando] = useState(false)
+  const probar = async () => {
+    setCargando(true)
+    try {
+      const r = await fetch('/.netlify/functions/agent-manager', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'probar_agenda', orgId, pipelineId, dias: 14 }),
+      })
+      const d = await r.json()
+      if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`)
+      setRes(d)
+    } catch (e) {
+      toast.error('No se pudo leer la agenda: ' + e.message)
+    } finally {
+      setCargando(false)
+    }
+  }
+  return (
+    <Section title="Probar la agenda" desc="Lo que el agente ve en los próximos 14 días, con la versión guardada">
+      <button onClick={probar} disabled={cargando || !orgId}
+        className="self-start px-3.5 py-2 rounded-btn bg-accent-blue text-white text-[13px] font-bold disabled:opacity-50">
+        {cargando ? 'Leyendo la agenda…' : 'Probar la agenda'}
+      </button>
+      {res && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          <p className="text-[11.5px] text-secondary">
+            Zona {res.tz} · citas de {res.duracion} min · respiro de {res.buffer} min
+          </p>
+          {res.dias.map(d => (
+            <div key={d.fecha} className={clsx('rounded-[10px] border px-3 py-2 text-[12.5px]',
+              d.huecos.length ? 'border-black/[0.08]' : d.motivo?.id === 'cerrado' ? 'border-black/[0.08] bg-surface-2' : 'border-red-200 bg-red-50')}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold text-primary capitalize">{d.nombre}</span>
+                <span className="text-[11px] text-tertiary">
+                  {d.atiende ? `atiende ${d.atiende}` : 'cerrado'} · Google {d.ocupadoGoogle} · FlowHub {d.ocupadoFlowHub}
+                </span>
+              </div>
+              {d.huecos.length
+                ? <p className="text-secondary mt-0.5">{d.huecos.length} horarios: {d.huecos.slice(0, 8).join(', ')}{d.huecos.length > 8 ? '…' : ''}</p>
+                : <p className={clsx('mt-0.5', d.motivo?.id === 'cerrado' ? 'text-tertiary' : 'text-red-700 font-semibold')}>Sin lugar: {d.motivo?.texto}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ─── SCORING TAB ─────────────────────────────────────────────────
 function ScoringTab({ pipelines, scoring, onChange, distribuidorConfig }) {
   const [activePipelineTab, setActivePipelineTab] = useState(pipelines[0]?.id || null)
@@ -2203,6 +2259,8 @@ export default function Agent() {
                   valor={valorAgenda('workingHours', null)}
                   onChange={h => setAgenda('workingHours', h)}
                 />
+
+                <ProbarAgenda orgId={org?.id} pipelineId={embudoAgenda || null} />
 
                 <Section
                   title="Conmutador de entrada"

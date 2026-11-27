@@ -377,3 +377,92 @@ module.exports.ocupadoEnGoogle = ocupadoEnGoogle
 module.exports.ocupadoEnFlowHub = ocupadoEnFlowHub
 module.exports.configDeAgenda = configDeAgenda
 module.exports.disponibilidad = disponibilidad
+
+/* ── Los siguientes días con lugar ─────────────────────────────────────
+ *
+ * Antes la herramienta revisaba un día a la vez. Si venía vacío, el agente
+ * probaba otro, y otro; a la tercera se le cortaba y terminaba disculpándose
+ * y mandando al paciente a llamar. Ahora, si el día pedido no tiene lugar, se
+ * busca hacia adelante en una sola lectura (una consulta a FlowHub y una a
+ * Google para todo el rango) y se le dan al agente los siguientes días con
+ * huecos: siempre tiene algo concreto que ofrecer.
+ *
+ * Y dice POR QUÉ el día está vacío, que es lo que permite distinguir una
+ * agenda llena de verdad de un error de configuración. */
+
+const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+function sumarDias(fechaISO, n) {
+  const d = new Date(`${normalizarFecha(fechaISO)}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+function nombreDelDia(fechaISO) {
+  const d = new Date(`${normalizarFecha(fechaISO)}T12:00:00Z`)
+  return `${DIAS_ES[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES_ES[d.getUTCMonth()]}`
+}
+
+/** Por qué un día no tiene huecos, en palabras que el agente y la pantalla
+ *  puedan usar. null si sí tiene. */
+function motivoDelDia({ fecha, citas, google, duracion, buffer, paso, horario, tz, ahora }) {
+  const base = { fecha, duracion, buffer, paso, horario, tz, ahora }
+  const tramos = tramosDeLaFecha(fecha, horario, tz)
+  if (!tramos.length) return { id: 'cerrado', texto: 'ese día no se atiende' }
+  if (tramos.every(t => t.cierra <= ahora)) return { id: 'ya_paso', texto: 'el horario de ese día ya pasó' }
+  if (!huecosDelDia({ ...base, ocupados: [] }).length) {
+    return { id: 'sin_espacio', texto: 'lo que queda del horario no alcanza para una cita' }
+  }
+  const sinGoogle = huecosDelDia({ ...base, ocupados: citas }).length
+  if (sinGoogle > 0) {
+    // Un bloque de 6 horas o más en Google casi siempre es un evento de todo
+    // el día o un recordatorio marcado como ocupado, no consultas reales.
+    const largo = google.some(g => (g.fin - g.inicio) >= 6 * 36e5 &&
+      tramos.some(t => solapan(g.inicio, g.fin, t.abre, t.cierra)))
+    return largo
+      ? { id: 'google_bloque_largo', texto: 'el Google Calendar tiene un evento largo (de todo el día o de varias horas) que bloquea la agenda' }
+      : { id: 'google_lleno', texto: 'el Google Calendar tiene ocupados todos los horarios' }
+  }
+  return { id: 'lleno', texto: 'todos los horarios ya tienen cita' }
+}
+
+/**
+ * Huecos de varios días seguidos, con una sola lectura de las fuentes.
+ * @returns { dias: [{ fecha, nombre, slots, motivo, atiende, ocupadoGoogle, ocupadoFlowHub }], tz, buffer, duracion }
+ */
+async function disponibilidadRango(db, orgId, { desde, dias = 14, duracion, pipelineId = null, ahora = new Date() }) {
+  const cfg = await configDeAgenda(db, orgId, pipelineId)
+  const { tz, buffer, paso, horario } = cfg
+  duracion = Number.isFinite(duracion) ? duracion : cfg.duracion
+
+  const inicio = new Date(`${normalizarFecha(desde)}T00:00:00Z`)
+  const ini = new Date(inicio.getTime() - 24 * 36e5)
+  const fin = new Date(inicio.getTime() + (dias + 1) * 24 * 36e5)
+  const [citas, google] = await Promise.all([
+    ocupadoEnFlowHub(db, orgId, ini, fin),
+    ocupadoEnGoogle(db, orgId, ini, fin),
+  ])
+
+  const salida = []
+  for (let i = 0; i < dias; i++) {
+    const fecha = sumarDias(desde, i)
+    const slots = huecosDelDia({ fecha, duracion, buffer, paso, horario, tz, ahora, ocupados: [...citas, ...google] })
+    const tramos = tramosDeLaFecha(fecha, horario, tz)
+    const enElDia = (o) => tramos.some(t => solapan(o.inicio, o.fin, t.abre, t.cierra))
+    salida.push({
+      fecha,
+      nombre: nombreDelDia(fecha),
+      slots,
+      motivo: slots.length ? null : motivoDelDia({ fecha, citas, google, duracion, buffer, paso, horario, tz, ahora }),
+      atiende: tramos.map(t => t.texto).join(' y ') || null,
+      ocupadoGoogle: google.filter(enElDia).length,
+      ocupadoFlowHub: citas.filter(enElDia).length,
+    })
+  }
+  return { dias: salida, tz, buffer, duracion }
+}
+
+module.exports.disponibilidadRango = disponibilidadRango
+module.exports.nombreDelDia = nombreDelDia
+module.exports.motivoDelDia = motivoDelDia
